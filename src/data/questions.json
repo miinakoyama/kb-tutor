@@ -1,114 +1,452 @@
 [
   {
-    "id": "keystone-q1",
-    "module": 1,
-    "topic": "Homeostasis and Transport",
-    "text": "Use the information below to answer the question.\n\nFight-or-Flight Response in a Rabbit\n1. A rabbit hears a noise perceived as dangerous.\n2. Neurons signal the brain that danger may be near.\n3. Signals from the brain cause chemical signals to be released through blood vessels.\n4. Cells in the heart receive the chemical signals.\n5. The rabbit's heart rate increases.\n\nWhich model correctly identifies the organization of an organ system and explains how organ systems interact when a rabbit perceives danger?",
+    "id": "cell-growth-q1",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "A cell maintains a potassium ion (K+) concentration that is 20 times higher inside the cell than outside. Which process is responsible for creating and maintaining this specific gradient?",
     "imageUrl": null,
     "options": [
       {
         "id": "A",
-        "text": "nervous system -> brain -> nerve tissue -> neurons. The nervous system and circulatory system work together in response to danger."
+        "text": "Facilitated Diffusion",
+        "feedback": "Close! Facilitated diffusion does use a protein, but it moves molecules down a gradient (from high to low) until they are equal. It cannot \"build up\" a 20x higher concentration."
       },
       {
         "id": "B",
-        "text": "circulatory system -> heart -> cardiac tissue -> myocardial cells. The nervous system and circulatory system respond independently to danger."
+        "text": "Osmosis",
+        "feedback": "Not quite. Osmosis refers specifically to the movement of water across a membrane, not ions like potassium."
       },
       {
         "id": "C",
-        "text": "nervous system -> neurons -> nerve tissue -> brain. The nervous system and circulatory system respond independently to danger."
+        "text": "Active Transport",
+        "feedback": "Correct! Whenever a cell creates a concentration difference (moving from Low to High), it must use \"Active Transport\" to \"pump\" those ions against their natural flow."
       },
       {
         "id": "D",
-        "text": "circulatory system -> myocardial cells -> cardiac tissue -> heart. The nervous system and circulatory system work together in response to danger."
+        "text": "Simple Diffusion",
+        "feedback": "Incorrect. Simple diffusion only works for small, uncharged molecules (like O₂) moving down a gradient. Ions are charged and cannot pass through the membrane without help."
       }
     ],
-    "correctOptionId": "A",
-    "explanation": "The nervous system detects danger and signals the circulatory system to increase heart rate. These systems must work together.",
-    "commonMisconception": "Students often assume biological systems work in isolation during complex responses.",
-    "hints": {
-      "goal": "Identify which systems are mentioned in the rabbit's 5-step response.",
-      "principle": "Recall the hierarchical levels of biological organization: Cells -> Tissues -> Organs -> Organ Systems.",
-      "application": "Look at step 3 and 4: Signals from the brain (nervous) enter the blood vessels to reach the heart (circulatory).",
-      "bottomOut": "The correct answer is A, as it correctly lists the nervous system hierarchy and acknowledges the interaction between systems."
-    }
+    "correctOptionId": "C"
   },
   {
-    "id": "keystone-q2",
-    "module": 1,
-    "topic": "Chemical Basis for Life",
-    "text": "Which of the following best describes the role of enzymes in biochemical reactions?",
+    "id": "cell-growth-q2",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "To produce this steep potassium gradient, the plasma membrane must use a protein pump. What is required for this pump to move ions in this direction?",
     "imageUrl": null,
     "options": [
       {
         "id": "A",
-        "text": "Enzymes increase the activation energy required for a reaction."
+        "text": "The cell must reach equilibrium.",
+        "feedback": "Actually, the opposite is true. Equilibrium means the concentration is the same on both sides. This question describes a cell trying to avoid equilibrium to stay alive."
       },
       {
         "id": "B",
-        "text": "Enzymes lower the activation energy and are not consumed in the reaction."
+        "text": "Thermal energy from the environment.",
+        "feedback": "Passive transport relies on the random kinetic energy of molecules, but building a 20x gradient requires a specific biological \"fuel\" produced by the cell."
       },
       {
         "id": "C",
-        "text": "Enzymes change the equilibrium of reversible reactions."
+        "text": "Chemical energy in the form of ATP.",
+        "feedback": "Correct! Moving ions from a low-concentration environment into a high-concentration cell is like pushing a ball uphill—it requires \"work\" in the form of ATP."
       },
       {
         "id": "D",
-        "text": "Enzymes are consumed and must be replaced after each reaction."
+        "text": "A concentration gradient that is already equal.",
+        "feedback": "If the concentrations were equal, the ions wouldn't \"naturally\" move in one direction. To create the 20x difference, the cell must use energy to force them into the cell."
       }
     ],
-    "correctOptionId": "B",
-    "explanation": "Enzymes act as catalysts by lowering the activation energy needed for reactions. They are not consumed and can be reused.",
-    "commonMisconception": "Students often think enzymes are used up in reactions or that they change the final equilibrium.",
-    "hints": {
-      "goal": "Recall what enzymes do in biochemical reactions.",
-      "principle": "Catalysts lower activation energy and are not consumed in the reaction.",
-      "application": "Enzymes are biological catalysts—they speed up reactions without being used up.",
-      "bottomOut": "The correct answer is B: enzymes lower activation energy and are not consumed."
-    }
+    "correctOptionId": "C"
   },
   {
-    "id": "keystone-q3",
+    "id": "cell-growth-q3",
     "module": 2,
-    "topic": "Genetics",
-    "text": "A plant with genotype Tt is crossed with a plant with genotype tt. What percentage of the offspring will be heterozygous?",
+    "topic": "Cell Growth and Reproduction",
+    "text": "A student is asked to compare the transport of potassium (K+) to the transport of glucose via facilitated diffusion. Which statement correctly identifies a similarity or difference?",
     "imageUrl": null,
     "options": [
-      { "id": "A", "text": "0%" },
-      { "id": "B", "text": "25%" },
-      { "id": "C", "text": "50%" },
-      { "id": "D", "text": "100%" }
+      {
+        "id": "A",
+        "text": "Both processes require the use of ATP.",
+        "feedback": "Not quite. While both use proteins, facilitated diffusion is \"passive,\" meaning it happens naturally without the cell spending any ATP."
+      },
+      {
+        "id": "B",
+        "text": "Both processes move substances from low concentration to high concentration.",
+        "feedback": "Incorrect. Only active transport (the K+ pump) can move substances from Low to High. Facilitated diffusion always moves substances from High to Low."
+      },
+      {
+        "id": "C",
+        "text": "Both processes require a membrane protein to help the substance cross.",
+        "feedback": "Correct! Because K+ is an ion (charged) and glucose is a large molecule, neither can pass through the lipid bilayer alone; they both need a protein \"doorway.\""
+      },
+      {
+        "id": "D",
+        "text": "Neither process requires a membrane protein.",
+        "feedback": "Think again! Large or charged particles are blocked by the hydrophobic tails of the plasma membrane. They both require a protein helper."
+      }
     ],
-    "correctOptionId": "C",
-    "explanation": "A Tt x tt cross produces Tt and tt in equal proportions. Half (50%) will be heterozygous (Tt).",
-    "commonMisconception": "Students may confuse heterozygous with homozygous or misapply Punnett square results.",
-    "hints": {
-      "goal": "Determine the genotypic ratio from a Tt x tt cross.",
-      "principle": "Each parent contributes one allele. Tt produces T or t; tt produces only t.",
-      "application": "Offspring: Tt (from T + t) and tt (from t + t). So 50% Tt, 50% tt.",
-      "bottomOut": "The correct answer is C: 50% of offspring will be heterozygous (Tt)."
-    }
+    "correctOptionId": "C"
   },
   {
-    "id": "keystone-q4",
+    "id": "cell-growth-q4",
     "module": 2,
-    "topic": "Ecology",
-    "text": "In a food chain, energy flows from producers to consumers. Where does the energy originally come from?",
+    "topic": "Cell Growth and Reproduction",
+    "text": "Why is the process of moving potassium ions considered \"Active\" while the movement of oxygen (O₂) is considered \"Passive\"?",
     "imageUrl": null,
     "options": [
-      { "id": "A", "text": "Chemical bonds in soil nutrients" },
-      { "id": "B", "text": "The sun" },
-      { "id": "C", "text": "Decomposers" },
-      { "id": "D", "text": "Primary consumers" }
+      {
+        "id": "A",
+        "text": "Oxygen is a larger molecule than potassium.",
+        "feedback": "Actually, O₂ is a very small, nonpolar molecule, which is why it can slip through the membrane easily. Size isn't the reason one is \"active\" and the other is \"passive.\""
+      },
+      {
+        "id": "B",
+        "text": "Potassium moves through the lipids, while oxygen moves through a pump.",
+        "feedback": "You have it backwards! Oxygen moves directly through the lipid bilayer (passive), while potassium requires a protein pump (active)."
+      },
+      {
+        "id": "C",
+        "text": "Potassium is being moved against its gradient, while oxygen moves with its gradient.",
+        "feedback": "Correct! \"Active\" implies the cell is working against the natural flow (Low → High). \"Passive\" means the molecule is just flowing naturally (High → Low)."
+      },
+      {
+        "id": "D",
+        "text": "Oxygen requires ATP to move, but potassium does not.",
+        "feedback": "It's the other way around! Oxygen diffusion is \"free\" for the cell (passive), while pumping potassium costs the cell energy (active)."
+      }
     ],
-    "correctOptionId": "B",
-    "explanation": "The sun is the primary source of energy for most ecosystems. Producers (plants) capture this energy through photosynthesis.",
-    "commonMisconception": "Students may think energy comes from soil or that decomposers create energy.",
-    "hints": {
-      "goal": "Identify the ultimate source of energy in ecosystems.",
-      "principle": "Energy flows through ecosystems. Producers convert light energy into chemical energy.",
-      "application": "Plants use sunlight for photosynthesis. All other organisms depend on this captured energy.",
-      "bottomOut": "The correct answer is B: the sun is the original source of energy."
-    }
+    "correctOptionId": "C"
+  },
+  {
+    "id": "cell-growth-q5",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "Which characteristic is shared by all prokaryotes and eukaryotes?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "Ability to store hereditary information",
+        "feedback": "Correct! All living cells, from the simplest bacteria to complex human cells, use DNA to store the instructions for life."
+      },
+      {
+        "id": "B",
+        "text": "Use of organelles to control cell processes",
+        "feedback": "Incorrect. Only eukaryotes have membrane-bound organelles (like a nucleus or mitochondria). Prokaryotes lack these structures."
+      },
+      {
+        "id": "C",
+        "text": "Use of cellular respiration for energy release",
+        "feedback": "Incorrect. While many organisms use respiration, some prokaryotes rely solely on fermentation or other anaerobic processes."
+      },
+      {
+        "id": "D",
+        "text": "Ability to move in response to environmental stimuli",
+        "feedback": "Incorrect. While many cells move, some remain stationary throughout their life cycles; therefore, motility is not a universal requirement for all cells."
+      }
+    ],
+    "correctOptionId": "A"
+  },
+  {
+    "id": "cell-growth-q6",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "Which two structures are common to both prokaryotic and eukaryotic cells?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "Cell wall and nucleus",
+        "feedback": "Incorrect. Prokaryotes are defined by their lack of a nucleus."
+      },
+      {
+        "id": "B",
+        "text": "Cell wall and chloroplast",
+        "feedback": "Incorrect. Chloroplasts are only found in eukaryotic autotrophs (like plants), and not all cells have cell walls."
+      },
+      {
+        "id": "C",
+        "text": "Plasma membrane and nucleus",
+        "feedback": "Incorrect. You've got half of it right! All cells have a plasma membrane, but only eukaryotes have a nucleus."
+      },
+      {
+        "id": "D",
+        "text": "Plasma membrane and cytoplasm",
+        "feedback": "Correct! Every living cell requires a plasma membrane to act as a barrier and cytoplasm to serve as the internal \"soup\" where chemical reactions occur."
+      }
+    ],
+    "correctOptionId": "D"
+  },
+  {
+    "id": "cell-growth-q7",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "Which statement correctly describes how carbon's ability to form four bonds makes it uniquely suited to form macromolecules?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "It forms short, simple carbon chains.",
+        "feedback": "Incorrect. Carbon actually excels at forming extremely long and complex chains, which is what allows for large macromolecules."
+      },
+      {
+        "id": "B",
+        "text": "It forms large, complex, diverse molecules.",
+        "feedback": "Correct! Carbon's \"four-way\" bonding allows it to build the intricate structures (rings, branches, and long chains) necessary for life."
+      },
+      {
+        "id": "C",
+        "text": "It forms covalent bonds with other carbon atoms.",
+        "feedback": "Partial Truth. While carbon does form covalent bonds with itself, the uniqueness for macromolecules lies in the complexity and diversity those four bonds allow, not just the bond type."
+      },
+      {
+        "id": "D",
+        "text": "It forms covalent bonds that can exist in a single plane.",
+        "feedback": "Incorrect. Carbon bonds often form 3D tetrahedral shapes, which is vital for the 3D functionality of proteins and DNA."
+      }
+    ],
+    "correctOptionId": "B"
+  },
+  {
+    "id": "cell-growth-q8",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "What is the name of the reaction that forms a polymer from monomers by releasing a water molecule?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "Glycolysis",
+        "feedback": "Incorrect. Glycolysis is the process of breaking down glucose to produce energy, not building polymers."
+      },
+      {
+        "id": "B",
+        "text": "Hydrolysis",
+        "feedback": "Incorrect. This is the opposite! Hydrolysis uses water to break polymers apart."
+      },
+      {
+        "id": "C",
+        "text": "Photosynthesis",
+        "feedback": "Incorrect. Photosynthesis is the process of converting light into chemical energy."
+      },
+      {
+        "id": "D",
+        "text": "Dehydration synthesis",
+        "feedback": "Correct! \"Dehydration\" means removing water, and \"synthesis\" means putting things together."
+      }
+    ],
+    "correctOptionId": "D"
+  },
+  {
+    "id": "cell-growth-q9",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "Which statement best describes the role of an enzyme during a metabolic reaction?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "It adjusts the pH of the reaction medium.",
+        "feedback": "Incorrect. Enzymes are actually sensitive to pH; they don't usually change the environment's pH to work."
+      },
+      {
+        "id": "B",
+        "text": "It provides energy to carry out the reaction.",
+        "feedback": "Incorrect. Enzymes don't provide energy; they lower the \"activation energy\" required to get a reaction started."
+      },
+      {
+        "id": "C",
+        "text": "It dissolves substance A in the reaction medium.",
+        "feedback": "Incorrect. Enzymes act as biological catalysts, not solvents."
+      },
+      {
+        "id": "D",
+        "text": "It speeds up the reaction without being consumed.",
+        "feedback": "Correct! Enzymes are catalysts; they accelerate reactions and can be used over and over again because they aren't changed by the reaction."
+      }
+    ],
+    "correctOptionId": "D"
+  },
+  {
+    "id": "cell-growth-q10",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "A protein moves ions against their concentration gradient. Which molecule is most likely the energy source?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "ATP",
+        "feedback": "Correct! Moving things \"uphill\" (against the gradient) requires Active Transport, which is powered by ATP."
+      },
+      {
+        "id": "B",
+        "text": "ADP",
+        "feedback": "Incorrect. ADP is the \"spent\" version of the energy molecule. It needs another phosphate added to it to become the high-energy ATP."
+      },
+      {
+        "id": "C",
+        "text": "Catalase",
+        "feedback": "Incorrect. Catalase is an enzyme that breaks down hydrogen peroxide, not an energy source."
+      },
+      {
+        "id": "D",
+        "text": "Amylase",
+        "feedback": "Incorrect. Amylase is an enzyme in saliva that breaks down starch."
+      }
+    ],
+    "correctOptionId": "A"
+  },
+  {
+    "id": "cell-growth-q11",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "What determines the direction that carbon dioxide and oxygen move freely across a plasma membrane?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "Orientation of cholesterol in the membrane.",
+        "feedback": "Incorrect. Cholesterol helps with membrane fluidity, but it doesn't determine the direction of gas movement."
+      },
+      {
+        "id": "B",
+        "text": "Concentration gradient across the plasma membrane.",
+        "feedback": "Correct! These gases move via passive diffusion, meaning they naturally travel from where there is a lot of them to where there is less."
+      },
+      {
+        "id": "C",
+        "text": "Configuration of phospholipids.",
+        "feedback": "Incorrect. Phospholipids form the barrier, but the direction of movement is a matter of physics (concentration)."
+      },
+      {
+        "id": "D",
+        "text": "Location of receptors on the surface.",
+        "feedback": "Incorrect. Receptors are for cell signaling, not for directing the flow of simple gases like O₂."
+      }
+    ],
+    "correctOptionId": "B"
+  },
+  {
+    "id": "cell-growth-q12",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "How does the structure of alveoli (microscopic air sacs) allow lungs to function properly?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "They increase the amount of energy transferred from the lungs to the blood.",
+        "feedback": "Incorrect. Alveoli are involved in gas transport, not the direct transfer of metabolic energy (ATP) to the blood."
+      },
+      {
+        "id": "B",
+        "text": "They increase the flexibility of the lungs as they expand.",
+        "feedback": "Incorrect. While lungs are flexible, the primary \"job\" of the alveoli is the exchange of gases (O₂ and CO₂), not providing structural elasticity."
+      },
+      {
+        "id": "C",
+        "text": "They increase the volume of the lungs, allowing more oxygen to be inhaled.",
+        "feedback": "Incorrect. Volume refers to the total space; however, the key to efficient breathing is the amount of contact space between air and blood, known as surface area."
+      },
+      {
+        "id": "D",
+        "text": "They increase the surface area of the lungs, allowing efficient gas exchange.",
+        "feedback": "Correct! By being divided into millions of tiny sacs, the alveoli provide a massive surface area, which allows oxygen to move into the blood much faster."
+      }
+    ],
+    "correctOptionId": "D"
+  },
+  {
+    "id": "cell-growth-q13",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "How do the structures of proteins generally differ from the structures of carbohydrates?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "Proteins are made of amino acids, while carbohydrates are made of monosaccharides.",
+        "feedback": "Correct! This is the fundamental building block difference: proteins are polymers of amino acids, whereas carbohydrates are made of simple sugars like glucose."
+      },
+      {
+        "id": "B",
+        "text": "Proteins are always circular, while carbohydrates are always linear.",
+        "feedback": "Incorrect. Both can take various shapes; carbohydrates often form rings, and proteins fold into complex 3D globular shapes."
+      },
+      {
+        "id": "C",
+        "text": "Proteins contain only carbon and hydrogen, while carbohydrates contain nitrogen.",
+        "feedback": "Incorrect. It is actually the opposite—proteins always contain Nitrogen, while simple carbohydrates typically only contain Carbon, Hydrogen, and Oxygen."
+      },
+      {
+        "id": "D",
+        "text": "Proteins are smaller and simpler than carbohydrate molecules.",
+        "feedback": "Incorrect. Proteins are often much larger and more structurally complex than most carbohydrates due to their intricate folding patterns."
+      }
+    ],
+    "correctOptionId": "A"
+  },
+  {
+    "id": "cell-growth-q14",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "What is one way the rough endoplasmic reticulum (RER) assists the Golgi apparatus?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "It assembles nucleic acids from monomers.",
+        "feedback": "Incorrect. Nucleic acids (DNA/RNA) are handled in the nucleus and cytoplasm, not by the RER."
+      },
+      {
+        "id": "B",
+        "text": "It breaks down old damaged macromolecules.",
+        "feedback": "Incorrect. That is the job of the lysosome, the \"trash disposal\" of the cell."
+      },
+      {
+        "id": "C",
+        "text": "It packages new protein molecules into vesicles.",
+        "feedback": "Correct! The RER synthesizes proteins and then pinches them off into little bubbles called vesicles to be sent to the Golgi for final shipping."
+      },
+      {
+        "id": "D",
+        "text": "It determines which protein molecules to synthesize.",
+        "feedback": "Incorrect. The \"instructions\" for which proteins to make come from the DNA in the nucleus, not the RER itself."
+      }
+    ],
+    "correctOptionId": "C"
+  },
+  {
+    "id": "cell-growth-q15",
+    "module": 2,
+    "topic": "Cell Growth and Reproduction",
+    "text": "Which example is an activity that a fish most likely uses to maintain homeostasis?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "Using camouflage to avoid predators.",
+        "feedback": "Incorrect. This is an adaptation for survival and protection, but it doesn't regulate the fish's internal chemical balance."
+      },
+      {
+        "id": "B",
+        "text": "Feeding at night to regulate body temperature.",
+        "feedback": "Incorrect. Feeding provides energy, but for most fish, internal temperature is regulated by the environment (water), not their feeding schedule."
+      },
+      {
+        "id": "C",
+        "text": "Moving to deeper water to regulate metabolic wastes.",
+        "feedback": "Incorrect. While moving can help find different environments, waste regulation is typically handled by organs like the kidneys and gills."
+      },
+      {
+        "id": "D",
+        "text": "Exchanging gases through its gills to regulate oxygen levels.",
+        "feedback": "Correct! Homeostasis is about keeping internal levels steady. By exchanging gases, the fish keeps its internal oxygen at the right level for survival."
+      }
+    ],
+    "correctOptionId": "D"
   }
 ]

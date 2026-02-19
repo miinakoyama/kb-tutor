@@ -3,6 +3,7 @@ export type QuestionType = "mcq" | "open-ended";
 export interface MCQOption {
   id: string;
   text: string;
+  feedback?: string;
 }
 
 export interface HintLevels {
@@ -20,9 +21,9 @@ export interface Question {
   imageUrl: string | null;
   options: MCQOption[];
   correctOptionId: string;
-  explanation: string;
+  explanation?: string;
   commonMisconception?: string;
-  hints: HintLevels;
+  hints?: HintLevels;
   questionType?: QuestionType;
 }
 

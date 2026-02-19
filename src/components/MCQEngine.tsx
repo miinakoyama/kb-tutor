@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { FeedbackDisplay } from "./FeedbackDisplay";
-import { HintLadder } from "./HintLadder";
+import { CheckCircle2, XCircle } from "lucide-react";
 import type { Question } from "@/types/question";
 
 interface MCQEngineProps {
@@ -68,6 +67,7 @@ export function MCQEngine({ questions, onComplete }: MCQEngineProps) {
 
   const isCorrect =
     isSubmitted && selectedOptionId === question.correctOptionId;
+  const selectedOption = question.options.find((opt) => opt.id === selectedOptionId);
 
   return (
     <div className="space-y-6">
@@ -150,11 +150,28 @@ export function MCQEngine({ questions, onComplete }: MCQEngineProps) {
             </div>
           ) : (
             <>
-              <FeedbackDisplay
-                isCorrect={!!isCorrect}
-                explanation={question.explanation}
-                commonMisconception={question.commonMisconception}
-              />
+              {selectedOption?.feedback && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mt-4 p-4 rounded-lg border ${
+                    isCorrect
+                      ? "bg-green-50 border-green-200"
+                      : "bg-red-50 border-red-200"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {isCorrect ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    <p className={`text-sm ${isCorrect ? "text-green-800" : "text-red-800"}`}>
+                      {selectedOption.feedback}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
               <div className="mt-4">
                 <button
                   onClick={handleNext}
@@ -165,8 +182,6 @@ export function MCQEngine({ questions, onComplete }: MCQEngineProps) {
               </div>
             </>
           )}
-
-          <HintLadder hints={question.hints} />
         </motion.div>
       </AnimatePresence>
     </div>
