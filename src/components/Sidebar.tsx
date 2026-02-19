@@ -6,16 +6,15 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FlaskConical,
-  LayoutDashboard,
+  Home,
   BarChart3,
   Settings,
-  User,
   Menu,
   X,
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/", label: "Home", icon: Home },
   { href: "/progress", label: "My Progress", icon: BarChart3 },
   { href: "/content", label: "Content Management", icon: Settings },
 ] as const;
@@ -56,26 +55,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-4 py-4 border-t border-white/10 space-y-4">
-        <div className="rounded-lg bg-white/10 p-3">
-          <p className="text-xs font-medium text-white/80 uppercase tracking-wide">
-            Current Goal
-          </p>
-          <p className="text-sm text-white font-medium mt-1">Keystone Exam</p>
-          <p className="text-xs text-white/70 mt-0.5">Keep practicing!</p>
-          <div className="mt-2 h-1.5 rounded-full bg-white/20 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-bright transition-all"
-              style={{ width: "45%" }}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10">
-          <User className="w-4 h-4 text-bright" />
-          <span className="text-sm text-white/90">LTI Login (Coming soon)</span>
-        </div>
-      </div>
     </>
   );
 
@@ -144,28 +123,6 @@ export function Sidebar() {
                   );
                 })}
               </nav>
-              <div className="px-4 py-4 border-t border-white/10 space-y-4">
-                <div className="rounded-lg bg-white/10 p-3">
-                  <p className="text-xs font-medium text-white/80 uppercase tracking-wide">
-                    Current Goal
-                  </p>
-                  <p className="text-sm text-white font-medium mt-1">
-                    Keystone Exam
-                  </p>
-                  <div className="mt-2 h-1.5 rounded-full bg-white/20 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-bright"
-                      style={{ width: "45%" }}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10">
-                  <User className="w-4 h-4 text-bright" />
-                  <span className="text-sm text-white/90">
-                    LTI Login (Coming soon)
-                  </span>
-                </div>
-              </div>
             </div>
           </motion.aside>
         )}
