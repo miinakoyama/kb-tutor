@@ -71,9 +71,9 @@ export default function ProgressPage() {
                 <Radar
                   name="Mastery %"
                   dataKey="mastery"
-                  stroke="#2d6a4f"
-                  fill="#2d6a4f"
-                  fillOpacity={0.4}
+                  stroke="#16a34a"
+                  fill="#16a34a"
+                  fillOpacity={0.6}
                   strokeWidth={2}
                 />
                 <Tooltip

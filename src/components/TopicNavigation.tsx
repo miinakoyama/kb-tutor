@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Play } from "lucide-react";
+import { ChevronDown, Play, FolderOpen, Folder } from "lucide-react";
 import { MODULES } from "@/types/question";
 
 const MODULE_LABELS: Record<number, string> = {
@@ -33,23 +33,36 @@ function TopicModule({
   label: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const topicCount = mod.topics.length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <button
         onClick={() => setIsExpanded((e) => !e)}
-        className="w-full flex items-center justify-between text-left group"
+        className="w-full flex items-center justify-between text-left px-4 py-3 rounded-xl bg-[#16a34a]/10 hover:bg-[#16a34a]/15 transition-colors group"
       >
-        <h3 className="text-lg font-bold text-leaf">
-          {label}
-        </h3>
-        <motion.span
-          animate={{ rotate: isExpanded ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-          className="p-1 rounded-full bg-leaf/10 group-hover:bg-leaf/20 transition-colors"
-        >
-          <ChevronDown className="w-5 h-5 text-leaf" />
-        </motion.span>
+        <div className="flex items-center gap-3">
+          {isExpanded ? (
+            <FolderOpen className="w-5 h-5 text-[#16a34a]" />
+          ) : (
+            <Folder className="w-5 h-5 text-[#16a34a]" />
+          )}
+          <h3 className="text-base font-bold text-[#166534]">
+            {label}
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-[#16a34a] font-medium">
+            {topicCount} topics
+          </span>
+          <motion.span
+            animate={{ rotate: isExpanded ? 180 : 0 }}
+            transition={{ duration: 0.2 }}
+            className="p-1 rounded-full bg-[#16a34a]/10 group-hover:bg-[#16a34a]/20 transition-colors"
+          >
+            <ChevronDown className="w-5 h-5 text-[#16a34a]" />
+          </motion.span>
+        </div>
       </button>
 
       <AnimatePresence>
@@ -61,7 +74,7 @@ function TopicModule({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 pt-1">
               {mod.topics.map((topic) => (
                 <TopicCard key={topic} topic={topic} moduleId={mod.id} />
               ))}
