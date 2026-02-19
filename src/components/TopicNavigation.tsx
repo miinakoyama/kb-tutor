@@ -79,7 +79,7 @@ function TopicCard({ topic, moduleId }: { topic: string; moduleId: number }) {
       <h4 className="font-semibold text-slate-gray text-lg mb-4">{topic}</h4>
       <Link
         href={`/practice?module=${moduleId}&topic=${encodeURIComponent(topic)}`}
-        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-leaf text-white text-sm font-medium hover:bg-forest transition-colors shadow-sm"
+        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-white text-sm font-semibold transition-colors shadow-sm bg-[#16a34a] hover:bg-[#15803d]"
       >
         <Play className="w-4 h-4" />
         Take Quiz

@@ -45,7 +45,7 @@ export function Sidebar() {
               href={href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${
                 active
-                  ? "bg-bright text-forest shadow-sm"
+                  ? "bg-white/20 text-white shadow-inner"
                   : "text-white/90 hover:bg-white/10 hover:text-white"
               }`}
             >
@@ -83,7 +83,8 @@ export function Sidebar() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-forest text-white shadow-lg"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg text-white shadow-lg"
+        style={{ background: "#166534" }}
         aria-label="Open menu"
       >
         <Menu className="w-6 h-6" />
@@ -104,7 +105,8 @@ export function Sidebar() {
             animate={{ x: 0 }}
             exit={{ x: -280 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed left-0 top-0 bottom-0 w-64 bg-forest z-50 lg:hidden shadow-xl"
+            className="fixed left-0 top-0 bottom-0 w-64 z-50 lg:hidden shadow-xl"
+            style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
           >
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
@@ -132,7 +134,7 @@ export function Sidebar() {
                       onClick={() => setIsOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${
                         active
-                          ? "bg-bright text-forest shadow-sm"
+                          ? "bg-white/20 text-white shadow-inner"
                           : "text-white/90 hover:bg-white/10 hover:text-white"
                       }`}
                     >
@@ -169,7 +171,10 @@ export function Sidebar() {
         )}
       </AnimatePresence>
 
-      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:w-64 lg:bg-forest lg:z-30 lg:shadow-xl">
+      <aside
+        className="hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:w-64 lg:z-30 lg:shadow-xl"
+        style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
+      >
         <div className="flex flex-col h-full w-full">{sidebarContent}</div>
       </aside>
     </>
