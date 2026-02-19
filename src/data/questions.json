@@ -1,0 +1,114 @@
+[
+  {
+    "id": "keystone-q1",
+    "module": 1,
+    "topic": "Homeostasis and Transport",
+    "text": "Use the information below to answer the question.\n\nFight-or-Flight Response in a Rabbit\n1. A rabbit hears a noise perceived as dangerous.\n2. Neurons signal the brain that danger may be near.\n3. Signals from the brain cause chemical signals to be released through blood vessels.\n4. Cells in the heart receive the chemical signals.\n5. The rabbit's heart rate increases.\n\nWhich model correctly identifies the organization of an organ system and explains how organ systems interact when a rabbit perceives danger?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "nervous system -> brain -> nerve tissue -> neurons. The nervous system and circulatory system work together in response to danger."
+      },
+      {
+        "id": "B",
+        "text": "circulatory system -> heart -> cardiac tissue -> myocardial cells. The nervous system and circulatory system respond independently to danger."
+      },
+      {
+        "id": "C",
+        "text": "nervous system -> neurons -> nerve tissue -> brain. The nervous system and circulatory system respond independently to danger."
+      },
+      {
+        "id": "D",
+        "text": "circulatory system -> myocardial cells -> cardiac tissue -> heart. The nervous system and circulatory system work together in response to danger."
+      }
+    ],
+    "correctOptionId": "A",
+    "explanation": "The nervous system detects danger and signals the circulatory system to increase heart rate. These systems must work together.",
+    "commonMisconception": "Students often assume biological systems work in isolation during complex responses.",
+    "hints": {
+      "goal": "Identify which systems are mentioned in the rabbit's 5-step response.",
+      "principle": "Recall the hierarchical levels of biological organization: Cells -> Tissues -> Organs -> Organ Systems.",
+      "application": "Look at step 3 and 4: Signals from the brain (nervous) enter the blood vessels to reach the heart (circulatory).",
+      "bottomOut": "The correct answer is A, as it correctly lists the nervous system hierarchy and acknowledges the interaction between systems."
+    }
+  },
+  {
+    "id": "keystone-q2",
+    "module": 1,
+    "topic": "Chemical Basis for Life",
+    "text": "Which of the following best describes the role of enzymes in biochemical reactions?",
+    "imageUrl": null,
+    "options": [
+      {
+        "id": "A",
+        "text": "Enzymes increase the activation energy required for a reaction."
+      },
+      {
+        "id": "B",
+        "text": "Enzymes lower the activation energy and are not consumed in the reaction."
+      },
+      {
+        "id": "C",
+        "text": "Enzymes change the equilibrium of reversible reactions."
+      },
+      {
+        "id": "D",
+        "text": "Enzymes are consumed and must be replaced after each reaction."
+      }
+    ],
+    "correctOptionId": "B",
+    "explanation": "Enzymes act as catalysts by lowering the activation energy needed for reactions. They are not consumed and can be reused.",
+    "commonMisconception": "Students often think enzymes are used up in reactions or that they change the final equilibrium.",
+    "hints": {
+      "goal": "Recall what enzymes do in biochemical reactions.",
+      "principle": "Catalysts lower activation energy and are not consumed in the reaction.",
+      "application": "Enzymes are biological catalysts—they speed up reactions without being used up.",
+      "bottomOut": "The correct answer is B: enzymes lower activation energy and are not consumed."
+    }
+  },
+  {
+    "id": "keystone-q3",
+    "module": 2,
+    "topic": "Genetics",
+    "text": "A plant with genotype Tt is crossed with a plant with genotype tt. What percentage of the offspring will be heterozygous?",
+    "imageUrl": null,
+    "options": [
+      { "id": "A", "text": "0%" },
+      { "id": "B", "text": "25%" },
+      { "id": "C", "text": "50%" },
+      { "id": "D", "text": "100%" }
+    ],
+    "correctOptionId": "C",
+    "explanation": "A Tt x tt cross produces Tt and tt in equal proportions. Half (50%) will be heterozygous (Tt).",
+    "commonMisconception": "Students may confuse heterozygous with homozygous or misapply Punnett square results.",
+    "hints": {
+      "goal": "Determine the genotypic ratio from a Tt x tt cross.",
+      "principle": "Each parent contributes one allele. Tt produces T or t; tt produces only t.",
+      "application": "Offspring: Tt (from T + t) and tt (from t + t). So 50% Tt, 50% tt.",
+      "bottomOut": "The correct answer is C: 50% of offspring will be heterozygous (Tt)."
+    }
+  },
+  {
+    "id": "keystone-q4",
+    "module": 2,
+    "topic": "Ecology",
+    "text": "In a food chain, energy flows from producers to consumers. Where does the energy originally come from?",
+    "imageUrl": null,
+    "options": [
+      { "id": "A", "text": "Chemical bonds in soil nutrients" },
+      { "id": "B", "text": "The sun" },
+      { "id": "C", "text": "Decomposers" },
+      { "id": "D", "text": "Primary consumers" }
+    ],
+    "correctOptionId": "B",
+    "explanation": "The sun is the primary source of energy for most ecosystems. Producers (plants) capture this energy through photosynthesis.",
+    "commonMisconception": "Students may think energy comes from soil or that decomposers create energy.",
+    "hints": {
+      "goal": "Identify the ultimate source of energy in ecosystems.",
+      "principle": "Energy flows through ecosystems. Producers convert light energy into chemical energy.",
+      "application": "Plants use sunlight for photosynthesis. All other organisms depend on this captured energy.",
+      "bottomOut": "The correct answer is B: the sun is the original source of energy."
+    }
+  }
+]
