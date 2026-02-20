@@ -40,7 +40,11 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) {
+export function MCQEngine({
+  questions,
+  topicName,
+  onComplete,
+}: MCQEngineProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -79,7 +83,7 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
         },
       }));
     },
-    [currentIndex, isAnswered, question?.correctOptionId]
+    [currentIndex, isAnswered, question?.correctOptionId],
   );
 
   const handlePrevious = useCallback(() => {
@@ -122,7 +126,8 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
 
   const correctCount = Object.values(answers).filter((a) => a.isCorrect).length;
   const incorrectCount = answeredCount - correctCount;
-  const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+  const progressPercent =
+    totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
   if (!isInitialized) {
     return (
@@ -181,7 +186,7 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
             Back to Results
           </button>
         )}
-        
+
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-3">
             {topicName && (
@@ -261,25 +266,23 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
                     onClick={() => handleOptionClick(opt.id)}
                     disabled={isAnswered}
                     className={`w-full text-left px-4 py-3 min-h-[48px] rounded-xl border-2 transition-all duration-200 break-words flex items-center gap-3 ${
-                      isAnswered
-                        ? "cursor-default"
-                        : "cursor-pointer"
+                      isAnswered ? "cursor-default" : "cursor-pointer"
                     }`}
                     style={{
                       borderColor: showCorrect
                         ? PRIMARY_COLOR
                         : showWrong
-                        ? "#f87171"
-                        : isSelected
-                        ? PRIMARY_COLOR
-                        : "rgba(31, 45, 31, 0.2)",
+                          ? "#f87171"
+                          : isSelected
+                            ? PRIMARY_COLOR
+                            : "rgba(31, 45, 31, 0.2)",
                       backgroundColor: showCorrect
                         ? PRIMARY_LIGHT
                         : showWrong
-                        ? "rgba(248, 113, 113, 0.1)"
-                        : isSelected
-                        ? PRIMARY_LIGHT
-                        : "white",
+                          ? "rgba(248, 113, 113, 0.1)"
+                          : isSelected
+                            ? PRIMARY_LIGHT
+                            : "white",
                     }}
                     onMouseEnter={(e) => {
                       if (!isAnswered) {
@@ -289,7 +292,8 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
                     }}
                     onMouseLeave={(e) => {
                       if (!isAnswered && !isSelected) {
-                        e.currentTarget.style.borderColor = "rgba(31, 45, 31, 0.2)";
+                        e.currentTarget.style.borderColor =
+                          "rgba(31, 45, 31, 0.2)";
                         e.currentTarget.style.backgroundColor = "white";
                       }
                     }}
@@ -300,13 +304,14 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
                         backgroundColor: showCorrect
                           ? PRIMARY_COLOR
                           : showWrong
-                          ? "#f87171"
-                          : isSelected
-                          ? PRIMARY_COLOR
-                          : "rgba(31, 45, 31, 0.1)",
-                        color: showCorrect || showWrong || isSelected
-                          ? "white"
-                          : "#1f2d1f",
+                            ? "#f87171"
+                            : isSelected
+                              ? PRIMARY_COLOR
+                              : "rgba(31, 45, 31, 0.1)",
+                        color:
+                          showCorrect || showWrong || isSelected
+                            ? "white"
+                            : "#1f2d1f",
                       }}
                     >
                       {opt.id}
@@ -324,19 +329,28 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-5 p-4 rounded-xl border"
                 style={{
-                  backgroundColor: currentAnswer.isCorrect ? PRIMARY_LIGHT : "rgba(248, 113, 113, 0.1)",
-                  borderColor: currentAnswer.isCorrect ? `${PRIMARY_COLOR}40` : "rgba(248, 113, 113, 0.3)",
+                  backgroundColor: currentAnswer.isCorrect
+                    ? PRIMARY_LIGHT
+                    : "rgba(248, 113, 113, 0.1)",
+                  borderColor: currentAnswer.isCorrect
+                    ? `${PRIMARY_COLOR}40`
+                    : "rgba(248, 113, 113, 0.3)",
                 }}
               >
                 <div className="flex items-start gap-3">
                   {currentAnswer.isCorrect ? (
-                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: PRIMARY_COLOR }} />
+                    <CheckCircle2
+                      className="w-5 h-5 flex-shrink-0 mt-0.5"
+                      style={{ color: PRIMARY_COLOR }}
+                    />
                   ) : (
                     <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                   )}
                   <p
                     className="text-sm leading-relaxed"
-                    style={{ color: currentAnswer.isCorrect ? "#166534" : "#991b1b" }}
+                    style={{
+                      color: currentAnswer.isCorrect ? "#166534" : "#991b1b",
+                    }}
                   >
                     {selectedOption.feedback}
                   </p>
@@ -382,16 +396,19 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
                     backgroundColor: isCurrent
                       ? PRIMARY_COLOR
                       : answered
-                      ? isCorrectAnswer
-                        ? PRIMARY_COLOR
-                        : "#f87171"
-                      : "white",
+                        ? isCorrectAnswer
+                          ? PRIMARY_COLOR
+                          : "#f87171"
+                        : "white",
                     color: isCurrent || answered ? "white" : "#1f2d1f",
                     transform: isCurrent ? "scale(1.1)" : "scale(1)",
-                    boxShadow: isCurrent 
-                      ? "0 2px 8px rgba(22, 163, 74, 0.3)" 
+                    boxShadow: isCurrent
+                      ? "0 2px 8px rgba(22, 163, 74, 0.3)"
                       : "0 1px 3px rgba(0, 0, 0, 0.1)",
-                    border: isCurrent || answered ? "none" : "1px solid rgba(31, 45, 31, 0.15)",
+                    border:
+                      isCurrent || answered
+                        ? "none"
+                        : "1px solid rgba(31, 45, 31, 0.15)",
                   }}
                 >
                   {index + 1}
@@ -402,11 +419,21 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
 
           <button
             onClick={isReviewing ? handleBackToResults : handleNext}
-            disabled={!isReviewing && currentIndex === totalQuestions - 1 && !allAnswered}
+            disabled={
+              !isReviewing &&
+              currentIndex === totalQuestions - 1 &&
+              !allAnswered
+            }
             className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 min-h-[44px] rounded-lg text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             style={{ backgroundColor: PRIMARY_COLOR }}
             onMouseEnter={(e) => {
-              if (!(!isReviewing && currentIndex === totalQuestions - 1 && !allAnswered)) {
+              if (
+                !(
+                  !isReviewing &&
+                  currentIndex === totalQuestions - 1 &&
+                  !allAnswered
+                )
+              ) {
                 e.currentTarget.style.backgroundColor = PRIMARY_HOVER;
               }
             }}
@@ -418,8 +445,8 @@ export function MCQEngine({ questions, topicName, onComplete }: MCQEngineProps) 
               {isReviewing
                 ? "View Results"
                 : currentIndex === totalQuestions - 1 && allAnswered
-                ? "View Results"
-                : "Next"}
+                  ? "View Results"
+                  : "Next"}
             </span>
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -508,7 +535,10 @@ function SummaryScreen({
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-2xl font-bold" style={{ color: getScoreColor() }}>
+              <span
+                className="text-2xl font-bold"
+                style={{ color: getScoreColor() }}
+              >
                 {scorePercent}%
               </span>
             </div>
@@ -521,7 +551,10 @@ function SummaryScreen({
           {/* Stats */}
           <div className="flex justify-center gap-6 mt-4">
             <div className="text-center">
-              <div className="flex items-center justify-center gap-1.5" style={{ color: PRIMARY_COLOR }}>
+              <div
+                className="flex items-center justify-center gap-1.5"
+                style={{ color: PRIMARY_COLOR }}
+              >
                 <CheckCircle2 className="w-4 h-4" />
                 <span className="text-xl font-bold">{correctCount}</span>
               </div>
@@ -558,23 +591,29 @@ function SummaryScreen({
                   key={question.id}
                   onClick={() => onReviewQuestion(index)}
                   className="w-full text-left p-3 rounded-lg border transition-colors"
-                  style={{ 
+                  style={{
                     backgroundColor: "white",
-                    borderColor: isCorrect ? `${PRIMARY_COLOR}30` : "rgba(248, 113, 113, 0.3)",
+                    borderColor: isCorrect
+                      ? `${PRIMARY_COLOR}30`
+                      : "rgba(248, 113, 113, 0.3)",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isCorrect ? PRIMARY_LIGHT : "rgba(248, 113, 113, 0.1)";
+                    e.currentTarget.style.backgroundColor = isCorrect
+                      ? PRIMARY_LIGHT
+                      : "rgba(248, 113, 113, 0.1)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = "white";
                   }}
                 >
                   <div className="flex items-start gap-3">
-                    <span 
+                    <span
                       className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0"
-                      style={{ 
-                        backgroundColor: isCorrect ? PRIMARY_LIGHT : "rgba(248, 113, 113, 0.2)", 
-                        color: isCorrect ? PRIMARY_COLOR : "#dc2626" 
+                      style={{
+                        backgroundColor: isCorrect
+                          ? PRIMARY_LIGHT
+                          : "rgba(248, 113, 113, 0.2)",
+                        color: isCorrect ? PRIMARY_COLOR : "#dc2626",
                       }}
                     >
                       {index + 1}
@@ -585,7 +624,10 @@ function SummaryScreen({
                       </p>
                     </div>
                     {isCorrect ? (
-                      <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: PRIMARY_COLOR }} />
+                      <CheckCircle2
+                        className="w-5 h-5 flex-shrink-0"
+                        style={{ color: PRIMARY_COLOR }}
+                      />
                     ) : (
                       <XCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
                     )}
@@ -624,7 +666,7 @@ function SummaryScreen({
             }}
           >
             <Home className="w-4 h-4" />
-            Back to Topics
+            Back to Home
           </Link>
         </div>
       </motion.div>
