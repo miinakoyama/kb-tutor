@@ -1,6 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { MCQEngine } from "@/components/MCQEngine";
 import questionsData from "@/data/questions.json";
 import type { Question } from "@/types/question";
@@ -17,6 +15,7 @@ async function PracticeContent({
   const topicParam = params.topic;
 
   let filteredQuestions = questions;
+  let topicName: string | undefined;
 
   if (moduleParam) {
     const moduleNum = parseInt(moduleParam, 10);
@@ -32,21 +31,10 @@ async function PracticeContent({
     filteredQuestions = filteredQuestions.filter(
       (q) => q.topic === decodedTopic
     );
+    topicName = decodedTopic;
   }
 
-  return (
-    <div className="space-y-6">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 text-slate-gray hover:text-leaf transition-colors text-sm"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to topics
-      </Link>
-
-      <MCQEngine questions={filteredQuestions} />
-    </div>
-  );
+  return <MCQEngine questions={filteredQuestions} topicName={topicName} />;
 }
 
 export default async function PracticePage({
@@ -55,13 +43,12 @@ export default async function PracticePage({
   searchParams: Promise<{ module?: string; topic?: string }>;
 }) {
   return (
-    <main className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-xl font-semibold text-slate-gray mb-6">
-        Practice Session
-      </h1>
-      <Suspense fallback={<div className="text-slate-gray">Loading...</div>}>
-        <PracticeContent searchParams={searchParams} />
-      </Suspense>
+    <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
+      <div className="max-w-4xl mx-auto px-4 py-4 h-full">
+        <Suspense fallback={<div className="text-slate-gray">Loading...</div>}>
+          <PracticeContent searchParams={searchParams} />
+        </Suspense>
+      </div>
     </main>
   );
 }
