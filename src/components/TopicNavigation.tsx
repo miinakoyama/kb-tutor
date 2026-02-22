@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Play, FolderOpen, Folder } from "lucide-react";
+import { ChevronDown, Play } from "lucide-react";
 import { MODULES } from "@/types/question";
 
 const MODULE_LABELS: Record<number, string> = {
@@ -36,29 +36,21 @@ function TopicModule({
   const topicCount = mod.topics.length;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <button
         onClick={() => setIsExpanded((e) => !e)}
-        className="w-full flex items-center justify-between text-left px-4 py-3 rounded-xl bg-[#16a34a]/10 hover:bg-[#16a34a]/15 transition-colors group"
+        className="w-full flex items-center justify-between text-left px-5 py-4 rounded-xl bg-[#16a34a]/10 hover:bg-[#16a34a]/15 focus-visible:bg-[#16a34a]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 transition-colors"
       >
+        <h3 className="text-base font-semibold text-slate-gray">
+          {label}
+        </h3>
         <div className="flex items-center gap-3">
-          {isExpanded ? (
-            <FolderOpen className="w-5 h-5 text-[#16a34a]" />
-          ) : (
-            <Folder className="w-5 h-5 text-[#16a34a]" />
-          )}
-          <h3 className="text-base font-bold text-[#166534]">
-            {label}
-          </h3>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-[#16a34a] font-medium">
+          <span className="text-sm text-slate-gray/60">
             {topicCount} topics
           </span>
           <motion.span
             animate={{ rotate: isExpanded ? 180 : 0 }}
             transition={{ duration: 0.2 }}
-            className="p-1 rounded-full bg-[#16a34a]/10 group-hover:bg-[#16a34a]/20 transition-colors"
           >
             <ChevronDown className="w-5 h-5 text-[#16a34a]" />
           </motion.span>
@@ -74,7 +66,7 @@ function TopicModule({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="grid gap-4 sm:grid-cols-2 pt-1">
+            <div className="grid gap-4 sm:grid-cols-2">
               {mod.topics.map((topic) => (
                 <TopicCard key={topic} topic={topic} moduleId={mod.id} />
               ))}
@@ -88,11 +80,11 @@ function TopicModule({
 
 function TopicCard({ topic, moduleId }: { topic: string; moduleId: number }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition-all">
-      <h4 className="font-semibold text-slate-gray text-lg mb-4">{topic}</h4>
+    <div className="rounded-xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a]/50 focus-within:shadow-md focus-within:border-[#16a34a]/50 transition-all">
+      <h4 className="font-medium text-slate-gray mb-4">{topic}</h4>
       <Link
         href={`/practice?module=${moduleId}&topic=${encodeURIComponent(topic)}`}
-        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-white text-sm font-semibold transition-colors shadow-sm bg-[#16a34a] hover:bg-[#15803d]"
+        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d] focus-visible:bg-[#15803d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 focus-visible:ring-offset-2"
       >
         <Play className="w-4 h-4" />
         Take Quiz
