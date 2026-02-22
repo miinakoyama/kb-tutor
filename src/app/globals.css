@@ -3,6 +3,14 @@
 :root {
   --background: #f0f4f1;
   --foreground: #1f2d1f;
+  --primary: #16a34a;
+  --primary-hover: #15803d;
+  --primary-light: rgba(22, 163, 74, 0.1);
+  --primary-border: rgba(22, 163, 74, 0.5);
+  --border-default: rgba(31, 45, 31, 0.2);
+  --error-color: #f87171;
+  --error-light: rgba(248, 113, 113, 0.1);
+  --error-border: rgba(248, 113, 113, 0.3);
 }
 
 /* KeystoneBio-inspired bright palette */
@@ -16,6 +24,11 @@
   --color-sage-green: #22863a;
   --color-sand-beige: #f0f4f1;
   --color-slate-gray: #1f2d1f;
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-error: var(--error-color);
+  --color-error-light: var(--error-light);
   --font-sans:
     ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
