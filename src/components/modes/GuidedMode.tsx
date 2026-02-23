@@ -17,6 +17,7 @@ import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
+import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer } from "@/lib/storage";
 import glossaryData from "@/data/glossary.json";
 
@@ -170,39 +171,28 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
     );
   }
 
-  return (
-    <div className="flex flex-col lg:flex-row gap-4 h-full">
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex-shrink-0 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <Link
-              href={`/practice?module=${question.module}&topic=${encodeURIComponent(question.topic)}`}
-              className="inline-flex items-center gap-1 text-sm text-[#16a34a] hover:text-[#15803d] transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back
-            </Link>
-            <span className="text-sm text-slate-gray/60">
-              Question {currentIndex + 1} of {totalQuestions}
-            </span>
-          </div>
-          <div className="h-2 bg-slate-gray/10 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full rounded-full bg-[#16a34a]"
-              initial={{ width: 0 }}
-              animate={{ width: `${progressPercent}%` }}
-              transition={{ duration: 0.3 }}
-            />
-          </div>
-        </div>
+  const backHref = `/practice?module=${question.module}&topic=${encodeURIComponent(question.topic)}`;
 
-        <div className="flex-1 overflow-y-auto min-h-0 pb-4">
+  return (
+    <div className="flex flex-col h-full">
+      <PracticeHeader
+        topicName={topicName}
+        mode="guided"
+        backHref={backHref}
+        currentQuestion={currentIndex + 1}
+        totalQuestions={totalQuestions}
+      />
+
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0 pb-4">
           <QuestionDisplay
             question={question}
             questionNumber={currentIndex + 1}
             currentAnswer={currentAnswer}
             onOptionClick={handleOptionClick}
             renderQuestionText={renderQuestionText}
+            showOptionFeedbackIcons
             feedbackSlot={
               currentAnswer ? (
                 <div className="space-y-4">
@@ -211,7 +201,6 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
                     answer={currentAnswer}
                     showKeyKnowledge
                     showMisconception
-                    showAllOptionsFeedback
                   />
                   <ConfidenceCheck
                     value={currentAnswer.confidenceLevel}
@@ -264,8 +253,9 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
         </div>
       </div>
 
-      <div className="lg:w-72 flex-shrink-0">
-        <GlossaryPanel terms={sidebarTerms} defaultOpen title="Definitions" />
+        <div className="lg:w-72 flex-shrink-0">
+          <GlossaryPanel terms={sidebarTerms} defaultOpen title="Definitions" />
+        </div>
       </div>
     </div>
   );

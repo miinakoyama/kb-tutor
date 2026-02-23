@@ -75,12 +75,14 @@ export function ModeSelector({ moduleId, topicName }: ModeSelectorProps) {
       <div className="mb-6">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#16a34a] hover:text-[#15803d] transition-colors mb-3"
+          className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Topics
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
+            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          </span>
+          Back to Home
         </Link>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-gray">
+        <h1 className="text-xl sm:text-2xl font-bold font-heading text-[#14532d]">
           {topicName}
         </h1>
         <p className="text-sm text-slate-gray/60 mt-1">
@@ -125,15 +127,15 @@ function ModeCard({
     >
       <Link
         href={href}
-        className="block rounded-xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a] transition-all group"
+        className="block rounded-3xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a] transition-all group"
       >
-        <div className="flex items-start gap-3 mb-3">
-          <Icon className="w-5 h-5 text-[#16a34a] flex-shrink-0 mt-0.5" />
+        <div className="flex items-center gap-3 mb-3">
+          <Icon className="w-6 h-6 text-[#16a34a] flex-shrink-0" />
           <div>
-            <h3 className="text-base font-semibold text-slate-gray">
-              {card.title}
-            </h3>
-            <p className="text-xs text-[#16a34a] font-medium">{card.subtitle}</p>
+            <h3 className="text-lg font-bold text-slate-gray">{card.title}</h3>
+            <p className="text-xs text-[#16a34a] font-medium">
+              {card.subtitle}
+            </p>
           </div>
         </div>
 

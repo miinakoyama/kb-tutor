@@ -21,7 +21,8 @@ export function ExamNavigator({
 }: ExamNavigatorProps) {
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
 
-  const answeredCount = Object.keys(answers).length;
+  const isAnswered = (i: number) => !!answers[i]?.selectedOptionId;
+  const answeredCount = Array.from({ length: totalQuestions }, (_, i) => i).filter(isAnswered).length;
   const unansweredCount = totalQuestions - answeredCount;
   const flaggedCount = Object.values(answers).filter((a) => a.flagged).length;
 
@@ -33,26 +34,26 @@ export function ExamNavigator({
 
   const allIndices = Array.from({ length: totalQuestions }, (_, i) => i);
   const filteredIndices = allIndices.filter((i) => {
-    if (activeTab === "unanswered") return !answers[i];
+    if (activeTab === "unanswered") return !isAnswered(i);
     if (activeTab === "flagged") return answers[i]?.flagged;
     return true;
   });
 
   return (
-    <div className="rounded-xl border border-[#16a34a]/30 bg-white shadow-sm overflow-hidden">
-      <div className="px-4 pt-4 pb-2">
-        <h3 className="text-sm font-semibold text-slate-gray mb-1">Questions</h3>
-        <p className="text-xs text-slate-gray/60">
+    <div className="rounded-2xl border border-[#16a34a]/30 bg-white shadow-sm overflow-hidden">
+      <div className="px-5 pt-5 pb-3">
+        <h3 className="text-base font-semibold text-slate-gray mb-1">Questions</h3>
+        <p className="text-sm text-slate-gray/60">
           {answeredCount} answered · {unansweredCount} unanswered
         </p>
       </div>
 
-      <div className="flex border-b border-slate-gray/10 px-2">
+      <div className="flex border-b border-slate-gray/10 px-3">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-2 text-xs font-medium text-center transition-colors rounded-t-lg ${
+            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors rounded-t-lg ${
               activeTab === tab.id
                 ? "text-[#16a34a] border-b-2 border-[#16a34a]"
                 : "text-slate-gray/50 hover:text-slate-gray/70"
@@ -63,26 +64,26 @@ export function ExamNavigator({
         ))}
       </div>
 
-      <div className="p-3">
-        <div className="grid grid-cols-8 gap-1.5">
+      <div className="p-4 max-h-80 overflow-y-auto">
+        <div className="grid grid-cols-8 gap-2">
           {filteredIndices.map((i) => {
             const answer = answers[i];
             const isCurrent = i === currentIndex;
-            const isAnswered = !!answer;
+            const answered = !!answer?.selectedOptionId;
             const isFlagged = answer?.flagged;
 
             return (
               <button
                 key={i}
                 onClick={() => onNavigate(i)}
-                className={`relative w-full aspect-square rounded-lg text-xs font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 ${
+                className={`relative w-full aspect-square rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 ${
                   isCurrent
                     ? "ring-2 ring-[#16a34a] ring-offset-1"
                     : ""
                 }`}
                 style={{
-                  backgroundColor: isAnswered ? "rgba(22, 163, 74, 0.15)" : "#f1f5f9",
-                  color: isAnswered ? "#16a34a" : "#64748b",
+                  backgroundColor: answered ? "rgba(22, 163, 74, 0.15)" : "#f1f5f9",
+                  color: answered ? "#16a34a" : "#64748b",
                 }}
               >
                 {i + 1}

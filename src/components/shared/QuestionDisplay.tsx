@@ -14,6 +14,7 @@ interface QuestionDisplayProps {
   renderQuestionText?: (text: string) => ReactNode;
   feedbackSlot?: ReactNode;
   belowOptionsSlot?: ReactNode;
+  showOptionFeedbackIcons?: boolean;
 }
 
 export function QuestionDisplay({
@@ -24,6 +25,7 @@ export function QuestionDisplay({
   renderQuestionText,
   feedbackSlot,
   belowOptionsSlot,
+  showOptionFeedbackIcons = false,
 }: QuestionDisplayProps) {
   const isAnswered = currentAnswer !== undefined;
 
@@ -82,6 +84,7 @@ export function QuestionDisplay({
                 showWrong={showWrong}
                 isAnswered={isAnswered}
                 onSelect={onOptionClick}
+                showFeedbackIcon={showOptionFeedbackIcons}
               />
             );
           })}

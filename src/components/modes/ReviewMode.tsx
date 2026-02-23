@@ -6,17 +6,15 @@ import { motion } from "framer-motion";
 import {
   ChevronRight,
   Home,
-  ArrowLeft,
-  AlertCircle,
   CheckCircle2,
   RotateCcw,
-  Lightbulb,
 } from "lucide-react";
 import type { Question, AnswerRecord, ConfidenceLevel } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
-import { getIncorrectQuestionIds, getAnswerHistory, saveAnswer } from "@/lib/storage";
+import { PracticeHeader } from "@/components/shared/PracticeHeader";
+import { getIncorrectQuestionIds, saveAnswer } from "@/lib/storage";
 
 interface ReviewModeProps {
   questions: Question[];
@@ -25,7 +23,6 @@ interface ReviewModeProps {
 
 export function ReviewMode({ questions, topicName }: ReviewModeProps) {
   const incorrectIds = useMemo(() => getIncorrectQuestionIds(), []);
-  const answerHistory = useMemo(() => getAnswerHistory(), []);
 
   const reviewQuestions = useMemo(() => {
     const direct = questions.filter((q) => incorrectIds.includes(q.id));
@@ -52,22 +49,6 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
   const question = reviewQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
   const totalQuestions = reviewQuestions.length;
-
-  const previousAnswer = useMemo(() => {
-    if (!question) return null;
-    const history = answerHistory.filter(
-      (a) => a.questionId === question.id && !a.isCorrect
-    );
-    return history.length > 0 ? history[history.length - 1] : null;
-  }, [question, answerHistory]);
-
-  const previousOptionText = useMemo(() => {
-    if (!previousAnswer || !question) return null;
-    const opt = question.options.find(
-      (o) => o.id === previousAnswer.selectedOptionId
-    );
-    return opt?.text ?? null;
-  }, [previousAnswer, question]);
 
   const handleOptionClick = useCallback(
     (optionId: string) => {
@@ -179,69 +160,27 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
     );
   }
 
-  const isFromPastError = incorrectIds.includes(question.id);
+  const backHref = question
+    ? `/practice?module=${question.module}&topic=${encodeURIComponent(question.topic)}`
+    : "/";
 
   return (
     <div className="max-w-4xl mx-auto flex flex-col h-full">
-      <div className="flex-shrink-0 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-sm text-[#16a34a] hover:text-[#15803d] transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Home
-          </Link>
-          <span className="text-sm text-slate-gray/60">
-            {currentIndex + 1} of {totalQuestions}
-          </span>
-        </div>
-        <div className="h-2 bg-slate-gray/10 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full rounded-full bg-[#16a34a]"
-            animate={{
-              width: `${Math.round(((currentIndex + 1) / totalQuestions) * 100)}%`,
-            }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
-      </div>
+      <PracticeHeader
+        topicName={topicName}
+        mode="review"
+        backHref={backHref}
+        currentQuestion={currentIndex + 1}
+        totalQuestions={totalQuestions}
+      />
 
       <div className="flex-1 overflow-y-auto min-h-0 pb-4">
-        {isFromPastError && previousOptionText && (
-          <div className="mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50">
-            <div className="flex items-start gap-2.5">
-              <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-0.5">
-                  Previous attempt
-                </p>
-                <p className="text-sm text-amber-800 leading-relaxed">
-                  Last time, you chose &ldquo;{previousOptionText}&rdquo;. Think
-                  carefully about why that was incorrect.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!isFromPastError && (
-          <div className="mb-4 p-3 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/5">
-            <div className="flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#16a34a]" />
-              <p className="text-sm text-slate-gray/80">
-                This is a follow-up question testing the same concept in a
-                different context.
-              </p>
-            </div>
-          </div>
-        )}
-
         <QuestionDisplay
           question={question}
           questionNumber={currentIndex + 1}
           currentAnswer={currentAnswer}
           onOptionClick={handleOptionClick}
+          showOptionFeedbackIcons
           feedbackSlot={
             currentAnswer ? (
               <div className="space-y-4">
@@ -250,7 +189,6 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
                   answer={currentAnswer}
                   showKeyKnowledge
                   showMisconception
-                  showAllOptionsFeedback
                 />
                 <ConfidenceCheck
                   value={currentAnswer.confidenceLevel}

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, XCircle, ChevronDown, Lightbulb } from "lucide-react";
+import { CheckCircle2, XCircle, Lightbulb } from "lucide-react";
 import type { Question, AnswerRecord } from "@/types/question";
 
 const PRIMARY_COLOR = "#16a34a";
@@ -13,7 +12,6 @@ interface FeedbackPanelProps {
   answer: AnswerRecord;
   showKeyKnowledge?: boolean;
   showMisconception?: boolean;
-  showAllOptionsFeedback?: boolean;
 }
 
 export function FeedbackPanel({
@@ -21,17 +19,18 @@ export function FeedbackPanel({
   answer,
   showKeyKnowledge = false,
   showMisconception = false,
-  showAllOptionsFeedback = false,
 }: FeedbackPanelProps) {
-  const [showOtherOptions, setShowOtherOptions] = useState(false);
   const selectedOption = question.options.find(
     (opt) => opt.id === answer.selectedOptionId
   );
   const isCorrect = answer.isCorrect;
 
-  const otherOptions = question.options.filter(
-    (opt) => opt.id !== answer.selectedOptionId && opt.id !== question.correctOptionId
-  );
+  const cleanFeedback = (feedback?: string) => {
+    if (!feedback) return "";
+    return feedback
+      .replace(/^(Correct\.|Incorrect\.)\s*/i, "")
+      .trim();
+  };
 
   return (
     <motion.div
@@ -66,7 +65,7 @@ export function FeedbackPanel({
               className="text-sm leading-relaxed"
               style={{ color: isCorrect ? "#166534" : "#991b1b" }}
             >
-              {selectedOption?.feedback}
+              {cleanFeedback(selectedOption?.feedback)}
             </p>
           </div>
         </div>
@@ -96,44 +95,6 @@ export function FeedbackPanel({
           <p className="text-sm text-amber-900 leading-relaxed">
             {question.commonMisconception}
           </p>
-        </div>
-      )}
-
-      {showAllOptionsFeedback && otherOptions.length > 0 && (
-        <div>
-          <button
-            onClick={() => setShowOtherOptions(!showOtherOptions)}
-            className="flex items-center gap-1.5 text-sm text-slate-gray/70 hover:text-slate-gray transition-colors"
-          >
-            <motion.span
-              animate={{ rotate: showOtherOptions ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ChevronDown className="w-4 h-4" />
-            </motion.span>
-            Why other options are wrong
-          </button>
-          {showOtherOptions && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              className="mt-2 space-y-2 overflow-hidden"
-            >
-              {otherOptions.map((opt) => (
-                <div
-                  key={opt.id}
-                  className="p-3 rounded-lg border border-slate-gray/10 bg-slate-gray/5"
-                >
-                  <p className="text-xs font-medium text-slate-gray/60 mb-1">
-                    Option {opt.id}: {opt.text}
-                  </p>
-                  <p className="text-sm text-slate-gray/80 leading-relaxed">
-                    {opt.feedback}
-                  </p>
-                </div>
-              ))}
-            </motion.div>
-          )}
         </div>
       )}
     </motion.div>

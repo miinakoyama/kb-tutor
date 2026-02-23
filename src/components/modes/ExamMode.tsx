@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Flag,
-  Home,
   RotateCcw,
   ArrowLeft,
   CheckCircle2,
@@ -20,6 +19,7 @@ import { OptionButton } from "@/components/shared/OptionButton";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ExamNavigator } from "@/components/shared/ExamNavigator";
 import { Timer } from "@/components/shared/Timer";
+import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswerBatch } from "@/lib/storage";
 
 const PRIMARY_COLOR = "#16a34a";
@@ -65,7 +65,7 @@ export function ExamMode({
   const elapsedRef = useRef(0);
 
   const totalQuestions = sessionQuestions.length;
-  const answeredCount = Object.keys(answers).length;
+  const answeredCount = Object.values(answers).filter((a) => a.selectedOptionId).length;
   const unansweredCount = totalQuestions - answeredCount;
   const progressPercent =
     totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
@@ -81,13 +81,13 @@ export function ExamMode({
 
   const handleOptionClick = useCallback(
     (optionId: string) => {
-      if (answers[currentIndex] !== undefined) return;
+      if (answers[currentIndex]?.selectedOptionId) return;
       const q = sessionQuestions[currentIndex];
       if (!q) return;
       const isCorrect = optionId === q.correctOptionId;
       setAnswers((prev) => ({
         ...prev,
-        [currentIndex]: { selectedOptionId: optionId, isCorrect },
+        [currentIndex]: { ...prev[currentIndex], selectedOptionId: optionId, isCorrect },
       }));
     },
     [currentIndex, answers, sessionQuestions]
@@ -96,10 +96,10 @@ export function ExamMode({
   const toggleFlag = useCallback(() => {
     setAnswers((prev) => {
       const existing = prev[currentIndex];
-      if (!existing) return prev;
+      const currentFlagged = existing?.flagged ?? false;
       return {
         ...prev,
-        [currentIndex]: { ...existing, flagged: !existing.flagged },
+        [currentIndex]: { ...existing, flagged: !currentFlagged },
       };
     });
   }, [currentIndex]);
@@ -175,9 +175,11 @@ export function ExamMode({
       <div className="max-w-4xl mx-auto">
         <button
           onClick={() => setPhase("results")}
-          className="inline-flex items-center gap-1.5 text-sm text-[#16a34a] hover:text-[#15803d] transition-colors mb-4"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
+            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          </span>
           Back to Results
         </button>
         <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm">
@@ -201,6 +203,7 @@ export function ExamMode({
                   showWrong={showWrong}
                   isAnswered={true}
                   onSelect={() => {}}
+                  showFeedbackIcon
                 />
               );
             })}
@@ -211,7 +214,6 @@ export function ExamMode({
               answer={a}
               showKeyKnowledge
               showMisconception
-              showAllOptionsFeedback
             />
           )}
         </div>
@@ -222,39 +224,41 @@ export function ExamMode({
   const question = sessionQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
 
+  const isTopicQuiz = topicName?.startsWith("Topic Quiz:");
+  const displayTopicName = isTopicQuiz
+    ? topicName?.replace("Topic Quiz: ", "")
+    : topicName;
+  const backHref = isTopicQuiz && question
+    ? `/practice?module=${question.module}&topic=${encodeURIComponent(question.topic)}`
+    : "/";
+  const modeLabel = isTopicQuiz ? "Topic Quiz" : "Mock Exam";
+
   return (
     <div className="flex flex-col h-full">
+      <PracticeHeader
+        topicName={displayTopicName}
+        mode="exam"
+        modeLabel={modeLabel}
+        backHref={backHref}
+        currentQuestion={currentIndex + 1}
+        totalQuestions={totalQuestions}
+        answeredCount={answeredCount}
+      />
+
       <div className="flex-shrink-0 mb-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-slate-gray">
-              {topicName ?? "Mock Exam"}
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <Timer
-              isRunning={phase === "exam"}
-              onElapsedChange={(ms) => {
-                elapsedRef.current = ms;
-              }}
-            />
-            <span className="text-sm text-slate-gray/60">
-              {currentIndex + 1} / {totalQuestions}
-            </span>
-            <button
-              onClick={handleSubmit}
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/10 transition-colors"
-            >
-              Submit
-            </button>
-          </div>
-        </div>
-        <div className="h-1.5 bg-slate-gray/10 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full rounded-full bg-[#16a34a]"
-            animate={{ width: `${progressPercent}%` }}
-            transition={{ duration: 0.3 }}
+        <div className="flex items-center justify-end gap-4">
+          <Timer
+            isRunning={phase === "exam"}
+            onElapsedChange={(ms) => {
+              elapsedRef.current = ms;
+            }}
           />
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 text-sm font-semibold rounded-2xl border border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/10 transition-colors"
+          >
+            Submit
+          </button>
         </div>
       </div>
 
@@ -285,7 +289,7 @@ export function ExamMode({
                       isSelected={isSelected}
                       showCorrect={false}
                       showWrong={false}
-                      isAnswered={!!currentAnswer}
+                      isAnswered={!!currentAnswer?.selectedOptionId}
                       onSelect={handleOptionClick}
                     />
                   );
@@ -295,7 +299,7 @@ export function ExamMode({
           </AnimatePresence>
         </div>
 
-        <div className="hidden lg:block w-64 flex-shrink-0">
+        <div className="hidden lg:block w-96 flex-shrink-0">
           <ExamNavigator
             totalQuestions={totalQuestions}
             currentIndex={currentIndex}
@@ -318,15 +322,14 @@ export function ExamMode({
 
           <button
             onClick={toggleFlag}
-            disabled={!currentAnswer}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              currentAnswer?.flagged
+              answers[currentIndex]?.flagged
                 ? "text-amber-600 bg-amber-50 border border-amber-200"
                 : "text-slate-gray/50 hover:text-slate-gray/70 border border-slate-gray/15 hover:border-slate-gray/30"
-            } disabled:opacity-40 disabled:cursor-not-allowed`}
+            }`}
           >
             <Flag
-              className={`w-4 h-4 ${currentAnswer?.flagged ? "fill-amber-500" : ""}`}
+              className={`w-4 h-4 ${answers[currentIndex]?.flagged ? "fill-amber-500" : ""}`}
             />
             Mark for review
           </button>
@@ -373,9 +376,11 @@ function ExamConfig({
     <div className="max-w-lg mx-auto pt-8">
       <Link
         href="/"
-        className="inline-flex items-center gap-1.5 text-sm text-[#16a34a] hover:text-[#15803d] transition-colors mb-4"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
       >
-        <ArrowLeft className="w-3.5 h-3.5" />
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
+          <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+        </span>
         Back to Home
       </Link>
 
@@ -620,10 +625,12 @@ function ExamResults({
         </button>
         <Link
           href="/"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors"
         >
-          <Home className="w-4 h-4" />
-          Home
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
+            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          </span>
+          Back to Home
         </Link>
       </div>
     </motion.div>
