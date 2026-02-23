@@ -4,11 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Play } from "lucide-react";
-import { MODULES } from "@/types/question";
+import { MODULES, TOPIC_DATA } from "@/types/question";
 
 const MODULE_LABELS: Record<number, string> = {
-  1: "Module A — Cells and Cell Processes",
-  2: "Module B — Continuity and Unity of Life",
+  1: "Module 1 — Molecules to Organisms",
+  2: "Module 2 — Continuity and Unity of Life",
 };
 
 export function TopicNavigation() {
@@ -41,9 +41,7 @@ function TopicModule({
         onClick={() => setIsExpanded((e) => !e)}
         className="w-full flex items-center justify-between text-left px-5 py-4 rounded-xl bg-[#16a34a]/10 hover:bg-[#16a34a]/15 focus-visible:bg-[#16a34a]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 transition-colors"
       >
-        <h3 className="text-base font-semibold text-slate-gray">
-          {label}
-        </h3>
+        <h3 className="text-base font-semibold text-slate-gray">{label}</h3>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-gray/60">
             {topicCount} topics
@@ -79,16 +77,39 @@ function TopicModule({
 }
 
 function TopicCard({ topic, moduleId }: { topic: string; moduleId: number }) {
+  const topicInfo = TOPIC_DATA[topic];
+
   return (
-    <div className="rounded-xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a]/50 focus-within:shadow-md focus-within:border-[#16a34a]/50 transition-all">
-      <h4 className="font-medium text-slate-gray mb-4">{topic}</h4>
-      <Link
-        href={`/practice?module=${moduleId}&topic=${encodeURIComponent(topic)}`}
-        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d] focus-visible:bg-[#15803d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 focus-visible:ring-offset-2"
-      >
-        <Play className="w-4 h-4" />
-        Start Practice
-      </Link>
+    <div className="rounded-xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a] transition-all flex flex-col">
+      <h4 className="font-semibold text-slate-gray mb-2">{topic}</h4>
+
+      {topicInfo && (
+        <>
+          <p className="text-sm text-slate-gray/70 leading-relaxed mb-3">
+            {topicInfo.description}
+          </p>
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {topicInfo.keywords.map((keyword) => (
+              <span
+                key={keyword}
+                className="px-2 py-0.5 text-xs font-medium rounded-full bg-[#16a34a]/10 text-[#16a34a]"
+              >
+                {keyword}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="mt-auto">
+        <Link
+          href={`/practice?module=${moduleId}&topic=${encodeURIComponent(topic)}`}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d] focus-visible:bg-[#15803d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 focus-visible:ring-offset-2"
+        >
+          <Play className="w-4 h-4" />
+          Start Practice
+        </Link>
+      </div>
     </div>
   );
 }

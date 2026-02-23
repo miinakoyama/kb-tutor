@@ -172,7 +172,7 @@ export function ExamMode({
     const q = sessionQuestions[reviewIndex];
     const a = answers[reviewIndex];
     return (
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <button
           onClick={() => setPhase("results")}
           className="inline-flex items-center gap-1.5 text-sm text-[#16a34a] hover:text-[#15803d] transition-colors mb-4"
@@ -521,7 +521,7 @@ function ExamResults({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-3xl mx-auto space-y-4 pb-8"
+      className="max-w-4xl mx-auto space-y-4 pb-8"
     >
       <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm text-center">
         {topicName && (

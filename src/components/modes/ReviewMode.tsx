@@ -182,7 +182,7 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
   const isFromPastError = incorrectIds.includes(question.id);
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col h-full">
+    <div className="max-w-4xl mx-auto flex flex-col h-full">
       <div className="flex-shrink-0 mb-4">
         <div className="flex items-center justify-between mb-2">
           <Link

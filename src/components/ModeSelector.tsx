@@ -71,7 +71,7 @@ const MODE_CARDS: ModeCardData[] = [
 
 export function ModeSelector({ moduleId, topicName }: ModeSelectorProps) {
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <div className="mb-6">
         <Link
           href="/"
@@ -125,12 +125,10 @@ function ModeCard({
     >
       <Link
         href={href}
-        className="block rounded-xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a]/50 transition-all group"
+        className="block rounded-xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a] transition-all group"
       >
         <div className="flex items-start gap-3 mb-3">
-          <div className="p-2 rounded-lg bg-[#16a34a]/10 text-[#16a34a] group-hover:bg-[#16a34a]/15 transition-colors">
-            <Icon className="w-5 h-5" />
-          </div>
+          <Icon className="w-5 h-5 text-[#16a34a] flex-shrink-0 mt-0.5" />
           <div>
             <h3 className="text-base font-semibold text-slate-gray">
               {card.title}

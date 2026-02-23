@@ -9,7 +9,7 @@ const allQuestions = questionsData as Question[];
 export default function ExamPage() {
   return (
     <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
-      <div className="max-w-5xl mx-auto px-4 py-4 h-full overflow-y-auto">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 h-full overflow-y-auto">
         <ExamMode questions={allQuestions} topicName="Full Mock Exam" />
       </div>
     </main>
