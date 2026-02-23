@@ -11,10 +11,12 @@ import {
   Settings,
   Menu,
   X,
+  ClipboardCheck,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
+  { href: "/exam", label: "Mock Exam", icon: ClipboardCheck },
   { href: "/progress", label: "My Progress", icon: BarChart3 },
   { href: "/content", label: "Content Management", icon: Settings },
 ] as const;

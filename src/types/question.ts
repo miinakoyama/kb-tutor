@@ -1,5 +1,7 @@
 export type QuestionType = "mcq" | "open-ended";
 
+export type PracticeMode = "guided" | "practice" | "exam" | "review";
+
 export interface MCQOption {
   id: string;
   text: string;
@@ -11,6 +13,22 @@ export interface HintLevels {
   principle: string;
   application: string;
   bottomOut: string;
+}
+
+export interface GlossaryTerm {
+  id: string;
+  term: string;
+  definition: string;
+  example?: string;
+  imageUrl?: string | null;
+  relatedConcepts?: string[];
+}
+
+export interface RationaleQuestion {
+  text: string;
+  options: { id: string; text: string }[];
+  correctOptionId: string;
+  explanation: string;
 }
 
 export interface Question {
@@ -25,6 +43,36 @@ export interface Question {
   commonMisconception?: string;
   hints?: HintLevels;
   questionType?: QuestionType;
+
+  inlineTermIds?: string[];
+  sidebarTermIds?: string[];
+  focusHint?: string;
+  keyKnowledge?: string;
+
+  rationaleQuestion?: RationaleQuestion;
+
+  misconceptionId?: string;
+  relatedQuestionIds?: string[];
+}
+
+export type ConfidenceLevel = "not_sure" | "somewhat" | "sure";
+
+export interface AnswerRecord {
+  selectedOptionId: string;
+  isCorrect: boolean;
+  confidenceLevel?: ConfidenceLevel;
+  rationaleAnswer?: { selectedOptionId: string; isCorrect: boolean };
+  flagged?: boolean;
+  reviewLater?: boolean;
+  timeSpentMs?: number;
+}
+
+export interface SessionConfig {
+  mode: PracticeMode;
+  moduleId?: number;
+  topicName?: string;
+  questionCount?: number;
+  showTimer?: boolean;
 }
 
 export const MODULES = [

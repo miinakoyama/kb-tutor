@@ -1,0 +1,210 @@
+[
+  {
+    "id": "active-transport",
+    "term": "Active Transport",
+    "definition": "The movement of substances across a membrane against their concentration gradient, requiring cellular energy in the form of ATP.",
+    "example": "Sodium-potassium pump maintains ion balance in nerve cells.",
+    "imageUrl": null,
+    "relatedConcepts": ["concentration-gradient", "atp", "plasma-membrane"]
+  },
+  {
+    "id": "concentration-gradient",
+    "term": "Concentration Gradient",
+    "definition": "The difference in concentration of a substance between two areas. Substances naturally move from high to low concentration.",
+    "example": "Perfume spreading across a room follows its concentration gradient.",
+    "imageUrl": null,
+    "relatedConcepts": ["passive-transport", "active-transport", "diffusion"]
+  },
+  {
+    "id": "plasma-membrane",
+    "term": "Plasma Membrane",
+    "definition": "The selectively permeable barrier that surrounds all cells, controlling what enters and exits the cell.",
+    "example": "The plasma membrane is made of a phospholipid bilayer with embedded proteins.",
+    "imageUrl": null,
+    "relatedConcepts": ["phospholipid", "protein-pump"]
+  },
+  {
+    "id": "protein-pump",
+    "term": "Protein Pump",
+    "definition": "A membrane protein that uses energy (ATP) to move substances against their concentration gradient.",
+    "example": "The sodium-potassium pump moves 3 Na+ out and 2 K+ into the cell per ATP used.",
+    "imageUrl": null,
+    "relatedConcepts": ["active-transport", "atp", "plasma-membrane"]
+  },
+  {
+    "id": "atp",
+    "term": "ATP (Adenosine Triphosphate)",
+    "definition": "The primary energy currency of the cell, used to power cellular processes including active transport.",
+    "example": "When ATP loses a phosphate group, it releases energy and becomes ADP.",
+    "imageUrl": null,
+    "relatedConcepts": ["active-transport", "cellular-respiration"]
+  },
+  {
+    "id": "facilitated-diffusion",
+    "term": "Facilitated Diffusion",
+    "definition": "Passive transport of molecules across a membrane through transport proteins, moving substances from high to low concentration without energy.",
+    "example": "Glucose enters cells through glucose transporter proteins via facilitated diffusion.",
+    "imageUrl": null,
+    "relatedConcepts": ["passive-transport", "concentration-gradient"]
+  },
+  {
+    "id": "osmosis",
+    "term": "Osmosis",
+    "definition": "The diffusion of water molecules across a selectively permeable membrane from an area of high water concentration to low water concentration.",
+    "example": "Plant cells become turgid when placed in a hypotonic solution due to osmosis.",
+    "imageUrl": null,
+    "relatedConcepts": ["diffusion", "plasma-membrane"]
+  },
+  {
+    "id": "diffusion",
+    "term": "Simple Diffusion",
+    "definition": "The net movement of small, nonpolar molecules from an area of high concentration to low concentration without the need for energy or transport proteins.",
+    "example": "Oxygen (O₂) and carbon dioxide (CO₂) cross the membrane by simple diffusion.",
+    "imageUrl": null,
+    "relatedConcepts": ["passive-transport", "concentration-gradient"]
+  },
+  {
+    "id": "passive-transport",
+    "term": "Passive Transport",
+    "definition": "Movement of substances across a membrane without the use of cellular energy, driven by the concentration gradient.",
+    "example": "Simple diffusion, facilitated diffusion, and osmosis are all types of passive transport.",
+    "imageUrl": null,
+    "relatedConcepts": ["diffusion", "facilitated-diffusion", "osmosis"]
+  },
+  {
+    "id": "prokaryote",
+    "term": "Prokaryote",
+    "definition": "A single-celled organism that lacks a membrane-bound nucleus and other membrane-bound organelles.",
+    "example": "Bacteria and archaea are prokaryotes.",
+    "imageUrl": null,
+    "relatedConcepts": ["eukaryote", "plasma-membrane"]
+  },
+  {
+    "id": "eukaryote",
+    "term": "Eukaryote",
+    "definition": "An organism whose cells contain a membrane-bound nucleus and other membrane-bound organelles.",
+    "example": "Animals, plants, fungi, and protists are all eukaryotes.",
+    "imageUrl": null,
+    "relatedConcepts": ["prokaryote", "nucleus", "organelle"]
+  },
+  {
+    "id": "dna",
+    "term": "DNA (Deoxyribonucleic Acid)",
+    "definition": "The molecule that carries the genetic instructions for growth, development, and reproduction in all living organisms.",
+    "example": "DNA's double helix structure was discovered by Watson and Crick in 1953.",
+    "imageUrl": null,
+    "relatedConcepts": ["nucleus", "heredity"]
+  },
+  {
+    "id": "organelle",
+    "term": "Organelle",
+    "definition": "A specialized structure within a cell that performs a specific function, often enclosed by a membrane.",
+    "example": "Mitochondria, ribosomes, and the endoplasmic reticulum are all organelles.",
+    "imageUrl": null,
+    "relatedConcepts": ["eukaryote", "nucleus"]
+  },
+  {
+    "id": "nucleus",
+    "term": "Nucleus",
+    "definition": "The membrane-bound organelle in eukaryotic cells that contains DNA and controls cell activities.",
+    "example": "The nucleus sends instructions to the cell via messenger RNA.",
+    "imageUrl": null,
+    "relatedConcepts": ["eukaryote", "dna", "organelle"]
+  },
+  {
+    "id": "carbon-bonding",
+    "term": "Carbon Bonding",
+    "definition": "Carbon can form four covalent bonds, allowing it to create diverse and complex molecular structures essential for life.",
+    "example": "Carbon forms the backbone of all organic macromolecules including proteins, carbohydrates, lipids, and nucleic acids.",
+    "imageUrl": null,
+    "relatedConcepts": ["macromolecule", "covalent-bond"]
+  },
+  {
+    "id": "macromolecule",
+    "term": "Macromolecule",
+    "definition": "A large, complex molecule made up of smaller subunits (monomers) joined together. The four types in biology are proteins, carbohydrates, lipids, and nucleic acids.",
+    "example": "A protein is a macromolecule made of amino acid monomers.",
+    "imageUrl": null,
+    "relatedConcepts": ["dehydration-synthesis", "hydrolysis", "monomer"]
+  },
+  {
+    "id": "dehydration-synthesis",
+    "term": "Dehydration Synthesis",
+    "definition": "A chemical reaction that joins monomers together to form a polymer by removing a water molecule.",
+    "example": "Two amino acids are joined by dehydration synthesis to form a peptide bond.",
+    "imageUrl": null,
+    "relatedConcepts": ["hydrolysis", "macromolecule", "monomer"]
+  },
+  {
+    "id": "hydrolysis",
+    "term": "Hydrolysis",
+    "definition": "A chemical reaction that breaks polymers into monomers by adding a water molecule.",
+    "example": "Digestion uses hydrolysis to break starch into individual glucose molecules.",
+    "imageUrl": null,
+    "relatedConcepts": ["dehydration-synthesis", "macromolecule"]
+  },
+  {
+    "id": "enzyme",
+    "term": "Enzyme",
+    "definition": "A biological catalyst (usually a protein) that speeds up chemical reactions without being consumed in the process.",
+    "example": "Amylase is an enzyme in saliva that breaks down starch into sugars.",
+    "imageUrl": null,
+    "relatedConcepts": ["activation-energy", "substrate"]
+  },
+  {
+    "id": "amino-acid",
+    "term": "Amino Acid",
+    "definition": "The monomer (building block) of proteins. There are 20 different amino acids that combine in various sequences to form proteins.",
+    "example": "The sequence of amino acids determines a protein's shape and function.",
+    "imageUrl": null,
+    "relatedConcepts": ["macromolecule", "dehydration-synthesis"]
+  },
+  {
+    "id": "monosaccharide",
+    "term": "Monosaccharide",
+    "definition": "The simplest form of carbohydrate and the monomer (building block) of complex carbohydrates.",
+    "example": "Glucose and fructose are monosaccharides.",
+    "imageUrl": null,
+    "relatedConcepts": ["macromolecule", "dehydration-synthesis"]
+  },
+  {
+    "id": "rough-er",
+    "term": "Rough Endoplasmic Reticulum (RER)",
+    "definition": "An organelle studded with ribosomes that synthesizes proteins and packages them into vesicles for transport.",
+    "example": "The RER produces proteins that are shipped to the Golgi apparatus for final processing.",
+    "imageUrl": null,
+    "relatedConcepts": ["golgi-apparatus", "organelle"]
+  },
+  {
+    "id": "golgi-apparatus",
+    "term": "Golgi Apparatus",
+    "definition": "An organelle that modifies, sorts, and packages proteins and lipids received from the ER for transport to their final destinations.",
+    "example": "The Golgi apparatus adds sugar tags to proteins to direct them where they need to go.",
+    "imageUrl": null,
+    "relatedConcepts": ["rough-er", "organelle"]
+  },
+  {
+    "id": "homeostasis",
+    "term": "Homeostasis",
+    "definition": "The maintenance of a stable internal environment in an organism despite changes in external conditions.",
+    "example": "Your body maintains a temperature of about 37°C regardless of the weather outside.",
+    "imageUrl": null,
+    "relatedConcepts": ["active-transport", "plasma-membrane"]
+  },
+  {
+    "id": "alveoli",
+    "term": "Alveoli",
+    "definition": "Tiny air sacs in the lungs where gas exchange occurs between the air and the blood.",
+    "example": "The millions of alveoli in your lungs provide a surface area roughly the size of a tennis court.",
+    "imageUrl": null,
+    "relatedConcepts": ["diffusion", "homeostasis"]
+  },
+  {
+    "id": "surface-area",
+    "term": "Surface Area",
+    "definition": "The total area of the exposed surface of an object. In biology, greater surface area allows for more efficient exchange of materials.",
+    "example": "The many folds of the small intestine increase its surface area for nutrient absorption.",
+    "imageUrl": null,
+    "relatedConcepts": ["alveoli", "diffusion"]
+  }
+]

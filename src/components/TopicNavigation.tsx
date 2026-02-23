@@ -87,7 +87,7 @@ function TopicCard({ topic, moduleId }: { topic: string; moduleId: number }) {
         className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d] focus-visible:bg-[#15803d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 focus-visible:ring-offset-2"
       >
         <Play className="w-4 h-4" />
-        Take Quiz
+        Start Practice
       </Link>
     </div>
   );

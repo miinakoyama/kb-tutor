@@ -27,7 +27,24 @@
         "feedback": "Incorrect. Simple diffusion only works for small, uncharged molecules (like O₂) moving down a gradient. Ions are charged and cannot pass through the membrane without help."
       }
     ],
-    "correctOptionId": "C"
+    "correctOptionId": "C",
+    "inlineTermIds": ["concentration-gradient", "protein-pump", "plasma-membrane"],
+    "sidebarTermIds": ["active-transport", "concentration-gradient"],
+    "focusHint": "Think about what kind of energy a cell needs when it moves something from where there's less to where there's more.",
+    "keyKnowledge": "Moving substances against their concentration gradient (low → high) always requires energy (ATP) via active transport.",
+    "commonMisconception": "Students often confuse facilitated diffusion with active transport because both use proteins, but only active transport moves against the gradient.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "The process moves molecules down their concentration gradient without energy." },
+        { "id": "B", "text": "ATP is required to move ions from low to high concentration." },
+        { "id": "C", "text": "The plasma membrane allows free passage of all ions." }
+      ],
+      "correctOptionId": "B",
+      "explanation": "Moving ions against their gradient (low to high) requires energy. Only active transport can accomplish this using ATP."
+    },
+    "misconceptionId": "confuse-facilitated-active",
+    "relatedQuestionIds": ["cell-growth-q2", "cell-growth-q4", "cell-growth-q10"]
   },
   {
     "id": "cell-growth-q2",
@@ -57,7 +74,24 @@
         "feedback": "If the concentrations were equal, the ions wouldn't \"naturally\" move in one direction. To create the 20x difference, the cell must use energy to force them into the cell."
       }
     ],
-    "correctOptionId": "C"
+    "correctOptionId": "C",
+    "inlineTermIds": ["plasma-membrane", "protein-pump", "concentration-gradient"],
+    "sidebarTermIds": ["atp", "active-transport"],
+    "focusHint": "Consider what \"fuel\" a cell produces to do work that goes against the natural flow of molecules.",
+    "keyKnowledge": "Protein pumps require ATP to move ions against their concentration gradient—this is the energy cost of active transport.",
+    "commonMisconception": "Students sometimes think thermal energy drives active transport, but heat only powers passive molecular movement.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Equilibrium provides the energy needed for the pump." },
+        { "id": "B", "text": "The pump uses ATP because it moves ions against the gradient." },
+        { "id": "C", "text": "Heat from the environment powers all cellular pumps." }
+      ],
+      "correctOptionId": "B",
+      "explanation": "Pumping ions against the gradient is like pushing uphill—it requires the cell's own energy currency, ATP."
+    },
+    "misconceptionId": "confuse-energy-sources",
+    "relatedQuestionIds": ["cell-growth-q1", "cell-growth-q10"]
   },
   {
     "id": "cell-growth-q3",
@@ -87,7 +121,24 @@
         "feedback": "Think again! Large or charged particles are blocked by the hydrophobic tails of the plasma membrane. They both require a protein helper."
       }
     ],
-    "correctOptionId": "C"
+    "correctOptionId": "C",
+    "inlineTermIds": ["facilitated-diffusion", "concentration-gradient"],
+    "sidebarTermIds": ["active-transport", "passive-transport", "plasma-membrane"],
+    "focusHint": "Focus on what K+ ions and glucose molecules have in common when crossing a membrane, regardless of energy use.",
+    "keyKnowledge": "Both active transport and facilitated diffusion require membrane proteins, but only active transport uses ATP.",
+    "commonMisconception": "Students often think that using a protein always means ATP is required. Facilitated diffusion uses proteins but no energy.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Both are large/charged and cannot cross the lipid bilayer without protein assistance." },
+        { "id": "B", "text": "Both use ATP to cross the membrane." },
+        { "id": "C", "text": "Neither substance needs any assistance to cross." }
+      ],
+      "correctOptionId": "A",
+      "explanation": "Charged ions and large molecules cannot pass through the hydrophobic interior of the membrane without transport proteins."
+    },
+    "misconceptionId": "protein-means-active",
+    "relatedQuestionIds": ["cell-growth-q1", "cell-growth-q4"]
   },
   {
     "id": "cell-growth-q4",
@@ -117,7 +168,24 @@
         "feedback": "It's the other way around! Oxygen diffusion is \"free\" for the cell (passive), while pumping potassium costs the cell energy (active)."
       }
     ],
-    "correctOptionId": "C"
+    "correctOptionId": "C",
+    "inlineTermIds": ["active-transport", "passive-transport", "concentration-gradient"],
+    "sidebarTermIds": ["diffusion", "atp"],
+    "focusHint": "Think about whether each substance is moving with or against its concentration gradient.",
+    "keyKnowledge": "Active = against the gradient (requires ATP). Passive = with the gradient (no energy needed).",
+    "commonMisconception": "Students confuse molecule size with transport type. The key distinction is direction relative to the gradient, not size.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Active transport moves against the gradient using energy; passive follows the gradient freely." },
+        { "id": "B", "text": "Larger molecules always require active transport." },
+        { "id": "C", "text": "Oxygen needs more energy than potassium to move." }
+      ],
+      "correctOptionId": "A",
+      "explanation": "The defining difference is direction: active goes against the gradient (costs energy), passive goes with it (free)."
+    },
+    "misconceptionId": "size-determines-transport",
+    "relatedQuestionIds": ["cell-growth-q1", "cell-growth-q11"]
   },
   {
     "id": "cell-growth-q5",
@@ -147,7 +215,24 @@
         "feedback": "Incorrect. While many cells move, some remain stationary throughout their life cycles; therefore, motility is not a universal requirement for all cells."
       }
     ],
-    "correctOptionId": "A"
+    "correctOptionId": "A",
+    "inlineTermIds": ["prokaryote", "eukaryote"],
+    "sidebarTermIds": ["dna", "organelle"],
+    "focusHint": "Think about what ALL living cells must have in common, regardless of complexity.",
+    "keyKnowledge": "All living cells (both prokaryotic and eukaryotic) contain DNA to store hereditary information.",
+    "commonMisconception": "Students often think organelles are universal, but membrane-bound organelles are exclusive to eukaryotes.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "All cells need DNA to pass on instructions to the next generation." },
+        { "id": "B", "text": "All cells have a nucleus to store their DNA." },
+        { "id": "C", "text": "All cells use the same energy process." }
+      ],
+      "correctOptionId": "A",
+      "explanation": "DNA is the universal molecule of heredity. Even prokaryotes without a nucleus still have DNA."
+    },
+    "misconceptionId": "organelles-universal",
+    "relatedQuestionIds": ["cell-growth-q6"]
   },
   {
     "id": "cell-growth-q6",
@@ -177,7 +262,24 @@
         "feedback": "Correct! Every living cell requires a plasma membrane to act as a barrier and cytoplasm to serve as the internal \"soup\" where chemical reactions occur."
       }
     ],
-    "correctOptionId": "D"
+    "correctOptionId": "D",
+    "inlineTermIds": ["prokaryote", "eukaryote", "plasma-membrane"],
+    "sidebarTermIds": ["nucleus", "organelle"],
+    "focusHint": "Which structures does even the simplest cell need to survive?",
+    "keyKnowledge": "All cells share a plasma membrane (barrier) and cytoplasm (internal environment), but only eukaryotes have a nucleus.",
+    "commonMisconception": "Students confuse cell walls with plasma membranes. Not all cells have cell walls, but all cells have plasma membranes.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Every cell needs a boundary (membrane) and an interior space (cytoplasm) to function." },
+        { "id": "B", "text": "All cells have a nucleus to control their activities." },
+        { "id": "C", "text": "Cell walls are present in all living organisms." }
+      ],
+      "correctOptionId": "A",
+      "explanation": "A plasma membrane and cytoplasm are the minimum requirements for any cell to exist and carry out reactions."
+    },
+    "misconceptionId": "all-cells-have-nucleus",
+    "relatedQuestionIds": ["cell-growth-q5"]
   },
   {
     "id": "cell-growth-q7",
@@ -207,7 +309,23 @@
         "feedback": "Incorrect. Carbon bonds often form 3D tetrahedral shapes, which is vital for the 3D functionality of proteins and DNA."
       }
     ],
-    "correctOptionId": "B"
+    "correctOptionId": "B",
+    "inlineTermIds": ["carbon-bonding", "macromolecule"],
+    "sidebarTermIds": ["carbon-bonding"],
+    "focusHint": "What does having four bonds allow carbon to build that other elements with fewer bonds cannot?",
+    "keyKnowledge": "Carbon's four covalent bonds enable it to form large, complex, and diverse molecules—the foundation of all organic life.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Four bonds allow branching, rings, and long chains—creating molecular diversity." },
+        { "id": "B", "text": "Carbon only bonds in straight lines." },
+        { "id": "C", "text": "Carbon forms ionic bonds with itself." }
+      ],
+      "correctOptionId": "A",
+      "explanation": "Four covalent bonds means carbon can connect in many configurations, enabling the complexity needed for biological molecules."
+    },
+    "misconceptionId": "carbon-simple-chains",
+    "relatedQuestionIds": ["cell-growth-q8", "cell-growth-q13"]
   },
   {
     "id": "cell-growth-q8",
@@ -237,7 +355,24 @@
         "feedback": "Correct! \"Dehydration\" means removing water, and \"synthesis\" means putting things together."
       }
     ],
-    "correctOptionId": "D"
+    "correctOptionId": "D",
+    "inlineTermIds": ["macromolecule", "dehydration-synthesis"],
+    "sidebarTermIds": ["hydrolysis", "dehydration-synthesis"],
+    "focusHint": "The name of this reaction literally describes what happens: water is removed and something is built.",
+    "keyKnowledge": "Dehydration synthesis builds polymers by removing water; hydrolysis breaks them by adding water. They are reverse reactions.",
+    "commonMisconception": "Students often confuse hydrolysis and dehydration synthesis because both involve water, but they work in opposite directions.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "The reaction adds water to break bonds." },
+        { "id": "B", "text": "The reaction removes water to form bonds between monomers." },
+        { "id": "C", "text": "The reaction converts light energy into chemical energy." }
+      ],
+      "correctOptionId": "B",
+      "explanation": "Dehydration = removing water. Synthesis = building. Monomers join together as a water molecule is released."
+    },
+    "misconceptionId": "confuse-hydrolysis-dehydration",
+    "relatedQuestionIds": ["cell-growth-q7", "cell-growth-q13"]
   },
   {
     "id": "cell-growth-q9",
@@ -267,7 +402,24 @@
         "feedback": "Correct! Enzymes are catalysts; they accelerate reactions and can be used over and over again because they aren't changed by the reaction."
       }
     ],
-    "correctOptionId": "D"
+    "correctOptionId": "D",
+    "inlineTermIds": ["enzyme"],
+    "sidebarTermIds": ["enzyme"],
+    "focusHint": "Think about what a catalyst does—and what it does NOT do (like provide energy or get used up).",
+    "keyKnowledge": "Enzymes are reusable biological catalysts that lower activation energy to speed up reactions.",
+    "commonMisconception": "Students often think enzymes provide energy, but they only lower the barrier (activation energy) for a reaction to occur.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Enzymes supply ATP to power the reaction." },
+        { "id": "B", "text": "Enzymes lower activation energy and are reusable catalysts." },
+        { "id": "C", "text": "Enzymes change the pH to make the reaction happen." }
+      ],
+      "correctOptionId": "B",
+      "explanation": "Enzymes don't provide energy or change conditions—they lower the energy barrier so reactions happen faster, and they can be reused."
+    },
+    "misconceptionId": "enzymes-provide-energy",
+    "relatedQuestionIds": []
   },
   {
     "id": "cell-growth-q10",
@@ -297,7 +449,24 @@
         "feedback": "Incorrect. Amylase is an enzyme in saliva that breaks down starch."
       }
     ],
-    "correctOptionId": "A"
+    "correctOptionId": "A",
+    "inlineTermIds": ["concentration-gradient", "atp"],
+    "sidebarTermIds": ["active-transport", "enzyme"],
+    "focusHint": "What is the cell's energy currency that powers work against the natural flow?",
+    "keyKnowledge": "ATP is the universal energy currency that powers active transport and other energy-requiring cellular processes.",
+    "commonMisconception": "Students confuse enzymes (catalase, amylase) with energy molecules. Enzymes speed up reactions but are not energy sources.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "ADP provides energy for active transport." },
+        { "id": "B", "text": "ATP releases energy when it loses a phosphate group, powering the pump." },
+        { "id": "C", "text": "Enzymes like catalase power the protein pump." }
+      ],
+      "correctOptionId": "B",
+      "explanation": "ATP → ADP + phosphate releases energy. This energy is what drives protein pumps to move ions against their gradient."
+    },
+    "misconceptionId": "confuse-enzymes-energy",
+    "relatedQuestionIds": ["cell-growth-q1", "cell-growth-q2"]
   },
   {
     "id": "cell-growth-q11",
@@ -327,7 +496,23 @@
         "feedback": "Incorrect. Receptors are for cell signaling, not for directing the flow of simple gases like O₂."
       }
     ],
-    "correctOptionId": "B"
+    "correctOptionId": "B",
+    "inlineTermIds": ["plasma-membrane", "diffusion"],
+    "sidebarTermIds": ["concentration-gradient", "passive-transport"],
+    "focusHint": "Small nonpolar gases cross membranes freely. What physical force determines which direction they go?",
+    "keyKnowledge": "Small nonpolar molecules (O₂, CO₂) move by simple diffusion, driven solely by the concentration gradient.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Gases move from high to low concentration by passive diffusion." },
+        { "id": "B", "text": "Membrane receptors direct gas molecules." },
+        { "id": "C", "text": "Cholesterol channels guide gases through the membrane." }
+      ],
+      "correctOptionId": "A",
+      "explanation": "O₂ and CO₂ are small and nonpolar, so they freely diffuse across the membrane down their concentration gradient."
+    },
+    "misconceptionId": "membrane-structure-directs-gases",
+    "relatedQuestionIds": ["cell-growth-q4", "cell-growth-q12"]
   },
   {
     "id": "cell-growth-q12",
@@ -357,7 +542,24 @@
         "feedback": "Correct! By being divided into millions of tiny sacs, the alveoli provide a massive surface area, which allows oxygen to move into the blood much faster."
       }
     ],
-    "correctOptionId": "D"
+    "correctOptionId": "D",
+    "inlineTermIds": ["alveoli", "diffusion"],
+    "sidebarTermIds": ["surface-area", "diffusion"],
+    "focusHint": "Think about why having millions of tiny sacs is better for gas exchange than one big open space.",
+    "keyKnowledge": "Increased surface area (from many small alveoli) maximizes the rate of gas exchange by diffusion.",
+    "commonMisconception": "Students confuse volume with surface area. It's not about how much space the lungs hold, but how much contact area exists for gas exchange.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "More surface area means more space for O₂ and CO₂ to cross into/out of the blood." },
+        { "id": "B", "text": "Larger volume means the lungs can hold more oxygen." },
+        { "id": "C", "text": "Alveoli produce ATP that is transferred to the blood." }
+      ],
+      "correctOptionId": "A",
+      "explanation": "Millions of tiny alveoli create a huge surface area, maximizing the area where diffusion of gases can occur."
+    },
+    "misconceptionId": "volume-vs-surface-area",
+    "relatedQuestionIds": ["cell-growth-q11"]
   },
   {
     "id": "cell-growth-q13",
@@ -387,7 +589,23 @@
         "feedback": "Incorrect. Proteins are often much larger and more structurally complex than most carbohydrates due to their intricate folding patterns."
       }
     ],
-    "correctOptionId": "A"
+    "correctOptionId": "A",
+    "inlineTermIds": ["amino-acid", "monosaccharide", "macromolecule"],
+    "sidebarTermIds": ["amino-acid", "monosaccharide"],
+    "focusHint": "What are the specific building blocks (monomers) that make up each type of macromolecule?",
+    "keyKnowledge": "Proteins are built from amino acids; carbohydrates are built from monosaccharides (simple sugars). Different monomers = different macromolecules.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Both macromolecules use the same monomers." },
+        { "id": "B", "text": "They differ in their monomers: amino acids vs. monosaccharides." },
+        { "id": "C", "text": "Proteins lack nitrogen while carbohydrates contain it." }
+      ],
+      "correctOptionId": "B",
+      "explanation": "The fundamental structural difference is their monomers: amino acids (proteins) vs. monosaccharides (carbohydrates)."
+    },
+    "misconceptionId": "monomer-confusion",
+    "relatedQuestionIds": ["cell-growth-q7", "cell-growth-q8"]
   },
   {
     "id": "cell-growth-q14",
@@ -417,7 +635,23 @@
         "feedback": "Incorrect. The \"instructions\" for which proteins to make come from the DNA in the nucleus, not the RER itself."
       }
     ],
-    "correctOptionId": "C"
+    "correctOptionId": "C",
+    "inlineTermIds": ["rough-er", "golgi-apparatus"],
+    "sidebarTermIds": ["rough-er", "golgi-apparatus", "organelle"],
+    "focusHint": "Think about the production line: one organelle makes the product, another processes and ships it. What connects them?",
+    "keyKnowledge": "The RER makes proteins and sends them in vesicles to the Golgi apparatus, which modifies and ships them to their destination.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "The RER produces proteins and packages them in vesicles for the Golgi." },
+        { "id": "B", "text": "The RER reads DNA to decide which proteins to make." },
+        { "id": "C", "text": "The RER breaks down waste for the Golgi to recycle." }
+      ],
+      "correctOptionId": "A",
+      "explanation": "RER → vesicles → Golgi is the protein production and delivery pipeline of the cell."
+    },
+    "misconceptionId": "organelle-roles-confused",
+    "relatedQuestionIds": []
   },
   {
     "id": "cell-growth-q15",
@@ -447,6 +681,22 @@
         "feedback": "Correct! Homeostasis is about keeping internal levels steady. By exchanging gases, the fish keeps its internal oxygen at the right level for survival."
       }
     ],
-    "correctOptionId": "D"
+    "correctOptionId": "D",
+    "inlineTermIds": ["homeostasis"],
+    "sidebarTermIds": ["homeostasis", "diffusion"],
+    "focusHint": "Homeostasis means maintaining stable internal conditions. Which activity directly regulates an internal level?",
+    "keyKnowledge": "Homeostasis is the regulation of internal conditions (like O₂ levels). Gas exchange through gills directly maintains internal balance.",
+    "rationaleQuestion": {
+      "text": "Which reason best supports your answer?",
+      "options": [
+        { "id": "A", "text": "Camouflage regulates internal oxygen levels." },
+        { "id": "B", "text": "Gas exchange through gills directly maintains internal O₂ and CO₂ balance." },
+        { "id": "C", "text": "Moving to deeper water controls internal temperature." }
+      ],
+      "correctOptionId": "B",
+      "explanation": "Gills perform gas exchange, directly regulating internal O₂ and CO₂ levels—a classic example of homeostasis."
+    },
+    "misconceptionId": "adaptation-vs-homeostasis",
+    "relatedQuestionIds": []
   }
 ]
