@@ -265,7 +265,7 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
             </button>
             <button
               onClick={handleNext}
-              disabled={!currentAnswer}
+              disabled={!currentAnswer || (question.rationaleQuestion && !currentRationale)}
               className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
             >
               {currentIndex === totalQuestions - 1 && allAnswered
@@ -295,51 +295,71 @@ function RationaleQuestionBlock({
   onSelect: (optionId: string) => void;
 }) {
   return (
-    <div className="p-4 rounded-xl border border-slate-gray/20 bg-slate-gray/5">
-      <p className="text-sm font-semibold text-slate-gray mb-3">
-        {rationaleQuestion.text}
-      </p>
-      <div className="space-y-2">
-        {rationaleQuestion.options.map((opt) => {
-          const isSelected = rationaleAnswer?.selectedOptionId === opt.id;
-          const isCorrect = opt.id === rationaleQuestion.correctOptionId;
-          const isAnswered = !!rationaleAnswer;
-
-          let borderColor = "rgba(31, 45, 31, 0.15)";
-          let bgColor = "white";
-          if (isAnswered && isCorrect) {
-            borderColor = "#16a34a";
-            bgColor = "rgba(22, 163, 74, 0.1)";
-          } else if (isAnswered && isSelected && !isCorrect) {
-            borderColor = "#f87171";
-            bgColor = "rgba(248, 113, 113, 0.1)";
-          }
-
-          return (
-            <button
-              key={opt.id}
-              onClick={() => onSelect(opt.id)}
-              disabled={isAnswered}
-              className="w-full text-left px-3 py-2.5 rounded-lg border-2 text-sm transition-all"
-              style={{ borderColor, backgroundColor: bgColor }}
-            >
-              <span className="text-slate-gray">{opt.text}</span>
-            </button>
-          );
-        })}
+    <div className="rounded-2xl border border-amber-200 bg-amber-50/50 overflow-hidden">
+      <div className="px-4 py-3 bg-amber-100/50 border-b border-amber-200">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20">
+            <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Follow-up Question</p>
+            <p className="text-xs text-amber-700/70">Test your understanding of the concept</p>
+          </div>
+        </div>
       </div>
+      
+      <div className="p-4">
+        <p className="text-sm font-medium text-slate-gray mb-3">
+          {rationaleQuestion.text}
+        </p>
+        <div className="space-y-2">
+          {rationaleQuestion.options.map((opt) => {
+            const isSelected = rationaleAnswer?.selectedOptionId === opt.id;
+            const isCorrect = opt.id === rationaleQuestion.correctOptionId;
+            const isAnswered = !!rationaleAnswer;
 
-      {rationaleAnswer && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className={`mt-3 text-sm leading-relaxed ${
-            rationaleAnswer.isCorrect ? "text-green-800" : "text-red-800"
-          }`}
-        >
-          {rationaleQuestion.explanation}
-        </motion.p>
-      )}
+            let borderColor = "rgba(31, 45, 31, 0.15)";
+            let bgColor = "white";
+            if (isAnswered && isCorrect) {
+              borderColor = "#16a34a";
+              bgColor = "rgba(22, 163, 74, 0.1)";
+            } else if (isAnswered && isSelected && !isCorrect) {
+              borderColor = "#f87171";
+              bgColor = "rgba(248, 113, 113, 0.1)";
+            }
+
+            return (
+              <button
+                key={opt.id}
+                onClick={() => onSelect(opt.id)}
+                disabled={isAnswered}
+                className={`w-full text-left px-3 py-2.5 rounded-xl border-2 text-sm transition-all ${
+                  !isAnswered ? "hover:border-amber-400 hover:bg-amber-50" : ""
+                }`}
+                style={{ borderColor, backgroundColor: bgColor }}
+              >
+                <span className="text-slate-gray">{opt.text}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {rationaleAnswer && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`mt-4 p-3 rounded-xl text-sm leading-relaxed ${
+              rationaleAnswer.isCorrect 
+                ? "bg-green-50 border border-green-200 text-green-800" 
+                : "bg-red-50 border border-red-200 text-red-800"
+            }`}
+          >
+            {rationaleQuestion.explanation}
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }
