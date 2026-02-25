@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Flag } from "lucide-react";
+import { Flag, Check } from "lucide-react";
 import type { AnswerRecord } from "@/types/question";
 
 type FilterTab = "all" | "unanswered" | "flagged";
@@ -80,17 +80,20 @@ export function ExamNavigator({
                 onClick={() => onNavigate(i)}
                 aria-label={ariaLabel}
                 aria-current={isCurrent ? "true" : undefined}
-                className={`relative w-full aspect-square rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 ${
+                className={`relative w-full aspect-square rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#14532d]/50 flex items-center justify-center ${
                   isCurrent
-                    ? "ring-2 ring-[#16a34a] ring-offset-1"
+                    ? "ring-2 ring-[#14532d] ring-offset-1"
                     : ""
                 }`}
                 style={{
-                  backgroundColor: answered ? "rgba(22, 163, 74, 0.15)" : "#f1f5f9",
-                  color: answered ? "#16a34a" : "#64748b",
+                  backgroundColor: answered ? "rgba(20, 83, 45, 0.15)" : "#f1f5f9",
+                  color: answered ? "#14532d" : "#64748b",
                 }}
               >
                 {i + 1}
+                {answered && (
+                  <Check className="absolute -bottom-0.5 -right-0.5 w-3 h-3 text-white bg-[#14532d] rounded-full p-0.5" strokeWidth={3} />
+                )}
                 {isFlagged && (
                   <Flag className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 text-amber-500 fill-amber-500" />
                 )}

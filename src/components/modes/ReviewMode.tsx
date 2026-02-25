@@ -3,12 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  ChevronRight,
-  Home,
-  CheckCircle2,
-  RotateCcw,
-} from "lucide-react";
+import { ChevronRight, Home, CheckCircle2, RotateCcw } from "lucide-react";
 import type { Question, AnswerRecord, ConfidenceLevel } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
@@ -33,7 +28,9 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
 
   useEffect(() => {
     const incorrectIds = getIncorrectQuestionIds();
-    const incorrectQuestions = questions.filter((q) => incorrectIds.includes(q.id));
+    const incorrectQuestions = questions.filter((q) =>
+      incorrectIds.includes(q.id),
+    );
     const shuffled = shuffleArray(incorrectQuestions);
     setReviewQuestions(shuffled.slice(0, MAX_REVIEW_QUESTIONS));
     setIsInitialized(true);
@@ -59,7 +56,7 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
         mode: "review",
       });
     },
-    [currentIndex, currentAnswer, question]
+    [currentIndex, currentAnswer, question],
   );
 
   const handleConfidence = useCallback(
@@ -69,7 +66,7 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
         [currentIndex]: { ...prev[currentIndex], confidenceLevel: level },
       }));
     },
-    [currentIndex]
+    [currentIndex],
   );
 
   const handleNext = useCallback(() => {
@@ -97,8 +94,8 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
             Nothing to Review!
           </h2>
           <p className="text-sm text-slate-gray/60 mb-6">
-            You haven&apos;t gotten any questions wrong yet, or you haven&apos;t practiced
-            any questions. Try some practice first!
+            You haven&apos;t gotten any questions wrong yet, or you haven&apos;t
+            practiced any questions. Try some practice first!
           </p>
           <Link
             href="/"
@@ -113,7 +110,9 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
   }
 
   if (showComplete) {
-    const correctCount = Object.values(answers).filter((a) => a.isCorrect).length;
+    const correctCount = Object.values(answers).filter(
+      (a) => a.isCorrect,
+    ).length;
     const scorePercent = Math.round((correctCount / totalQuestions) * 100);
     return (
       <motion.div
@@ -133,7 +132,7 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
           </p>
           {scorePercent < 100 && (
             <p className="text-sm text-slate-gray/50 mt-3">
-              Keep practicing—review again to address remaining gaps.
+              Keep practicing! Review again to address remaining gaps.
             </p>
           )}
         </div>

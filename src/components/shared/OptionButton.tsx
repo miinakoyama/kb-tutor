@@ -5,6 +5,8 @@ import { Info } from "lucide-react";
 
 const PRIMARY_COLOR = "#16a34a";
 const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
+const PENDING_COLOR = "#14532d";
+const PENDING_LIGHT = "rgba(20, 83, 45, 0.1)";
 
 interface OptionButtonProps {
   option: { id: string; text: string; feedback?: string };
@@ -14,6 +16,7 @@ interface OptionButtonProps {
   isAnswered: boolean;
   onSelect: (optionId: string) => void;
   showFeedbackIcon?: boolean;
+  pendingSelection?: boolean;
 }
 
 export function OptionButton({
@@ -24,6 +27,7 @@ export function OptionButton({
   isAnswered,
   onSelect,
   showFeedbackIcon = false,
+  pendingSelection = false,
 }: OptionButtonProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -51,6 +55,7 @@ export function OptionButton({
   const getBorderColor = () => {
     if (showCorrect) return PRIMARY_COLOR;
     if (showWrong) return "#f87171";
+    if (isSelected && pendingSelection) return PENDING_COLOR;
     if (isSelected) return PRIMARY_COLOR;
     return "rgba(31, 45, 31, 0.2)";
   };
@@ -58,18 +63,20 @@ export function OptionButton({
   const getBackgroundColor = () => {
     if (showCorrect) return PRIMARY_LIGHT;
     if (showWrong) return "rgba(248, 113, 113, 0.1)";
+    if (isSelected && pendingSelection) return PENDING_LIGHT;
     if (isSelected) return PRIMARY_LIGHT;
     return "white";
   };
 
   const getBadgeStyles = () => {
     if (showCorrect || showWrong || isSelected) {
+      let bgColor = PRIMARY_COLOR;
+      if (showCorrect) bgColor = PRIMARY_COLOR;
+      else if (showWrong) bgColor = "#f87171";
+      else if (isSelected && pendingSelection) bgColor = PENDING_COLOR;
+      
       return {
-        backgroundColor: showCorrect
-          ? PRIMARY_COLOR
-          : showWrong
-            ? "#f87171"
-            : PRIMARY_COLOR,
+        backgroundColor: bgColor,
         color: "white",
       };
     }
@@ -81,13 +88,15 @@ export function OptionButton({
 
   const badgeStyles = getBadgeStyles();
 
+  const isDisabled = isAnswered && !pendingSelection;
+
   return (
     <div className="relative">
       <button
         onClick={() => onSelect(option.id)}
-        disabled={isAnswered}
+        disabled={isDisabled}
         className={`group w-full text-left px-4 py-3 min-h-[48px] rounded-xl border-2 transition-all duration-200 break-words flex items-center gap-3 ${
-          isAnswered
+          isDisabled
             ? "cursor-default"
             : "cursor-pointer hover:border-[var(--primary-border)] hover:bg-primary-light focus-visible:border-[var(--primary-border)] focus-visible:bg-primary-light focus-visible:outline-none"
         }`}

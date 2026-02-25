@@ -90,7 +90,6 @@ export function ExamMode({
 
   const handleOptionClick = useCallback(
     (optionId: string) => {
-      if (answers[currentIndex]?.selectedOptionId) return;
       const q = sessionQuestions[currentIndex];
       if (!q) return;
       const isCorrect = optionId === q.correctOptionId;
@@ -99,7 +98,7 @@ export function ExamMode({
         [currentIndex]: { ...prev[currentIndex], selectedOptionId: optionId, isCorrect },
       }));
     },
-    [currentIndex, answers, sessionQuestions]
+    [currentIndex, sessionQuestions]
   );
 
   const toggleFlag = useCallback(() => {
@@ -307,6 +306,7 @@ export function ExamMode({
                       showWrong={false}
                       isAnswered={!!currentAnswer?.selectedOptionId}
                       onSelect={handleOptionClick}
+                      pendingSelection
                     />
                   );
                 })}
@@ -387,67 +387,64 @@ function ExamConfig({
   const isFullExam = !topicName || topicName === "Full Mock Exam";
 
   return (
-    <div>
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
-      >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-          <ArrowLeft className="w-4 h-4 text-[#14532d]" />
-        </span>
-        Back to Home
-      </Link>
-
-      <div className="max-w-lg">
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-gray mb-1">
-            {isFullExam ? "Mock Exam" : topicName}
-          </h2>
-          <p className="text-sm text-slate-gray/60 mb-6">
-            {isFullExam
-              ? "Choose the number of questions for your practice exam."
-              : "Questions will be drawn from all topics."}
-          </p>
-
-          <div className="space-y-3 mb-6">
-            {options.map((opt) => {
-              const isActive = questionCount === opt.count;
-              return (
-                <button
-                  key={opt.count}
-                  onClick={() => setQuestionCount(opt.count)}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                    isActive
-                      ? "border-[#16a34a] bg-[#16a34a]/5"
-                      : "border-slate-gray/15 hover:border-slate-gray/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-base font-semibold text-slate-gray">
-                        {opt.label}
-                      </span>
-                      <span className="text-sm text-slate-gray/50 ml-2">
-                        {opt.count} questions
-                      </span>
-                    </div>
-                    <span className="text-sm text-slate-gray/50">
-                      {opt.description}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            onClick={onStart}
-            className="w-full py-3 rounded-xl text-white font-semibold bg-[#16a34a] hover:bg-[#15803d] transition-colors"
-          >
-            Start Exam
-          </button>
-        </div>
+    <div className="max-w-lg mx-auto">
+      <div className="mb-6">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+        >
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
+            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          </span>
+          Back to Home
+        </Link>
+        <h1 className="text-xl sm:text-2xl font-bold font-heading text-[#14532d]">
+          {isFullExam ? "Mock Exam" : topicName}
+        </h1>
+        <p className="text-sm text-slate-gray/60 mt-1">
+          {isFullExam
+            ? "Choose the number of questions for your practice exam"
+            : "Questions will be drawn from all topics"}
+        </p>
       </div>
+
+      <div className="space-y-3 mb-6">
+        {options.map((opt) => {
+          const isActive = questionCount === opt.count;
+          return (
+            <button
+              key={opt.count}
+              onClick={() => setQuestionCount(opt.count)}
+              className={`w-full text-left p-5 rounded-3xl border bg-white shadow-sm transition-all ${
+                isActive
+                  ? "border-[#16a34a] shadow-md"
+                  : "border-[#16a34a]/30 hover:border-[#16a34a] hover:shadow-md"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-lg font-bold text-slate-gray">
+                    {opt.label}
+                  </span>
+                  <p className="text-xs text-[#16a34a] font-medium">
+                    {opt.count} questions
+                  </p>
+                </div>
+                <span className="text-sm text-slate-gray/50">
+                  {opt.description}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={onStart}
+        className="w-full py-3 rounded-2xl text-white font-semibold bg-[#16a34a] hover:bg-[#15803d] transition-colors shadow-sm"
+      >
+        Start Exam
+      </button>
     </div>
   );
 }
@@ -591,7 +588,7 @@ function ExamResults({
             const isFlagged = answer?.flagged;
             return (
               <button
-                key={q.id}
+                key={index}
                 onClick={() => onReview(index)}
                 className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-slate-gray/5 ${
                   isCorrect
