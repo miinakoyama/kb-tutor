@@ -14,7 +14,8 @@ import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
-import { getIncorrectQuestionIds, saveAnswer } from "@/lib/storage";
+import { getReviewQuestionIds, saveAnswer } from "@/lib/storage";
+import { shuffleArray } from "@/lib/array-utils";
 
 interface ReviewModeProps {
   questions: Question[];
@@ -22,16 +23,24 @@ interface ReviewModeProps {
 }
 
 export function ReviewMode({ questions, topicName }: ReviewModeProps) {
-  const incorrectIds = useMemo(() => getIncorrectQuestionIds(), []);
+  const reviewIds = useMemo(() => getReviewQuestionIds(), []);
 
   const reviewQuestions = useMemo(() => {
-    const direct = questions.filter((q) => incorrectIds.includes(q.id));
+    const { incorrect, reviewLater, lowConfidence } = reviewIds;
+
+    const priorityIds = new Set([...incorrect, ...reviewLater]);
+    const secondaryIds = new Set(
+      lowConfidence.filter((id) => !priorityIds.has(id))
+    );
+
+    const priorityQuestions = questions.filter((q) => priorityIds.has(q.id));
+    const secondaryQuestions = questions.filter((q) => secondaryIds.has(q.id));
 
     const followUpIds = new Set<string>();
-    for (const q of direct) {
+    for (const q of priorityQuestions) {
       if (q.relatedQuestionIds) {
         for (const rid of q.relatedQuestionIds) {
-          if (!incorrectIds.includes(rid)) {
+          if (!priorityIds.has(rid) && !secondaryIds.has(rid)) {
             followUpIds.add(rid);
           }
         }
@@ -39,8 +48,13 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
     }
     const followUps = questions.filter((q) => followUpIds.has(q.id));
 
-    return [...direct, ...followUps];
-  }, [questions, incorrectIds]);
+    const combined = [...priorityQuestions, ...secondaryQuestions, ...followUps];
+    const uniqueQuestions = Array.from(
+      new Map(combined.map((q) => [q.id, q])).values()
+    );
+
+    return shuffleArray(uniqueQuestions);
+  }, [questions, reviewIds]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});

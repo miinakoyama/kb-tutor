@@ -19,25 +19,11 @@ import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer } from "@/lib/storage";
-import glossaryData from "@/data/glossary.json";
+import { shuffleArray } from "@/lib/array-utils";
+import { getTermsById, getAllGlossaryTerms } from "@/lib/glossary-utils";
 
 const QUESTIONS_PER_SESSION = 5;
-const allGlossaryTerms = glossaryData as GlossaryTerm[];
-
-function getTermsById(ids: string[]): GlossaryTerm[] {
-  return ids
-    .map((id) => allGlossaryTerms.find((t) => t.id === id))
-    .filter((t): t is GlossaryTerm => t !== undefined);
-}
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
+const allGlossaryTerms = getAllGlossaryTerms();
 
 interface GuidedModeProps {
   questions: Question[];
@@ -186,72 +172,72 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
       <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto min-h-0 pb-4">
-          <QuestionDisplay
-            question={question}
-            questionNumber={currentIndex + 1}
-            currentAnswer={currentAnswer}
-            onOptionClick={handleOptionClick}
-            renderQuestionText={renderQuestionText}
-            showOptionFeedbackIcons
-            feedbackSlot={
-              currentAnswer ? (
-                <div className="space-y-4">
-                  <FeedbackPanel
-                    question={question}
-                    answer={currentAnswer}
-                    showKeyKnowledge
-                    showMisconception
-                  />
-                  <ConfidenceCheck
-                    value={currentAnswer.confidenceLevel}
-                    onChange={handleConfidence}
-                  />
-                </div>
-              ) : undefined
-            }
-            belowOptionsSlot={
-              !currentAnswer && question.focusHint ? (
-                <div className="mt-4 p-3 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/5">
-                  <div className="flex items-start gap-2.5">
-                    <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#16a34a]" />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a] mb-0.5">
-                        Focus
-                      </p>
-                      <p className="text-sm text-slate-gray/80 leading-relaxed">
-                        {question.focusHint}
-                      </p>
+            <QuestionDisplay
+              question={question}
+              questionNumber={currentIndex + 1}
+              currentAnswer={currentAnswer}
+              onOptionClick={handleOptionClick}
+              renderQuestionText={renderQuestionText}
+              showOptionFeedbackIcons
+              feedbackSlot={
+                currentAnswer ? (
+                  <div className="space-y-4">
+                    <FeedbackPanel
+                      question={question}
+                      answer={currentAnswer}
+                      showKeyKnowledge
+                      showMisconception
+                    />
+                    <ConfidenceCheck
+                      value={currentAnswer.confidenceLevel}
+                      onChange={handleConfidence}
+                    />
+                  </div>
+                ) : undefined
+              }
+              belowOptionsSlot={
+                !currentAnswer && question.focusHint ? (
+                  <div className="mt-4 p-3 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/5">
+                    <div className="flex items-start gap-2.5">
+                      <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#16a34a]" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a] mb-0.5">
+                          Focus
+                        </p>
+                        <p className="text-sm text-slate-gray/80 leading-relaxed">
+                          {question.focusHint}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : undefined
-            }
-          />
-        </div>
+                ) : undefined
+              }
+            />
+          </div>
 
-        <div className="flex-shrink-0 pt-2">
-          <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-3 border border-[#16a34a]/20">
-            <button
-              onClick={handlePrevious}
-              disabled={currentIndex === 0}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Previous
-            </button>
-            <button
-              onClick={handleNext}
-              disabled={!currentAnswer}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
-            >
-              {currentIndex === totalQuestions - 1 && allAnswered
-                ? "View Results"
-                : "Next"}
-              <ChevronRight className="w-4 h-4" />
-            </button>
+          <div className="flex-shrink-0 pt-2">
+            <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-3 border border-[#16a34a]/20">
+              <button
+                onClick={handlePrevious}
+                disabled={currentIndex === 0}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+              <button
+                onClick={handleNext}
+                disabled={!currentAnswer}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {currentIndex === totalQuestions - 1 && allAnswered
+                  ? "View Results"
+                  : "Next"}
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
         <div className="lg:w-72 flex-shrink-0">
           <GlossaryPanel terms={sidebarTerms} defaultOpen title="Definitions" />

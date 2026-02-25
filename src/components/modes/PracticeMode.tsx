@@ -24,25 +24,10 @@ import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer, addReviewLater, removeReviewLater } from "@/lib/storage";
-import glossaryData from "@/data/glossary.json";
+import { shuffleArray } from "@/lib/array-utils";
+import { getTermsById } from "@/lib/glossary-utils";
 
 const QUESTIONS_PER_SESSION = 10;
-const allGlossaryTerms = glossaryData as GlossaryTerm[];
-
-function getTermsById(ids: string[]): GlossaryTerm[] {
-  return ids
-    .map((id) => allGlossaryTerms.find((t) => t.id === id))
-    .filter((t): t is GlossaryTerm => t !== undefined);
-}
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
 
 interface PracticeModeProps {
   questions: Question[];
@@ -202,80 +187,80 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
           </div>
 
           <div className="flex-1 overflow-y-auto min-h-0 pb-4">
-          <QuestionDisplay
-            question={question}
-            questionNumber={currentIndex + 1}
-            currentAnswer={currentAnswer}
-            onOptionClick={handleOptionClick}
-            showOptionFeedbackIcons
-            feedbackSlot={
-              currentAnswer ? (
-                <div className="space-y-4">
-                  <FeedbackPanel
-                    question={question}
-                    answer={currentAnswer}
-                    showKeyKnowledge
-                  />
-
-                  {question.rationaleQuestion && (
-                    <RationaleQuestionBlock
-                      rationaleQuestion={question.rationaleQuestion}
-                      rationaleAnswer={currentRationale}
-                      onSelect={handleRationaleClick}
+            <QuestionDisplay
+              question={question}
+              questionNumber={currentIndex + 1}
+              currentAnswer={currentAnswer}
+              onOptionClick={handleOptionClick}
+              showOptionFeedbackIcons
+              feedbackSlot={
+                currentAnswer ? (
+                  <div className="space-y-4">
+                    <FeedbackPanel
+                      question={question}
+                      answer={currentAnswer}
+                      showKeyKnowledge
                     />
-                  )}
 
-                  <ConfidenceCheck
-                    value={currentAnswer.confidenceLevel}
-                    onChange={handleConfidence}
-                  />
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={() =>
-                        handleReviewLater(!currentAnswer.reviewLater)
-                      }
-                      className={`inline-flex items-center gap-1.5 text-sm transition-colors ${
-                        currentAnswer.reviewLater
-                          ? "text-[#16a34a] font-medium"
-                          : "text-slate-gray/50 hover:text-slate-gray/70"
-                      }`}
-                    >
-                      <Bookmark
-                        className={`w-4 h-4 ${currentAnswer.reviewLater ? "fill-[#16a34a]" : ""}`}
+                    {question.rationaleQuestion && (
+                      <RationaleQuestionBlock
+                        rationaleQuestion={question.rationaleQuestion}
+                        rationaleAnswer={currentRationale}
+                        onSelect={handleRationaleClick}
                       />
-                      Review later
-                    </button>
-                  </div>
-                </div>
-              ) : undefined
-            }
-          />
-        </div>
+                    )}
 
-        <div className="flex-shrink-0 pt-2">
-          <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-3 border border-[#16a34a]/20">
-            <button
-              onClick={handlePrevious}
-              disabled={currentIndex === 0}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Previous
-            </button>
-            <button
-              onClick={handleNext}
-              disabled={!currentAnswer || (question.rationaleQuestion && !currentRationale)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
-            >
-              {currentIndex === totalQuestions - 1 && allAnswered
-                ? "View Results"
-                : "Next"}
-              <ChevronRight className="w-4 h-4" />
-            </button>
+                    <ConfidenceCheck
+                      value={currentAnswer.confidenceLevel}
+                      onChange={handleConfidence}
+                    />
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() =>
+                          handleReviewLater(!currentAnswer.reviewLater)
+                        }
+                        className={`inline-flex items-center gap-1.5 text-sm transition-colors ${
+                          currentAnswer.reviewLater
+                            ? "text-[#16a34a] font-medium"
+                            : "text-slate-gray/50 hover:text-slate-gray/70"
+                        }`}
+                      >
+                        <Bookmark
+                          className={`w-4 h-4 ${currentAnswer.reviewLater ? "fill-[#16a34a]" : ""}`}
+                        />
+                        Review later
+                      </button>
+                    </div>
+                  </div>
+                ) : undefined
+              }
+            />
+          </div>
+
+          <div className="flex-shrink-0 pt-2">
+            <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-3 border border-[#16a34a]/20">
+              <button
+                onClick={handlePrevious}
+                disabled={currentIndex === 0}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+              <button
+                onClick={handleNext}
+                disabled={!currentAnswer || (question.rationaleQuestion && !currentRationale)}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {currentIndex === totalQuestions - 1 && allAnswered
+                  ? "View Results"
+                  : "Next"}
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
         <div className={`lg:w-72 flex-shrink-0 ${showGlossary ? "" : "hidden lg:block"}`}>
           <GlossaryPanel terms={glossaryTerms} title="Glossary" />

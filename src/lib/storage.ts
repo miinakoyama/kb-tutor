@@ -100,6 +100,35 @@ export function getIncorrectQuestionIds(): string[] {
     .map(([id]) => id);
 }
 
+export function getLowConfidenceQuestionIds(): string[] {
+  const history = getAnswerHistory();
+  const lastAnswerByQuestion = new Map<string, StoredAnswer>();
+  for (const answer of history) {
+    lastAnswerByQuestion.set(answer.questionId, answer);
+  }
+  return Array.from(lastAnswerByQuestion.entries())
+    .filter(
+      ([, answer]) =>
+        answer.confidenceLevel === "not_sure" ||
+        answer.confidenceLevel === "somewhat"
+    )
+    .map(([id]) => id);
+}
+
+export interface ReviewQuestionIds {
+  incorrect: string[];
+  reviewLater: string[];
+  lowConfidence: string[];
+}
+
+export function getReviewQuestionIds(): ReviewQuestionIds {
+  return {
+    incorrect: getIncorrectQuestionIds(),
+    reviewLater: getReviewLaterIds(),
+    lowConfidence: getLowConfidenceQuestionIds(),
+  };
+}
+
 export function clearHistory(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEYS.ANSWER_HISTORY);

@@ -65,17 +65,21 @@ export function ExamNavigator({
       </div>
 
       <div className="p-4 max-h-80 overflow-y-auto">
-        <div className="grid grid-cols-8 gap-2">
+        <div className="grid grid-cols-8 gap-2" role="navigation" aria-label="Question navigation">
           {filteredIndices.map((i) => {
             const answer = answers[i];
             const isCurrent = i === currentIndex;
             const answered = !!answer?.selectedOptionId;
             const isFlagged = answer?.flagged;
 
+            const ariaLabel = `Question ${i + 1}, ${answered ? "answered" : "not answered"}${isFlagged ? ", flagged" : ""}${isCurrent ? ", current" : ""}`;
+
             return (
               <button
                 key={i}
                 onClick={() => onNavigate(i)}
+                aria-label={ariaLabel}
+                aria-current={isCurrent ? "true" : undefined}
                 className={`relative w-full aspect-square rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 ${
                   isCurrent
                     ? "ring-2 ring-[#16a34a] ring-offset-1"

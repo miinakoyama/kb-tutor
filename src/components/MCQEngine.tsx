@@ -14,6 +14,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import type { Question } from "@/types/question";
+import { shuffleArray } from "@/lib/array-utils";
 
 const PRIMARY_COLOR = "#16a34a";
 const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
@@ -28,15 +29,6 @@ interface MCQEngineProps {
 interface AnswerRecord {
   selectedOptionId: string;
   isCorrect: boolean;
-}
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
 }
 
 interface QuestionHeaderProps {

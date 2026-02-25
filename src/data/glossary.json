@@ -37,7 +37,7 @@
     "definition": "The primary energy currency of the cell, used to power cellular processes including active transport.",
     "example": "When ATP loses a phosphate group, it releases energy and becomes ADP.",
     "imageUrl": null,
-    "relatedConcepts": ["active-transport", "cellular-respiration"]
+    "relatedConcepts": ["active-transport"]
   },
   {
     "id": "facilitated-diffusion",
@@ -117,7 +117,7 @@
     "definition": "Carbon can form four covalent bonds, allowing it to create diverse and complex molecular structures essential for life.",
     "example": "Carbon forms the backbone of all organic macromolecules including proteins, carbohydrates, lipids, and nucleic acids.",
     "imageUrl": null,
-    "relatedConcepts": ["macromolecule", "covalent-bond"]
+    "relatedConcepts": ["macromolecule"]
   },
   {
     "id": "macromolecule",
@@ -125,7 +125,7 @@
     "definition": "A large, complex molecule made up of smaller subunits (monomers) joined together. The four types in biology are proteins, carbohydrates, lipids, and nucleic acids.",
     "example": "A protein is a macromolecule made of amino acid monomers.",
     "imageUrl": null,
-    "relatedConcepts": ["dehydration-synthesis", "hydrolysis", "monomer"]
+    "relatedConcepts": ["dehydration-synthesis", "hydrolysis"]
   },
   {
     "id": "dehydration-synthesis",

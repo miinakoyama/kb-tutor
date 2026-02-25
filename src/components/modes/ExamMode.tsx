@@ -21,17 +21,9 @@ import { ExamNavigator } from "@/components/shared/ExamNavigator";
 import { Timer } from "@/components/shared/Timer";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswerBatch } from "@/lib/storage";
+import { shuffleArray } from "@/lib/array-utils";
 
 const PRIMARY_COLOR = "#16a34a";
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
 
 interface ExamModeProps {
   questions: Question[];
