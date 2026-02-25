@@ -49,7 +49,7 @@ const MODE_CARDS: ModeCardData[] = [
   },
   {
     mode: "exam",
-    title: "Topic Quiz",
+    title: "Exam",
     subtitle: "Test this topic",
     description:
       "Exam-like conditions for this topic only. No hints, feedback after you submit.",
