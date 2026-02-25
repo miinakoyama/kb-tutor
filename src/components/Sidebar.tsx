@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,17 +11,34 @@ import {
   Settings,
   Menu,
   X,
+  ClipboardCheck,
+  Bookmark,
 } from "lucide-react";
+import { getBookmarkedIds } from "@/lib/storage";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
+  { href: "/exam", label: "Mock Exam", icon: ClipboardCheck },
   { href: "/progress", label: "My Progress", icon: BarChart3 },
+  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   { href: "/content", label: "Content Management", icon: Settings },
 ] as const;
 
 export function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [bookmarkCount, setBookmarkCount] = useState(0);
+
+  useEffect(() => {
+    const updateCount = () => setBookmarkCount(getBookmarkedIds().length);
+    updateCount();
+    window.addEventListener("storage", updateCount);
+    const interval = setInterval(updateCount, 1000);
+    return () => {
+      window.removeEventListener("storage", updateCount);
+      clearInterval(interval);
+    };
+  }, []);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -38,6 +55,7 @@ export function Sidebar() {
       <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
+          const isBookmarks = href === "/bookmarks";
           return (
             <Link
               key={href}
@@ -50,11 +68,15 @@ export function Sidebar() {
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
               {label}
+              {isBookmarks && bookmarkCount > 0 && (
+                <span className="ml-auto bg-white/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                  {bookmarkCount}
+                </span>
+              )}
             </Link>
           );
         })}
       </nav>
-
     </>
   );
 
@@ -106,6 +128,7 @@ export function Sidebar() {
               <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                 {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
                   const active = isActive(href);
+                  const isBookmarks = href === "/bookmarks";
                   return (
                     <Link
                       key={href}
@@ -119,6 +142,11 @@ export function Sidebar() {
                     >
                       <Icon className="w-5 h-5 flex-shrink-0" />
                       {label}
+                      {isBookmarks && bookmarkCount > 0 && (
+                        <span className="ml-auto bg-white/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                          {bookmarkCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

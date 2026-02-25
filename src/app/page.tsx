@@ -2,9 +2,9 @@ import { TopicNavigation } from "@/components/TopicNavigation";
 
 export default function Home() {
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 lg:py-10">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <section className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-gray mb-1">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-1">
           Welcome back! 🌿
         </h1>
         <p className="text-slate-gray/70">

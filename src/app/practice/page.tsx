@@ -1,12 +1,18 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Home } from "lucide-react";
-import { MCQEngine } from "@/components/MCQEngine";
+import { ModeSelector } from "@/components/ModeSelector";
+import { GuidedMode } from "@/components/modes/GuidedMode";
+import { PracticeMode } from "@/components/modes/PracticeMode";
+import { ExamMode } from "@/components/modes/ExamMode";
+import { ReviewMode } from "@/components/modes/ReviewMode";
 import questionsData from "@/data/questions.json";
-import type { Question } from "@/types/question";
+import type { Question, PracticeMode as PracticeModeType } from "@/types/question";
 import { MODULES } from "@/types/question";
 
 const questions = questionsData as Question[];
+
+const VALID_MODES: PracticeModeType[] = ["guided", "practice", "exam", "review"];
 
 function InvalidParamsMessage({ message }: { message: string }) {
   return (
@@ -30,19 +36,14 @@ function validateModuleParam(moduleParam: string | undefined): {
   moduleNum?: number;
   error?: string;
 } {
-  if (!moduleParam) {
-    return { isValid: true };
-  }
-
+  if (!moduleParam) return { isValid: true };
   const moduleNum = parseInt(moduleParam, 10);
-
   if (isNaN(moduleNum)) {
     return {
       isValid: false,
       error: `Invalid module parameter: "${moduleParam}". Please select a valid module from the home page.`,
     };
   }
-
   const validModuleIds = MODULES.map((m) => m.id) as readonly number[];
   if (!validModuleIds.includes(moduleNum)) {
     return {
@@ -50,7 +51,6 @@ function validateModuleParam(moduleParam: string | undefined): {
       error: `Module ${moduleNum} does not exist. Available modules: ${validModuleIds.join(", ")}.`,
     };
   }
-
   return { isValid: true, moduleNum };
 }
 
@@ -62,12 +62,8 @@ function validateTopicParam(
   decodedTopic?: string;
   error?: string;
 } {
-  if (!topicParam) {
-    return { isValid: true };
-  }
-
+  if (!topicParam) return { isValid: true };
   const decodedTopic = decodeURIComponent(topicParam);
-
   if (moduleNum !== undefined) {
     const targetModule = MODULES.find((m) => m.id === moduleNum);
     const topics = targetModule?.topics as readonly string[] | undefined;
@@ -78,18 +74,18 @@ function validateTopicParam(
       };
     }
   }
-
   return { isValid: true, decodedTopic };
 }
 
 async function PracticeContent({
   searchParams,
 }: {
-  searchParams: Promise<{ module?: string; topic?: string }>;
+  searchParams: Promise<{ module?: string; topic?: string; mode?: string; questions?: string }>;
 }) {
   const params = await searchParams;
   const moduleParam = params.module;
   const topicParam = params.topic;
+  const modeParam = params.mode as PracticeModeType | undefined;
 
   const moduleValidation = validateModuleParam(moduleParam);
   if (!moduleValidation.isValid) {
@@ -120,17 +116,59 @@ async function PracticeContent({
     topicName = topicValidation.decodedTopic;
   }
 
-  return <MCQEngine questions={filteredQuestions} topicName={topicName} />;
+  if (!modeParam && moduleValidation.moduleNum && topicName) {
+    return (
+      <ModeSelector
+        moduleId={moduleValidation.moduleNum}
+        topicName={topicName}
+      />
+    );
+  }
+
+  if (modeParam && !VALID_MODES.includes(modeParam)) {
+    return <InvalidParamsMessage message={`Invalid mode: "${modeParam}". Please select a valid mode.`} />;
+  }
+
+  switch (modeParam) {
+    case "guided":
+      return (
+        <GuidedMode questions={filteredQuestions} topicName={topicName} />
+      );
+    case "practice":
+      return (
+        <PracticeMode questions={filteredQuestions} topicName={topicName} />
+      );
+    case "exam": {
+      return (
+        <ExamMode
+          questions={filteredQuestions}
+          topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
+          requestedQuestionCount={10}
+        />
+      );
+    }
+    case "review":
+      return (
+        <ReviewMode questions={questions} topicName={topicName} />
+      );
+    default:
+      return (
+        <ModeSelector
+          moduleId={moduleValidation.moduleNum ?? 1}
+          topicName={topicName ?? "All Topics"}
+        />
+      );
+  }
 }
 
 export default async function PracticePage({
   searchParams,
 }: {
-  searchParams: Promise<{ module?: string; topic?: string }>;
+  searchParams: Promise<{ module?: string; topic?: string; mode?: string; questions?: string }>;
 }) {
   return (
     <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
-      <div className="max-w-4xl mx-auto px-4 py-4 h-full">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 h-full overflow-y-auto">
         <Suspense fallback={<div className="text-slate-gray">Loading...</div>}>
           <PracticeContent searchParams={searchParams} />
         </Suspense>
