@@ -12,7 +12,12 @@ import {
   ArrowLeft,
   Bookmark,
 } from "lucide-react";
-import type { Question, AnswerRecord, ConfidenceLevel, GlossaryTerm } from "@/types/question";
+import type {
+  Question,
+  AnswerRecord,
+  ConfidenceLevel,
+  GlossaryTerm,
+} from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
@@ -36,21 +41,27 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [showSummary, setShowSummary] = useState(false);
-  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
+  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(
+    new Set(),
+  );
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     const shuffled = shuffleArray(questions);
     const selected = shuffled.slice(0, QUESTIONS_PER_SESSION);
     setSessionQuestions(selected);
-    
-    const bookmarked = selected.map((q) => q.id).filter((id) => isBookmarked(id));
+
+    const bookmarked = selected
+      .map((q) => q.id)
+      .filter((id) => isBookmarked(id));
     setBookmarkedQuestions(new Set(bookmarked));
     setIsInitialized(true);
   }, [questions]);
 
   const question = sessionQuestions[currentIndex];
-  const isCurrentBookmarked = question ? bookmarkedQuestions.has(question.id) : false;
+  const isCurrentBookmarked = question
+    ? bookmarkedQuestions.has(question.id)
+    : false;
   const currentAnswer = answers[currentIndex];
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.keys(answers).length;
@@ -60,12 +71,14 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
 
   const inlineTermIds = useMemo(
     () => new Set(question?.inlineTermIds ?? []),
-    [question]
+    [question],
   );
 
   const sidebarTerms = useMemo(() => {
     if (!question?.sidebarTermIds) return [];
-    const filteredIds = question.sidebarTermIds.filter((id) => !inlineTermIds.has(id));
+    const filteredIds = question.sidebarTermIds.filter(
+      (id) => !inlineTermIds.has(id),
+    );
     return getTermsById(filteredIds);
   }, [question, inlineTermIds]);
 
@@ -77,19 +90,19 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
       if (term) {
         const termLower = term.term.toLowerCase();
         map.set(termLower, term);
-        
+
         const firstWord = termLower.split(" ")[0];
         if (firstWord.length > 4) {
           map.set(firstWord + "s", term);
           map.set(firstWord + "es", term);
-          
+
           if (firstWord.endsWith("e")) {
             map.set(firstWord.slice(0, -1) + "ic", term);
           } else {
             map.set(firstWord + "ic", term);
           }
         }
-        
+
         const hyphenated = termLower.replace(/\s+/g, "-");
         if (hyphenated !== termLower) {
           map.set(hyphenated, term);
@@ -104,11 +117,11 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
       if (inlineTermMap.size === 0) return text;
 
       const terms = Array.from(inlineTermMap.keys()).sort(
-        (a, b) => b.length - a.length
+        (a, b) => b.length - a.length,
       );
       const pattern = new RegExp(
         `\\b(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
-        "gi"
+        "gi",
       );
       const parts = text.split(pattern);
 
@@ -124,7 +137,7 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
         return part;
       });
     },
-    [inlineTermMap]
+    [inlineTermMap],
   );
 
   const handleOptionClick = useCallback(
@@ -141,7 +154,7 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
         mode: "guided",
       });
     },
-    [currentIndex, currentAnswer, question]
+    [currentIndex, currentAnswer, question],
   );
 
   const handleConfidence = useCallback(
@@ -151,7 +164,7 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
         [currentIndex]: { ...prev[currentIndex], confidenceLevel: level },
       }));
     },
-    [currentIndex]
+    [currentIndex],
   );
 
   const handleBookmarkToggle = useCallback(() => {
@@ -199,7 +212,9 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
   }
 
   if (showSummary) {
-    const correctCount = Object.values(answers).filter((a) => a.isCorrect).length;
+    const correctCount = Object.values(answers).filter(
+      (a) => a.isCorrect,
+    ).length;
     const scorePercent = Math.round((correctCount / totalQuestions) * 100);
     return (
       <GuidedSummary
@@ -314,7 +329,7 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
         </div>
 
         <div className="lg:w-72 flex-shrink-0">
-          <GlossaryPanel terms={sidebarTerms} defaultOpen title="Definitions" />
+          <GlossaryPanel terms={sidebarTerms} defaultOpen title="Glossary" />
         </div>
       </div>
     </div>
@@ -347,7 +362,9 @@ function GuidedSummary({
         <h2 className="text-2xl font-bold text-slate-gray mb-2">
           Guided Practice Complete!
         </h2>
-        <p className="text-4xl font-bold text-[#16a34a] mb-1">{scorePercent}%</p>
+        <p className="text-4xl font-bold text-[#16a34a] mb-1">
+          {scorePercent}%
+        </p>
         <p className="text-sm text-slate-gray/60">
           {correctCount} of {totalQuestions} correct
         </p>
