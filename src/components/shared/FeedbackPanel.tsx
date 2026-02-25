@@ -23,7 +23,13 @@ export function FeedbackPanel({
   const selectedOption = question.options.find(
     (opt) => opt.id === answer.selectedOptionId
   );
-  const isCorrect = answer.isCorrect;
+  const correctOption = question.options.find(
+    (opt) => opt.id === question.correctOptionId
+  );
+  const isCorrect = answer.selectedOptionId === question.correctOptionId;
+  
+  const displayOption = selectedOption || correctOption;
+  const displayIsCorrect = selectedOption ? isCorrect : true;
 
   const cleanFeedback = (feedback?: string) => {
     if (!feedback) return "";
@@ -41,12 +47,12 @@ export function FeedbackPanel({
       <div
         className="p-4 rounded-xl border"
         style={{
-          backgroundColor: isCorrect ? PRIMARY_LIGHT : "rgba(248, 113, 113, 0.1)",
-          borderColor: isCorrect ? `${PRIMARY_COLOR}40` : "rgba(248, 113, 113, 0.3)",
+          backgroundColor: displayIsCorrect ? PRIMARY_LIGHT : "rgba(248, 113, 113, 0.1)",
+          borderColor: displayIsCorrect ? `${PRIMARY_COLOR}40` : "rgba(248, 113, 113, 0.3)",
         }}
       >
         <div className="flex items-start gap-3">
-          {isCorrect ? (
+          {displayIsCorrect ? (
             <CheckCircle2
               className="w-5 h-5 flex-shrink-0 mt-0.5"
               style={{ color: PRIMARY_COLOR }}
@@ -57,15 +63,15 @@ export function FeedbackPanel({
           <div className="flex-1 min-w-0">
             <p
               className="text-sm font-semibold mb-1"
-              style={{ color: isCorrect ? "#166534" : "#991b1b" }}
+              style={{ color: displayIsCorrect ? "#166534" : "#991b1b" }}
             >
-              {isCorrect ? "Correct!" : "Incorrect"}
+              {displayIsCorrect ? "Correct!" : "Incorrect"}
             </p>
             <p
               className="text-sm leading-relaxed"
-              style={{ color: isCorrect ? "#166534" : "#991b1b" }}
+              style={{ color: displayIsCorrect ? "#166534" : "#991b1b" }}
             >
-              {cleanFeedback(selectedOption?.feedback)}
+              {cleanFeedback(displayOption?.feedback)}
             </p>
           </div>
         </div>
@@ -87,7 +93,7 @@ export function FeedbackPanel({
         </div>
       )}
 
-      {showMisconception && question.commonMisconception && !isCorrect && (
+      {showMisconception && question.commonMisconception && !displayIsCorrect && (
         <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">
             Common Misconception

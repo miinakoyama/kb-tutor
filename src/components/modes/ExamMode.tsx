@@ -70,16 +70,24 @@ export function ExamMode({
     
     if (questionCount <= questions.length) {
       const shuffled = shuffleArray(questions);
-      selectedQuestions = shuffled.slice(0, questionCount);
+      selectedQuestions = shuffled.slice(0, questionCount).map((q, idx) => ({
+        ...q,
+        _sessionIndex: idx,
+      }));
     } else {
       const shuffled = shuffleArray(questions);
-      selectedQuestions = [...shuffled];
+      let tempQuestions = [...shuffled];
       
-      while (selectedQuestions.length < questionCount) {
+      while (tempQuestions.length < questionCount) {
         const reshuffled = shuffleArray(questions);
-        const remaining = questionCount - selectedQuestions.length;
-        selectedQuestions = [...selectedQuestions, ...reshuffled.slice(0, remaining)];
+        const remaining = questionCount - tempQuestions.length;
+        tempQuestions = [...tempQuestions, ...reshuffled.slice(0, remaining)];
       }
+      
+      selectedQuestions = tempQuestions.map((q, idx) => ({
+        ...q,
+        _sessionIndex: idx,
+      }));
     }
     
     setSessionQuestions(selectedQuestions);
@@ -215,7 +223,7 @@ export function ExamMode({
               );
             })}
           </div>
-          {a && (
+          {a?.selectedOptionId && (
             <FeedbackPanel
               question={q}
               answer={a}
@@ -584,7 +592,8 @@ function ExamResults({
         <div className="space-y-2">
           {questions.map((q, index) => {
             const answer = answers[index];
-            const isCorrect = answer?.isCorrect;
+            const hasAnswer = !!answer?.selectedOptionId;
+            const isCorrect = hasAnswer && answer?.selectedOptionId === q.correctOptionId;
             const isFlagged = answer?.flagged;
             return (
               <button
@@ -593,7 +602,7 @@ function ExamResults({
                 className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-slate-gray/5 ${
                   isCorrect
                     ? "border-[#16a34a]/20"
-                    : answer
+                    : hasAnswer
                       ? "border-red-200"
                       : "border-slate-gray/10"
                 }`}
@@ -614,7 +623,7 @@ function ExamResults({
                         className="w-4 h-4"
                         style={{ color: PRIMARY_COLOR }}
                       />
-                    ) : answer ? (
+                    ) : hasAnswer ? (
                       <XCircle className="w-4 h-4 text-red-400" />
                     ) : (
                       <span className="text-xs text-slate-gray/40">—</span>
