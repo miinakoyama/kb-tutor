@@ -71,7 +71,7 @@ const MODE_CARDS: ModeCardData[] = [
 
 export function ModeSelector({ moduleId, topicName }: ModeSelectorProps) {
   return (
-    <div className="max-w-4xl mx-auto">
+    <div>
       <div className="mb-6">
         <Link
           href="/"

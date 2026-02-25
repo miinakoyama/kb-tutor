@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -44,17 +44,20 @@ export function ExamMode({
   const [questionCount, setQuestionCount] = useState(
     requestedQuestionCount ?? 20
   );
-  const [sessionQuestions, setSessionQuestions] = useState<Question[]>(() => {
-    if (requestedQuestionCount) {
-      const shuffled = shuffleArray(questions);
-      return shuffled.slice(0, requestedQuestionCount);
-    }
-    return [];
-  });
+  const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   const elapsedRef = useRef(0);
+  const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
+
+  useEffect(() => {
+    if (requestedQuestionCount) {
+      const shuffled = shuffleArray(questions);
+      setSessionQuestions(shuffled.slice(0, requestedQuestionCount));
+      setIsInitialized(true);
+    }
+  }, [questions, requestedQuestionCount]);
 
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.values(answers).filter((a) => a.selectedOptionId).length;
@@ -63,9 +66,23 @@ export function ExamMode({
     totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
   const startExam = useCallback(() => {
-    const count = Math.min(questionCount, questions.length);
-    const shuffled = shuffleArray(questions);
-    setSessionQuestions(shuffled.slice(0, count));
+    let selectedQuestions: Question[] = [];
+    
+    if (questionCount <= questions.length) {
+      const shuffled = shuffleArray(questions);
+      selectedQuestions = shuffled.slice(0, questionCount);
+    } else {
+      const shuffled = shuffleArray(questions);
+      selectedQuestions = [...shuffled];
+      
+      while (selectedQuestions.length < questionCount) {
+        const reshuffled = shuffleArray(questions);
+        const remaining = questionCount - selectedQuestions.length;
+        selectedQuestions = [...selectedQuestions, ...reshuffled.slice(0, remaining)];
+      }
+    }
+    
+    setSessionQuestions(selectedQuestions);
     setAnswers({});
     setCurrentIndex(0);
     setPhase("exam");
@@ -118,7 +135,6 @@ export function ExamMode({
   if (phase === "config") {
     return (
       <ExamConfig
-        maxQuestions={questions.length}
         questionCount={questionCount}
         setQuestionCount={setQuestionCount}
         onStart={startExam}
@@ -209,6 +225,14 @@ export function ExamMode({
             />
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (!isInitialized) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-slate-gray">Loading exam...</div>
       </div>
     );
   }
@@ -344,13 +368,11 @@ export function ExamMode({
 }
 
 function ExamConfig({
-  maxQuestions,
   questionCount,
   setQuestionCount,
   onStart,
   topicName,
 }: {
-  maxQuestions: number;
   questionCount: number;
   setQuestionCount: (n: number) => void;
   onStart: () => void;
@@ -360,12 +382,12 @@ function ExamConfig({
     { count: 20, label: "Quick", description: "~20 min" },
     { count: 32, label: "Module", description: "~35 min" },
     { count: 64, label: "Full Exam", description: "~60 min" },
-  ].filter((o) => o.count <= maxQuestions || o.count === 20);
+  ];
 
   const isFullExam = !topicName || topicName === "Full Mock Exam";
 
   return (
-    <div className="max-w-lg mx-auto pt-8">
+    <div>
       <Link
         href="/"
         className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
@@ -376,54 +398,55 @@ function ExamConfig({
         Back to Home
       </Link>
 
-      <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-bold text-slate-gray mb-1">
-          {isFullExam ? "Mock Exam" : topicName}
-        </h2>
-        <p className="text-sm text-slate-gray/60 mb-6">
-          {isFullExam
-            ? "Choose the number of questions for your practice exam."
-            : "Questions will be drawn from all topics."}
-        </p>
+      <div className="max-w-lg">
+        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-gray mb-1">
+            {isFullExam ? "Mock Exam" : topicName}
+          </h2>
+          <p className="text-sm text-slate-gray/60 mb-6">
+            {isFullExam
+              ? "Choose the number of questions for your practice exam."
+              : "Questions will be drawn from all topics."}
+          </p>
 
-        <div className="space-y-3 mb-6">
-          {options.map((opt) => {
-            const effective = Math.min(opt.count, maxQuestions);
-            const isActive = questionCount === effective;
-            return (
-              <button
-                key={opt.count}
-                onClick={() => setQuestionCount(effective)}
-                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                  isActive
-                    ? "border-[#16a34a] bg-[#16a34a]/5"
-                    : "border-slate-gray/15 hover:border-slate-gray/30"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-base font-semibold text-slate-gray">
-                      {opt.label}
-                    </span>
-                    <span className="text-sm text-slate-gray/50 ml-2">
-                      {effective} questions
+          <div className="space-y-3 mb-6">
+            {options.map((opt) => {
+              const isActive = questionCount === opt.count;
+              return (
+                <button
+                  key={opt.count}
+                  onClick={() => setQuestionCount(opt.count)}
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                    isActive
+                      ? "border-[#16a34a] bg-[#16a34a]/5"
+                      : "border-slate-gray/15 hover:border-slate-gray/30"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-base font-semibold text-slate-gray">
+                        {opt.label}
+                      </span>
+                      <span className="text-sm text-slate-gray/50 ml-2">
+                        {opt.count} questions
+                      </span>
+                    </div>
+                    <span className="text-sm text-slate-gray/50">
+                      {opt.description}
                     </span>
                   </div>
-                  <span className="text-sm text-slate-gray/50">
-                    {opt.description}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                </button>
+              );
+            })}
+          </div>
 
-        <button
-          onClick={onStart}
-          className="w-full py-3 rounded-xl text-white font-semibold bg-[#16a34a] hover:bg-[#15803d] transition-colors"
-        >
-          Start Exam
-        </button>
+          <button
+            onClick={onStart}
+            className="w-full py-3 rounded-xl text-white font-semibold bg-[#16a34a] hover:bg-[#15803d] transition-colors"
+          >
+            Start Exam
+          </button>
+        </div>
       </div>
     </div>
   );

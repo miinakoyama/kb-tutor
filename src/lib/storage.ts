@@ -2,7 +2,7 @@ import type { AnswerRecord, ConfidenceLevel } from "@/types/question";
 
 const STORAGE_KEYS = {
   ANSWER_HISTORY: "kb-tutor-answer-history",
-  REVIEW_LATER: "kb-tutor-review-later",
+  BOOKMARKS: "kb-tutor-bookmarks",
   SESSION_DATA: "kb-tutor-session-data",
 } as const;
 
@@ -58,21 +58,35 @@ export function saveAnswerBatch(answers: StoredAnswer[]): void {
   safeSetItem(STORAGE_KEYS.ANSWER_HISTORY, history);
 }
 
-export function getReviewLaterIds(): string[] {
-  return safeGetItem<string[]>(STORAGE_KEYS.REVIEW_LATER, []);
+export function getBookmarkedIds(): string[] {
+  return safeGetItem<string[]>(STORAGE_KEYS.BOOKMARKS, []);
 }
 
-export function addReviewLater(questionId: string): void {
-  const ids = getReviewLaterIds();
+export function isBookmarked(questionId: string): boolean {
+  return getBookmarkedIds().includes(questionId);
+}
+
+export function addBookmark(questionId: string): void {
+  const ids = getBookmarkedIds();
   if (!ids.includes(questionId)) {
     ids.push(questionId);
-    safeSetItem(STORAGE_KEYS.REVIEW_LATER, ids);
+    safeSetItem(STORAGE_KEYS.BOOKMARKS, ids);
   }
 }
 
-export function removeReviewLater(questionId: string): void {
-  const ids = getReviewLaterIds().filter((id) => id !== questionId);
-  safeSetItem(STORAGE_KEYS.REVIEW_LATER, ids);
+export function removeBookmark(questionId: string): void {
+  const ids = getBookmarkedIds().filter((id) => id !== questionId);
+  safeSetItem(STORAGE_KEYS.BOOKMARKS, ids);
+}
+
+export function toggleBookmark(questionId: string): boolean {
+  if (isBookmarked(questionId)) {
+    removeBookmark(questionId);
+    return false;
+  } else {
+    addBookmark(questionId);
+    return true;
+  }
 }
 
 export function getTopicAccuracy(topic: string): TopicAccuracy {
@@ -100,38 +114,9 @@ export function getIncorrectQuestionIds(): string[] {
     .map(([id]) => id);
 }
 
-export function getLowConfidenceQuestionIds(): string[] {
-  const history = getAnswerHistory();
-  const lastAnswerByQuestion = new Map<string, StoredAnswer>();
-  for (const answer of history) {
-    lastAnswerByQuestion.set(answer.questionId, answer);
-  }
-  return Array.from(lastAnswerByQuestion.entries())
-    .filter(
-      ([, answer]) =>
-        answer.confidenceLevel === "not_sure" ||
-        answer.confidenceLevel === "somewhat"
-    )
-    .map(([id]) => id);
-}
-
-export interface ReviewQuestionIds {
-  incorrect: string[];
-  reviewLater: string[];
-  lowConfidence: string[];
-}
-
-export function getReviewQuestionIds(): ReviewQuestionIds {
-  return {
-    incorrect: getIncorrectQuestionIds(),
-    reviewLater: getReviewLaterIds(),
-    lowConfidence: getLowConfidenceQuestionIds(),
-  };
-}
-
 export function clearHistory(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEYS.ANSWER_HISTORY);
-  localStorage.removeItem(STORAGE_KEYS.REVIEW_LATER);
+  localStorage.removeItem(STORAGE_KEYS.BOOKMARKS);
   localStorage.removeItem(STORAGE_KEYS.SESSION_DATA);
 }

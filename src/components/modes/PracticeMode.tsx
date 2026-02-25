@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -23,7 +23,7 @@ import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
-import { saveAnswer, addReviewLater, removeReviewLater } from "@/lib/storage";
+import { saveAnswer, isBookmarked, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { getTermsById } from "@/lib/glossary-utils";
 
@@ -35,10 +35,7 @@ interface PracticeModeProps {
 }
 
 export function PracticeMode({ questions, topicName }: PracticeModeProps) {
-  const [sessionQuestions] = useState<Question[]>(() => {
-    const shuffled = shuffleArray(questions);
-    return shuffled.slice(0, QUESTIONS_PER_SESSION);
-  });
+  const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [rationaleAnswers, setRationaleAnswers] = useState<
@@ -46,8 +43,21 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
   >({});
   const [showSummary, setShowSummary] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
+  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    const shuffled = shuffleArray(questions);
+    const selected = shuffled.slice(0, QUESTIONS_PER_SESSION);
+    setSessionQuestions(selected);
+
+    const bookmarked = selected.map((q) => q.id).filter((id) => isBookmarked(id));
+    setBookmarkedQuestions(new Set(bookmarked));
+    setIsInitialized(true);
+  }, [questions]);
 
   const question = sessionQuestions[currentIndex];
+  const isCurrentBookmarked = question ? bookmarkedQuestions.has(question.id) : false;
   const currentAnswer = answers[currentIndex];
   const currentRationale = rationaleAnswers[currentIndex];
   const totalQuestions = sessionQuestions.length;
@@ -105,21 +115,19 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
     [currentIndex]
   );
 
-  const handleReviewLater = useCallback(
-    (checked: boolean) => {
-      if (!question) return;
-      setAnswers((prev) => ({
-        ...prev,
-        [currentIndex]: { ...prev[currentIndex], reviewLater: checked },
-      }));
-      if (checked) {
-        addReviewLater(question.id);
+  const handleBookmarkToggle = useCallback(() => {
+    if (!question) return;
+    const newState = toggleBookmark(question.id);
+    setBookmarkedQuestions((prev) => {
+      const next = new Set(prev);
+      if (newState) {
+        next.add(question.id);
       } else {
-        removeReviewLater(question.id);
+        next.delete(question.id);
       }
-    },
-    [currentIndex, question]
-  );
+      return next;
+    });
+  }, [question]);
 
   const handlePrevious = useCallback(() => {
     if (currentIndex > 0) setCurrentIndex((i) => i - 1);
@@ -132,6 +140,14 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
       setShowSummary(true);
     }
   }, [currentIndex, totalQuestions, allAnswered]);
+
+  if (!isInitialized) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-slate-gray">Loading questions...</div>
+      </div>
+    );
+  }
 
   if (sessionQuestions.length === 0) {
     return (
@@ -217,19 +233,17 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
 
                     <div className="flex items-center gap-2 pt-1">
                       <button
-                        onClick={() =>
-                          handleReviewLater(!currentAnswer.reviewLater)
-                        }
+                        onClick={handleBookmarkToggle}
                         className={`inline-flex items-center gap-1.5 text-sm transition-colors ${
-                          currentAnswer.reviewLater
+                          isCurrentBookmarked
                             ? "text-[#16a34a] font-medium"
                             : "text-slate-gray/50 hover:text-slate-gray/70"
                         }`}
                       >
                         <Bookmark
-                          className={`w-4 h-4 ${currentAnswer.reviewLater ? "fill-[#16a34a]" : ""}`}
+                          className={`w-4 h-4 ${isCurrentBookmarked ? "fill-[#16a34a]" : ""}`}
                         />
-                        Review later
+                        {isCurrentBookmarked ? "Bookmarked" : "Bookmark"}
                       </button>
                     </div>
                   </div>

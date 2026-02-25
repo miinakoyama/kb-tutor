@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -573,7 +573,7 @@ function SummaryScreen({
 
 function initializeSession(questions: Question[]): Question[] {
   if (questions.length <= QUESTIONS_PER_SESSION) {
-    return questions;
+    return [...questions];
   }
   const shuffled = shuffleArray(questions);
   return shuffled.slice(0, QUESTIONS_PER_SESSION);
@@ -584,26 +584,26 @@ export function MCQEngine({
   topicName,
   onComplete,
 }: MCQEngineProps) {
-  const [sessionQuestions, setSessionQuestions] = useState<Question[]>(() =>
-    initializeSession(questions)
-  );
-  const [isInitialized, setIsInitialized] = useState(true);
+  const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
-  const [questionsKey, setQuestionsKey] = useState(() => JSON.stringify(questions.map(q => q.id)));
+  const [questionsKey, setQuestionsKey] = useState("");
 
-  const currentQuestionsKey = JSON.stringify(questions.map(q => q.id));
-  if (questionsKey !== currentQuestionsKey) {
-    setQuestionsKey(currentQuestionsKey);
-    setSessionQuestions(initializeSession(questions));
-    setCurrentIndex(0);
-    setAnswers({});
-    setShowSummary(false);
-    setIsReviewing(false);
-    setIsInitialized(true);
-  }
+  useEffect(() => {
+    const currentKey = JSON.stringify(questions.map(q => q.id));
+    if (questionsKey !== currentKey) {
+      setQuestionsKey(currentKey);
+      setSessionQuestions(initializeSession(questions));
+      setCurrentIndex(0);
+      setAnswers({});
+      setShowSummary(false);
+      setIsReviewing(false);
+      setIsInitialized(true);
+    }
+  }, [questions, questionsKey]);
 
   const question = sessionQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, ReactNode } from "react";
+import { useState, useCallback, useMemo, useEffect, ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -10,6 +10,7 @@ import {
   Home,
   Lightbulb,
   ArrowLeft,
+  Bookmark,
 } from "lucide-react";
 import type { Question, AnswerRecord, ConfidenceLevel, GlossaryTerm } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
@@ -18,7 +19,7 @@ import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
-import { saveAnswer } from "@/lib/storage";
+import { saveAnswer, isBookmarked, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { getTermsById, getAllGlossaryTerms } from "@/lib/glossary-utils";
 
@@ -31,15 +32,25 @@ interface GuidedModeProps {
 }
 
 export function GuidedMode({ questions, topicName }: GuidedModeProps) {
-  const [sessionQuestions] = useState<Question[]>(() => {
-    const shuffled = shuffleArray(questions);
-    return shuffled.slice(0, QUESTIONS_PER_SESSION);
-  });
+  const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [showSummary, setShowSummary] = useState(false);
+  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    const shuffled = shuffleArray(questions);
+    const selected = shuffled.slice(0, QUESTIONS_PER_SESSION);
+    setSessionQuestions(selected);
+    
+    const bookmarked = selected.map((q) => q.id).filter((id) => isBookmarked(id));
+    setBookmarkedQuestions(new Set(bookmarked));
+    setIsInitialized(true);
+  }, [questions]);
 
   const question = sessionQuestions[currentIndex];
+  const isCurrentBookmarked = question ? bookmarkedQuestions.has(question.id) : false;
   const currentAnswer = answers[currentIndex];
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.keys(answers).length;
@@ -131,6 +142,20 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
     [currentIndex]
   );
 
+  const handleBookmarkToggle = useCallback(() => {
+    if (!question) return;
+    const newState = toggleBookmark(question.id);
+    setBookmarkedQuestions((prev) => {
+      const next = new Set(prev);
+      if (newState) {
+        next.add(question.id);
+      } else {
+        next.delete(question.id);
+      }
+      return next;
+    });
+  }, [question]);
+
   const handlePrevious = useCallback(() => {
     if (currentIndex > 0) setCurrentIndex((i) => i - 1);
   }, [currentIndex]);
@@ -142,6 +167,14 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
       setShowSummary(true);
     }
   }, [currentIndex, totalQuestions, allAnswered]);
+
+  if (!isInitialized) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-slate-gray">Loading questions...</div>
+      </div>
+    );
+  }
 
   if (sessionQuestions.length === 0) {
     return (
@@ -206,6 +239,21 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
                       value={currentAnswer.confidenceLevel}
                       onChange={handleConfidence}
                     />
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={handleBookmarkToggle}
+                        className={`inline-flex items-center gap-1.5 text-sm transition-colors ${
+                          isCurrentBookmarked
+                            ? "text-[#16a34a] font-medium"
+                            : "text-slate-gray/50 hover:text-slate-gray/70"
+                        }`}
+                      >
+                        <Bookmark
+                          className={`w-4 h-4 ${isCurrentBookmarked ? "fill-[#16a34a]" : ""}`}
+                        />
+                        {isCurrentBookmarked ? "Bookmarked" : "Bookmark"}
+                      </button>
+                    </div>
                   </div>
                 ) : undefined
               }

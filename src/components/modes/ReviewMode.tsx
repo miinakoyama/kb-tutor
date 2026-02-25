@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -14,8 +14,10 @@ import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
-import { getReviewQuestionIds, saveAnswer } from "@/lib/storage";
+import { getIncorrectQuestionIds, saveAnswer } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
+
+const MAX_REVIEW_QUESTIONS = 10;
 
 interface ReviewModeProps {
   questions: Question[];
@@ -23,42 +25,19 @@ interface ReviewModeProps {
 }
 
 export function ReviewMode({ questions, topicName }: ReviewModeProps) {
-  const reviewIds = useMemo(() => getReviewQuestionIds(), []);
-
-  const reviewQuestions = useMemo(() => {
-    const { incorrect, reviewLater, lowConfidence } = reviewIds;
-
-    const priorityIds = new Set([...incorrect, ...reviewLater]);
-    const secondaryIds = new Set(
-      lowConfidence.filter((id) => !priorityIds.has(id))
-    );
-
-    const priorityQuestions = questions.filter((q) => priorityIds.has(q.id));
-    const secondaryQuestions = questions.filter((q) => secondaryIds.has(q.id));
-
-    const followUpIds = new Set<string>();
-    for (const q of priorityQuestions) {
-      if (q.relatedQuestionIds) {
-        for (const rid of q.relatedQuestionIds) {
-          if (!priorityIds.has(rid) && !secondaryIds.has(rid)) {
-            followUpIds.add(rid);
-          }
-        }
-      }
-    }
-    const followUps = questions.filter((q) => followUpIds.has(q.id));
-
-    const combined = [...priorityQuestions, ...secondaryQuestions, ...followUps];
-    const uniqueQuestions = Array.from(
-      new Map(combined.map((q) => [q.id, q])).values()
-    );
-
-    return shuffleArray(uniqueQuestions);
-  }, [questions, reviewIds]);
-
+  const [reviewQuestions, setReviewQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [showComplete, setShowComplete] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    const incorrectIds = getIncorrectQuestionIds();
+    const incorrectQuestions = questions.filter((q) => incorrectIds.includes(q.id));
+    const shuffled = shuffleArray(incorrectQuestions);
+    setReviewQuestions(shuffled.slice(0, MAX_REVIEW_QUESTIONS));
+    setIsInitialized(true);
+  }, [questions]);
 
   const question = reviewQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
@@ -100,6 +79,14 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
       setShowComplete(true);
     }
   }, [currentIndex, totalQuestions]);
+
+  if (!isInitialized) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-slate-gray">Loading questions...</div>
+      </div>
+    );
+  }
 
   if (reviewQuestions.length === 0) {
     return (
