@@ -206,5 +206,83 @@
     "example": "The many folds of the small intestine increase its surface area for nutrient absorption.",
     "imageUrl": null,
     "relatedConcepts": ["alveoli", "diffusion"]
+  },
+  {
+    "id": "protein",
+    "term": "Protein",
+    "definition": "A large, complex macromolecule made up of amino acids. Proteins perform a vast array of functions including catalyzing reactions (enzymes), providing structure, and transporting molecules.",
+    "example": "Hemoglobin is a protein that carries oxygen in red blood cells.",
+    "imageUrl": null,
+    "relatedConcepts": ["amino-acid", "enzyme", "macromolecule"]
+  },
+  {
+    "id": "carbohydrate",
+    "term": "Carbohydrate",
+    "definition": "An organic compound made of carbon, hydrogen, and oxygen, typically in a ratio of 1:2:1. Carbohydrates serve as a primary energy source and structural components in cells.",
+    "example": "Glucose is a simple carbohydrate used for cellular energy, while cellulose is a complex carbohydrate that forms plant cell walls.",
+    "imageUrl": null,
+    "relatedConcepts": [
+      "monosaccharide",
+      "macromolecule",
+      "dehydration-synthesis"
+    ]
+  },
+  {
+    "id": "polymer",
+    "term": "Polymer",
+    "definition": "A large molecule made up of many repeating smaller units called monomers, linked together by covalent bonds.",
+    "example": "Proteins are polymers of amino acids; starch is a polymer of glucose molecules.",
+    "imageUrl": null,
+    "relatedConcepts": ["macromolecule", "dehydration-synthesis", "hydrolysis"]
+  },
+  {
+    "id": "monomer",
+    "term": "Monomer",
+    "definition": "A small molecule that serves as the building block for larger molecules (polymers). Monomers join together through dehydration synthesis.",
+    "example": "Glucose is a monomer that links together to form the polymer starch or cellulose.",
+    "imageUrl": null,
+    "relatedConcepts": [
+      "polymer",
+      "dehydration-synthesis",
+      "amino-acid",
+      "monosaccharide"
+    ]
+  },
+  {
+    "id": "gradient",
+    "term": "Gradient",
+    "definition": "A gradual change in concentration, pressure, or other property across a distance. In biology, concentration gradients drive the movement of substances across membranes.",
+    "example": "Oxygen moves from areas of high concentration to low concentration, following its concentration gradient.",
+    "imageUrl": null,
+    "relatedConcepts": [
+      "concentration-gradient",
+      "diffusion",
+      "active-transport"
+    ]
+  },
+  {
+    "id": "ion",
+    "term": "Ion",
+    "definition": "An atom or molecule that has gained or lost one or more electrons, giving it a net positive or negative electrical charge. Ions play crucial roles in cellular processes including nerve signaling and maintaining electrochemical gradients.",
+    "example": "Potassium ions (K+) are positively charged and are actively pumped into cells to maintain the cell's resting potential.",
+    "imageUrl": null,
+    "relatedConcepts": [
+      "active-transport",
+      "concentration-gradient",
+      "protein-pump"
+    ]
+  },
+  {
+    "id": "potassium",
+    "term": "Potassium",
+    "definition": "A chemical element (K) that exists as a positively charged ion (K+) in living cells. Potassium ions are essential for nerve impulse transmission, muscle contraction, and maintaining the cell's resting membrane potential.",
+    "example": "The sodium-potassium pump actively transports potassium ions into cells, creating a concentration gradient that is crucial for nerve signaling.",
+    "imageUrl": null,
+    "relatedConcepts": [
+      "ion",
+      "active-transport",
+      "protein-pump",
+      "concentration-gradient"
+    ]
   }
 ]

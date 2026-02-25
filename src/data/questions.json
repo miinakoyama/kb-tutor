@@ -28,23 +28,40 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["concentration-gradient", "active-transport"],
-    "sidebarTermIds": ["active-transport", "concentration-gradient", "protein-pump"],
+    "inlineTermIds": ["gradient", "potassium", "ion"],
+    "sidebarTermIds": [
+      "active-transport",
+      "concentration-gradient",
+      "protein-pump"
+    ],
     "focusHint": "Think about what kind of energy a cell needs when it moves something from where there's less to where there's more.",
     "keyKnowledge": "Moving substances against their concentration gradient (low → high) always requires energy (ATP) via active transport.",
     "commonMisconception": "Students often confuse facilitated diffusion with active transport because both use proteins, but only active transport moves against the gradient.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "The process moves molecules down their concentration gradient without energy." },
-        { "id": "B", "text": "ATP is required to move ions from low to high concentration." },
-        { "id": "C", "text": "The plasma membrane allows free passage of all ions." }
+        {
+          "id": "A",
+          "text": "The process moves molecules down their concentration gradient without energy."
+        },
+        {
+          "id": "B",
+          "text": "ATP is required to move ions from low to high concentration."
+        },
+        {
+          "id": "C",
+          "text": "The plasma membrane allows free passage of all ions."
+        }
       ],
       "correctOptionId": "B",
       "explanation": "Moving ions against their gradient (low to high) requires energy. Only active transport can accomplish this using ATP."
     },
     "misconceptionId": "confuse-facilitated-active",
-    "relatedQuestionIds": ["cell-growth-q2", "cell-growth-q4", "cell-growth-q10"]
+    "relatedQuestionIds": [
+      "cell-growth-q2",
+      "cell-growth-q4",
+      "cell-growth-q10"
+    ]
   },
   {
     "id": "cell-growth-q2",
@@ -83,9 +100,18 @@
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Equilibrium provides the energy needed for the pump." },
-        { "id": "B", "text": "The pump uses ATP because it moves ions against the gradient." },
-        { "id": "C", "text": "Heat from the environment powers all cellular pumps." }
+        {
+          "id": "A",
+          "text": "Equilibrium provides the energy needed for the pump."
+        },
+        {
+          "id": "B",
+          "text": "The pump uses ATP because it moves ions against the gradient."
+        },
+        {
+          "id": "C",
+          "text": "Heat from the environment powers all cellular pumps."
+        }
       ],
       "correctOptionId": "B",
       "explanation": "Pumping ions against the gradient is like pushing uphill—it requires the cell's own energy currency, ATP."
@@ -122,17 +148,27 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["facilitated-diffusion", "active-transport"],
-    "sidebarTermIds": ["concentration-gradient", "passive-transport", "plasma-membrane"],
+    "inlineTermIds": ["facilitated-diffusion", "active-transport", "potassium"],
+    "sidebarTermIds": [
+      "concentration-gradient",
+      "passive-transport",
+      "plasma-membrane"
+    ],
     "focusHint": "Focus on what K+ ions and glucose molecules have in common when crossing a membrane, regardless of energy use.",
     "keyKnowledge": "Both active transport and facilitated diffusion require membrane proteins, but only active transport uses ATP.",
     "commonMisconception": "Students often think that using a protein always means ATP is required. Facilitated diffusion uses proteins but no energy.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Both are large/charged and cannot cross the lipid bilayer without protein assistance." },
+        {
+          "id": "A",
+          "text": "Both are large/charged and cannot cross the lipid bilayer without protein assistance."
+        },
         { "id": "B", "text": "Both use ATP to cross the membrane." },
-        { "id": "C", "text": "Neither substance needs any assistance to cross." }
+        {
+          "id": "C",
+          "text": "Neither substance needs any assistance to cross."
+        }
       ],
       "correctOptionId": "A",
       "explanation": "Charged ions and large molecules cannot pass through the hydrophobic interior of the membrane without transport proteins."
@@ -169,17 +205,32 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["active-transport", "passive-transport"],
-    "sidebarTermIds": ["diffusion", "atp", "concentration-gradient"],
+    "inlineTermIds": ["potassium", "ion"],
+    "sidebarTermIds": [
+      "diffusion",
+      "atp",
+      "concentration-gradient",
+      "active-transport",
+      "passive-transport"
+    ],
     "focusHint": "Think about whether each substance is moving with or against its concentration gradient.",
     "keyKnowledge": "Active = against the gradient (requires ATP). Passive = with the gradient (no energy needed).",
     "commonMisconception": "Students confuse molecule size with transport type. The key distinction is direction relative to the gradient, not size.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Active transport moves against the gradient using energy; passive follows the gradient freely." },
-        { "id": "B", "text": "Larger molecules always require active transport." },
-        { "id": "C", "text": "Oxygen needs more energy than potassium to move." }
+        {
+          "id": "A",
+          "text": "Active transport moves against the gradient using energy; passive follows the gradient freely."
+        },
+        {
+          "id": "B",
+          "text": "Larger molecules always require active transport."
+        },
+        {
+          "id": "C",
+          "text": "Oxygen needs more energy than potassium to move."
+        }
       ],
       "correctOptionId": "A",
       "explanation": "The defining difference is direction: active goes against the gradient (costs energy), passive goes with it (free)."
@@ -224,7 +275,10 @@
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "All cells need DNA to pass on instructions to the next generation." },
+        {
+          "id": "A",
+          "text": "All cells need DNA to pass on instructions to the next generation."
+        },
         { "id": "B", "text": "All cells have a nucleus to store their DNA." },
         { "id": "C", "text": "All cells use the same energy process." }
       ],
@@ -263,16 +317,22 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["prokaryote", "eukaryote", "plasma-membrane", "nucleus"],
-    "sidebarTermIds": ["nucleus", "organelle"],
+    "inlineTermIds": ["prokaryote", "eukaryote"],
+    "sidebarTermIds": ["nucleus", "organelle", "plasma-membrane"],
     "focusHint": "Which structures does even the simplest cell need to survive?",
     "keyKnowledge": "All cells share a plasma membrane (barrier) and cytoplasm (internal environment), but only eukaryotes have a nucleus.",
     "commonMisconception": "Students confuse cell walls with plasma membranes. Not all cells have cell walls, but all cells have plasma membranes.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Every cell needs a boundary (membrane) and an interior space (cytoplasm) to function." },
-        { "id": "B", "text": "All cells have a nucleus to control their activities." },
+        {
+          "id": "A",
+          "text": "Every cell needs a boundary (membrane) and an interior space (cytoplasm) to function."
+        },
+        {
+          "id": "B",
+          "text": "All cells have a nucleus to control their activities."
+        },
         { "id": "C", "text": "Cell walls are present in all living organisms." }
       ],
       "correctOptionId": "A",
@@ -317,7 +377,10 @@
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Four bonds allow branching, rings, and long chains—creating molecular diversity." },
+        {
+          "id": "A",
+          "text": "Four bonds allow branching, rings, and long chains—creating molecular diversity."
+        },
         { "id": "B", "text": "Carbon only bonds in straight lines." },
         { "id": "C", "text": "Carbon forms ionic bonds with itself." }
       ],
@@ -356,7 +419,7 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["dehydration-synthesis", "hydrolysis"],
+    "inlineTermIds": ["polymer", "monomer"],
     "sidebarTermIds": ["hydrolysis", "dehydration-synthesis", "macromolecule"],
     "focusHint": "The name of this reaction literally describes what happens: water is removed and something is built.",
     "keyKnowledge": "Dehydration synthesis builds polymers by removing water; hydrolysis breaks them by adding water. They are reverse reactions.",
@@ -365,8 +428,14 @@
       "text": "Which reason best supports your answer?",
       "options": [
         { "id": "A", "text": "The reaction adds water to break bonds." },
-        { "id": "B", "text": "The reaction removes water to form bonds between monomers." },
-        { "id": "C", "text": "The reaction converts light energy into chemical energy." }
+        {
+          "id": "B",
+          "text": "The reaction removes water to form bonds between monomers."
+        },
+        {
+          "id": "C",
+          "text": "The reaction converts light energy into chemical energy."
+        }
       ],
       "correctOptionId": "B",
       "explanation": "Dehydration = removing water. Synthesis = building. Monomers join together as a water molecule is released."
@@ -412,8 +481,14 @@
       "text": "Which reason best supports your answer?",
       "options": [
         { "id": "A", "text": "Enzymes supply ATP to power the reaction." },
-        { "id": "B", "text": "Enzymes lower activation energy and are reusable catalysts." },
-        { "id": "C", "text": "Enzymes change the pH to make the reaction happen." }
+        {
+          "id": "B",
+          "text": "Enzymes lower activation energy and are reusable catalysts."
+        },
+        {
+          "id": "C",
+          "text": "Enzymes change the pH to make the reaction happen."
+        }
       ],
       "correctOptionId": "B",
       "explanation": "Enzymes don't provide energy or change conditions—they lower the energy barrier so reactions happen faster, and they can be reused."
@@ -459,7 +534,10 @@
       "text": "Which reason best supports your answer?",
       "options": [
         { "id": "A", "text": "ADP provides energy for active transport." },
-        { "id": "B", "text": "ATP releases energy when it loses a phosphate group, powering the pump." },
+        {
+          "id": "B",
+          "text": "ATP releases energy when it loses a phosphate group, powering the pump."
+        },
         { "id": "C", "text": "Enzymes like catalase power the protein pump." }
       ],
       "correctOptionId": "B",
@@ -504,9 +582,15 @@
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Gases move from high to low concentration by passive diffusion." },
+        {
+          "id": "A",
+          "text": "Gases move from high to low concentration by passive diffusion."
+        },
         { "id": "B", "text": "Membrane receptors direct gas molecules." },
-        { "id": "C", "text": "Cholesterol channels guide gases through the membrane." }
+        {
+          "id": "C",
+          "text": "Cholesterol channels guide gases through the membrane."
+        }
       ],
       "correctOptionId": "A",
       "explanation": "O₂ and CO₂ are small and nonpolar, so they freely diffuse across the membrane down their concentration gradient."
@@ -551,9 +635,18 @@
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "More surface area means more space for O₂ and CO₂ to cross into/out of the blood." },
-        { "id": "B", "text": "Larger volume means the lungs can hold more oxygen." },
-        { "id": "C", "text": "Alveoli produce ATP that is transferred to the blood." }
+        {
+          "id": "A",
+          "text": "More surface area means more space for O₂ and CO₂ to cross into/out of the blood."
+        },
+        {
+          "id": "B",
+          "text": "Larger volume means the lungs can hold more oxygen."
+        },
+        {
+          "id": "C",
+          "text": "Alveoli produce ATP that is transferred to the blood."
+        }
       ],
       "correctOptionId": "A",
       "explanation": "Millions of tiny alveoli create a huge surface area, maximizing the area where diffusion of gases can occur."
@@ -590,16 +683,27 @@
       }
     ],
     "correctOptionId": "A",
-    "inlineTermIds": ["amino-acid", "monosaccharide", "macromolecule"],
-    "sidebarTermIds": ["amino-acid", "monosaccharide", "dehydration-synthesis"],
+    "inlineTermIds": ["protein", "carbohydrate"],
+    "sidebarTermIds": [
+      "amino-acid",
+      "monosaccharide",
+      "macromolecule",
+      "dehydration-synthesis"
+    ],
     "focusHint": "What are the specific building blocks (monomers) that make up each type of macromolecule?",
     "keyKnowledge": "Proteins are built from amino acids; carbohydrates are built from monosaccharides (simple sugars). Different monomers = different macromolecules.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
         { "id": "A", "text": "Both macromolecules use the same monomers." },
-        { "id": "B", "text": "They differ in their monomers: amino acids vs. monosaccharides." },
-        { "id": "C", "text": "Proteins lack nitrogen while carbohydrates contain it." }
+        {
+          "id": "B",
+          "text": "They differ in their monomers: amino acids vs. monosaccharides."
+        },
+        {
+          "id": "C",
+          "text": "Proteins lack nitrogen while carbohydrates contain it."
+        }
       ],
       "correctOptionId": "B",
       "explanation": "The fundamental structural difference is their monomers: amino acids (proteins) vs. monosaccharides (carbohydrates)."
@@ -643,9 +747,18 @@
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "The RER produces proteins and packages them in vesicles for the Golgi." },
-        { "id": "B", "text": "The RER reads DNA to decide which proteins to make." },
-        { "id": "C", "text": "The RER breaks down waste for the Golgi to recycle." }
+        {
+          "id": "A",
+          "text": "The RER produces proteins and packages them in vesicles for the Golgi."
+        },
+        {
+          "id": "B",
+          "text": "The RER reads DNA to decide which proteins to make."
+        },
+        {
+          "id": "C",
+          "text": "The RER breaks down waste for the Golgi to recycle."
+        }
       ],
       "correctOptionId": "A",
       "explanation": "RER → vesicles → Golgi is the protein production and delivery pipeline of the cell."
@@ -690,8 +803,14 @@
       "text": "Which reason best supports your answer?",
       "options": [
         { "id": "A", "text": "Camouflage regulates internal oxygen levels." },
-        { "id": "B", "text": "Gas exchange through gills directly maintains internal O₂ and CO₂ balance." },
-        { "id": "C", "text": "Moving to deeper water controls internal temperature." }
+        {
+          "id": "B",
+          "text": "Gas exchange through gills directly maintains internal O₂ and CO₂ balance."
+        },
+        {
+          "id": "C",
+          "text": "Moving to deeper water controls internal temperature."
+        }
       ],
       "correctOptionId": "B",
       "explanation": "Gills perform gas exchange, directly regulating internal O₂ and CO₂ levels—a classic example of homeostasis."

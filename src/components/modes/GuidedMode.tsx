@@ -75,12 +75,24 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
     for (const id of question.inlineTermIds) {
       const term = allGlossaryTerms.find((t) => t.id === id);
       if (term) {
-        map.set(term.term.toLowerCase(), term);
-        const baseWord = term.term.split(" ")[0].toLowerCase();
-        if (baseWord.length > 4) {
-          map.set(baseWord + "s", term);
-          map.set(baseWord + "ic", term);
-          map.set(baseWord + "es", term);
+        const termLower = term.term.toLowerCase();
+        map.set(termLower, term);
+        
+        const firstWord = termLower.split(" ")[0];
+        if (firstWord.length > 4) {
+          map.set(firstWord + "s", term);
+          map.set(firstWord + "es", term);
+          
+          if (firstWord.endsWith("e")) {
+            map.set(firstWord.slice(0, -1) + "ic", term);
+          } else {
+            map.set(firstWord + "ic", term);
+          }
+        }
+        
+        const hyphenated = termLower.replace(/\s+/g, "-");
+        if (hyphenated !== termLower) {
+          map.set(hyphenated, term);
         }
       }
     }
