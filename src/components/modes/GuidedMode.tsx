@@ -47,17 +47,31 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
   const progressPercent =
     totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
-  const sidebarTerms = useMemo(
-    () => (question?.sidebarTermIds ? getTermsById(question.sidebarTermIds) : []),
+  const inlineTermIds = useMemo(
+    () => new Set(question?.inlineTermIds ?? []),
     [question]
   );
+
+  const sidebarTerms = useMemo(() => {
+    if (!question?.sidebarTermIds) return [];
+    const filteredIds = question.sidebarTermIds.filter((id) => !inlineTermIds.has(id));
+    return getTermsById(filteredIds);
+  }, [question, inlineTermIds]);
 
   const inlineTermMap = useMemo(() => {
     if (!question?.inlineTermIds) return new Map<string, GlossaryTerm>();
     const map = new Map<string, GlossaryTerm>();
     for (const id of question.inlineTermIds) {
       const term = allGlossaryTerms.find((t) => t.id === id);
-      if (term) map.set(term.term.toLowerCase(), term);
+      if (term) {
+        map.set(term.term.toLowerCase(), term);
+        const baseWord = term.term.split(" ")[0].toLowerCase();
+        if (baseWord.length > 4) {
+          map.set(baseWord + "s", term);
+          map.set(baseWord + "ic", term);
+          map.set(baseWord + "es", term);
+        }
+      }
     }
     return map;
   }, [question]);
@@ -70,7 +84,7 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
         (a, b) => b.length - a.length
       );
       const pattern = new RegExp(
-        `(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+        `\\b(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
         "gi"
       );
       const parts = text.split(pattern);

@@ -28,8 +28,8 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["concentration-gradient", "protein-pump", "plasma-membrane"],
-    "sidebarTermIds": ["active-transport", "concentration-gradient"],
+    "inlineTermIds": ["concentration-gradient", "active-transport"],
+    "sidebarTermIds": ["active-transport", "concentration-gradient", "protein-pump"],
     "focusHint": "Think about what kind of energy a cell needs when it moves something from where there's less to where there's more.",
     "keyKnowledge": "Moving substances against their concentration gradient (low → high) always requires energy (ATP) via active transport.",
     "commonMisconception": "Students often confuse facilitated diffusion with active transport because both use proteins, but only active transport moves against the gradient.",
@@ -75,8 +75,8 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["plasma-membrane", "protein-pump", "concentration-gradient"],
-    "sidebarTermIds": ["atp", "active-transport"],
+    "inlineTermIds": ["plasma-membrane", "protein-pump", "atp"],
+    "sidebarTermIds": ["atp", "active-transport", "concentration-gradient"],
     "focusHint": "Consider what \"fuel\" a cell produces to do work that goes against the natural flow of molecules.",
     "keyKnowledge": "Protein pumps require ATP to move ions against their concentration gradient—this is the energy cost of active transport.",
     "commonMisconception": "Students sometimes think thermal energy drives active transport, but heat only powers passive molecular movement.",
@@ -122,8 +122,8 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["facilitated-diffusion", "concentration-gradient"],
-    "sidebarTermIds": ["active-transport", "passive-transport", "plasma-membrane"],
+    "inlineTermIds": ["facilitated-diffusion", "active-transport"],
+    "sidebarTermIds": ["concentration-gradient", "passive-transport", "plasma-membrane"],
     "focusHint": "Focus on what K+ ions and glucose molecules have in common when crossing a membrane, regardless of energy use.",
     "keyKnowledge": "Both active transport and facilitated diffusion require membrane proteins, but only active transport uses ATP.",
     "commonMisconception": "Students often think that using a protein always means ATP is required. Facilitated diffusion uses proteins but no energy.",
@@ -169,8 +169,8 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["active-transport", "passive-transport", "concentration-gradient"],
-    "sidebarTermIds": ["diffusion", "atp"],
+    "inlineTermIds": ["active-transport", "passive-transport"],
+    "sidebarTermIds": ["diffusion", "atp", "concentration-gradient"],
     "focusHint": "Think about whether each substance is moving with or against its concentration gradient.",
     "keyKnowledge": "Active = against the gradient (requires ATP). Passive = with the gradient (no energy needed).",
     "commonMisconception": "Students confuse molecule size with transport type. The key distinction is direction relative to the gradient, not size.",
@@ -216,8 +216,8 @@
       }
     ],
     "correctOptionId": "A",
-    "inlineTermIds": ["prokaryote", "eukaryote"],
-    "sidebarTermIds": ["dna", "organelle"],
+    "inlineTermIds": ["prokaryote", "eukaryote", "dna"],
+    "sidebarTermIds": ["dna", "organelle", "nucleus"],
     "focusHint": "Think about what ALL living cells must have in common, regardless of complexity.",
     "keyKnowledge": "All living cells (both prokaryotic and eukaryotic) contain DNA to store hereditary information.",
     "commonMisconception": "Students often think organelles are universal, but membrane-bound organelles are exclusive to eukaryotes.",
@@ -263,7 +263,7 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["prokaryote", "eukaryote", "plasma-membrane"],
+    "inlineTermIds": ["prokaryote", "eukaryote", "plasma-membrane", "nucleus"],
     "sidebarTermIds": ["nucleus", "organelle"],
     "focusHint": "Which structures does even the simplest cell need to survive?",
     "keyKnowledge": "All cells share a plasma membrane (barrier) and cytoplasm (internal environment), but only eukaryotes have a nucleus.",
@@ -311,7 +311,7 @@
     ],
     "correctOptionId": "B",
     "inlineTermIds": ["carbon-bonding", "macromolecule"],
-    "sidebarTermIds": ["carbon-bonding"],
+    "sidebarTermIds": ["carbon-bonding", "dna"],
     "focusHint": "What does having four bonds allow carbon to build that other elements with fewer bonds cannot?",
     "keyKnowledge": "Carbon's four covalent bonds enable it to form large, complex, and diverse molecules—the foundation of all organic life.",
     "rationaleQuestion": {
@@ -356,8 +356,8 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["macromolecule", "dehydration-synthesis"],
-    "sidebarTermIds": ["hydrolysis", "dehydration-synthesis"],
+    "inlineTermIds": ["dehydration-synthesis", "hydrolysis"],
+    "sidebarTermIds": ["hydrolysis", "dehydration-synthesis", "macromolecule"],
     "focusHint": "The name of this reaction literally describes what happens: water is removed and something is built.",
     "keyKnowledge": "Dehydration synthesis builds polymers by removing water; hydrolysis breaks them by adding water. They are reverse reactions.",
     "commonMisconception": "Students often confuse hydrolysis and dehydration synthesis because both involve water, but they work in opposite directions.",
@@ -404,7 +404,7 @@
     ],
     "correctOptionId": "D",
     "inlineTermIds": ["enzyme"],
-    "sidebarTermIds": ["enzyme"],
+    "sidebarTermIds": ["enzyme", "atp"],
     "focusHint": "Think about what a catalyst does—and what it does NOT do (like provide energy or get used up).",
     "keyKnowledge": "Enzymes are reusable biological catalysts that lower activation energy to speed up reactions.",
     "commonMisconception": "Students often think enzymes provide energy, but they only lower the barrier (activation energy) for a reaction to occur.",
@@ -450,8 +450,8 @@
       }
     ],
     "correctOptionId": "A",
-    "inlineTermIds": ["concentration-gradient", "atp"],
-    "sidebarTermIds": ["active-transport", "enzyme"],
+    "inlineTermIds": ["concentration-gradient", "atp", "enzyme"],
+    "sidebarTermIds": ["active-transport", "protein-pump"],
     "focusHint": "What is the cell's energy currency that powers work against the natural flow?",
     "keyKnowledge": "ATP is the universal energy currency that powers active transport and other energy-requiring cellular processes.",
     "commonMisconception": "Students confuse enzymes (catalase, amylase) with energy molecules. Enzymes speed up reactions but are not energy sources.",
@@ -497,8 +497,8 @@
       }
     ],
     "correctOptionId": "B",
-    "inlineTermIds": ["plasma-membrane", "diffusion"],
-    "sidebarTermIds": ["concentration-gradient", "passive-transport"],
+    "inlineTermIds": ["plasma-membrane", "concentration-gradient", "diffusion"],
+    "sidebarTermIds": ["passive-transport", "diffusion"],
     "focusHint": "Small nonpolar gases cross membranes freely. What physical force determines which direction they go?",
     "keyKnowledge": "Small nonpolar molecules (O₂, CO₂) move by simple diffusion, driven solely by the concentration gradient.",
     "rationaleQuestion": {
@@ -543,8 +543,8 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["alveoli", "diffusion"],
-    "sidebarTermIds": ["surface-area", "diffusion"],
+    "inlineTermIds": ["alveoli", "surface-area"],
+    "sidebarTermIds": ["surface-area", "diffusion", "homeostasis"],
     "focusHint": "Think about why having millions of tiny sacs is better for gas exchange than one big open space.",
     "keyKnowledge": "Increased surface area (from many small alveoli) maximizes the rate of gas exchange by diffusion.",
     "commonMisconception": "Students confuse volume with surface area. It's not about how much space the lungs hold, but how much contact area exists for gas exchange.",
@@ -591,7 +591,7 @@
     ],
     "correctOptionId": "A",
     "inlineTermIds": ["amino-acid", "monosaccharide", "macromolecule"],
-    "sidebarTermIds": ["amino-acid", "monosaccharide"],
+    "sidebarTermIds": ["amino-acid", "monosaccharide", "dehydration-synthesis"],
     "focusHint": "What are the specific building blocks (monomers) that make up each type of macromolecule?",
     "keyKnowledge": "Proteins are built from amino acids; carbohydrates are built from monosaccharides (simple sugars). Different monomers = different macromolecules.",
     "rationaleQuestion": {
@@ -636,8 +636,8 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["rough-er", "golgi-apparatus"],
-    "sidebarTermIds": ["rough-er", "golgi-apparatus", "organelle"],
+    "inlineTermIds": ["rough-er", "golgi-apparatus", "macromolecule"],
+    "sidebarTermIds": ["rough-er", "golgi-apparatus", "organelle", "nucleus"],
     "focusHint": "Think about the production line: one organelle makes the product, another processes and ships it. What connects them?",
     "keyKnowledge": "The RER makes proteins and sends them in vesicles to the Golgi apparatus, which modifies and ships them to their destination.",
     "rationaleQuestion": {
@@ -682,8 +682,8 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["homeostasis"],
-    "sidebarTermIds": ["homeostasis", "diffusion"],
+    "inlineTermIds": ["homeostasis", "diffusion"],
+    "sidebarTermIds": ["homeostasis", "diffusion", "plasma-membrane"],
     "focusHint": "Homeostasis means maintaining stable internal conditions. Which activity directly regulates an internal level?",
     "keyKnowledge": "Homeostasis is the regulation of internal conditions (like O₂ levels). Gas exchange through gills directly maintains internal balance.",
     "rationaleQuestion": {
