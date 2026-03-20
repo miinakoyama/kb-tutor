@@ -18,10 +18,16 @@ interface GenerationSettings {
   customPrompt: string;
 }
 
+const MAX_GENERATION_ATTEMPTS = 3;
+
 function validateSettings(settings: unknown): settings is GenerationSettings {
   if (!settings || typeof settings !== "object") return false;
   
   const s = settings as Record<string, unknown>;
+
+  if (typeof s.questionSetName !== "string" || s.questionSetName.trim().length === 0) {
+    return false;
+  }
   
   if (typeof s.questionCount !== "number" || s.questionCount < 1 || s.questionCount > 20) {
     return false;
@@ -32,6 +38,31 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
   }
   
   if (!Array.isArray(s.dokLevels) || s.dokLevels.length === 0) {
+    return false;
+  }
+
+  if (typeof s.includeDiagrams !== "boolean") {
+    return false;
+  }
+
+  if (!s.diagramConfig || typeof s.diagramConfig !== "object") {
+    return false;
+  }
+
+  const dc = s.diagramConfig as Record<string, unknown>;
+  const diagramKeys = ["chart", "table", "flowchart", "diagram"] as const;
+  for (const key of diagramKeys) {
+    if (typeof dc[key] !== "number" || (dc[key] as number) < 0) {
+      return false;
+    }
+  }
+
+  const requestedDiagramTotal =
+    (dc.chart as number) +
+    (dc.table as number) +
+    (dc.flowchart as number) +
+    (dc.diagram as number);
+  if (requestedDiagramTotal > (s.questionCount as number)) {
     return false;
   }
   
@@ -82,6 +113,65 @@ function validateQuestion(q: unknown, index: number): Question | null {
   };
 }
 
+function getDiagramDistributionSummary(questions: Question[]) {
+  const summary = {
+    chart: 0,
+    table: 0,
+    flowchart: 0,
+    diagram: 0,
+    textOnly: 0,
+  };
+
+  for (const question of questions) {
+    if (!question.diagram) {
+      summary.textOnly++;
+      continue;
+    }
+
+    if (question.diagram.type === "chart") summary.chart++;
+    if (question.diagram.type === "table") summary.table++;
+    if (question.diagram.type === "flowchart") summary.flowchart++;
+    if (question.diagram.type === "diagram") summary.diagram++;
+  }
+
+  return summary;
+}
+
+function hasExactDiagramDistribution(
+  questions: Question[],
+  settings: GenerationSettings
+): { ok: boolean; error?: string } {
+  if (questions.length !== settings.questionCount) {
+    return {
+      ok: false,
+      error: `Expected exactly ${settings.questionCount} questions, but got ${questions.length}.`,
+    };
+  }
+
+  const expected = settings.includeDiagrams
+    ? settings.diagramConfig
+    : { chart: 0, table: 0, flowchart: 0, diagram: 0 };
+  const expectedTextOnly =
+    settings.questionCount -
+    (expected.chart + expected.table + expected.flowchart + expected.diagram);
+
+  const actual = getDiagramDistributionSummary(questions);
+
+  const exactMatch =
+    actual.chart === expected.chart &&
+    actual.table === expected.table &&
+    actual.flowchart === expected.flowchart &&
+    actual.diagram === expected.diagram &&
+    actual.textOnly === expectedTextOnly;
+
+  if (exactMatch) return { ok: true };
+
+  return {
+    ok: false,
+    error: `Diagram distribution mismatch. Expected chart=${expected.chart}, table=${expected.table}, flowchart=${expected.flowchart}, diagram=${expected.diagram}, textOnly=${expectedTextOnly}; got chart=${actual.chart}, table=${actual.table}, flowchart=${actual.flowchart}, diagram=${actual.diagram}, textOnly=${actual.textOnly}.`,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!process.env.GEMINI_API_KEY) {
@@ -100,23 +190,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = buildGenerationPrompt(body);
-    
-    const responseText = await generateWithGemini(prompt);
-    
-    const rawQuestions = parseGeneratedQuestions(responseText);
-    
-    const validQuestions: Question[] = [];
-    for (let i = 0; i < rawQuestions.length; i++) {
-      const validated = validateQuestion(rawQuestions[i], i);
-      if (validated) {
-        validQuestions.push(validated);
+    const basePrompt = buildGenerationPrompt(body);
+    let validQuestions: Question[] = [];
+    let lastError: unknown = null;
+    let retryReason = "";
+
+    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+      const retrySuffix =
+        attempt === 0
+          ? ""
+          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} questions and exact diagram counts as requested.`;
+
+      try {
+        const responseText = await generateWithGemini(`${basePrompt}${retrySuffix}`);
+        const rawQuestions = parseGeneratedQuestions(responseText);
+
+        const attemptQuestions: Question[] = [];
+        for (let i = 0; i < rawQuestions.length; i++) {
+          const validated = validateQuestion(rawQuestions[i], i);
+          if (validated) {
+            attemptQuestions.push(validated);
+          }
+        }
+
+        if (attemptQuestions.length === 0) {
+          retryReason = "No valid questions after validation.";
+          continue;
+        }
+
+        const distributionCheck = hasExactDiagramDistribution(attemptQuestions, body);
+        if (!distributionCheck.ok) {
+          retryReason = distributionCheck.error || "Diagram distribution mismatch.";
+          continue;
+        }
+
+        validQuestions = attemptQuestions;
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        retryReason =
+          error instanceof Error
+            ? error.message
+            : "Failed to parse generated questions.";
       }
+    }
+
+    if (lastError && validQuestions.length === 0) {
+      throw lastError instanceof Error
+        ? lastError
+        : new Error("Failed to generate valid questions");
     }
 
     if (validQuestions.length === 0) {
       return NextResponse.json(
-        { error: "Failed to generate valid questions. Please try again." },
+        {
+          error:
+            "Failed to generate valid questions with the exact requested diagram distribution. Please try again.",
+        },
         { status: 500 }
       );
     }

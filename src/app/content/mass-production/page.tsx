@@ -35,7 +35,7 @@ interface GenerationSettings {
 const DEFAULT_SETTINGS: GenerationSettings = {
   questionSetName: "",
   questionCount: 5,
-  topics: [],
+  topics: [...ALL_TOPICS],
   dokLevels: [1, 2, 3],
   includeDiagrams: false,
   diagramConfig: {
@@ -136,6 +136,11 @@ export default function MassProductionPage() {
   };
 
   const handleGenerate = async () => {
+    const trimmedSetName = settings.questionSetName.trim();
+    if (!trimmedSetName) {
+      setError("Please enter a question set name.");
+      return;
+    }
     if (settings.topics.length === 0) {
       setError("Please select at least one topic.");
       return;
@@ -153,10 +158,15 @@ export default function MassProductionPage() {
     setIsGenerating(true);
 
     try {
+      const payload = {
+        ...settings,
+        questionSetName: trimmedSetName,
+      };
+
       const response = await fetch("/api/generate-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -170,7 +180,7 @@ export default function MassProductionPage() {
       const { addGeneratedQuestionSet } = await import("@/lib/question-storage");
       const setId = addGeneratedQuestionSet(
         data.questions,
-        settings.questionSetName,
+        trimmedSetName,
         generatedAt
       );
 
@@ -213,7 +223,7 @@ export default function MassProductionPage() {
           </h2>
           <div>
             <label className="block text-sm font-medium text-slate-gray mb-2">
-              Name (Optional)
+              Name *
             </label>
             <input
               type="text"
@@ -226,9 +236,10 @@ export default function MassProductionPage() {
               }
               placeholder="e.g., Photosynthesis Practice Set"
               className="w-full max-w-md px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50"
+              required
             />
             <p className="text-xs text-slate-gray/60 mt-1">
-              Give this set a name for easier identification later
+              Required: this name is used to identify the generated set later.
             </p>
           </div>
         </section>

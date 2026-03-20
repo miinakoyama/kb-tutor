@@ -183,7 +183,7 @@ export default function QuestionsPage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-slate-gray/5">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-lg">
                     {getSourceIcon(set.source)}
                   </div>
                   <div>

@@ -12,10 +12,12 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
           {data.title}
         </h3>
       )}
-      <div
-        className="flex justify-center items-center"
-        dangerouslySetInnerHTML={{ __html: data.svg }}
-      />
+      <div className="flex justify-center items-center">
+        <div
+          className="w-[50%] max-w-[460px] min-w-[220px] [&_svg]:!w-full [&_svg]:!h-auto [&_svg]:!max-w-full [&_svg]:block"
+          dangerouslySetInnerHTML={{ __html: data.svg }}
+        />
+      </div>
     </div>
   );
 }
