@@ -85,7 +85,7 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
     );
   }
 
-  if (reviewQuestions.length === 0) {
+  if (reviewQuestions.length === 0 || !question) {
     return (
       <div className="max-w-lg mx-auto pt-8">
         <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center shadow-sm">

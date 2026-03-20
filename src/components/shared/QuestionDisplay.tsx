@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Question, AnswerRecord } from "@/types/question";
 import { OptionButton } from "./OptionButton";
+import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -64,6 +65,12 @@ export function QuestionDisplay({
               height={400}
               className="object-contain"
             />
+          </div>
+        )}
+
+        {question.diagram && (
+          <div className="my-4">
+            <DiagramRenderer diagram={question.diagram} />
           </div>
         )}
 

@@ -1,6 +1,6 @@
 [
   {
-    "id": "cell-growth-q1",
+    "id": "manual-cell-growth-001",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "A cell maintains a potassium ion (K+) concentration that is 20 times higher inside the cell than outside. Which process is responsible for creating and maintaining this specific gradient?",
@@ -28,12 +28,6 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["gradient", "potassium", "ion"],
-    "sidebarTermIds": [
-      "active-transport",
-      "concentration-gradient",
-      "protein-pump"
-    ],
     "focusHint": "Think about what kind of energy a cell needs when it moves something from where there's less to where there's more.",
     "keyKnowledge": "Moving substances against their concentration gradient (low → high) always requires energy (ATP) via active transport.",
     "commonMisconception": "Students often confuse facilitated diffusion with active transport because both use proteins, but only active transport moves against the gradient.",
@@ -58,13 +52,94 @@
     },
     "misconceptionId": "confuse-facilitated-active",
     "relatedQuestionIds": [
-      "cell-growth-q2",
-      "cell-growth-q4",
-      "cell-growth-q10"
+      "manual-cell-growth-002",
+      "manual-cell-growth-004",
+      "manual-cell-growth-010"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "gradient",
+        "term": "Gradient",
+        "definition": "A gradual change in concentration, pressure, or other property across a distance. In biology, concentration gradients drive the movement of substances across membranes.",
+        "example": "Oxygen moves from areas of high concentration to low concentration, following its concentration gradient.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "concentration-gradient",
+          "diffusion",
+          "active-transport"
+        ]
+      },
+      {
+        "id": "potassium",
+        "term": "Potassium",
+        "definition": "A chemical element (K) that exists as a positively charged ion (K+) in living cells. Potassium ions are essential for nerve impulse transmission, muscle contraction, and maintaining the cell's resting membrane potential.",
+        "example": "The sodium-potassium pump actively transports potassium ions into cells, creating a concentration gradient that is crucial for nerve signaling.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "ion",
+          "active-transport",
+          "protein-pump",
+          "concentration-gradient"
+        ]
+      },
+      {
+        "id": "ion",
+        "term": "Ion",
+        "definition": "An atom or molecule that has gained or lost one or more electrons, giving it a net positive or negative electrical charge. Ions play crucial roles in cellular processes including nerve signaling and maintaining electrochemical gradients.",
+        "example": "Potassium ions (K+) are positively charged and are actively pumped into cells to maintain the cell's resting potential.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport",
+          "concentration-gradient",
+          "protein-pump"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "active-transport",
+        "term": "Active Transport",
+        "definition": "The movement of substances across a membrane against their concentration gradient, requiring cellular energy in the form of ATP.",
+        "example": "Sodium-potassium pump maintains ion balance in nerve cells.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "concentration-gradient",
+          "atp",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "concentration-gradient",
+        "term": "Concentration Gradient",
+        "definition": "The difference in concentration of a substance between two areas. Substances naturally move from high to low concentration.",
+        "example": "Perfume spreading across a room follows its concentration gradient.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "active-transport",
+          "diffusion"
+        ]
+      },
+      {
+        "id": "protein-pump",
+        "term": "Protein Pump",
+        "definition": "A membrane protein that uses energy (ATP) to move substances against their concentration gradient.",
+        "example": "The sodium-potassium pump moves 3 Na+ out and 2 K+ into the cell per ATP used.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport",
+          "atp",
+          "plasma-membrane"
+        ]
+      }
     ]
   },
   {
-    "id": "cell-growth-q2",
+    "id": "manual-cell-growth-002",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "To produce this steep potassium gradient, the plasma membrane must use a protein pump. What is required for this pump to move ions in this direction?",
@@ -92,8 +167,6 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["plasma-membrane", "protein-pump", "atp"],
-    "sidebarTermIds": ["atp", "active-transport", "concentration-gradient"],
     "focusHint": "Consider what \"fuel\" a cell produces to do work that goes against the natural flow of molecules.",
     "keyKnowledge": "Protein pumps require ATP to move ions against their concentration gradient—this is the energy cost of active transport.",
     "commonMisconception": "Students sometimes think thermal energy drives active transport, but heat only powers passive molecular movement.",
@@ -117,10 +190,88 @@
       "explanation": "Pumping ions against the gradient is like pushing uphill—it requires the cell's own energy currency, ATP."
     },
     "misconceptionId": "confuse-energy-sources",
-    "relatedQuestionIds": ["cell-growth-q1", "cell-growth-q10"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-001",
+      "manual-cell-growth-010"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "plasma-membrane",
+        "term": "Plasma Membrane",
+        "definition": "The selectively permeable barrier that surrounds all cells, controlling what enters and exits the cell.",
+        "example": "The plasma membrane is made of a phospholipid bilayer with embedded proteins.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "phospholipid",
+          "protein-pump"
+        ]
+      },
+      {
+        "id": "protein-pump",
+        "term": "Protein Pump",
+        "definition": "A membrane protein that uses energy (ATP) to move substances against their concentration gradient.",
+        "example": "The sodium-potassium pump moves 3 Na+ out and 2 K+ into the cell per ATP used.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport",
+          "atp",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "atp",
+        "term": "ATP (Adenosine Triphosphate)",
+        "definition": "The primary energy currency of the cell, used to power cellular processes including active transport.",
+        "example": "When ATP loses a phosphate group, it releases energy and becomes ADP.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "atp",
+        "term": "ATP (Adenosine Triphosphate)",
+        "definition": "The primary energy currency of the cell, used to power cellular processes including active transport.",
+        "example": "When ATP loses a phosphate group, it releases energy and becomes ADP.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport"
+        ]
+      },
+      {
+        "id": "active-transport",
+        "term": "Active Transport",
+        "definition": "The movement of substances across a membrane against their concentration gradient, requiring cellular energy in the form of ATP.",
+        "example": "Sodium-potassium pump maintains ion balance in nerve cells.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "concentration-gradient",
+          "atp",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "concentration-gradient",
+        "term": "Concentration Gradient",
+        "definition": "The difference in concentration of a substance between two areas. Substances naturally move from high to low concentration.",
+        "example": "Perfume spreading across a room follows its concentration gradient.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "active-transport",
+          "diffusion"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q3",
+    "id": "manual-cell-growth-003",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "A student is asked to compare the transport of potassium (K+) to the transport of glucose via facilitated diffusion. Which statement correctly identifies a similarity or difference?",
@@ -148,12 +299,6 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["facilitated-diffusion", "active-transport", "potassium"],
-    "sidebarTermIds": [
-      "concentration-gradient",
-      "passive-transport",
-      "plasma-membrane"
-    ],
     "focusHint": "Focus on what K+ ions and glucose molecules have in common when crossing a membrane, regardless of energy use.",
     "keyKnowledge": "Both active transport and facilitated diffusion require membrane proteins, but only active transport uses ATP.",
     "commonMisconception": "Students often think that using a protein always means ATP is required. Facilitated diffusion uses proteins but no energy.",
@@ -164,7 +309,10 @@
           "id": "A",
           "text": "Both are large/charged and cannot cross the lipid bilayer without protein assistance."
         },
-        { "id": "B", "text": "Both use ATP to cross the membrane." },
+        {
+          "id": "B",
+          "text": "Both use ATP to cross the membrane."
+        },
         {
           "id": "C",
           "text": "Neither substance needs any assistance to cross."
@@ -174,10 +322,92 @@
       "explanation": "Charged ions and large molecules cannot pass through the hydrophobic interior of the membrane without transport proteins."
     },
     "misconceptionId": "protein-means-active",
-    "relatedQuestionIds": ["cell-growth-q1", "cell-growth-q4"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-001",
+      "manual-cell-growth-004"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "facilitated-diffusion",
+        "term": "Facilitated Diffusion",
+        "definition": "Passive transport of molecules across a membrane through transport proteins, moving substances from high to low concentration without energy.",
+        "example": "Glucose enters cells through glucose transporter proteins via facilitated diffusion.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "concentration-gradient"
+        ]
+      },
+      {
+        "id": "active-transport",
+        "term": "Active Transport",
+        "definition": "The movement of substances across a membrane against their concentration gradient, requiring cellular energy in the form of ATP.",
+        "example": "Sodium-potassium pump maintains ion balance in nerve cells.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "concentration-gradient",
+          "atp",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "potassium",
+        "term": "Potassium",
+        "definition": "A chemical element (K) that exists as a positively charged ion (K+) in living cells. Potassium ions are essential for nerve impulse transmission, muscle contraction, and maintaining the cell's resting membrane potential.",
+        "example": "The sodium-potassium pump actively transports potassium ions into cells, creating a concentration gradient that is crucial for nerve signaling.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "ion",
+          "active-transport",
+          "protein-pump",
+          "concentration-gradient"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "concentration-gradient",
+        "term": "Concentration Gradient",
+        "definition": "The difference in concentration of a substance between two areas. Substances naturally move from high to low concentration.",
+        "example": "Perfume spreading across a room follows its concentration gradient.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "active-transport",
+          "diffusion"
+        ]
+      },
+      {
+        "id": "passive-transport",
+        "term": "Passive Transport",
+        "definition": "Movement of substances across a membrane without the use of cellular energy, driven by the concentration gradient.",
+        "example": "Simple diffusion, facilitated diffusion, and osmosis are all types of passive transport.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "diffusion",
+          "facilitated-diffusion",
+          "osmosis"
+        ]
+      },
+      {
+        "id": "plasma-membrane",
+        "term": "Plasma Membrane",
+        "definition": "The selectively permeable barrier that surrounds all cells, controlling what enters and exits the cell.",
+        "example": "The plasma membrane is made of a phospholipid bilayer with embedded proteins.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "phospholipid",
+          "protein-pump"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q4",
+    "id": "manual-cell-growth-004",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "Why is the process of moving potassium ions considered \"Active\" while the movement of oxygen (O₂) is considered \"Passive\"?",
@@ -205,14 +435,6 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["potassium", "ion"],
-    "sidebarTermIds": [
-      "diffusion",
-      "atp",
-      "concentration-gradient",
-      "active-transport",
-      "passive-transport"
-    ],
     "focusHint": "Think about whether each substance is moving with or against its concentration gradient.",
     "keyKnowledge": "Active = against the gradient (requires ATP). Passive = with the gradient (no energy needed).",
     "commonMisconception": "Students confuse molecule size with transport type. The key distinction is direction relative to the gradient, not size.",
@@ -236,10 +458,103 @@
       "explanation": "The defining difference is direction: active goes against the gradient (costs energy), passive goes with it (free)."
     },
     "misconceptionId": "size-determines-transport",
-    "relatedQuestionIds": ["cell-growth-q1", "cell-growth-q11"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-001",
+      "manual-cell-growth-011"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "potassium",
+        "term": "Potassium",
+        "definition": "A chemical element (K) that exists as a positively charged ion (K+) in living cells. Potassium ions are essential for nerve impulse transmission, muscle contraction, and maintaining the cell's resting membrane potential.",
+        "example": "The sodium-potassium pump actively transports potassium ions into cells, creating a concentration gradient that is crucial for nerve signaling.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "ion",
+          "active-transport",
+          "protein-pump",
+          "concentration-gradient"
+        ]
+      },
+      {
+        "id": "ion",
+        "term": "Ion",
+        "definition": "An atom or molecule that has gained or lost one or more electrons, giving it a net positive or negative electrical charge. Ions play crucial roles in cellular processes including nerve signaling and maintaining electrochemical gradients.",
+        "example": "Potassium ions (K+) are positively charged and are actively pumped into cells to maintain the cell's resting potential.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport",
+          "concentration-gradient",
+          "protein-pump"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "diffusion",
+        "term": "Simple Diffusion",
+        "definition": "The net movement of small, nonpolar molecules from an area of high concentration to low concentration without the need for energy or transport proteins.",
+        "example": "Oxygen (O₂) and carbon dioxide (CO₂) cross the membrane by simple diffusion.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "concentration-gradient"
+        ]
+      },
+      {
+        "id": "atp",
+        "term": "ATP (Adenosine Triphosphate)",
+        "definition": "The primary energy currency of the cell, used to power cellular processes including active transport.",
+        "example": "When ATP loses a phosphate group, it releases energy and becomes ADP.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport"
+        ]
+      },
+      {
+        "id": "concentration-gradient",
+        "term": "Concentration Gradient",
+        "definition": "The difference in concentration of a substance between two areas. Substances naturally move from high to low concentration.",
+        "example": "Perfume spreading across a room follows its concentration gradient.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "active-transport",
+          "diffusion"
+        ]
+      },
+      {
+        "id": "active-transport",
+        "term": "Active Transport",
+        "definition": "The movement of substances across a membrane against their concentration gradient, requiring cellular energy in the form of ATP.",
+        "example": "Sodium-potassium pump maintains ion balance in nerve cells.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "concentration-gradient",
+          "atp",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "passive-transport",
+        "term": "Passive Transport",
+        "definition": "Movement of substances across a membrane without the use of cellular energy, driven by the concentration gradient.",
+        "example": "Simple diffusion, facilitated diffusion, and osmosis are all types of passive transport.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "diffusion",
+          "facilitated-diffusion",
+          "osmosis"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q5",
+    "id": "manual-cell-growth-005",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "Which characteristic is shared by all prokaryotes and eukaryotes?",
@@ -267,8 +582,6 @@
       }
     ],
     "correctOptionId": "A",
-    "inlineTermIds": ["prokaryote", "eukaryote", "dna"],
-    "sidebarTermIds": ["dna", "organelle", "nucleus"],
     "focusHint": "Think about what ALL living cells must have in common, regardless of complexity.",
     "keyKnowledge": "All living cells (both prokaryotic and eukaryotic) contain DNA to store hereditary information.",
     "commonMisconception": "Students often think organelles are universal, but membrane-bound organelles are exclusive to eukaryotes.",
@@ -279,17 +592,101 @@
           "id": "A",
           "text": "All cells need DNA to pass on instructions to the next generation."
         },
-        { "id": "B", "text": "All cells have a nucleus to store their DNA." },
-        { "id": "C", "text": "All cells use the same energy process." }
+        {
+          "id": "B",
+          "text": "All cells have a nucleus to store their DNA."
+        },
+        {
+          "id": "C",
+          "text": "All cells use the same energy process."
+        }
       ],
       "correctOptionId": "A",
       "explanation": "DNA is the universal molecule of heredity. Even prokaryotes without a nucleus still have DNA."
     },
     "misconceptionId": "organelles-universal",
-    "relatedQuestionIds": ["cell-growth-q6"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-006"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 1,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "prokaryote",
+        "term": "Prokaryote",
+        "definition": "A single-celled organism that lacks a membrane-bound nucleus and other membrane-bound organelles.",
+        "example": "Bacteria and archaea are prokaryotes.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "eukaryote",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "eukaryote",
+        "term": "Eukaryote",
+        "definition": "An organism whose cells contain a membrane-bound nucleus and other membrane-bound organelles.",
+        "example": "Animals, plants, fungi, and protists are all eukaryotes.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "prokaryote",
+          "nucleus",
+          "organelle"
+        ]
+      },
+      {
+        "id": "dna",
+        "term": "DNA (Deoxyribonucleic Acid)",
+        "definition": "The molecule that carries the genetic instructions for growth, development, and reproduction in all living organisms.",
+        "example": "DNA's double helix structure was discovered by Watson and Crick in 1953.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "nucleus",
+          "heredity"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "dna",
+        "term": "DNA (Deoxyribonucleic Acid)",
+        "definition": "The molecule that carries the genetic instructions for growth, development, and reproduction in all living organisms.",
+        "example": "DNA's double helix structure was discovered by Watson and Crick in 1953.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "nucleus",
+          "heredity"
+        ]
+      },
+      {
+        "id": "organelle",
+        "term": "Organelle",
+        "definition": "A specialized structure within a cell that performs a specific function, often enclosed by a membrane.",
+        "example": "Mitochondria, ribosomes, and the endoplasmic reticulum are all organelles.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "eukaryote",
+          "nucleus"
+        ]
+      },
+      {
+        "id": "nucleus",
+        "term": "Nucleus",
+        "definition": "The membrane-bound organelle in eukaryotic cells that contains DNA and controls cell activities.",
+        "example": "The nucleus sends instructions to the cell via messenger RNA.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "eukaryote",
+          "dna",
+          "organelle"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q6",
+    "id": "manual-cell-growth-006",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "Which two structures are common to both prokaryotic and eukaryotic cells?",
@@ -317,8 +714,6 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["prokaryote", "eukaryote"],
-    "sidebarTermIds": ["nucleus", "organelle", "plasma-membrane"],
     "focusHint": "Which structures does even the simplest cell need to survive?",
     "keyKnowledge": "All cells share a plasma membrane (barrier) and cytoplasm (internal environment), but only eukaryotes have a nucleus.",
     "commonMisconception": "Students confuse cell walls with plasma membranes. Not all cells have cell walls, but all cells have plasma membranes.",
@@ -333,16 +728,86 @@
           "id": "B",
           "text": "All cells have a nucleus to control their activities."
         },
-        { "id": "C", "text": "Cell walls are present in all living organisms." }
+        {
+          "id": "C",
+          "text": "Cell walls are present in all living organisms."
+        }
       ],
       "correctOptionId": "A",
       "explanation": "A plasma membrane and cytoplasm are the minimum requirements for any cell to exist and carry out reactions."
     },
     "misconceptionId": "all-cells-have-nucleus",
-    "relatedQuestionIds": ["cell-growth-q5"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-005"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 1,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "prokaryote",
+        "term": "Prokaryote",
+        "definition": "A single-celled organism that lacks a membrane-bound nucleus and other membrane-bound organelles.",
+        "example": "Bacteria and archaea are prokaryotes.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "eukaryote",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "eukaryote",
+        "term": "Eukaryote",
+        "definition": "An organism whose cells contain a membrane-bound nucleus and other membrane-bound organelles.",
+        "example": "Animals, plants, fungi, and protists are all eukaryotes.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "prokaryote",
+          "nucleus",
+          "organelle"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "nucleus",
+        "term": "Nucleus",
+        "definition": "The membrane-bound organelle in eukaryotic cells that contains DNA and controls cell activities.",
+        "example": "The nucleus sends instructions to the cell via messenger RNA.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "eukaryote",
+          "dna",
+          "organelle"
+        ]
+      },
+      {
+        "id": "organelle",
+        "term": "Organelle",
+        "definition": "A specialized structure within a cell that performs a specific function, often enclosed by a membrane.",
+        "example": "Mitochondria, ribosomes, and the endoplasmic reticulum are all organelles.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "eukaryote",
+          "nucleus"
+        ]
+      },
+      {
+        "id": "plasma-membrane",
+        "term": "Plasma Membrane",
+        "definition": "The selectively permeable barrier that surrounds all cells, controlling what enters and exits the cell.",
+        "example": "The plasma membrane is made of a phospholipid bilayer with embedded proteins.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "phospholipid",
+          "protein-pump"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q7",
+    "id": "manual-cell-growth-007",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "Which statement correctly describes how carbon's ability to form four bonds makes it uniquely suited to form macromolecules?",
@@ -370,8 +835,6 @@
       }
     ],
     "correctOptionId": "B",
-    "inlineTermIds": ["carbon-bonding", "macromolecule"],
-    "sidebarTermIds": ["carbon-bonding", "dna"],
     "focusHint": "What does having four bonds allow carbon to build that other elements with fewer bonds cannot?",
     "keyKnowledge": "Carbon's four covalent bonds enable it to form large, complex, and diverse molecules—the foundation of all organic life.",
     "rationaleQuestion": {
@@ -381,17 +844,76 @@
           "id": "A",
           "text": "Four bonds allow branching, rings, and long chains—creating molecular diversity."
         },
-        { "id": "B", "text": "Carbon only bonds in straight lines." },
-        { "id": "C", "text": "Carbon forms ionic bonds with itself." }
+        {
+          "id": "B",
+          "text": "Carbon only bonds in straight lines."
+        },
+        {
+          "id": "C",
+          "text": "Carbon forms ionic bonds with itself."
+        }
       ],
       "correctOptionId": "A",
       "explanation": "Four covalent bonds means carbon can connect in many configurations, enabling the complexity needed for biological molecules."
     },
     "misconceptionId": "carbon-simple-chains",
-    "relatedQuestionIds": ["cell-growth-q8", "cell-growth-q13"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-008",
+      "manual-cell-growth-013"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "carbon-bonding",
+        "term": "Carbon Bonding",
+        "definition": "Carbon can form four covalent bonds, allowing it to create diverse and complex molecular structures essential for life.",
+        "example": "Carbon forms the backbone of all organic macromolecules including proteins, carbohydrates, lipids, and nucleic acids.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "macromolecule"
+        ]
+      },
+      {
+        "id": "macromolecule",
+        "term": "Macromolecule",
+        "definition": "A large, complex molecule made up of smaller subunits (monomers) joined together. The four types in biology are proteins, carbohydrates, lipids, and nucleic acids.",
+        "example": "A protein is a macromolecule made of amino acid monomers.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "dehydration-synthesis",
+          "hydrolysis"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "carbon-bonding",
+        "term": "Carbon Bonding",
+        "definition": "Carbon can form four covalent bonds, allowing it to create diverse and complex molecular structures essential for life.",
+        "example": "Carbon forms the backbone of all organic macromolecules including proteins, carbohydrates, lipids, and nucleic acids.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "macromolecule"
+        ]
+      },
+      {
+        "id": "dna",
+        "term": "DNA (Deoxyribonucleic Acid)",
+        "definition": "The molecule that carries the genetic instructions for growth, development, and reproduction in all living organisms.",
+        "example": "DNA's double helix structure was discovered by Watson and Crick in 1953.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "nucleus",
+          "heredity"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q8",
+    "id": "manual-cell-growth-008",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "What is the name of the reaction that forms a polymer from monomers by releasing a water molecule?",
@@ -419,15 +941,16 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["polymer", "monomer"],
-    "sidebarTermIds": ["hydrolysis", "dehydration-synthesis", "macromolecule"],
     "focusHint": "The name of this reaction literally describes what happens: water is removed and something is built.",
     "keyKnowledge": "Dehydration synthesis builds polymers by removing water; hydrolysis breaks them by adding water. They are reverse reactions.",
     "commonMisconception": "Students often confuse hydrolysis and dehydration synthesis because both involve water, but they work in opposite directions.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "The reaction adds water to break bonds." },
+        {
+          "id": "A",
+          "text": "The reaction adds water to break bonds."
+        },
         {
           "id": "B",
           "text": "The reaction removes water to form bonds between monomers."
@@ -441,10 +964,80 @@
       "explanation": "Dehydration = removing water. Synthesis = building. Monomers join together as a water molecule is released."
     },
     "misconceptionId": "confuse-hydrolysis-dehydration",
-    "relatedQuestionIds": ["cell-growth-q7", "cell-growth-q13"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-007",
+      "manual-cell-growth-013"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 1,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "polymer",
+        "term": "Polymer",
+        "definition": "A large molecule made up of many repeating smaller units called monomers, linked together by covalent bonds.",
+        "example": "Proteins are polymers of amino acids; starch is a polymer of glucose molecules.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "macromolecule",
+          "dehydration-synthesis",
+          "hydrolysis"
+        ]
+      },
+      {
+        "id": "monomer",
+        "term": "Monomer",
+        "definition": "A small molecule that serves as the building block for larger molecules (polymers). Monomers join together through dehydration synthesis.",
+        "example": "Glucose is a monomer that links together to form the polymer starch or cellulose.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "polymer",
+          "dehydration-synthesis",
+          "amino-acid",
+          "monosaccharide"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "hydrolysis",
+        "term": "Hydrolysis",
+        "definition": "A chemical reaction that breaks polymers into monomers by adding a water molecule.",
+        "example": "Digestion uses hydrolysis to break starch into individual glucose molecules.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "dehydration-synthesis",
+          "macromolecule"
+        ]
+      },
+      {
+        "id": "dehydration-synthesis",
+        "term": "Dehydration Synthesis",
+        "definition": "A chemical reaction that joins monomers together to form a polymer by removing a water molecule.",
+        "example": "Two amino acids are joined by dehydration synthesis to form a peptide bond.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "hydrolysis",
+          "macromolecule",
+          "monomer"
+        ]
+      },
+      {
+        "id": "macromolecule",
+        "term": "Macromolecule",
+        "definition": "A large, complex molecule made up of smaller subunits (monomers) joined together. The four types in biology are proteins, carbohydrates, lipids, and nucleic acids.",
+        "example": "A protein is a macromolecule made of amino acid monomers.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "dehydration-synthesis",
+          "hydrolysis"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q9",
+    "id": "manual-cell-growth-009",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "Which statement best describes the role of an enzyme during a metabolic reaction?",
@@ -472,15 +1065,16 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["enzyme"],
-    "sidebarTermIds": ["enzyme", "atp"],
     "focusHint": "Think about what a catalyst does—and what it does NOT do (like provide energy or get used up).",
     "keyKnowledge": "Enzymes are reusable biological catalysts that lower activation energy to speed up reactions.",
     "commonMisconception": "Students often think enzymes provide energy, but they only lower the barrier (activation energy) for a reaction to occur.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Enzymes supply ATP to power the reaction." },
+        {
+          "id": "A",
+          "text": "Enzymes supply ATP to power the reaction."
+        },
         {
           "id": "B",
           "text": "Enzymes lower activation energy and are reusable catalysts."
@@ -494,10 +1088,50 @@
       "explanation": "Enzymes don't provide energy or change conditions—they lower the energy barrier so reactions happen faster, and they can be reused."
     },
     "misconceptionId": "enzymes-provide-energy",
-    "relatedQuestionIds": []
+    "relatedQuestionIds": [],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 1,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "enzyme",
+        "term": "Enzyme",
+        "definition": "A biological catalyst (usually a protein) that speeds up chemical reactions without being consumed in the process.",
+        "example": "Amylase is an enzyme in saliva that breaks down starch into sugars.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "activation-energy",
+          "substrate"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "enzyme",
+        "term": "Enzyme",
+        "definition": "A biological catalyst (usually a protein) that speeds up chemical reactions without being consumed in the process.",
+        "example": "Amylase is an enzyme in saliva that breaks down starch into sugars.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "activation-energy",
+          "substrate"
+        ]
+      },
+      {
+        "id": "atp",
+        "term": "ATP (Adenosine Triphosphate)",
+        "definition": "The primary energy currency of the cell, used to power cellular processes including active transport.",
+        "example": "When ATP loses a phosphate group, it releases energy and becomes ADP.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q10",
+    "id": "manual-cell-growth-010",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "A protein moves ions against their concentration gradient. Which molecule is most likely the energy source?",
@@ -525,29 +1159,101 @@
       }
     ],
     "correctOptionId": "A",
-    "inlineTermIds": ["concentration-gradient", "atp", "enzyme"],
-    "sidebarTermIds": ["active-transport", "protein-pump"],
     "focusHint": "What is the cell's energy currency that powers work against the natural flow?",
     "keyKnowledge": "ATP is the universal energy currency that powers active transport and other energy-requiring cellular processes.",
     "commonMisconception": "Students confuse enzymes (catalase, amylase) with energy molecules. Enzymes speed up reactions but are not energy sources.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "ADP provides energy for active transport." },
+        {
+          "id": "A",
+          "text": "ADP provides energy for active transport."
+        },
         {
           "id": "B",
           "text": "ATP releases energy when it loses a phosphate group, powering the pump."
         },
-        { "id": "C", "text": "Enzymes like catalase power the protein pump." }
+        {
+          "id": "C",
+          "text": "Enzymes like catalase power the protein pump."
+        }
       ],
       "correctOptionId": "B",
       "explanation": "ATP → ADP + phosphate releases energy. This energy is what drives protein pumps to move ions against their gradient."
     },
     "misconceptionId": "confuse-enzymes-energy",
-    "relatedQuestionIds": ["cell-growth-q1", "cell-growth-q2"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-001",
+      "manual-cell-growth-002"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "concentration-gradient",
+        "term": "Concentration Gradient",
+        "definition": "The difference in concentration of a substance between two areas. Substances naturally move from high to low concentration.",
+        "example": "Perfume spreading across a room follows its concentration gradient.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "active-transport",
+          "diffusion"
+        ]
+      },
+      {
+        "id": "atp",
+        "term": "ATP (Adenosine Triphosphate)",
+        "definition": "The primary energy currency of the cell, used to power cellular processes including active transport.",
+        "example": "When ATP loses a phosphate group, it releases energy and becomes ADP.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport"
+        ]
+      },
+      {
+        "id": "enzyme",
+        "term": "Enzyme",
+        "definition": "A biological catalyst (usually a protein) that speeds up chemical reactions without being consumed in the process.",
+        "example": "Amylase is an enzyme in saliva that breaks down starch into sugars.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "activation-energy",
+          "substrate"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "active-transport",
+        "term": "Active Transport",
+        "definition": "The movement of substances across a membrane against their concentration gradient, requiring cellular energy in the form of ATP.",
+        "example": "Sodium-potassium pump maintains ion balance in nerve cells.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "concentration-gradient",
+          "atp",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "protein-pump",
+        "term": "Protein Pump",
+        "definition": "A membrane protein that uses energy (ATP) to move substances against their concentration gradient.",
+        "example": "The sodium-potassium pump moves 3 Na+ out and 2 K+ into the cell per ATP used.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport",
+          "atp",
+          "plasma-membrane"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q11",
+    "id": "manual-cell-growth-011",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "What determines the direction that carbon dioxide and oxygen move freely across a plasma membrane?",
@@ -575,8 +1281,6 @@
       }
     ],
     "correctOptionId": "B",
-    "inlineTermIds": ["plasma-membrane", "concentration-gradient", "diffusion"],
-    "sidebarTermIds": ["passive-transport", "diffusion"],
     "focusHint": "Small nonpolar gases cross membranes freely. What physical force determines which direction they go?",
     "keyKnowledge": "Small nonpolar molecules (O₂, CO₂) move by simple diffusion, driven solely by the concentration gradient.",
     "rationaleQuestion": {
@@ -586,7 +1290,10 @@
           "id": "A",
           "text": "Gases move from high to low concentration by passive diffusion."
         },
-        { "id": "B", "text": "Membrane receptors direct gas molecules." },
+        {
+          "id": "B",
+          "text": "Membrane receptors direct gas molecules."
+        },
         {
           "id": "C",
           "text": "Cholesterol channels guide gases through the membrane."
@@ -596,10 +1303,78 @@
       "explanation": "O₂ and CO₂ are small and nonpolar, so they freely diffuse across the membrane down their concentration gradient."
     },
     "misconceptionId": "membrane-structure-directs-gases",
-    "relatedQuestionIds": ["cell-growth-q4", "cell-growth-q12"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-004",
+      "manual-cell-growth-012"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "plasma-membrane",
+        "term": "Plasma Membrane",
+        "definition": "The selectively permeable barrier that surrounds all cells, controlling what enters and exits the cell.",
+        "example": "The plasma membrane is made of a phospholipid bilayer with embedded proteins.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "phospholipid",
+          "protein-pump"
+        ]
+      },
+      {
+        "id": "concentration-gradient",
+        "term": "Concentration Gradient",
+        "definition": "The difference in concentration of a substance between two areas. Substances naturally move from high to low concentration.",
+        "example": "Perfume spreading across a room follows its concentration gradient.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "active-transport",
+          "diffusion"
+        ]
+      },
+      {
+        "id": "diffusion",
+        "term": "Simple Diffusion",
+        "definition": "The net movement of small, nonpolar molecules from an area of high concentration to low concentration without the need for energy or transport proteins.",
+        "example": "Oxygen (O₂) and carbon dioxide (CO₂) cross the membrane by simple diffusion.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "concentration-gradient"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "passive-transport",
+        "term": "Passive Transport",
+        "definition": "Movement of substances across a membrane without the use of cellular energy, driven by the concentration gradient.",
+        "example": "Simple diffusion, facilitated diffusion, and osmosis are all types of passive transport.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "diffusion",
+          "facilitated-diffusion",
+          "osmosis"
+        ]
+      },
+      {
+        "id": "diffusion",
+        "term": "Simple Diffusion",
+        "definition": "The net movement of small, nonpolar molecules from an area of high concentration to low concentration without the need for energy or transport proteins.",
+        "example": "Oxygen (O₂) and carbon dioxide (CO₂) cross the membrane by simple diffusion.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "concentration-gradient"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q12",
+    "id": "manual-cell-growth-012",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "How does the structure of alveoli (microscopic air sacs) allow lungs to function properly?",
@@ -627,8 +1402,6 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["alveoli", "surface-area"],
-    "sidebarTermIds": ["surface-area", "diffusion", "homeostasis"],
     "focusHint": "Think about why having millions of tiny sacs is better for gas exchange than one big open space.",
     "keyKnowledge": "Increased surface area (from many small alveoli) maximizes the rate of gas exchange by diffusion.",
     "commonMisconception": "Students confuse volume with surface area. It's not about how much space the lungs hold, but how much contact area exists for gas exchange.",
@@ -652,10 +1425,75 @@
       "explanation": "Millions of tiny alveoli create a huge surface area, maximizing the area where diffusion of gases can occur."
     },
     "misconceptionId": "volume-vs-surface-area",
-    "relatedQuestionIds": ["cell-growth-q11"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-011"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "alveoli",
+        "term": "Alveoli",
+        "definition": "Tiny air sacs in the lungs where gas exchange occurs between the air and the blood.",
+        "example": "The millions of alveoli in your lungs provide a surface area roughly the size of a tennis court.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "diffusion",
+          "homeostasis"
+        ]
+      },
+      {
+        "id": "surface-area",
+        "term": "Surface Area",
+        "definition": "The total area of the exposed surface of an object. In biology, greater surface area allows for more efficient exchange of materials.",
+        "example": "The many folds of the small intestine increase its surface area for nutrient absorption.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "alveoli",
+          "diffusion"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "surface-area",
+        "term": "Surface Area",
+        "definition": "The total area of the exposed surface of an object. In biology, greater surface area allows for more efficient exchange of materials.",
+        "example": "The many folds of the small intestine increase its surface area for nutrient absorption.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "alveoli",
+          "diffusion"
+        ]
+      },
+      {
+        "id": "diffusion",
+        "term": "Simple Diffusion",
+        "definition": "The net movement of small, nonpolar molecules from an area of high concentration to low concentration without the need for energy or transport proteins.",
+        "example": "Oxygen (O₂) and carbon dioxide (CO₂) cross the membrane by simple diffusion.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "concentration-gradient"
+        ]
+      },
+      {
+        "id": "homeostasis",
+        "term": "Homeostasis",
+        "definition": "The maintenance of a stable internal environment in an organism despite changes in external conditions.",
+        "example": "Your body maintains a temperature of about 37°C regardless of the weather outside.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport",
+          "plasma-membrane"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q13",
+    "id": "manual-cell-growth-013",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "How do the structures of proteins generally differ from the structures of carbohydrates?",
@@ -683,19 +1521,15 @@
       }
     ],
     "correctOptionId": "A",
-    "inlineTermIds": ["protein", "carbohydrate"],
-    "sidebarTermIds": [
-      "amino-acid",
-      "monosaccharide",
-      "macromolecule",
-      "dehydration-synthesis"
-    ],
     "focusHint": "What are the specific building blocks (monomers) that make up each type of macromolecule?",
     "keyKnowledge": "Proteins are built from amino acids; carbohydrates are built from monosaccharides (simple sugars). Different monomers = different macromolecules.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Both macromolecules use the same monomers." },
+        {
+          "id": "A",
+          "text": "Both macromolecules use the same monomers."
+        },
         {
           "id": "B",
           "text": "They differ in their monomers: amino acids vs. monosaccharides."
@@ -709,10 +1543,90 @@
       "explanation": "The fundamental structural difference is their monomers: amino acids (proteins) vs. monosaccharides (carbohydrates)."
     },
     "misconceptionId": "monomer-confusion",
-    "relatedQuestionIds": ["cell-growth-q7", "cell-growth-q8"]
+    "relatedQuestionIds": [
+      "manual-cell-growth-007",
+      "manual-cell-growth-008"
+    ],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 1,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "protein",
+        "term": "Protein",
+        "definition": "A large, complex macromolecule made up of amino acids. Proteins perform a vast array of functions including catalyzing reactions (enzymes), providing structure, and transporting molecules.",
+        "example": "Hemoglobin is a protein that carries oxygen in red blood cells.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "amino-acid",
+          "enzyme",
+          "macromolecule"
+        ]
+      },
+      {
+        "id": "carbohydrate",
+        "term": "Carbohydrate",
+        "definition": "An organic compound made of carbon, hydrogen, and oxygen, typically in a ratio of 1:2:1. Carbohydrates serve as a primary energy source and structural components in cells.",
+        "example": "Glucose is a simple carbohydrate used for cellular energy, while cellulose is a complex carbohydrate that forms plant cell walls.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "monosaccharide",
+          "macromolecule",
+          "dehydration-synthesis"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "amino-acid",
+        "term": "Amino Acid",
+        "definition": "The monomer (building block) of proteins. There are 20 different amino acids that combine in various sequences to form proteins.",
+        "example": "The sequence of amino acids determines a protein's shape and function.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "macromolecule",
+          "dehydration-synthesis"
+        ]
+      },
+      {
+        "id": "monosaccharide",
+        "term": "Monosaccharide",
+        "definition": "The simplest form of carbohydrate and the monomer (building block) of complex carbohydrates.",
+        "example": "Glucose and fructose are monosaccharides.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "macromolecule",
+          "dehydration-synthesis"
+        ]
+      },
+      {
+        "id": "macromolecule",
+        "term": "Macromolecule",
+        "definition": "A large, complex molecule made up of smaller subunits (monomers) joined together. The four types in biology are proteins, carbohydrates, lipids, and nucleic acids.",
+        "example": "A protein is a macromolecule made of amino acid monomers.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "dehydration-synthesis",
+          "hydrolysis"
+        ]
+      },
+      {
+        "id": "dehydration-synthesis",
+        "term": "Dehydration Synthesis",
+        "definition": "A chemical reaction that joins monomers together to form a polymer by removing a water molecule.",
+        "example": "Two amino acids are joined by dehydration synthesis to form a peptide bond.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "hydrolysis",
+          "macromolecule",
+          "monomer"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q14",
+    "id": "manual-cell-growth-014",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "What is one way the rough endoplasmic reticulum (RER) assists the Golgi apparatus?",
@@ -740,8 +1654,6 @@
       }
     ],
     "correctOptionId": "C",
-    "inlineTermIds": ["rough-er", "golgi-apparatus", "macromolecule"],
-    "sidebarTermIds": ["rough-er", "golgi-apparatus", "organelle", "nucleus"],
     "focusHint": "Think about the production line: one organelle makes the product, another processes and ships it. What connects them?",
     "keyKnowledge": "The RER makes proteins and sends them in vesicles to the Golgi apparatus, which modifies and ships them to their destination.",
     "rationaleQuestion": {
@@ -764,10 +1676,96 @@
       "explanation": "RER → vesicles → Golgi is the protein production and delivery pipeline of the cell."
     },
     "misconceptionId": "organelle-roles-confused",
-    "relatedQuestionIds": []
+    "relatedQuestionIds": [],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "rough-er",
+        "term": "Rough Endoplasmic Reticulum (RER)",
+        "definition": "An organelle studded with ribosomes that synthesizes proteins and packages them into vesicles for transport.",
+        "example": "The RER produces proteins that are shipped to the Golgi apparatus for final processing.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "golgi-apparatus",
+          "organelle"
+        ]
+      },
+      {
+        "id": "golgi-apparatus",
+        "term": "Golgi Apparatus",
+        "definition": "An organelle that modifies, sorts, and packages proteins and lipids received from the ER for transport to their final destinations.",
+        "example": "The Golgi apparatus adds sugar tags to proteins to direct them where they need to go.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "rough-er",
+          "organelle"
+        ]
+      },
+      {
+        "id": "macromolecule",
+        "term": "Macromolecule",
+        "definition": "A large, complex molecule made up of smaller subunits (monomers) joined together. The four types in biology are proteins, carbohydrates, lipids, and nucleic acids.",
+        "example": "A protein is a macromolecule made of amino acid monomers.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "dehydration-synthesis",
+          "hydrolysis"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "rough-er",
+        "term": "Rough Endoplasmic Reticulum (RER)",
+        "definition": "An organelle studded with ribosomes that synthesizes proteins and packages them into vesicles for transport.",
+        "example": "The RER produces proteins that are shipped to the Golgi apparatus for final processing.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "golgi-apparatus",
+          "organelle"
+        ]
+      },
+      {
+        "id": "golgi-apparatus",
+        "term": "Golgi Apparatus",
+        "definition": "An organelle that modifies, sorts, and packages proteins and lipids received from the ER for transport to their final destinations.",
+        "example": "The Golgi apparatus adds sugar tags to proteins to direct them where they need to go.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "rough-er",
+          "organelle"
+        ]
+      },
+      {
+        "id": "organelle",
+        "term": "Organelle",
+        "definition": "A specialized structure within a cell that performs a specific function, often enclosed by a membrane.",
+        "example": "Mitochondria, ribosomes, and the endoplasmic reticulum are all organelles.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "eukaryote",
+          "nucleus"
+        ]
+      },
+      {
+        "id": "nucleus",
+        "term": "Nucleus",
+        "definition": "The membrane-bound organelle in eukaryotic cells that contains DNA and controls cell activities.",
+        "example": "The nucleus sends instructions to the cell via messenger RNA.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "eukaryote",
+          "dna",
+          "organelle"
+        ]
+      }
+    ]
   },
   {
-    "id": "cell-growth-q15",
+    "id": "manual-cell-growth-015",
     "module": 2,
     "topic": "Cell Growth and Reproduction",
     "text": "Which example is an activity that a fish most likely uses to maintain homeostasis?",
@@ -795,14 +1793,15 @@
       }
     ],
     "correctOptionId": "D",
-    "inlineTermIds": ["homeostasis", "diffusion"],
-    "sidebarTermIds": ["homeostasis", "diffusion", "plasma-membrane"],
     "focusHint": "Homeostasis means maintaining stable internal conditions. Which activity directly regulates an internal level?",
     "keyKnowledge": "Homeostasis is the regulation of internal conditions (like O₂ levels). Gas exchange through gills directly maintains internal balance.",
     "rationaleQuestion": {
       "text": "Which reason best supports your answer?",
       "options": [
-        { "id": "A", "text": "Camouflage regulates internal oxygen levels." },
+        {
+          "id": "A",
+          "text": "Camouflage regulates internal oxygen levels."
+        },
         {
           "id": "B",
           "text": "Gas exchange through gills directly maintains internal O₂ and CO₂ balance."
@@ -816,6 +1815,69 @@
       "explanation": "Gills perform gas exchange, directly regulating internal O₂ and CO₂ levels—a classic example of homeostasis."
     },
     "misconceptionId": "adaptation-vs-homeostasis",
-    "relatedQuestionIds": []
+    "relatedQuestionIds": [],
+    "source": "manual",
+    "questionSetId": "initial-question-bank",
+    "dok": 2,
+    "isVisible": true,
+    "inlineTerms": [
+      {
+        "id": "homeostasis",
+        "term": "Homeostasis",
+        "definition": "The maintenance of a stable internal environment in an organism despite changes in external conditions.",
+        "example": "Your body maintains a temperature of about 37°C regardless of the weather outside.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "diffusion",
+        "term": "Simple Diffusion",
+        "definition": "The net movement of small, nonpolar molecules from an area of high concentration to low concentration without the need for energy or transport proteins.",
+        "example": "Oxygen (O₂) and carbon dioxide (CO₂) cross the membrane by simple diffusion.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "concentration-gradient"
+        ]
+      }
+    ],
+    "sidebarTerms": [
+      {
+        "id": "homeostasis",
+        "term": "Homeostasis",
+        "definition": "The maintenance of a stable internal environment in an organism despite changes in external conditions.",
+        "example": "Your body maintains a temperature of about 37°C regardless of the weather outside.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "active-transport",
+          "plasma-membrane"
+        ]
+      },
+      {
+        "id": "diffusion",
+        "term": "Simple Diffusion",
+        "definition": "The net movement of small, nonpolar molecules from an area of high concentration to low concentration without the need for energy or transport proteins.",
+        "example": "Oxygen (O₂) and carbon dioxide (CO₂) cross the membrane by simple diffusion.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "passive-transport",
+          "concentration-gradient"
+        ]
+      },
+      {
+        "id": "plasma-membrane",
+        "term": "Plasma Membrane",
+        "definition": "The selectively permeable barrier that surrounds all cells, controlling what enters and exits the cell.",
+        "example": "The plasma membrane is made of a phospholipid bilayer with embedded proteins.",
+        "imageUrl": null,
+        "relatedConcepts": [
+          "phospholipid",
+          "protein-pump"
+        ]
+      }
+    ]
   }
 ]

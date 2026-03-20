@@ -2,10 +2,82 @@ export type QuestionType = "mcq" | "open-ended";
 
 export type PracticeMode = "guided" | "practice" | "exam" | "review";
 
+export type QuestionSource = "manual" | "imported" | "generated";
+
+export type DOKLevel = 1 | 2 | 3;
+
+export type DiagramType = "chart" | "table" | "flowchart" | "diagram";
+
 export interface MCQOption {
   id: string;
   text: string;
   feedback?: string;
+}
+
+export interface LineChartData {
+  title: string;
+  xAxisLabel: string;
+  yAxisLabel: string;
+  data: { x: string | number; y: number }[];
+}
+
+export interface BarChartData {
+  title: string;
+  xAxisLabel: string;
+  yAxisLabel: string;
+  data: { label: string; value: number }[];
+}
+
+export interface TableData {
+  title?: string;
+  headers: string[];
+  rows: string[][];
+}
+
+export interface FlowchartData {
+  title?: string;
+  nodes: { id: string; label: string; x?: number; y?: number }[];
+  edges: { from: string; to: string; label?: string }[];
+}
+
+export interface SvgDiagramData {
+  title?: string;
+  svg: string;
+}
+
+export interface ChartData {
+  chartType: "line" | "bar";
+  title: string;
+  xAxisLabel: string;
+  yAxisLabel: string;
+  data: { x: string | number; y: number; label?: string }[];
+}
+
+export interface Diagram {
+  type: DiagramType;
+  data: ChartData | TableData | FlowchartData | SvgDiagramData;
+}
+
+export interface QuestionSet {
+  id: string;
+  name: string;
+  source: QuestionSource;
+  createdAt: string;
+  questionIds: string[];
+  generationConfig?: GenerationConfig;
+}
+
+export interface GenerationConfig {
+  topics: string[];
+  dokLevels: DOKLevel[];
+  questionCount: number;
+  diagramConfig?: {
+    chart: number;
+    table: number;
+    flowchart: number;
+    diagram: number;
+  };
+  customPrompt?: string;
 }
 
 export interface HintLevels {
@@ -44,8 +116,8 @@ export interface Question {
   hints?: HintLevels;
   questionType?: QuestionType;
 
-  inlineTermIds?: string[];
-  sidebarTermIds?: string[];
+  inlineTerms?: GlossaryTerm[];
+  sidebarTerms?: GlossaryTerm[];
   focusHint?: string;
   keyKnowledge?: string;
 
@@ -53,6 +125,13 @@ export interface Question {
 
   misconceptionId?: string;
   relatedQuestionIds?: string[];
+
+  source: QuestionSource;
+  questionSetId?: string;
+  dok?: DOKLevel;
+  isVisible?: boolean;
+  generatedAt?: string;
+  diagram?: Diagram;
 }
 
 export type ConfidenceLevel = "not_sure" | "somewhat" | "sure";

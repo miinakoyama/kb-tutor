@@ -9,14 +9,11 @@ import {
   Trash2,
   Home,
   CheckCircle2,
-  XCircle,
   AlertTriangle,
 } from "lucide-react";
 import { getBookmarkedIds, removeBookmark } from "@/lib/storage";
-import questionsData from "@/data/questions.json";
+import { useQuestions } from "@/hooks/useQuestions";
 import type { Question } from "@/types/question";
-
-const questions = questionsData as Question[];
 
 interface BookmarkedQuestion {
   question: Question;
@@ -24,21 +21,22 @@ interface BookmarkedQuestion {
 }
 
 export default function BookmarksPage() {
+  const { visibleQuestions, isLoaded } = useQuestions();
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<BookmarkedQuestion[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!isLoaded) return;
+    
     const ids = getBookmarkedIds();
     const bookmarked = ids
       .map((id) => {
-        const question = questions.find((q) => q.id === id);
+        const question = visibleQuestions.find((q) => q.id === id);
         return question ? { question, id } : null;
       })
       .filter((item): item is BookmarkedQuestion => item !== null);
     setBookmarkedQuestions(bookmarked);
-    setIsLoading(false);
-  }, []);
+  }, [isLoaded, visibleQuestions]);
 
   const handleRemoveBookmark = useCallback((questionId: string) => {
     removeBookmark(questionId);
@@ -52,7 +50,7 @@ export default function BookmarksPage() {
     setExpandedId((prev) => (prev === questionId ? null : questionId));
   }, []);
 
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-full flex items-center justify-center">
@@ -107,9 +105,6 @@ export default function BookmarksPage() {
           <div className="flex-1 overflow-y-auto space-y-4 pb-4">
             {bookmarkedQuestions.map(({ question, id }) => {
               const isExpanded = expandedId === id;
-              const correctOption = question.options.find(
-                (opt) => opt.id === question.correctOptionId
-              );
 
               return (
                 <div

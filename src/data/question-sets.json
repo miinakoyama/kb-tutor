@@ -1,0 +1,25 @@
+[
+  {
+    "id": "initial-question-bank",
+    "name": "Initial Question Bank",
+    "source": "manual",
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "questionIds": [
+      "manual-cell-growth-001",
+      "manual-cell-growth-002",
+      "manual-cell-growth-003",
+      "manual-cell-growth-004",
+      "manual-cell-growth-005",
+      "manual-cell-growth-006",
+      "manual-cell-growth-007",
+      "manual-cell-growth-008",
+      "manual-cell-growth-009",
+      "manual-cell-growth-010",
+      "manual-cell-growth-011",
+      "manual-cell-growth-012",
+      "manual-cell-growth-013",
+      "manual-cell-growth-014",
+      "manual-cell-growth-015"
+    ]
+  }
+]
