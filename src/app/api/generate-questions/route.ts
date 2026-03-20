@@ -18,7 +18,7 @@ interface GenerationSettings {
   customPrompt: string;
 }
 
-const MAX_GENERATION_ATTEMPTS = 3;
+const MAX_GENERATION_ATTEMPTS = 5;
 
 function validateSettings(settings: unknown): settings is GenerationSettings {
   if (!settings || typeof settings !== "object") return false;
@@ -172,6 +172,68 @@ function hasExactDiagramDistribution(
   };
 }
 
+function tryNormalizeDiagramDistribution(
+  questions: Question[],
+  settings: GenerationSettings
+): { ok: true; questions: Question[] } | { ok: false; reason: string } {
+  const expected = settings.includeDiagrams
+    ? settings.diagramConfig
+    : { chart: 0, table: 0, flowchart: 0, diagram: 0 };
+  const expectedTextOnly =
+    settings.questionCount -
+    (expected.chart + expected.table + expected.flowchart + expected.diagram);
+
+  const byType = {
+    chart: questions.filter((q) => q.diagram?.type === "chart"),
+    table: questions.filter((q) => q.diagram?.type === "table"),
+    flowchart: questions.filter((q) => q.diagram?.type === "flowchart"),
+    diagram: questions.filter((q) => q.diagram?.type === "diagram"),
+    textOnly: questions.filter((q) => !q.diagram),
+  };
+
+  if (byType.chart.length < expected.chart) {
+    return { ok: false, reason: `Not enough chart questions (${byType.chart.length}/${expected.chart}).` };
+  }
+  if (byType.table.length < expected.table) {
+    return { ok: false, reason: `Not enough table questions (${byType.table.length}/${expected.table}).` };
+  }
+  if (byType.flowchart.length < expected.flowchart) {
+    return {
+      ok: false,
+      reason: `Not enough flowchart questions (${byType.flowchart.length}/${expected.flowchart}).`,
+    };
+  }
+  if (byType.diagram.length < expected.diagram) {
+    return {
+      ok: false,
+      reason: `Not enough diagram questions (${byType.diagram.length}/${expected.diagram}).`,
+    };
+  }
+  if (byType.textOnly.length < expectedTextOnly) {
+    return {
+      ok: false,
+      reason: `Not enough text-only questions (${byType.textOnly.length}/${expectedTextOnly}).`,
+    };
+  }
+
+  const normalized = [
+    ...byType.chart.slice(0, expected.chart),
+    ...byType.table.slice(0, expected.table),
+    ...byType.flowchart.slice(0, expected.flowchart),
+    ...byType.diagram.slice(0, expected.diagram),
+    ...byType.textOnly.slice(0, expectedTextOnly),
+  ].slice(0, settings.questionCount);
+
+  if (normalized.length !== settings.questionCount) {
+    return {
+      ok: false,
+      reason: `Normalization produced ${normalized.length}/${settings.questionCount} questions.`,
+    };
+  }
+
+  return { ok: true, questions: normalized };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!process.env.GEMINI_API_KEY) {
@@ -194,6 +256,7 @@ export async function POST(request: NextRequest) {
     let validQuestions: Question[] = [];
     let lastError: unknown = null;
     let retryReason = "";
+    let finalFailureReason = "";
 
     for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
       const retrySuffix =
@@ -220,7 +283,18 @@ export async function POST(request: NextRequest) {
 
         const distributionCheck = hasExactDiagramDistribution(attemptQuestions, body);
         if (!distributionCheck.ok) {
-          retryReason = distributionCheck.error || "Diagram distribution mismatch.";
+          const normalized = tryNormalizeDiagramDistribution(attemptQuestions, body);
+          if (normalized.ok) {
+            validQuestions = normalized.questions;
+            lastError = null;
+            break;
+          }
+
+          retryReason =
+            distributionCheck.error ||
+            normalized.reason ||
+            "Diagram distribution mismatch.";
+          finalFailureReason = retryReason;
           continue;
         }
 
@@ -233,6 +307,7 @@ export async function POST(request: NextRequest) {
           error instanceof Error
             ? error.message
             : "Failed to parse generated questions.";
+        finalFailureReason = retryReason;
       }
     }
 
@@ -247,6 +322,7 @@ export async function POST(request: NextRequest) {
         {
           error:
             "Failed to generate valid questions with the exact requested diagram distribution. Please try again.",
+          details: finalFailureReason || "No additional failure details available.",
         },
         { status: 500 }
       );

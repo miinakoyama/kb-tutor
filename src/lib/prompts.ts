@@ -35,11 +35,43 @@ Generate data as:
     "title": "Chart Title",
     "xAxisLabel": "X Axis Label",
     "yAxisLabel": "Y Axis Label",
-    "series": [{ "key": "seriesA", "label": "Series A" }, { "key": "seriesB", "label": "Series B" }], // optional; for multi-line charts
+    "series": [{ "key": "seriesA", "label": "Series A" }, { "key": "seriesB", "label": "Series B" }], // required for multi-line charts
+    "data": [ ... ]
+  }
+}
+
+Single-series line chart example (NO "series" field):
+{
+  "type": "chart",
+  "data": {
+    "chartType": "line",
+    "title": "Single Series Example",
+    "xAxisLabel": "Year",
+    "yAxisLabel": "Value",
     "data": [
-      { "x": "2000", "y": 12 }, // single-line format
-      { "x": "2000", "seriesA": 12, "seriesB": 8 }, // multi-line format
-      ...
+      { "x": "2000", "y": 12 },
+      { "x": "2002", "y": 18 },
+      { "x": "2004", "y": 25 }
+    ]
+  }
+}
+
+Multi-series line chart example (MUST include "series"; do NOT use "y"):
+{
+  "type": "chart",
+  "data": {
+    "chartType": "line",
+    "title": "Multi Series Example",
+    "xAxisLabel": "Year",
+    "yAxisLabel": "Population",
+    "series": [
+      { "key": "seriesA", "label": "Population A" },
+      { "key": "seriesB", "label": "Population B" }
+    ],
+    "data": [
+      { "x": "2000", "seriesValues": { "seriesA": 12, "seriesB": 8 } },
+      { "x": "2002", "seriesValues": { "seriesA": 18, "seriesB": 10 } },
+      { "x": "2004", "seriesValues": { "seriesA": 25, "seriesB": 14 } }
     ]
   }
 }`,
@@ -88,60 +120,17 @@ SVG requirements:
 - Do NOT include XML header, DOCTYPE, comments, scripts, external styles, or embedded images
 - Do NOT generate massive traced vector art with thousands of path commands
 
-Style examples to imitate (few-shot style guidance; do not copy literally):
+Style examples to imitate (few-shot style guidance; do not copy literally).
+IMPORTANT: examples below intentionally follow the single-line JSON string rule and use single quotes in SVG attributes:
 
 Example A (process model style):
-<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-  <rect x="10" y="10" width="380" height="280" fill="white" stroke="#000" stroke-width="2"/>
-  <text x="200" y="35" text-anchor="middle" font-size="16" font-weight="bold">Photosynthesis Model</text>
-  <circle cx="75" cy="85" r="24" fill="none" stroke="#000" stroke-width="2"/>
-  <text x="75" y="90" text-anchor="middle" font-size="12">Sun</text>
-  <rect x="150" y="75" width="95" height="55" fill="none" stroke="#000" stroke-width="2"/>
-  <text x="197" y="105" text-anchor="middle" font-size="13">Plant</text>
-  <line x1="102" y1="85" x2="150" y2="85" stroke="#000" stroke-width="2"/>
-  <polygon points="150,85 142,81 142,89" fill="#000"/>
-  <text x="112" y="75" font-size="12">light</text>
-  <line x1="245" y1="90" x2="310" y2="65" stroke="#000" stroke-width="2"/>
-  <polygon points="310,65 301,64 304,72" fill="#000"/>
-  <text x="314" y="63" font-size="12">O2</text>
-</svg>
+"svg": "<svg viewBox='0 0 400 300' xmlns='http://www.w3.org/2000/svg'><rect x='10' y='10' width='380' height='280' fill='white' stroke='#000' stroke-width='2'/><text x='200' y='35' text-anchor='middle' font-size='16' font-weight='bold'>Photosynthesis Model</text><circle cx='75' cy='85' r='24' fill='none' stroke='#000' stroke-width='2'/><text x='75' y='90' text-anchor='middle' font-size='12'>Sun</text><rect x='150' y='75' width='95' height='55' fill='none' stroke='#000' stroke-width='2'/><text x='197' y='105' text-anchor='middle' font-size='13'>Plant</text><line x1='102' y1='85' x2='150' y2='85' stroke='#000' stroke-width='2'/><polygon points='150,85 142,81 142,89' fill='#000'/><text x='112' y='75' font-size='12'>light</text><line x1='245' y1='90' x2='310' y2='65' stroke='#000' stroke-width='2'/><polygon points='310,65 301,64 304,72' fill='#000'/><text x='314' y='63' font-size='12'>O2</text></svg>"
 
-
-Example CB (cycle model style):
-<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-  <rect x="12" y="12" width="376" height="276" fill="none" stroke="#000" stroke-width="2"/>
-  <text x="200" y="33" text-anchor="middle" font-size="16" font-weight="bold">Cycling of Matter</text>
-  <rect x="45" y="90" width="105" height="42" fill="none" stroke="#000" stroke-width="2"/>
-  <text x="97" y="116" text-anchor="middle" font-size="12">Producers</text>
-  <rect x="250" y="90" width="105" height="42" fill="none" stroke="#000" stroke-width="2"/>
-  <text x="302" y="116" text-anchor="middle" font-size="12">Consumers</text>
-  <rect x="145" y="205" width="110" height="40" fill="none" stroke="#000" stroke-width="2"/>
-  <text x="200" y="230" text-anchor="middle" font-size="12">CO2 in air</text>
-  <path d="M150 110 C185 70, 215 70, 250 110" fill="none" stroke="#000" stroke-width="2"/>
-  <polygon points="250,110 241,107 244,116" fill="#000"/>
-  <path d="M302 132 C280 170, 245 188, 220 205" fill="none" stroke="#000" stroke-width="2"/>
-  <polygon points="220,205 223,196 229,202" fill="#000"/>
-  <path d="M180 205 C145 190, 115 162, 97 132" fill="none" stroke="#000" stroke-width="2"/>
-  <polygon points="97,132 105,136 98,142" fill="#000"/>
-</svg>
+Example B (cycle model style):
+"svg": "<svg viewBox='0 0 400 300' xmlns='http://www.w3.org/2000/svg'><rect x='12' y='12' width='376' height='276' fill='none' stroke='#000' stroke-width='2'/><text x='200' y='33' text-anchor='middle' font-size='16' font-weight='bold'>Cycling of Matter</text><rect x='45' y='90' width='105' height='42' fill='none' stroke='#000' stroke-width='2'/><text x='97' y='116' text-anchor='middle' font-size='12'>Producers</text><rect x='250' y='90' width='105' height='42' fill='none' stroke='#000' stroke-width='2'/><text x='302' y='116' text-anchor='middle' font-size='12'>Consumers</text><rect x='145' y='205' width='110' height='40' fill='none' stroke='#000' stroke-width='2'/><text x='200' y='230' text-anchor='middle' font-size='12'>CO2 in air</text><path d='M150 110 C185 70, 215 70, 250 110' fill='none' stroke='#000' stroke-width='2'/><polygon points='250,110 241,107 244,116' fill='#000'/><path d='M302 132 C280 170, 245 188, 220 205' fill='none' stroke='#000' stroke-width='2'/><polygon points='220,205 223,196 229,202' fill='#000'/><path d='M180 205 C145 190, 115 162, 97 132' fill='none' stroke='#000' stroke-width='2'/><polygon points='97,132 105,136 98,142' fill='#000'/></svg>"
 
 Example C (labeled structure style):
-<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-  <text x="200" y="28" text-anchor="middle" font-size="16" font-weight="bold">Plant Cell (Simplified)</text>
-  <rect x="75" y="55" width="250" height="190" rx="12" fill="none" stroke="#000" stroke-width="2.5"/>
-  <rect x="95" y="75" width="210" height="150" rx="10" fill="none" stroke="#000" stroke-width="1.8"/>
-  <ellipse cx="250" cy="120" rx="28" ry="18" fill="none" stroke="#000" stroke-width="1.8"/>
-  <circle cx="252" cy="120" r="6" fill="none" stroke="#000" stroke-width="1.6"/>
-  <ellipse cx="145" cy="115" rx="26" ry="14" fill="none" stroke="#000" stroke-width="1.6"/>
-  <ellipse cx="150" cy="170" rx="30" ry="16" fill="none" stroke="#000" stroke-width="1.6"/>
-  <rect x="190" y="165" width="70" height="45" rx="6" fill="none" stroke="#000" stroke-width="1.6"/>
-  <line x1="325" y1="95" x2="280" y2="110" stroke="#000" stroke-width="1.6"/>
-  <text x="330" y="95" font-size="12">nucleus</text>
-  <line x1="325" y1="145" x2="270" y2="170" stroke="#000" stroke-width="1.6"/>
-  <text x="330" y="146" font-size="12">vacuole</text>
-  <line x1="70" y1="95" x2="95" y2="95" stroke="#000" stroke-width="1.6"/>
-  <text x="18" y="99" font-size="12">cell wall</text>
-</svg>
+"svg": "<svg viewBox='0 0 400 300' xmlns='http://www.w3.org/2000/svg'><text x='200' y='28' text-anchor='middle' font-size='16' font-weight='bold'>Plant Cell (Simplified)</text><rect x='75' y='55' width='250' height='190' rx='12' fill='none' stroke='#000' stroke-width='2.5'/><rect x='95' y='75' width='210' height='150' rx='10' fill='none' stroke='#000' stroke-width='1.8'/><ellipse cx='250' cy='120' rx='28' ry='18' fill='none' stroke='#000' stroke-width='1.8'/><circle cx='252' cy='120' r='6' fill='none' stroke='#000' stroke-width='1.6'/><ellipse cx='145' cy='115' rx='26' ry='14' fill='none' stroke='#000' stroke-width='1.6'/><ellipse cx='150' cy='170' rx='30' ry='16' fill='none' stroke='#000' stroke-width='1.6'/><rect x='190' y='165' width='70' height='45' rx='6' fill='none' stroke='#000' stroke-width='1.6'/><line x1='325' y1='95' x2='280' y2='110' stroke='#000' stroke-width='1.6'/><text x='330' y='95' font-size='12'>nucleus</text><line x1='325' y1='145' x2='270' y2='170' stroke='#000' stroke-width='1.6'/><text x='330' y='146' font-size='12'>vacuole</text><line x1='70' y1='95' x2='95' y2='95' stroke='#000' stroke-width='1.6'/><text x='18' y='99' font-size='12'>cell wall</text></svg>"
 
 Target visual style:
 - Similar to clean worksheet diagrams (labeled, monochrome, readable)

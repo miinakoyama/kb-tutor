@@ -20,6 +20,29 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
   const hasMultiSeries = Array.isArray(data.series) && data.series.length > 0;
   const strokePalette = ["#000", "#333", "#666", "#999"];
   const dashPalette = ["0", "6 4", "2 3", "10 4"];
+  const multiSeriesData = hasMultiSeries
+    ? data.data.map((point) => {
+        const legacyPoint = point as unknown as Record<string, unknown>;
+        const normalized: Record<string, string | number> = { x: point.x };
+        if (point.label) normalized.label = point.label;
+
+        for (const series of data.series!) {
+          const valueFromSeriesValues = point.seriesValues?.[series.key];
+          if (typeof valueFromSeriesValues === "number") {
+            normalized[series.key] = valueFromSeriesValues;
+            continue;
+          }
+
+          // Backward compatibility for older data format: { seriesA: 10, seriesB: 12 }
+          const legacyValue = legacyPoint[series.key];
+          if (typeof legacyValue === "number") {
+            normalized[series.key] = legacyValue;
+          }
+        }
+
+        return normalized;
+      })
+    : data.data;
 
   return (
     <div className="w-full bg-white p-4 border border-gray-300 rounded">
@@ -30,7 +53,7 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
       )}
       <ResponsiveContainer width="100%" height={250}>
         <LineChart
-          data={data.data}
+          data={multiSeriesData}
           margin={{ top: 24, right: 24, left: 42, bottom: 42 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#999" />
@@ -81,6 +104,7 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
                   type="monotone"
                   dataKey={series.key}
                   name={series.label}
+                  isAnimationActive={false}
                   stroke={strokePalette[index % strokePalette.length]}
                   strokeWidth={2}
                   strokeDasharray={dashPalette[index % dashPalette.length]}
@@ -97,6 +121,7 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
             <Line
               type="monotone"
               dataKey="y"
+              isAnimationActive={false}
               stroke="#000"
               strokeWidth={2}
               dot={{ fill: "#000", strokeWidth: 2, r: 4 }}

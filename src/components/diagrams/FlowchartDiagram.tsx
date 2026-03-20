@@ -10,6 +10,8 @@ const NODE_LINE_HEIGHT = 14;
 const MAX_LABEL_LINES = 3;
 const MAX_CHARS_PER_LINE = 18;
 const EDGE_LABEL_BG_HEIGHT = 16;
+const VIEWBOX_WIDTH = 400;
+const VIEWBOX_HEIGHT = 420;
 
 function getOffsetEdgeLabelPosition(
   x1: number,
@@ -79,20 +81,20 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
         </h3>
       )}
       <svg
-        viewBox="0 0 400 300"
-        className="w-full h-auto max-h-[300px]"
-        style={{ minHeight: "200px" }}
+        viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+        className="w-full h-auto max-h-[360px]"
+        style={{ minHeight: "240px" }}
       >
         <defs>
           <marker
             id="arrowhead-bw"
-            markerWidth="10"
-            markerHeight="7"
-            refX="9"
-            refY="3.5"
+            markerWidth="8"
+            markerHeight="6"
+            refX="7"
+            refY="3"
             orient="auto"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#000" />
+            <polygon points="0 0, 8 3, 0 6" fill="#000" />
           </marker>
         </defs>
 
@@ -223,22 +225,22 @@ function calculateNodePositions(
       const maxY = Math.max(...ys);
       const range = maxY - minY;
 
-      if (range > 0 && range < 210) {
-        const targetRange = 240;
+      if (range > 0 && range < 280) {
+        const targetRange = 320;
         const scale = targetRange / range;
         const centerY = (minY + maxY) / 2;
 
         data.nodes.forEach((node) => {
           const current = positions[node.id];
           const stretchedY = centerY + (current.y - centerY) * scale;
-          current.y = Math.max(24, Math.min(276, stretchedY));
+          current.y = Math.max(24, Math.min(VIEWBOX_HEIGHT - 24, stretchedY));
         });
       }
     }
   } else {
     const topPadding = 18;
     const bottomPadding = 18;
-    const availableHeight = 300 - topPadding - bottomPadding;
+    const availableHeight = VIEWBOX_HEIGHT - topPadding - bottomPadding;
     const heights = data.nodes.map((node) => nodeHeights[node.id] ?? NODE_MIN_HEIGHT);
     const totalNodeHeight = heights.reduce((sum, height) => sum + height, 0);
 

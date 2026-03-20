@@ -51,9 +51,14 @@ export interface ChartData {
   xAxisLabel: string;
   yAxisLabel: string;
   // Single-series format (backward compatible): use `y`.
-  // Multi-series line chart format: include `series` and point values keyed by series.key.
+  // Multi-series line chart format: include `series` and `seriesValues`.
   series?: { key: string; label: string }[];
-  data: Array<{ x: string | number; y?: number; label?: string; [seriesKey: string]: string | number | undefined }>;
+  data: Array<{
+    x: string | number;
+    y?: number;
+    label?: string;
+    seriesValues?: Record<string, number>;
+  }>;
 }
 
 export interface Diagram {
