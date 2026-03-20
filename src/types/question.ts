@@ -50,7 +50,15 @@ export interface ChartData {
   title: string;
   xAxisLabel: string;
   yAxisLabel: string;
-  data: { x: string | number; y: number; label?: string }[];
+  // Single-series format (backward compatible): use `y`.
+  // Multi-series line chart format: include `series` and `seriesValues`.
+  series?: { key: string; label: string }[];
+  data: Array<{
+    x: string | number;
+    y?: number;
+    label?: string;
+    seriesValues?: Record<string, number>;
+  }>;
 }
 
 export interface Diagram {

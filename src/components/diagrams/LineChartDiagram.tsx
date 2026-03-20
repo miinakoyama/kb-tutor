@@ -8,6 +8,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 import type { ChartData } from "@/types/question";
 
@@ -16,6 +17,33 @@ interface LineChartDiagramProps {
 }
 
 export function LineChartDiagram({ data }: LineChartDiagramProps) {
+  const hasMultiSeries = Array.isArray(data.series) && data.series.length > 0;
+  const strokePalette = ["#000", "#333", "#666", "#999"];
+  const dashPalette = ["0", "6 4", "2 3", "10 4"];
+  const multiSeriesData = hasMultiSeries
+    ? data.data.map((point) => {
+        const legacyPoint = point as unknown as Record<string, unknown>;
+        const normalized: Record<string, string | number> = { x: point.x };
+        if (point.label) normalized.label = point.label;
+
+        for (const series of data.series!) {
+          const valueFromSeriesValues = point.seriesValues?.[series.key];
+          if (typeof valueFromSeriesValues === "number") {
+            normalized[series.key] = valueFromSeriesValues;
+            continue;
+          }
+
+          // Backward compatibility for older data format: { seriesA: 10, seriesB: 12 }
+          const legacyValue = legacyPoint[series.key];
+          if (typeof legacyValue === "number") {
+            normalized[series.key] = legacyValue;
+          }
+        }
+
+        return normalized;
+      })
+    : data.data;
+
   return (
     <div className="w-full bg-white p-4 border border-gray-300 rounded">
       {data.title && (
@@ -25,8 +53,8 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
       )}
       <ResponsiveContainer width="100%" height={250}>
         <LineChart
-          data={data.data}
-          margin={{ top: 5, right: 30, left: 20, bottom: 25 }}
+          data={multiSeriesData}
+          margin={{ top: 24, right: 24, left: 42, bottom: 42 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#999" />
           <XAxis
@@ -36,19 +64,21 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
             label={{
               value: data.xAxisLabel,
               position: "bottom",
-              offset: 10,
+              offset: 18,
               fontSize: 12,
               fill: "#000",
             }}
           />
           <YAxis
+            width={68}
             tick={{ fontSize: 12, fill: "#000" }}
             stroke="#000"
             label={{
               value: data.yAxisLabel,
               angle: -90,
               position: "insideLeft",
-              offset: 10,
+              offset: 4,
+              dx: -14,
               fontSize: 12,
               fill: "#000",
             }}
@@ -61,14 +91,43 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
               fontSize: "12px",
             }}
           />
-          <Line
-            type="monotone"
-            dataKey="y"
-            stroke="#000"
-            strokeWidth={2}
-            dot={{ fill: "#000", strokeWidth: 2, r: 4 }}
-            activeDot={{ r: 6, fill: "#333" }}
-          />
+          {hasMultiSeries ? (
+            <>
+              <Legend
+                align="right"
+                verticalAlign="top"
+                wrapperStyle={{ fontSize: "12px" }}
+              />
+              {data.series!.map((series, index) => (
+                <Line
+                  key={series.key}
+                  type="monotone"
+                  dataKey={series.key}
+                  name={series.label}
+                  isAnimationActive={false}
+                  stroke={strokePalette[index % strokePalette.length]}
+                  strokeWidth={2}
+                  strokeDasharray={dashPalette[index % dashPalette.length]}
+                  dot={{
+                    fill: strokePalette[index % strokePalette.length],
+                    strokeWidth: 2,
+                    r: 4,
+                  }}
+                  activeDot={{ r: 6, fill: strokePalette[index % strokePalette.length] }}
+                />
+              ))}
+            </>
+          ) : (
+            <Line
+              type="monotone"
+              dataKey="y"
+              isAnimationActive={false}
+              stroke="#000"
+              strokeWidth={2}
+              dot={{ fill: "#000", strokeWidth: 2, r: 4 }}
+              activeDot={{ r: 6, fill: "#333" }}
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
