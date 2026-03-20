@@ -22,6 +22,7 @@ import { Timer } from "@/components/shared/Timer";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswerBatch } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
+import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -53,8 +54,10 @@ export function ExamMode({
 
   useEffect(() => {
     if (requestedQuestionCount) {
-      const shuffled = shuffleArray(questions);
-      setSessionQuestions(shuffled.slice(0, requestedQuestionCount));
+      if (questions.length > 0) {
+        const shuffled = shuffleArray(questions);
+        setSessionQuestions(shuffled.slice(0, requestedQuestionCount));
+      }
       setIsInitialized(true);
     }
   }, [questions, requestedQuestionCount]);
@@ -201,9 +204,14 @@ export function ExamMode({
           <p className="text-sm text-slate-gray/60 mb-3">
             Question {reviewIndex + 1}
           </p>
-          <p className="text-base font-medium text-slate-gray leading-relaxed mb-5">
+          <p className="text-base font-medium text-slate-gray leading-relaxed mb-4">
             {q.text}
           </p>
+          {q.diagram && (
+            <div className="mb-5">
+              <DiagramRenderer diagram={q.diagram} />
+            </div>
+          )}
           <div className="space-y-2.5">
             {q.options.map((opt) => {
               const isSelected = a?.selectedOptionId === opt.id;
@@ -244,8 +252,34 @@ export function ExamMode({
     );
   }
 
+  if (sessionQuestions.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center max-w-md">
+          <p className="text-slate-gray mb-4">
+            No questions available for this topic yet. Please select a different topic or check back later.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d]"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const question = sessionQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
+
+  if (!question) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-slate-gray">No questions available for this selection.</div>
+      </div>
+    );
+  }
 
   const isTopicQuiz = topicName?.startsWith("Topic Quiz:");
   const displayTopicName = isTopicQuiz
@@ -299,9 +333,14 @@ export function ExamMode({
               <p className="text-sm text-slate-gray/60 mb-3">
                 Question {currentIndex + 1}
               </p>
-              <p className="text-base font-medium text-slate-gray leading-relaxed mb-5 whitespace-pre-wrap">
+              <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
                 {question.text}
               </p>
+              {question.diagram && (
+                <div className="mb-5">
+                  <DiagramRenderer diagram={question.diagram} />
+                </div>
+              )}
               <div className="space-y-2.5">
                 {question.options.map((opt) => {
                   const isSelected = currentAnswer?.selectedOptionId === opt.id;

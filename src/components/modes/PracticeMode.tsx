@@ -25,7 +25,6 @@ import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer, isBookmarked, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
-import { getTermsById } from "@/lib/glossary-utils";
 
 const QUESTIONS_PER_SESSION = 10;
 
@@ -47,6 +46,8 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
+    if (questions.length === 0) return;
+    
     const shuffled = shuffleArray(questions);
     const selected = shuffled.slice(0, QUESTIONS_PER_SESSION);
     setSessionQuestions(selected);
@@ -68,12 +69,16 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
 
   const glossaryTerms = useMemo(() => {
     if (!question) return [];
-    const allIds = [
-      ...(question.inlineTermIds || []),
-      ...(question.sidebarTermIds || []),
+    const allTerms = [
+      ...(question.inlineTerms || []),
+      ...(question.sidebarTerms || []),
     ];
-    const unique = [...new Set(allIds)];
-    return getTermsById(unique);
+    const seen = new Set<string>();
+    return allTerms.filter((t) => {
+      if (seen.has(t.id)) return false;
+      seen.add(t.id);
+      return true;
+    });
   }, [question]);
 
   const handleOptionClick = useCallback(
@@ -149,11 +154,19 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
     );
   }
 
-  if (sessionQuestions.length === 0) {
+  if (sessionQuestions.length === 0 || !question) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center text-slate-gray">
-          No questions available for this topic.
+        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center max-w-md">
+          <p className="text-slate-gray mb-4">
+            No questions available for this topic yet. Please select a different topic or check back later.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d]"
+          >
+            Back to Home
+          </Link>
         </div>
       </div>
     );

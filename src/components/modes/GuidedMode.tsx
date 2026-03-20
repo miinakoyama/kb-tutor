@@ -26,10 +26,8 @@ import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer, isBookmarked, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
-import { getTermsById, getAllGlossaryTerms } from "@/lib/glossary-utils";
 
 const QUESTIONS_PER_SESSION = 5;
-const allGlossaryTerms = getAllGlossaryTerms();
 
 interface GuidedModeProps {
   questions: Question[];
@@ -47,6 +45,8 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
+    if (questions.length === 0) return;
+    
     const shuffled = shuffleArray(questions);
     const selected = shuffled.slice(0, QUESTIONS_PER_SESSION);
     setSessionQuestions(selected);
@@ -69,48 +69,40 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
   const progressPercent =
     totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
-  const inlineTermIds = useMemo(
-    () => new Set(question?.inlineTermIds ?? []),
-    [question],
-  );
+  const inlineTerms = useMemo(() => question?.inlineTerms ?? [], [question]);
 
   const sidebarTerms = useMemo(() => {
-    if (!question?.sidebarTermIds) return [];
-    const filteredIds = question.sidebarTermIds.filter(
-      (id) => !inlineTermIds.has(id),
-    );
-    return getTermsById(filteredIds);
-  }, [question, inlineTermIds]);
+    if (!question?.sidebarTerms) return [];
+    const inlineIds = new Set(inlineTerms.map((t) => t.id));
+    return question.sidebarTerms.filter((t) => !inlineIds.has(t.id));
+  }, [question, inlineTerms]);
 
   const inlineTermMap = useMemo(() => {
-    if (!question?.inlineTermIds) return new Map<string, GlossaryTerm>();
+    if (inlineTerms.length === 0) return new Map<string, GlossaryTerm>();
     const map = new Map<string, GlossaryTerm>();
-    for (const id of question.inlineTermIds) {
-      const term = allGlossaryTerms.find((t) => t.id === id);
-      if (term) {
-        const termLower = term.term.toLowerCase();
-        map.set(termLower, term);
+    for (const term of inlineTerms) {
+      const termLower = term.term.toLowerCase();
+      map.set(termLower, term);
 
-        const firstWord = termLower.split(" ")[0];
-        if (firstWord.length > 4) {
-          map.set(firstWord + "s", term);
-          map.set(firstWord + "es", term);
+      const firstWord = termLower.split(" ")[0];
+      if (firstWord.length > 4) {
+        map.set(firstWord + "s", term);
+        map.set(firstWord + "es", term);
 
-          if (firstWord.endsWith("e")) {
-            map.set(firstWord.slice(0, -1) + "ic", term);
-          } else {
-            map.set(firstWord + "ic", term);
-          }
+        if (firstWord.endsWith("e")) {
+          map.set(firstWord.slice(0, -1) + "ic", term);
+        } else {
+          map.set(firstWord + "ic", term);
         }
+      }
 
-        const hyphenated = termLower.replace(/\s+/g, "-");
-        if (hyphenated !== termLower) {
-          map.set(hyphenated, term);
-        }
+      const hyphenated = termLower.replace(/\s+/g, "-");
+      if (hyphenated !== termLower) {
+        map.set(hyphenated, term);
       }
     }
     return map;
-  }, [question]);
+  }, [inlineTerms]);
 
   const renderQuestionText = useCallback(
     (text: string): ReactNode => {
@@ -201,11 +193,19 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
     );
   }
 
-  if (sessionQuestions.length === 0) {
+  if (sessionQuestions.length === 0 || !question) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center text-slate-gray">
-          No questions available for this topic.
+        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center max-w-md">
+          <p className="text-slate-gray mb-4">
+            No questions available for this topic yet. Please select a different topic or check back later.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d]"
+          >
+            Back to Home
+          </Link>
         </div>
       </div>
     );
