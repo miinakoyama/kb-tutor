@@ -4,6 +4,8 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  Square,
+  Volume2,
   ChevronLeft,
   ChevronRight,
   Flag,
@@ -23,6 +25,8 @@ import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswerBatch } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { useTextToSpeech, type ReadSection } from "@/hooks/useTextToSpeech";
+import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -33,6 +37,40 @@ interface ExamModeProps {
 }
 
 type ExamPhase = "config" | "exam" | "confirm" | "results" | "review";
+
+function ReadAloudButton({
+  section,
+  label,
+  text,
+  isSpeaking,
+  currentSection,
+  onToggle,
+  disabled = false,
+}: {
+  section: ReadSection;
+  label: string;
+  text: string;
+  isSpeaking: boolean;
+  currentSection: ReadSection | null;
+  onToggle: (section: ReadSection, text: string) => void;
+  disabled?: boolean;
+}) {
+  const isCurrent = isSpeaking && currentSection === section;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(section, text)}
+      disabled={disabled}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-[#16a34a]/30 text-[#166534] hover:bg-[#16a34a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      aria-label={isCurrent ? `${label} reading. Stop.` : `Read ${label}`}
+      aria-pressed={isCurrent}
+    >
+      {isCurrent ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+      {isCurrent ? "Stop" : label}
+    </button>
+  );
+}
 
 export function ExamMode({
   questions,
@@ -51,6 +89,12 @@ export function ExamMode({
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   const elapsedRef = useRef(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
+  const {
+    isSupported,
+    isSpeaking,
+    currentSection,
+    toggleSpeak,
+  } = useTextToSpeech();
 
   useEffect(() => {
     if (requestedQuestionCount) {
@@ -189,6 +233,11 @@ export function ExamMode({
   if (phase === "review" && reviewIndex !== null) {
     const q = sessionQuestions[reviewIndex];
     const a = answers[reviewIndex];
+    const reviewChoicesText = buildChoicesReadText(q);
+    const reviewFeedbackText = buildFeedbackReadText(q, a, {
+      includeKeyKnowledge: true,
+      includeMisconception: true,
+    });
     return (
       <div className="max-w-4xl mx-auto">
         <button
@@ -201,9 +250,19 @@ export function ExamMode({
           Back to Results
         </button>
         <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm">
-          <p className="text-sm text-slate-gray/60 mb-3">
-            Question {reviewIndex + 1}
-          </p>
+          <p className="text-sm text-slate-gray/60 mb-3">Question {reviewIndex + 1}</p>
+          {isSupported && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <ReadAloudButton
+                section="question"
+                label="Read Question"
+                text={q.text}
+                isSpeaking={isSpeaking}
+                currentSection={currentSection}
+                onToggle={toggleSpeak}
+              />
+            </div>
+          )}
           <p className="text-base font-medium text-slate-gray leading-relaxed mb-4">
             {q.text}
           </p>
@@ -231,13 +290,39 @@ export function ExamMode({
               );
             })}
           </div>
+          {isSupported && (
+            <div className="mt-4 mb-2">
+              <ReadAloudButton
+                section="choices"
+                label="Read Choices"
+                text={reviewChoicesText}
+                isSpeaking={isSpeaking}
+                currentSection={currentSection}
+                onToggle={toggleSpeak}
+              />
+            </div>
+          )}
           {a?.selectedOptionId && (
-            <FeedbackPanel
-              question={q}
-              answer={a}
-              showKeyKnowledge
-              showMisconception
-            />
+            <>
+              {isSupported && reviewFeedbackText && (
+                <div className="mt-4 mb-2">
+                  <ReadAloudButton
+                    section="feedback"
+                    label="Read Feedback"
+                    text={reviewFeedbackText}
+                    isSpeaking={isSpeaking}
+                    currentSection={currentSection}
+                    onToggle={toggleSpeak}
+                  />
+                </div>
+              )}
+              <FeedbackPanel
+                question={q}
+                answer={a}
+                showKeyKnowledge
+                showMisconception
+              />
+            </>
           )}
         </div>
       </div>
@@ -272,6 +357,7 @@ export function ExamMode({
 
   const question = sessionQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
+  const choicesReadText = buildChoicesReadText(question);
 
   if (!question) {
     return (
@@ -333,6 +419,18 @@ export function ExamMode({
               <p className="text-sm text-slate-gray/60 mb-3">
                 Question {currentIndex + 1}
               </p>
+              {isSupported && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <ReadAloudButton
+                    section="question"
+                    label="Read Question"
+                    text={question.text}
+                    isSpeaking={isSpeaking}
+                    currentSection={currentSection}
+                    onToggle={toggleSpeak}
+                  />
+                </div>
+              )}
               <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
                 {question.text}
               </p>
@@ -358,6 +456,18 @@ export function ExamMode({
                   );
                 })}
               </div>
+              {isSupported && (
+                <div className="mt-4">
+                  <ReadAloudButton
+                    section="choices"
+                    label="Read Choices"
+                    text={choicesReadText}
+                    isSpeaking={isSpeaking}
+                    currentSection={currentSection}
+                    onToggle={toggleSpeak}
+                  />
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

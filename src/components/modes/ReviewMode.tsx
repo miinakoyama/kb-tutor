@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ChevronRight, Home, CheckCircle2, RotateCcw } from "lucide-react";
@@ -11,6 +11,7 @@ import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { getIncorrectQuestionIds, saveAnswer } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
+import { buildFeedbackReadText } from "@/lib/tts-utils";
 
 const MAX_REVIEW_QUESTIONS = 10;
 
@@ -39,6 +40,13 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
   const question = reviewQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
   const totalQuestions = reviewQuestions.length;
+  const feedbackReadText = useMemo(() => {
+    if (!question || !currentAnswer) return "";
+    return buildFeedbackReadText(question, currentAnswer, {
+      includeKeyKnowledge: true,
+      includeMisconception: true,
+    });
+  }, [question, currentAnswer]);
 
   const handleOptionClick = useCallback(
     (optionId: string) => {
@@ -181,6 +189,7 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
           currentAnswer={currentAnswer}
           onOptionClick={handleOptionClick}
           showOptionFeedbackIcons
+          feedbackReadText={feedbackReadText}
           feedbackSlot={
             currentAnswer ? (
               <div className="space-y-4">
