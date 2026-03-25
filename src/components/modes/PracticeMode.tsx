@@ -25,6 +25,7 @@ import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer, isBookmarked, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
+import { buildFeedbackReadText } from "@/lib/tts-utils";
 
 const QUESTIONS_PER_SESSION = 10;
 
@@ -80,6 +81,13 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
       return true;
     });
   }, [question]);
+
+  const feedbackReadText = useMemo(() => {
+    if (!question || !currentAnswer) return "";
+    return buildFeedbackReadText(question, currentAnswer, {
+      includeKeyKnowledge: true,
+    });
+  }, [question, currentAnswer]);
 
   const handleOptionClick = useCallback(
     (optionId: string) => {
@@ -222,6 +230,7 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
               currentAnswer={currentAnswer}
               onOptionClick={handleOptionClick}
               showOptionFeedbackIcons
+              feedbackReadText={feedbackReadText}
               feedbackSlot={
                 currentAnswer ? (
                   <div className="space-y-4">

@@ -9,6 +9,7 @@ import {
   Home,
   BarChart3,
   Settings,
+  Database,
   Menu,
   X,
   ClipboardCheck,
@@ -21,7 +22,8 @@ const NAV_ITEMS = [
   { href: "/exam", label: "Mock Exam", icon: ClipboardCheck },
   { href: "/progress", label: "My Progress", icon: BarChart3 },
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
-  { href: "/content", label: "Content Management", icon: Settings },
+  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/content", label: "Content Management", icon: Database },
 ] as const;
 
 export function Sidebar() {

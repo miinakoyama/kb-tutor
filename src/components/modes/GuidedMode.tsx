@@ -26,6 +26,7 @@ import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer, isBookmarked, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
+import { buildFeedbackReadText } from "@/lib/tts-utils";
 
 const QUESTIONS_PER_SESSION = 5;
 
@@ -103,6 +104,14 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
     }
     return map;
   }, [inlineTerms]);
+
+  const feedbackReadText = useMemo(() => {
+    if (!question || !currentAnswer) return "";
+    return buildFeedbackReadText(question, currentAnswer, {
+      includeKeyKnowledge: true,
+      includeMisconception: true,
+    });
+  }, [question, currentAnswer]);
 
   const renderQuestionText = useCallback(
     (text: string): ReactNode => {
@@ -253,6 +262,7 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
               onOptionClick={handleOptionClick}
               renderQuestionText={renderQuestionText}
               showOptionFeedbackIcons
+              feedbackReadText={feedbackReadText}
               feedbackSlot={
                 currentAnswer ? (
                   <div className="space-y-4">

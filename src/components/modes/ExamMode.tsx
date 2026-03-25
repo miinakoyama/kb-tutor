@@ -23,6 +23,9 @@ import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswerBatch } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
+import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -51,6 +54,15 @@ export function ExamMode({
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   const elapsedRef = useRef(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
+  const {
+    isSupported,
+    isSpeaking,
+    currentSection,
+    toggleSpeak,
+  } = useTextToSpeech();
+  const isQuestionReading = isSpeaking && currentSection === "question";
+  const isChoicesReading = isSpeaking && currentSection === "choices";
+  const isFeedbackReading = isSpeaking && currentSection === "feedback";
 
   useEffect(() => {
     if (requestedQuestionCount) {
@@ -189,6 +201,11 @@ export function ExamMode({
   if (phase === "review" && reviewIndex !== null) {
     const q = sessionQuestions[reviewIndex];
     const a = answers[reviewIndex];
+    const reviewChoicesText = buildChoicesReadText(q);
+    const reviewFeedbackText = buildFeedbackReadText(q, a, {
+      includeKeyKnowledge: true,
+      includeMisconception: true,
+    });
     return (
       <div className="max-w-4xl mx-auto">
         <button
@@ -201,10 +218,24 @@ export function ExamMode({
           Back to Results
         </button>
         <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm">
-          <p className="text-sm text-slate-gray/60 mb-3">
-            Question {reviewIndex + 1}
-          </p>
-          <p className="text-base font-medium text-slate-gray leading-relaxed mb-4">
+          <p className="text-sm text-slate-gray/60 mb-3">Question {reviewIndex + 1}</p>
+          {isSupported && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <ReadAloudButton
+                section="question"
+                label="Question"
+                text={q.text}
+                isSpeaking={isSpeaking}
+                currentSection={currentSection}
+                onToggle={toggleSpeak}
+              />
+            </div>
+          )}
+          <p
+            className={`text-base font-medium text-slate-gray leading-relaxed mb-4 rounded-lg transition-colors ${
+              isQuestionReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+            }`}
+          >
             {q.text}
           </p>
           {q.diagram && (
@@ -212,32 +243,68 @@ export function ExamMode({
               <DiagramRenderer diagram={q.diagram} />
             </div>
           )}
-          <div className="space-y-2.5">
-            {q.options.map((opt) => {
-              const isSelected = a?.selectedOptionId === opt.id;
-              const showCorrect = opt.id === q.correctOptionId;
-              const showWrong = isSelected && opt.id !== q.correctOptionId;
-              return (
-                <OptionButton
-                  key={opt.id}
-                  option={opt}
-                  isSelected={isSelected}
-                  showCorrect={showCorrect}
-                  showWrong={showWrong}
-                  isAnswered={true}
-                  onSelect={() => {}}
-                  showFeedbackIcon
-                />
-              );
-            })}
+          <div
+            className={`rounded-lg transition-colors mt-4 ${
+              isChoicesReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+            }`}
+          >
+            <div className="space-y-2.5">
+              {q.options.map((opt) => {
+                const isSelected = a?.selectedOptionId === opt.id;
+                const showCorrect = opt.id === q.correctOptionId;
+                const showWrong = isSelected && opt.id !== q.correctOptionId;
+                return (
+                  <OptionButton
+                    key={opt.id}
+                    option={opt}
+                    isSelected={isSelected}
+                    showCorrect={showCorrect}
+                    showWrong={showWrong}
+                    isAnswered={true}
+                    onSelect={() => {}}
+                    showFeedbackIcon
+                  />
+                );
+              })}
+            </div>
+            {isSupported && (
+              <div className="mt-4 mb-2">
+              <ReadAloudButton
+                section="choices"
+                label="Choices"
+                text={reviewChoicesText}
+                isSpeaking={isSpeaking}
+                currentSection={currentSection}
+                onToggle={toggleSpeak}
+              />
+              </div>
+            )}
           </div>
           {a?.selectedOptionId && (
-            <FeedbackPanel
-              question={q}
-              answer={a}
-              showKeyKnowledge
-              showMisconception
-            />
+            <>
+              {isSupported && reviewFeedbackText && (
+                <div
+                  className={`mt-4 mb-2 rounded-lg transition-colors ${
+                    isFeedbackReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+                  }`}
+                >
+                  <ReadAloudButton
+                    section="feedback"
+                    label="Feedback"
+                    text={reviewFeedbackText}
+                    isSpeaking={isSpeaking}
+                    currentSection={currentSection}
+                    onToggle={toggleSpeak}
+                  />
+                </div>
+              )}
+              <FeedbackPanel
+                question={q}
+                answer={a}
+                showKeyKnowledge
+                showMisconception
+              />
+            </>
           )}
         </div>
       </div>
@@ -272,6 +339,7 @@ export function ExamMode({
 
   const question = sessionQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
+  const choicesReadText = buildChoicesReadText(question);
 
   if (!question) {
     return (
@@ -333,7 +401,23 @@ export function ExamMode({
               <p className="text-sm text-slate-gray/60 mb-3">
                 Question {currentIndex + 1}
               </p>
-              <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
+              {isSupported && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <ReadAloudButton
+                    section="question"
+                    label="Question"
+                    text={question.text}
+                    isSpeaking={isSpeaking}
+                    currentSection={currentSection}
+                    onToggle={toggleSpeak}
+                  />
+                </div>
+              )}
+              <p
+                className={`text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap rounded-lg transition-colors ${
+                  isQuestionReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+                }`}
+              >
                 {question.text}
               </p>
               {question.diagram && (
@@ -341,22 +425,40 @@ export function ExamMode({
                   <DiagramRenderer diagram={question.diagram} />
                 </div>
               )}
-              <div className="space-y-2.5">
-                {question.options.map((opt) => {
-                  const isSelected = currentAnswer?.selectedOptionId === opt.id;
-                  return (
-                    <OptionButton
-                      key={opt.id}
-                      option={opt}
-                      isSelected={isSelected}
-                      showCorrect={false}
-                      showWrong={false}
-                      isAnswered={!!currentAnswer?.selectedOptionId}
-                      onSelect={handleOptionClick}
-                      pendingSelection
-                    />
-                  );
-                })}
+              <div
+                className={`rounded-lg transition-colors ${
+                  isChoicesReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+                }`}
+              >
+                <div className="space-y-2.5">
+                  {question.options.map((opt) => {
+                    const isSelected = currentAnswer?.selectedOptionId === opt.id;
+                    return (
+                      <OptionButton
+                        key={opt.id}
+                        option={opt}
+                        isSelected={isSelected}
+                        showCorrect={false}
+                        showWrong={false}
+                        isAnswered={!!currentAnswer?.selectedOptionId}
+                        onSelect={handleOptionClick}
+                        pendingSelection
+                      />
+                    );
+                  })}
+                </div>
+                {isSupported && (
+                  <div className="mt-4">
+                  <ReadAloudButton
+                    section="choices"
+                    label="Choices"
+                    text={choicesReadText}
+                    isSpeaking={isSpeaking}
+                    currentSection={currentSection}
+                    onToggle={toggleSpeak}
+                  />
+                  </div>
+                )}
               </div>
             </motion.div>
           </AnimatePresence>
