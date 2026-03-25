@@ -29,9 +29,10 @@ export function buildFeedbackReadText(
     (opt) => opt.id === question.correctOptionId,
   );
   const displayOption = selectedOption || correctOption;
-  const displayIsCorrect = selectedOption
-    ? answer.selectedOptionId === question.correctOptionId
-    : true;
+  const displayIsCorrect =
+    typeof answer.isCorrect === "boolean"
+      ? answer.isCorrect
+      : answer.selectedOptionId === question.correctOptionId;
 
   const parts: string[] = [];
   parts.push(displayIsCorrect ? "Correct." : "Incorrect.");

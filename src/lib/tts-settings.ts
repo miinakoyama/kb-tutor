@@ -9,9 +9,13 @@ export function isValidTtsRate(value: number): boolean {
 export function getStoredTtsRate(fallback = DEFAULT_TTS_RATE): number {
   if (typeof window === "undefined") return fallback;
 
-  const storedValue = Number(window.localStorage.getItem(TTS_RATE_STORAGE_KEY));
-  if (isValidTtsRate(storedValue)) {
-    return storedValue;
+  try {
+    const storedValue = Number(window.localStorage.getItem(TTS_RATE_STORAGE_KEY));
+    if (isValidTtsRate(storedValue)) {
+      return storedValue;
+    }
+  } catch {
+    // localStorage may be unavailable in restricted environments
   }
 
   return fallback;

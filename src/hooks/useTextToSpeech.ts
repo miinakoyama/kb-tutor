@@ -44,15 +44,15 @@ export function useTextToSpeech({
   defaultRate = DEFAULT_TTS_RATE,
   lang = "en-US",
 }: UseTextToSpeechOptions = {}) {
+  const initialRate = getStoredTtsRate(defaultRate);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentSection, setCurrentSection] = useState<ReadSection | null>(null);
-  const [rate, setRateState] = useState(() => {
-    return getStoredTtsRate(defaultRate);
-  });
+  const [rate, setRateState] = useState(initialRate);
 
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const cancelledRef = useRef(false);
-  const rateRef = useRef(defaultRate);
+  const generationRef = useRef(0);
+  const rateRef = useRef(initialRate);
   const queueRef = useRef<{
     chunks: string[];
     index: number;
@@ -72,6 +72,7 @@ export function useTextToSpeech({
   }, [rate]);
 
   const stop = useCallback(() => {
+    generationRef.current += 1;
     cancelledRef.current = true;
     synthRef.current?.cancel();
     queueRef.current = { chunks: [], index: 0, section: null };
@@ -84,17 +85,22 @@ export function useTextToSpeech({
       if (!isSupported) return;
 
       const chunks = splitIntoChunks(text);
-      if (chunks.length === 0) return;
+      if (chunks.length === 0) {
+        stop();
+        return;
+      }
 
+      generationRef.current += 1;
+      const generation = generationRef.current;
       cancelledRef.current = true;
       synthRef.current?.cancel();
-
-      cancelledRef.current = false;
       queueRef.current = { chunks, index: 0, section };
       setCurrentSection(section);
       setIsSpeaking(true);
 
       const speakChunk = () => {
+        if (generation !== generationRef.current) return;
+
         const synth = synthRef.current;
         const queue = queueRef.current;
 
@@ -103,8 +109,6 @@ export function useTextToSpeech({
           setCurrentSection(null);
           return;
         }
-
-        if (cancelledRef.current) return;
 
         if (queue.index >= queue.chunks.length) {
           setIsSpeaking(false);
@@ -115,14 +119,20 @@ export function useTextToSpeech({
         const utterance = new SpeechSynthesisUtterance(queue.chunks[queue.index]);
         utterance.rate = rateRef.current;
         utterance.lang = lang;
+        utterance.onstart = () => {
+          if (generation !== generationRef.current) return;
+          cancelledRef.current = false;
+        };
 
         utterance.onend = () => {
+          if (generation !== generationRef.current) return;
           if (cancelledRef.current) return;
           queueRef.current.index += 1;
           speakChunk();
         };
 
         utterance.onerror = () => {
+          if (generation !== generationRef.current) return;
           setIsSpeaking(false);
           setCurrentSection(null);
         };
@@ -132,7 +142,7 @@ export function useTextToSpeech({
 
       speakChunk();
     },
-    [isSupported, lang],
+    [isSupported, lang, stop],
   );
 
   const toggleSpeak = useCallback(
