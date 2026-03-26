@@ -53,7 +53,7 @@ export default function BookmarksPage() {
   if (!isLoaded) {
     return (
       <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-full flex items-center justify-center">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 h-full flex items-center justify-center">
           <div className="text-slate-gray">Loading...</div>
         </div>
       </main>
@@ -62,10 +62,9 @@ export default function BookmarksPage() {
 
   return (
     <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-full flex flex-col">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 h-full flex flex-col">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Bookmark className="w-7 h-7 text-[#16a34a]" />
+          <div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
                 Bookmarks

@@ -41,7 +41,7 @@ export default async function PracticePage({
 }) {
   return (
     <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 h-full overflow-y-auto">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 h-full overflow-y-auto">
         <Suspense fallback={<div className="text-slate-gray">Loading...</div>}>
           <PracticeContent searchParams={searchParams} />
         </Suspense>
