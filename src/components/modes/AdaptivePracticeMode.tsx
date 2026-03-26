@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -12,12 +12,13 @@ import {
   Lightbulb,
   Send,
   RefreshCcw,
+  BookOpen,
+  X,
 } from "lucide-react";
 import type { AnswerRecord, ConfidenceLevel, GlossaryTerm, Question } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
-import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
@@ -25,9 +26,11 @@ import { isBookmarked, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
+import glossaryData from "@/data/glossary.json";
 
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
+const GLOSSARY_FALLBACK_LIMIT = 6;
 
 interface AdaptivePracticeModeProps {
   questions: Question[];
@@ -51,11 +54,14 @@ export function AdaptivePracticeMode({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [attemptsByIndex, setAttemptsByIndex] = useState<Record<number, AttemptRecord[]>>({});
+  const [retryReadyByIndex, setRetryReadyByIndex] = useState<Record<number, boolean>>({});
   const [finalAnswers, setFinalAnswers] = useState<Record<number, AnswerRecord>>({});
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
   const [questionStartMs, setQuestionStartMs] = useState<number>(Date.now());
   const [showSummary, setShowSummary] = useState(false);
+  const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (questions.length === 0) return;
@@ -75,8 +81,10 @@ export function AdaptivePracticeMode({
   const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
   const isCorrect = !!lastAttempt?.isCorrect;
   const isCompleted = isCorrect || attempts.length >= MAX_ATTEMPTS;
+  const isRetryReady = retryReadyByIndex[currentIndex] ?? attempts.length === 0;
+  const isAwaitingRetry = !isCompleted && attempts.length > 0 && !isRetryReady;
   const showScaffold = attempts.length >= 1 && !isCorrect;
-  const canTryAgain = !isCompleted && attempts.length > 0 && !isCorrect;
+  const canTryAgain = isAwaitingRetry;
   const finalAnswer = finalAnswers[currentIndex];
   const totalQuestions = sessionQuestions.length;
   const completedCount = Object.keys(finalAnswers).length;
@@ -86,11 +94,22 @@ export function AdaptivePracticeMode({
     if (!question || !showScaffold) return [];
     const allTerms = [...(question.inlineTerms ?? []), ...(question.sidebarTerms ?? [])];
     const seen = new Set<string>();
-    return allTerms.filter((term) => {
+    const deduped = allTerms.filter((term) => {
       if (seen.has(term.id)) return false;
       seen.add(term.id);
       return true;
     });
+    if (deduped.length > 0) return deduped;
+
+    // Fallback for legacy questions that do not include inlineTerms/sidebarTerms.
+    const searchableText =
+      `${question.text} ${question.options.map((option) => option.text).join(" ")}`.toLowerCase();
+    const matched = (glossaryData as GlossaryTerm[]).filter((term) => {
+      const escaped = term.term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`\\b${escaped}\\b`, "i");
+      return regex.test(searchableText);
+    });
+    return matched.slice(0, GLOSSARY_FALLBACK_LIMIT);
   }, [question, showScaffold]);
 
   const inlineTermMap = useMemo(() => {
@@ -133,7 +152,7 @@ export function AdaptivePracticeMode({
   );
 
   const submitAttempt = useCallback(() => {
-    if (!question || !selectedOptionId || isCompleted) return;
+    if (!question || !selectedOptionId || isCompleted || !isRetryReady) return;
     const result: AttemptRecord = {
       selectedOptionId,
       isCorrect: selectedOptionId === question.correctOptionId,
@@ -143,13 +162,15 @@ export function AdaptivePracticeMode({
 
     setAttemptsByIndex((prev) => ({ ...prev, [currentIndex]: nextAttempts }));
     setSelectedOptionId(null);
+    setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: false }));
     setQuestionStartMs(Date.now());
 
     const shouldFinalize = result.isCorrect || nextAttempts.length >= MAX_ATTEMPTS;
     if (shouldFinalize) {
-      const finalSelectedId = result.isCorrect ? result.selectedOptionId : question.correctOptionId;
       const finalRecord: AnswerRecord = {
-        selectedOptionId: finalSelectedId,
+        // Keep the learner's final choice so UI can show wrong (red) + correct (green)
+        // when max attempts are reached on an incorrect answer.
+        selectedOptionId: result.selectedOptionId,
         isCorrect: result.isCorrect,
       };
       setFinalAnswers((prev) => ({ ...prev, [currentIndex]: finalRecord }));
@@ -180,6 +201,7 @@ export function AdaptivePracticeMode({
     isCompleted,
     question,
     questionStartMs,
+    isRetryReady,
     selectedOptionId,
   ]);
 
@@ -209,12 +231,28 @@ export function AdaptivePracticeMode({
     if (!isCompleted) return;
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex((prev) => prev + 1);
+      requestAnimationFrame(() => {
+        scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      });
       return;
     }
     if (allCompleted) {
       setShowSummary(true);
     }
   }, [allCompleted, currentIndex, isCompleted, totalQuestions]);
+
+  useEffect(() => {
+    if (attempts.length === 0) return;
+    if (!isAwaitingRetry && !isCompleted) return;
+    requestAnimationFrame(() => {
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+  }, [attempts.length, isAwaitingRetry, isCompleted, currentIndex]);
 
   if (!isInitialized) {
     return (
@@ -286,7 +324,12 @@ export function AdaptivePracticeMode({
 
   const displayAnswer: AnswerRecord | undefined = isCompleted
     ? finalAnswer ?? { selectedOptionId: question.correctOptionId, isCorrect }
-    : undefined;
+    : isAwaitingRetry && lastAttempt
+      ? {
+          selectedOptionId: lastAttempt.selectedOptionId,
+          isCorrect: false,
+        }
+      : undefined;
 
   return (
     <div className="flex flex-col h-full">
@@ -294,22 +337,49 @@ export function AdaptivePracticeMode({
         topicName={topicName}
         mode="adaptive"
         backHref="/self-practice"
+        showBackLink={false}
+        inlineProgress
+        compactSpacing
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
         answeredCount={completedCount}
       />
 
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+      <div className="flex flex-col gap-3 flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto min-h-0 pb-4">
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 pb-2">
             <QuestionDisplay
               question={question}
               questionNumber={currentIndex + 1}
+              questionMetaText={`Attempt ${Math.max(
+                1,
+                Math.min(
+                  MAX_ATTEMPTS,
+                  isCompleted
+                    ? attempts.length
+                    : isRetryReady
+                      ? attempts.length + 1
+                      : attempts.length,
+                ),
+              )}/${MAX_ATTEMPTS}`}
+              headerAction={
+                glossaryTerms.length > 0 ? (
+                  <button
+                    onClick={() => setIsGlossaryModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Glossary
+                  </button>
+                ) : undefined
+              }
               currentAnswer={displayAnswer}
               selectedOptionId={selectedOptionId}
-              pendingSelection={!isCompleted && selectedOptionId !== null}
+              pendingSelection={!isCompleted && isRetryReady && selectedOptionId !== null}
+              revealCorrectAnswer={isCompleted}
+              compactLayout
               onOptionClick={(optionId) => {
-                if (isCompleted) return;
+                if (isCompleted || !isRetryReady) return;
                 setSelectedOptionId(optionId);
               }}
               renderQuestionText={renderQuestionText}
@@ -344,7 +414,7 @@ export function AdaptivePracticeMode({
                           {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
                         </button>
                       </>
-                    ) : (
+                    ) : isAwaitingRetry ? (
                       <>
                         <FeedbackPanel
                           question={question}
@@ -353,11 +423,8 @@ export function AdaptivePracticeMode({
                             isCorrect: false,
                           }}
                         />
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                          Attempt {attempts.length} of {MAX_ATTEMPTS}. Try again after reviewing the hint and glossary.
-                        </div>
                       </>
-                    )}
+                    ) : null}
                   </div>
                 ) : undefined
               }
@@ -380,52 +447,99 @@ export function AdaptivePracticeMode({
           </div>
 
           <div className="flex-shrink-0 pt-2">
-            <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-3 border border-[#16a34a]/20">
+            <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-2.5 border border-[#16a34a]/20">
               <button
                 onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
                 disabled={currentIndex === 0}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
                 Previous
               </button>
 
               {!isCompleted ? (
                 canTryAgain ? (
                   <button
-                    onClick={() => setSelectedOptionId(null)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-amber-500 hover:bg-amber-600 transition-colors text-sm"
+                    onClick={() => {
+                      setSelectedOptionId(null);
+                      setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: true }));
+                      requestAnimationFrame(() => {
+                        scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-amber-500 hover:bg-amber-600 transition-colors text-[13px]"
                   >
-                    <RefreshCcw className="w-4 h-4" />
+                    <RefreshCcw className="w-3.5 h-3.5" />
                     Try Again
                   </button>
                 ) : (
                   <button
                     onClick={submitAttempt}
                     disabled={!selectedOptionId}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
                   >
-                    <Send className="w-4 h-4" />
+                    <Send className="w-3.5 h-3.5" />
                     Submit
                   </button>
                 )
               ) : (
                 <button
                   onClick={handleNext}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors text-sm"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors text-[13px]"
                 >
                   {currentIndex === totalQuestions - 1 ? "View Results" : "Next"}
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
           </div>
         </div>
-
-        <div className="lg:w-72 flex-shrink-0">
-          <GlossaryPanel terms={glossaryTerms} title="Glossary" defaultOpen={showScaffold} />
-        </div>
       </div>
+
+      {isGlossaryModalOpen && glossaryTerms.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 p-4 sm:p-6"
+          onClick={() => setIsGlossaryModalOpen(false)}
+        >
+          <div className="mx-auto max-w-2xl h-full flex items-center justify-center">
+            <div
+              className="w-full max-h-[85vh] overflow-hidden rounded-xl bg-white shadow-xl border border-[#16a34a]/20"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-gray/10">
+                <h3 className="text-base font-semibold text-[#14532d]">Glossary</h3>
+                <button
+                  onClick={() => setIsGlossaryModalOpen(false)}
+                  className="p-2 rounded-lg text-slate-gray/60 hover:text-slate-gray hover:bg-slate-gray/10 transition-colors"
+                  aria-label="Close glossary"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 overflow-y-auto max-h-[calc(85vh-56px)]">
+                <div className="space-y-3">
+                  {glossaryTerms.map((term) => (
+                    <article
+                      key={term.id}
+                      className="rounded-lg border border-slate-gray/15 bg-slate-50/50 p-3"
+                    >
+                      <h4 className="text-sm font-semibold text-slate-gray">{term.term}</h4>
+                      <p className="text-sm text-slate-gray/80 mt-1 leading-relaxed">
+                        {term.definition}
+                      </p>
+                      {term.example && (
+                        <p className="text-xs text-slate-gray/60 mt-1.5 italic">
+                          Example: {term.example}
+                        </p>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

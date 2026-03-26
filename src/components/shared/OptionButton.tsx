@@ -17,6 +17,7 @@ interface OptionButtonProps {
   onSelect: (optionId: string) => void;
   showFeedbackIcon?: boolean;
   pendingSelection?: boolean;
+  compact?: boolean;
 }
 
 export function OptionButton({
@@ -28,6 +29,7 @@ export function OptionButton({
   onSelect,
   showFeedbackIcon = false,
   pendingSelection = false,
+  compact = false,
 }: OptionButtonProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -95,7 +97,9 @@ export function OptionButton({
       <button
         onClick={() => onSelect(option.id)}
         disabled={isDisabled}
-        className={`group w-full text-left px-4 py-3 min-h-[48px] rounded-xl border-2 transition-all duration-200 break-words flex items-center gap-3 ${
+        className={`group w-full text-left rounded-xl border-2 transition-all duration-200 break-words flex items-center ${
+          compact ? "px-3 py-2 min-h-[40px] gap-2.5" : "px-4 py-3 min-h-[48px] gap-3"
+        } ${
           isDisabled
             ? "cursor-default"
             : "cursor-pointer hover:border-[var(--primary-border)] hover:bg-primary-light focus-visible:border-[var(--primary-border)] focus-visible:bg-primary-light focus-visible:outline-none"
@@ -106,12 +110,12 @@ export function OptionButton({
         }}
       >
         <span
-          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
+          className={`${compact ? "w-7 h-7 text-xs" : "w-8 h-8 text-sm"} rounded-full flex items-center justify-center font-semibold flex-shrink-0`}
           style={badgeStyles}
         >
           {option.id}
         </span>
-        <span className="flex-1 text-slate-gray">{option.text}</span>
+        <span className={`flex-1 text-slate-gray ${compact ? "text-sm" : ""}`}>{option.text}</span>
 
         {shouldShowIcon && (
           <span
