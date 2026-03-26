@@ -1,6 +1,6 @@
 export type QuestionType = "mcq" | "open-ended";
 
-export type PracticeMode = "guided" | "practice" | "exam" | "review";
+export type PracticeMode = "guided" | "practice" | "adaptive" | "exam" | "review";
 
 export type QuestionSource = "manual" | "imported" | "generated";
 
@@ -77,6 +77,7 @@ export interface QuestionSet {
 
 export interface GenerationConfig {
   topics: string[];
+  standards?: string[];
   dokLevels: DOKLevel[];
   questionCount: number;
   diagramConfig?: {
@@ -115,6 +116,8 @@ export interface Question {
   id: string;
   module: number;
   topic: string;
+  standardId?: string;
+  standardLabel?: string;
   text: string;
   imageUrl: string | null;
   options: MCQOption[];

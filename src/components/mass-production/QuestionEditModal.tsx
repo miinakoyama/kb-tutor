@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import type { Question, DOKLevel } from "@/types/question";
+import { getAllStandards } from "@/lib/standards";
+
+const ALL_STANDARDS = getAllStandards();
 
 interface QuestionEditModalProps {
   question: Question;
@@ -69,7 +72,7 @@ export function QuestionEditModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-gray mb-1">
                 Topic
@@ -82,6 +85,30 @@ export function QuestionEditModal({
                 }
                 className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-1">
+                Standard
+              </label>
+              <select
+                value={edited.standardId || ""}
+                onChange={(e) => {
+                  const selected = ALL_STANDARDS.find((item) => item.id === e.target.value);
+                  setEdited((prev) => ({
+                    ...prev,
+                    standardId: e.target.value,
+                    standardLabel: selected?.label,
+                  }));
+                }}
+                className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
+              >
+                <option value="">Select standard</option>
+                {ALL_STANDARDS.map((standard) => (
+                  <option key={standard.id} value={standard.id}>
+                    {standard.id} - {standard.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-gray mb-1">

@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateWithGemini, parseGeneratedQuestions } from "@/lib/gemini";
 import { buildGenerationPrompt } from "@/lib/prompts";
 import type { Question, DOKLevel } from "@/types/question";
+import { getDefaultStandardForTopic, getStandardById } from "@/lib/standards";
 
 interface GenerationSettings {
   questionSetName: string;
   questionCount: number;
   topics: string[];
+  standards: string[];
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
   diagramConfig: {
@@ -34,6 +36,10 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
   }
   
   if (!Array.isArray(s.topics) || s.topics.length === 0) {
+    return false;
+  }
+
+  if (!Array.isArray(s.standards) || s.standards.length === 0) {
     return false;
   }
   
@@ -69,7 +75,11 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
   return true;
 }
 
-function validateQuestion(q: unknown, index: number): Question | null {
+function validateQuestion(
+  q: unknown,
+  index: number,
+  allowedStandardIds: Set<string>
+): Question | null {
   if (!q || typeof q !== "object") return null;
   
   const question = q as Record<string, unknown>;
@@ -92,11 +102,24 @@ function validateQuestion(q: unknown, index: number): Question | null {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .slice(0, 20);
+  const defaultStandard = getDefaultStandardForTopic(question.topic as string);
+  const fallbackStandardId = allowedStandardIds.has(defaultStandard.id)
+    ? defaultStandard.id
+    : Array.from(allowedStandardIds)[0] ?? defaultStandard.id;
+  const standardIdRaw = typeof question.standardId === "string" ? question.standardId : "";
+  const validStandard =
+    allowedStandardIds.has(standardIdRaw) ? getStandardById(standardIdRaw) : undefined;
+  const fallbackStandard = getStandardById(fallbackStandardId) ?? defaultStandard;
   
   return {
     id: `generated-${topicSlug}-${timestamp}-${String(index + 1).padStart(3, "0")}`,
     module: (question.module as number) || 1,
     topic: question.topic as string,
+    standardId: validStandard?.id ?? fallbackStandard.id,
+    standardLabel:
+      (question.standardLabel as string) ||
+      validStandard?.label ||
+      fallbackStandard.label,
     text: question.text as string,
     imageUrl: null,
     options: question.options as Question["options"],
@@ -253,6 +276,7 @@ export async function POST(request: NextRequest) {
     }
 
     const basePrompt = buildGenerationPrompt(body);
+    const allowedStandardIds = new Set<string>(body.standards);
     let validQuestions: Question[] = [];
     let lastError: unknown = null;
     let retryReason = "";
@@ -270,7 +294,7 @@ export async function POST(request: NextRequest) {
 
         const attemptQuestions: Question[] = [];
         for (let i = 0; i < rawQuestions.length; i++) {
-          const validated = validateQuestion(rawQuestions[i], i);
+          const validated = validateQuestion(rawQuestions[i], i, allowedStandardIds);
           if (validated) {
             attemptQuestions.push(validated);
           }

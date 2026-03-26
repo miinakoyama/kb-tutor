@@ -8,6 +8,7 @@ import type { PracticeMode } from "@/types/question";
 const MODE_LABELS: Record<PracticeMode, string> = {
   guided: "Guided Mode",
   practice: "Practice Mode",
+  adaptive: "Adaptive Practice",
   exam: "Mock Exam",
   review: "Review Mode",
 };
@@ -17,6 +18,9 @@ interface PracticeHeaderProps {
   mode: PracticeMode;
   modeLabel?: string;
   backHref: string;
+  showBackLink?: boolean;
+  inlineProgress?: boolean;
+  compactSpacing?: boolean;
   currentQuestion?: number;
   totalQuestions?: number;
   answeredCount?: number;
@@ -27,6 +31,9 @@ export function PracticeHeader({
   mode,
   modeLabel: customModeLabel,
   backHref,
+  showBackLink = true,
+  inlineProgress = false,
+  compactSpacing = false,
   currentQuestion,
   totalQuestions,
   answeredCount,
@@ -43,18 +50,20 @@ export function PracticeHeader({
       : 0;
 
   return (
-    <div className="flex-shrink-0 mb-6">
-      <Link
-        href={backHref}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
-      >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-          <ArrowLeft className="w-4 h-4 text-[#14532d]" />
-        </span>
-        {backLabel}
-      </Link>
+    <div className={`flex-shrink-0 ${compactSpacing ? "mb-3" : "mb-6"}`}>
+      {showBackLink && (
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+        >
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
+            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          </span>
+          {backLabel}
+        </Link>
+      )}
 
-      <div className="mb-3">
+      <div className={compactSpacing ? "mb-2" : "mb-3"}>
         {topicName && (
           <h1 className="text-xl font-bold font-heading text-[#14532d] mb-1">
             {topicName}
@@ -70,12 +79,24 @@ export function PracticeHeader({
                   ? `${answeredCount} of ${totalQuestions} answered`
                   : `Question ${currentQuestion} of ${totalQuestions}`}
               </span>
+              {inlineProgress && (
+                <span className="ml-2 inline-flex items-center flex-1 min-w-[180px]">
+                  <span className="h-1.5 w-full bg-slate-gray/10 rounded-full overflow-hidden">
+                    <motion.span
+                      className="block h-full rounded-full bg-[#16a34a]"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressPercent}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </span>
+                </span>
+              )}
             </>
           )}
         </div>
       </div>
 
-      {showProgress && (
+      {showProgress && !inlineProgress && (
         <div className="h-2 bg-slate-gray/10 rounded-full overflow-hidden">
           <motion.div
             className="h-full rounded-full bg-[#16a34a]"

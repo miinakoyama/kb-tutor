@@ -1,4 +1,5 @@
 import type { Question, QuestionSet } from "@/types/question";
+import { getDefaultStandardForTopic } from "@/lib/standards";
 
 const GENERATED_SETS_KEY = "generatedQuestionSets";
 
@@ -11,6 +12,16 @@ interface StoredQuestionSet {
 
 interface StoredData {
   sets: StoredQuestionSet[];
+}
+
+function withStandard(question: Question): Question {
+  if (question.standardId) return question;
+  const standard = getDefaultStandardForTopic(question.topic);
+  return {
+    ...question,
+    standardId: standard.id,
+    standardLabel: standard.label,
+  };
 }
 
 function getStoredData(): StoredData {
@@ -61,7 +72,7 @@ export function addGeneratedQuestionSet(
   const newSet: StoredQuestionSet = {
     id: setId,
     name: name || `Generated ${new Date(generatedAt).toLocaleDateString()}`,
-    questions,
+    questions: questions.map(withStandard),
     generatedAt,
   };
   
@@ -95,7 +106,7 @@ export function getAllGeneratedQuestionSets(): {
     questionSets.push(questionSet);
 
     const questionsWithSetId = set.questions.map((q) => ({
-      ...q,
+      ...withStandard(q),
       questionSetId: set.id,
     }));
     allQuestions.push(...questionsWithSetId);
@@ -124,7 +135,7 @@ export function getGeneratedQuestionSetById(setId: string): {
   };
 
   const questionsWithSetId = set.questions.map((q) => ({
-    ...q,
+    ...withStandard(q),
     questionSetId: set.id,
   }));
 

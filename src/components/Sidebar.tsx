@@ -12,24 +12,37 @@ import {
   Database,
   Menu,
   X,
-  ClipboardCheck,
+  Bell,
+  ClipboardList,
   Bookmark,
+  NotebookPen,
+  School,
+  UserCircle2,
 } from "lucide-react";
 import { getBookmarkedIds } from "@/lib/storage";
+import { getStoredUserRole, isTeacherRole, type UserRole, USER_ROLE_STORAGE_KEY } from "@/lib/user-role";
 
-const NAV_ITEMS = [
+const STUDENT_NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/exam", label: "Mock Exam", icon: ClipboardCheck },
+  { href: "/notifications", label: "Notification", icon: Bell },
+  { href: "/assignments", label: "My Assignment", icon: ClipboardList },
+  { href: "/self-practice", label: "Self Practice", icon: NotebookPen },
   { href: "/progress", label: "My Progress", icon: BarChart3 },
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   { href: "/settings", label: "Settings", icon: Settings },
+] as const;
+
+const TEACHER_EXTRA_NAV_ITEMS = [
+  { href: "/settings", label: "Settings", icon: Settings },
   { href: "/content", label: "Content Management", icon: Database },
+  { href: "/teacher-dashboard", label: "Teacher Dashboard", icon: School },
 ] as const;
 
 export function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [bookmarkCount, setBookmarkCount] = useState(0);
+  const [role, setRole] = useState<UserRole>("student");
 
   useEffect(() => {
     const updateCount = () => setBookmarkCount(getBookmarkedIds().length);
@@ -41,6 +54,21 @@ export function Sidebar() {
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    const updateRole = () => setRole(getStoredUserRole("student"));
+    updateRole();
+    window.addEventListener("storage", updateRole);
+    const interval = setInterval(updateRole, 1000);
+    return () => {
+      window.removeEventListener("storage", updateRole);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const navItems = isTeacherRole(role)
+    ? [...STUDENT_NAV_ITEMS.filter((item) => item.href !== "/settings"), ...TEACHER_EXTRA_NAV_ITEMS]
+    : STUDENT_NAV_ITEMS;
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -55,7 +83,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
           const isBookmarks = href === "/bookmarks";
           return (
@@ -79,6 +107,20 @@ export function Sidebar() {
           );
         })}
       </nav>
+      <div className="px-3 pb-4">
+        <div className="rounded-lg bg-white/10 px-3 py-2.5 text-white/90 text-sm">
+          <div className="flex items-center gap-2 mb-0.5">
+            <UserCircle2 className="w-4 h-4" />
+            <span className="font-medium">Demo Account</span>
+          </div>
+          <p className="text-white/80 text-xs">
+            Role: {role === "teacher" ? "Teacher" : "Student"}
+          </p>
+          <p className="text-white/70 text-[11px] mt-1">
+            Switch role in Settings ({USER_ROLE_STORAGE_KEY})
+          </p>
+        </div>
+      </div>
     </>
   );
 
@@ -128,7 +170,7 @@ export function Sidebar() {
                 </button>
               </div>
               <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-                {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+                {navItems.map(({ href, label, icon: Icon }) => {
                   const active = isActive(href);
                   const isBookmarks = href === "/bookmarks";
                   return (
@@ -153,6 +195,17 @@ export function Sidebar() {
                   );
                 })}
               </nav>
+              <div className="px-3 pb-4">
+                <div className="rounded-lg bg-white/10 px-3 py-2.5 text-white/90 text-sm">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <UserCircle2 className="w-4 h-4" />
+                    <span className="font-medium">Demo Account</span>
+                  </div>
+                  <p className="text-white/80 text-xs">
+                    Role: {role === "teacher" ? "Teacher" : "Student"}
+                  </p>
+                </div>
+              </div>
             </div>
           </motion.aside>
         )}
