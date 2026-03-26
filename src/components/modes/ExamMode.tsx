@@ -13,6 +13,8 @@ import {
   XCircle,
   AlertTriangle,
   X,
+  PanelRightOpen,
+  PanelRightClose,
 } from "lucide-react";
 import type { Question, AnswerRecord } from "@/types/question";
 import { OptionButton } from "@/components/shared/OptionButton";
@@ -54,6 +56,9 @@ export function ExamMode({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
+  const [isNavigatorPinnedOpen, setIsNavigatorPinnedOpen] = useState(false);
+  const [isNavigatorHovered, setIsNavigatorHovered] = useState(false);
+  const [supportsHover, setSupportsHover] = useState(false);
   const elapsedRef = useRef(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
   const {
@@ -76,12 +81,18 @@ export function ExamMode({
     }
   }, [questions, requestedQuestionCount]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const update = () => setSupportsHover(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.values(answers).filter((a) => a.selectedOptionId).length;
   const unansweredCount = totalQuestions - answeredCount;
-  const progressPercent =
-    totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
-
   const startExam = useCallback(() => {
     let selectedQuestions: Question[] = [];
     
@@ -373,6 +384,10 @@ export function ExamMode({
     ? `/practice?module=${question.module}&topic=${encodeURIComponent(question.topic)}`
     : "/";
   const modeLabel = isTopicQuiz ? "Topic Quiz" : "Mock Exam";
+  const unansweredLabel = Math.max(0, unansweredCount);
+  const isNavigatorOpen = supportsHover
+    ? isNavigatorHovered || isNavigatorPinnedOpen
+    : isNavigatorPinnedOpen;
 
   return (
     <div className="flex flex-col h-full">
@@ -381,12 +396,14 @@ export function ExamMode({
         mode="exam"
         modeLabel={modeLabel}
         backHref={backHref}
+        inlineProgress
+        compactSpacing
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
         answeredCount={answeredCount}
       />
 
-      <div className="flex-shrink-0 mb-3">
+      <div className="flex-shrink-0 mb-1">
         <div className="flex items-center justify-end gap-4">
           <Timer
             isRunning={phase === "exam"}
@@ -403,8 +420,8 @@ export function ExamMode({
         </div>
       </div>
 
-      <div className="flex-1 flex gap-4 min-h-0">
-        <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 relative">
+        <div className="h-full overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={question.id}
@@ -412,13 +429,13 @@ export function ExamMode({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.15 }}
-              className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm"
+              className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-5 shadow-sm"
             >
-              <p className="text-sm text-slate-gray/60 mb-3">
-                Question {currentIndex + 1}
-              </p>
-              {isSupported && (
-                <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <p className="text-base font-bold text-slate-gray">
+                  Question {currentIndex + 1}
+                </p>
+                {isSupported && (
                   <ReadAloudButton
                     section="question"
                     label="Question"
@@ -427,17 +444,17 @@ export function ExamMode({
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
                   />
-                </div>
-              )}
+                )}
+              </div>
               <p
-                className={`text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap rounded-lg transition-colors ${
+                className={`text-[15px] font-medium text-slate-gray leading-relaxed mb-3 whitespace-pre-wrap rounded-lg transition-colors ${
                   isQuestionReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
                 }`}
               >
                 {question.text}
               </p>
               {question.diagram && (
-                <div className="mb-5">
+                <div className="mb-4 rounded-lg overflow-auto border border-slate-gray/10 max-h-[240px]">
                   <DiagramRenderer diagram={question.diagram} />
                 </div>
               )}
@@ -446,7 +463,7 @@ export function ExamMode({
                   isChoicesReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
                 }`}
               >
-                <div className="space-y-2.5">
+                <div className="space-y-2 mt-1.5">
                   {question.options.map((opt) => {
                     const isSelected = currentAnswer?.selectedOptionId === opt.id;
                     return (
@@ -459,12 +476,13 @@ export function ExamMode({
                         isAnswered={!!currentAnswer?.selectedOptionId}
                         onSelect={handleOptionClick}
                         pendingSelection
+                        compact
                       />
                     );
                   })}
                 </div>
                 {isSupported && (
-                  <div className="mt-4">
+                  <div className="mt-2">
                   <ReadAloudButton
                     section="choices"
                     label="Choices"
@@ -480,37 +498,102 @@ export function ExamMode({
           </AnimatePresence>
         </div>
 
-        <div className="hidden lg:block w-96 flex-shrink-0">
-          <ExamNavigator
-            totalQuestions={totalQuestions}
-            currentIndex={currentIndex}
-            answers={answers}
-            onNavigate={setCurrentIndex}
-          />
-        </div>
+        {supportsHover ? (
+          <button
+            onMouseEnter={() => setIsNavigatorHovered(true)}
+            onMouseLeave={() => setIsNavigatorHovered(false)}
+            onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex flex-col items-center justify-center gap-1 w-8 h-20 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
+            aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
+          >
+            <ChevronLeft className={`w-4 h-4 transition-transform ${isNavigatorOpen ? "translate-x-0.5" : ""}`} />
+            {unansweredLabel > 0 && (
+              <span className="inline-flex items-center justify-center min-w-4 h-4 rounded-full bg-[#16a34a]/10 text-[#166534] text-[10px] font-semibold px-1">
+                {unansweredLabel}
+              </span>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 px-2 py-2 text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
+            aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
+          >
+            {isNavigatorOpen ? (
+              <PanelRightClose className="w-4 h-4" />
+            ) : (
+              <PanelRightOpen className="w-4 h-4" />
+            )}
+            {unansweredLabel > 0 && (
+              <span className="inline-flex items-center justify-center min-w-4 h-4 rounded-full bg-[#16a34a]/10 text-[#166534] text-[10px] font-semibold px-1">
+                {unansweredLabel}
+              </span>
+            )}
+          </button>
+        )}
+
+        <AnimatePresence>
+          {isNavigatorOpen && (
+            <>
+              {!supportsHover && (
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsNavigatorPinnedOpen(false)}
+                  className="fixed inset-0 z-30 bg-black/10"
+                  aria-label="Close question navigator overlay"
+                />
+              )}
+              <motion.aside
+                initial={{ x: 380, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 380, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                className="fixed right-0 top-16 bottom-0 z-40 w-[22rem] max-w-[92vw]"
+                onMouseEnter={() => supportsHover && setIsNavigatorHovered(true)}
+                onMouseLeave={() => supportsHover && setIsNavigatorHovered(false)}
+              >
+                <div className="h-full p-2">
+                  <ExamNavigator
+                    totalQuestions={totalQuestions}
+                    currentIndex={currentIndex}
+                    answers={answers}
+                    onNavigate={(index) => {
+                      setCurrentIndex(index);
+                      if (!supportsHover) {
+                        setIsNavigatorPinnedOpen(false);
+                      }
+                    }}
+                  />
+                </div>
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
       </div>
 
-      <div className="flex-shrink-0 pt-3">
-        <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-3 border border-[#16a34a]/20">
+      <div className="flex-shrink-0 pt-2">
+        <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-2.5 border border-[#16a34a]/20">
           <button
             onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
             disabled={currentIndex === 0}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3.5 h-3.5" />
             Previous
           </button>
 
           <button
             onClick={toggleFlag}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
               answers[currentIndex]?.flagged
                 ? "text-amber-600 bg-amber-50 border border-amber-200"
                 : "text-slate-gray/50 hover:text-slate-gray/70 border border-slate-gray/15 hover:border-slate-gray/30"
             }`}
           >
             <Flag
-              className={`w-4 h-4 ${answers[currentIndex]?.flagged ? "fill-amber-500" : ""}`}
+              className={`w-3.5 h-3.5 ${answers[currentIndex]?.flagged ? "fill-amber-500" : ""}`}
             />
             Mark for review
           </button>
@@ -521,10 +604,10 @@ export function ExamMode({
               setCurrentIndex((i) => i + 1)
             }
             disabled={currentIndex === totalQuestions - 1}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
             Next
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

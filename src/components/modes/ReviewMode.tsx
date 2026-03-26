@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ChevronRight, Home, CheckCircle2, RotateCcw } from "lucide-react";
@@ -28,6 +28,7 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [showComplete, setShowComplete] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const incorrectIds = getIncorrectQuestionIds();
@@ -91,10 +92,22 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
   const handleNext = useCallback(() => {
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex((i) => i + 1);
+      requestAnimationFrame(() => {
+        scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      });
     } else {
       setShowComplete(true);
     }
   }, [currentIndex, totalQuestions]);
+
+  useEffect(() => {
+    if (!currentAnswer) return;
+    requestAnimationFrame(() => {
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
+  }, [currentAnswer, currentIndex]);
 
   if (!isInitialized) {
     return (
@@ -184,20 +197,23 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
     : "/";
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-full">
+    <div className="flex flex-col h-full">
       <PracticeHeader
         topicName={topicName}
         mode="review"
         backHref={backHref}
+        inlineProgress
+        compactSpacing
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
       />
 
-      <div className="flex-1 overflow-y-auto min-h-0 pb-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 pb-4">
         <QuestionDisplay
           question={question}
           questionNumber={currentIndex + 1}
           currentAnswer={currentAnswer}
+          compactLayout
           onOptionClick={handleOptionClick}
           showOptionFeedbackIcons
           feedbackReadText={feedbackReadText}
@@ -221,14 +237,14 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
       </div>
 
       <div className="flex-shrink-0 pt-2">
-        <div className="flex justify-end bg-[#f8faf8] rounded-xl p-3 border border-[#16a34a]/20">
+        <div className="flex justify-end bg-[#f8faf8] rounded-xl p-2.5 border border-[#16a34a]/20">
           <button
             onClick={handleNext}
             disabled={!currentAnswer}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
             {currentIndex === totalQuestions - 1 ? "Finish" : "Next"}
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
