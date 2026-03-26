@@ -67,7 +67,9 @@ export default function BookmarksPage() {
           <div className="flex items-center gap-3">
             <Bookmark className="w-7 h-7 text-[#16a34a]" />
             <div>
-              <h1 className="text-2xl font-bold text-slate-gray">Bookmarks</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
+                Bookmarks
+              </h1>
               <p className="text-sm text-slate-gray/60">
                 {bookmarkedQuestions.length} question{bookmarkedQuestions.length !== 1 ? "s" : ""} saved
               </p>

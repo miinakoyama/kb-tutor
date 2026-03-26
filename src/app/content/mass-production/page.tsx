@@ -12,8 +12,14 @@ import {
 } from "lucide-react";
 import { MODULES } from "@/types/question";
 import type { DOKLevel } from "@/types/question";
+import {
+  getAllStandards,
+  getStandardsForTopic,
+  type StandardInfo,
+} from "@/lib/standards";
 
 const ALL_TOPICS = MODULES.flatMap((m) => m.topics) as string[];
+const ALL_STANDARDS = getAllStandards();
 
 interface DiagramConfig {
   chart: number;
@@ -26,6 +32,7 @@ interface GenerationSettings {
   questionSetName: string;
   questionCount: number;
   topics: string[];
+  standards: string[];
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
   diagramConfig: DiagramConfig;
@@ -36,6 +43,7 @@ const DEFAULT_SETTINGS: GenerationSettings = {
   questionSetName: "",
   questionCount: 5,
   topics: [...ALL_TOPICS],
+  standards: ALL_STANDARDS.map((item) => item.id),
   dokLevels: [1, 2, 3],
   includeDiagrams: false,
   diagramConfig: {
@@ -117,6 +125,28 @@ export default function MassProductionPage() {
     }));
   };
 
+  const handleStandardToggle = (standardId: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      standards: prev.standards.includes(standardId)
+        ? prev.standards.filter((id) => id !== standardId)
+        : [...prev.standards, standardId],
+    }));
+  };
+
+  const getRecommendedStandardIds = (): string[] => {
+    const ids = new Set<string>();
+    for (const topic of settings.topics) {
+      for (const standard of getStandardsForTopic(topic)) {
+        ids.add(standard.id);
+      }
+    }
+    if (ids.size === 0) {
+      return ALL_STANDARDS.map((item) => item.id);
+    }
+    return Array.from(ids);
+  };
+
   const handleDiagramCountChange = (type: keyof DiagramConfig, rawValue: string) => {
     const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
     if (isNaN(value)) return;
@@ -147,6 +177,10 @@ export default function MassProductionPage() {
     }
     if (settings.dokLevels.length === 0) {
       setError("Please select at least one DOK level.");
+      return;
+    }
+    if (settings.standards.length === 0) {
+      setError("Please select at least one standard.");
       return;
     }
     if (totalDiagramCount > settings.questionCount) {
@@ -192,7 +226,7 @@ export default function MassProductionPage() {
   };
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/content"
         className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-6"
@@ -354,6 +388,76 @@ export default function MassProductionPage() {
                   </div>
                 </label>
               ))}
+            </div>
+          </div>
+
+          {/* Standard Selection */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-gray">
+                Standards
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      standards: prev.standards.length === ALL_STANDARDS.length
+                        ? []
+                        : ALL_STANDARDS.map((item) => item.id),
+                    }))
+                  }
+                  className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
+                >
+                  {settings.standards.length === ALL_STANDARDS.length
+                    ? "Deselect All"
+                    : "Select All"}
+                </button>
+                <button
+                  onClick={() =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      standards: getRecommendedStandardIds(),
+                    }))
+                  }
+                  className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
+                >
+                  Use Recommended by Topic
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-slate-gray/60 mb-2">
+              Each generated question will be assigned exactly one selected standard.
+            </p>
+            <div className="space-y-3">
+              {(["A", "B"] as const).map((moduleCode) => {
+                const standards = ALL_STANDARDS.filter((item) => item.module === moduleCode);
+                return (
+                  <div key={moduleCode} className="rounded-lg border border-slate-200 p-3">
+                    <p className="text-xs font-semibold text-slate-gray/70 mb-2">
+                      Module {moduleCode}
+                    </p>
+                    <div className="space-y-2">
+                      {standards.map((standard: StandardInfo) => (
+                        <label
+                          key={standard.id}
+                          className="flex items-start gap-2 p-2 rounded hover:bg-slate-gray/5 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={settings.standards.includes(standard.id)}
+                            onChange={() => handleStandardToggle(standard.id)}
+                            className="w-4 h-4 mt-0.5 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
+                          />
+                          <span className="text-sm text-slate-gray">
+                            <span className="font-medium">{standard.id}</span> - {standard.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>

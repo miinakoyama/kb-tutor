@@ -14,6 +14,8 @@ interface QuestionDisplayProps {
   question: Question;
   questionNumber: number;
   currentAnswer?: AnswerRecord;
+  selectedOptionId?: string | null;
+  pendingSelection?: boolean;
   onOptionClick: (optionId: string) => void;
   renderQuestionText?: (text: string) => ReactNode;
   feedbackSlot?: ReactNode;
@@ -26,6 +28,8 @@ export function QuestionDisplay({
   question,
   questionNumber,
   currentAnswer,
+  selectedOptionId,
+  pendingSelection = false,
   onOptionClick,
   renderQuestionText,
   feedbackSlot,
@@ -126,7 +130,9 @@ export function QuestionDisplay({
           </div>
           <div className="space-y-2.5 mt-2">
             {question.options.map((opt) => {
-              const isSelected = currentAnswer?.selectedOptionId === opt.id;
+              const isSelected = isAnswered
+                ? currentAnswer?.selectedOptionId === opt.id
+                : selectedOptionId === opt.id;
               const showCorrect =
                 isAnswered && opt.id === question.correctOptionId;
               const showWrong =
@@ -142,6 +148,7 @@ export function QuestionDisplay({
                   isAnswered={isAnswered}
                   onSelect={onOptionClick}
                   showFeedbackIcon={showOptionFeedbackIcons}
+                  pendingSelection={pendingSelection}
                 />
               );
             })}

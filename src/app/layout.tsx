@@ -30,7 +30,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
       <body className="antialiased font-sans min-h-screen bg-sand-beige">
         <Sidebar />
-        <div className="lg:pl-64 min-h-screen pt-16 pl-14 lg:pt-0 lg:pl-0">
+        <div className="min-h-screen pt-16 pl-14 lg:pt-0 lg:pl-64">
           {children}
         </div>
 

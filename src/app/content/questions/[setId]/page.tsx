@@ -25,8 +25,17 @@ import {
   toggleQuestionVisibility,
   deleteGeneratedQuestionSet,
 } from "@/lib/question-storage";
+import { getDefaultStandardForTopic } from "@/lib/standards";
 
-const fileQuestions = questionsData as Question[];
+const fileQuestions = (questionsData as Question[]).map((question) => {
+  if (question.standardId) return question;
+  const standard = getDefaultStandardForTopic(question.topic);
+  return {
+    ...question,
+    standardId: standard.id,
+    standardLabel: standard.label,
+  };
+});
 const fileQuestionSets = questionSetsData as QuestionSet[];
 
 interface PageProps {
@@ -212,7 +221,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 text-[#16a34a] animate-spin" />
         </div>
@@ -222,7 +231,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   if (!questionSet || questions.length === 0) {
     return (
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="text-center py-16">
           <p className="text-slate-gray/70 mb-4">
             Question set not found or empty.
@@ -242,7 +251,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   const visibleCount = questions.filter((q) => q.isVisible !== false).length;
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/content/questions"
         className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-6"

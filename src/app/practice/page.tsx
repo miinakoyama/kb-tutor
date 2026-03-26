@@ -4,7 +4,14 @@ import { PracticePageClient } from "@/components/PracticePageClient";
 async function PracticeContent({
   searchParams,
 }: {
-  searchParams: Promise<{ module?: string; topic?: string; mode?: string; questions?: string }>;
+  searchParams: Promise<{
+    module?: string;
+    topic?: string;
+    topics?: string;
+    mode?: string;
+    questions?: string;
+    assignmentId?: string;
+  }>;
 }) {
   const params = await searchParams;
   
@@ -12,7 +19,10 @@ async function PracticeContent({
     <PracticePageClient
       moduleParam={params.module}
       topicParam={params.topic}
+      topicsParam={params.topics}
       modeParam={params.mode}
+      questionsParam={params.questions}
+      assignmentIdParam={params.assignmentId}
     />
   );
 }
@@ -20,7 +30,14 @@ async function PracticeContent({
 export default async function PracticePage({
   searchParams,
 }: {
-  searchParams: Promise<{ module?: string; topic?: string; mode?: string; questions?: string }>;
+  searchParams: Promise<{
+    module?: string;
+    topic?: string;
+    topics?: string;
+    mode?: string;
+    questions?: string;
+    assignmentId?: string;
+  }>;
 }) {
   return (
     <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">

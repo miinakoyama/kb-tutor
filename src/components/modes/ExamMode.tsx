@@ -26,6 +26,8 @@ import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
+import { getStandardForTopic } from "@/lib/standards";
+import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -140,14 +142,28 @@ export function ExamMode({
   }, []);
 
   const confirmSubmit = useCallback(() => {
+    const student = getStudentById(DEFAULT_STUDENT_ID);
+    const timePerQuestion =
+      sessionQuestions.length > 0
+        ? Math.max(5, Math.round(elapsedRef.current / 1000 / sessionQuestions.length))
+        : 0;
     const batch = sessionQuestions.map((q, i) => {
       const a = answers[i];
+      const standard = getStandardForTopic(q.topic);
       return {
         questionId: q.id,
         selectedOptionId: a?.selectedOptionId ?? "",
         isCorrect: a?.isCorrect ?? false,
         timestamp: Date.now(),
         mode: "exam" as const,
+        module: q.module,
+        topic: q.topic,
+        standardId: standard.id,
+        standardLabel: standard.label,
+        timeSpentSec: timePerQuestion,
+        studentId: student?.id,
+        classId: student?.classId,
+        teacherId: student?.teacherId,
       };
     });
     saveAnswerBatch(batch.filter((b) => b.selectedOptionId));

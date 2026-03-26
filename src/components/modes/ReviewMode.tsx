@@ -12,6 +12,8 @@ import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { getIncorrectQuestionIds, saveAnswer } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
+import { getStandardForTopic } from "@/lib/standards";
+import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 
 const MAX_REVIEW_QUESTIONS = 10;
 
@@ -56,12 +58,21 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
         ...prev,
         [currentIndex]: { selectedOptionId: optionId, isCorrect },
       }));
+      const standard = getStandardForTopic(question.topic);
+      const student = getStudentById(DEFAULT_STUDENT_ID);
       saveAnswer({
         questionId: question.id,
         selectedOptionId: optionId,
         isCorrect,
         timestamp: Date.now(),
         mode: "review",
+        module: question.module,
+        topic: question.topic,
+        standardId: standard.id,
+        standardLabel: standard.label,
+        studentId: student?.id,
+        classId: student?.classId,
+        teacherId: student?.teacherId,
       });
     },
     [currentIndex, currentAnswer, question],

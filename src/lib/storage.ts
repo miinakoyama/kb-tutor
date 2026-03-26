@@ -1,4 +1,4 @@
-import type { AnswerRecord, ConfidenceLevel } from "@/types/question";
+import type { ConfidenceLevel } from "@/types/question";
 
 const STORAGE_KEYS = {
   ANSWER_HISTORY: "kb-tutor-answer-history",
@@ -11,6 +11,15 @@ export interface StoredAnswer {
   selectedOptionId: string;
   isCorrect: boolean;
   confidenceLevel?: ConfidenceLevel;
+  module?: number;
+  topic?: string;
+  standardId?: string;
+  standardLabel?: string;
+  timeSpentSec?: number;
+  assignmentId?: string;
+  studentId?: string;
+  teacherId?: string;
+  classId?: string;
   timestamp: number;
   mode: string;
 }
