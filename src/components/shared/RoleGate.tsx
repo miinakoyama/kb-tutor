@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ShieldAlert, Home } from "lucide-react";
@@ -12,7 +13,21 @@ interface RoleGateProps {
 }
 
 export function RoleGate({ allow, children }: RoleGateProps) {
-  const role = getStoredUserRole();
+  const [role, setRole] = useState<UserRole | null>(null);
+
+  useEffect(() => {
+    const updateRole = () => setRole(getStoredUserRole("student"));
+    updateRole();
+    window.addEventListener("storage", updateRole);
+    return () => window.removeEventListener("storage", updateRole);
+  }, []);
+
+  // Avoid hydration mismatch by rendering the same markup
+  // on server and first client paint.
+  if (role === null) {
+    return null;
+  }
+
   if (allow.includes(role)) {
     return <>{children}</>;
   }
