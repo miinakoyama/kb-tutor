@@ -1,10 +1,8 @@
 "use client";
 
 import { Bell, Lightbulb } from "lucide-react";
-import { getStoredUserRole } from "@/lib/user-role";
 import {
   DEFAULT_STUDENT_ID,
-  DEFAULT_TEACHER_ID,
   getNotificationsForRecipient,
 } from "@/lib/mock-data";
 
@@ -15,11 +13,14 @@ const FALLBACK_MESSAGES = [
 ];
 
 export default function NotificationsPage() {
-  const role = getStoredUserRole();
-  const notifications =
-    role === "teacher"
-      ? getNotificationsForRecipient("teacher", DEFAULT_TEACHER_ID)
-      : getNotificationsForRecipient("student", DEFAULT_STUDENT_ID);
+  const formatCreatedAt = (value: string) =>
+    new Intl.DateTimeFormat("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "UTC",
+    }).format(new Date(value));
+
+  const notifications = getNotificationsForRecipient("student", DEFAULT_STUDENT_ID);
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -52,7 +53,7 @@ export default function NotificationsPage() {
                 <div className="flex-1">
                   <p className="text-sm text-slate-gray leading-relaxed">{item.message}</p>
                   <p className="text-xs text-slate-gray/50 mt-2">
-                    {new Date(item.createdAt).toLocaleString()}
+                    {formatCreatedAt(item.createdAt)}
                   </p>
                 </div>
                 {!item.read && (

@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { Bell, ClipboardList, NotebookPen, Lightbulb } from "lucide-react";
-import { getStoredUserRole } from "@/lib/user-role";
 import {
   DEFAULT_STUDENT_ID,
-  DEFAULT_TEACHER_ID,
   getAssignmentsForStudent,
   getNotificationsForRecipient,
 } from "@/lib/mock-data";
@@ -16,11 +14,7 @@ const FALLBACK_TIPS = [
 ];
 
 export default function Home() {
-  const role = getStoredUserRole();
-  const notifications =
-    role === "teacher"
-      ? getNotificationsForRecipient("teacher", DEFAULT_TEACHER_ID).slice(0, 3)
-      : getNotificationsForRecipient("student", DEFAULT_STUDENT_ID).slice(0, 3);
+  const notifications = getNotificationsForRecipient("student", DEFAULT_STUDENT_ID).slice(0, 3);
   const assignments = getAssignmentsForStudent(DEFAULT_STUDENT_ID);
 
   return (

@@ -44,15 +44,14 @@ export function useTextToSpeech({
   defaultRate = DEFAULT_TTS_RATE,
   lang = "en-US",
 }: UseTextToSpeechOptions = {}) {
-  const initialRate = getStoredTtsRate(defaultRate);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentSection, setCurrentSection] = useState<ReadSection | null>(null);
-  const [rate, setRateState] = useState(initialRate);
+  const [rate, setRateState] = useState(defaultRate);
 
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const cancelledRef = useRef(false);
   const generationRef = useRef(0);
-  const rateRef = useRef(initialRate);
+  const rateRef = useRef(defaultRate);
   const queueRef = useRef<{
     chunks: string[];
     index: number;
@@ -66,6 +65,12 @@ export function useTextToSpeech({
     if (!isSupported) return;
     synthRef.current = window.speechSynthesis;
   }, [isSupported]);
+
+  useEffect(() => {
+    const storedRate = getStoredTtsRate(defaultRate);
+    rateRef.current = storedRate;
+    setRateState(storedRate);
+  }, [defaultRate]);
 
   useEffect(() => {
     rateRef.current = rate;

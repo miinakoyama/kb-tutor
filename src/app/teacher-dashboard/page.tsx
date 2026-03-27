@@ -9,7 +9,6 @@ import {
   Timer,
   BarChart3,
 } from "lucide-react";
-import { RoleGate } from "@/components/shared/RoleGate";
 import { getAnswerHistory } from "@/lib/storage";
 import {
   DEFAULT_TEACHER_ID,
@@ -24,11 +23,7 @@ import {
 } from "@/lib/csv/teacher-dashboard";
 
 export default function TeacherDashboardPage() {
-  return (
-    <RoleGate allow={["teacher"]}>
-      <TeacherDashboardContent />
-    </RoleGate>
-  );
+  return <TeacherDashboardContent />;
 }
 
 function TeacherDashboardContent() {
