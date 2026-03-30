@@ -8,6 +8,8 @@ interface StoredQuestionSet {
   name: string;
   questions: Question[];
   generatedAt: string;
+  generationModelId?: string;
+  generationModelLabel?: string;
 }
 
 interface StoredData {
@@ -64,7 +66,8 @@ function saveStoredData(data: StoredData): void {
 export function addGeneratedQuestionSet(
   questions: Question[],
   name: string,
-  generatedAt: string
+  generatedAt: string,
+  generationModel?: { id?: string; label?: string }
 ): string {
   const data = getStoredData();
   const setId = `generated-${generatedAt}`;
@@ -74,6 +77,8 @@ export function addGeneratedQuestionSet(
     name: name || `Generated ${new Date(generatedAt).toLocaleDateString()}`,
     questions: questions.map(withStandard),
     generatedAt,
+    generationModelId: generationModel?.id,
+    generationModelLabel: generationModel?.label,
   };
   
   data.sets.unshift(newSet);
@@ -102,6 +107,8 @@ export function getAllGeneratedQuestionSets(): {
       source: "generated",
       createdAt: set.generatedAt,
       questionIds: set.questions.map((q) => q.id),
+      generationModelId: set.generationModelId,
+      generationModelLabel: set.generationModelLabel,
     };
     questionSets.push(questionSet);
 
@@ -132,6 +139,8 @@ export function getGeneratedQuestionSetById(setId: string): {
     source: "generated",
     createdAt: set.generatedAt,
     questionIds: set.questions.map((q) => q.id),
+    generationModelId: set.generationModelId,
+    generationModelLabel: set.generationModelLabel,
   };
 
   const questionsWithSetId = set.questions.map((q) => ({

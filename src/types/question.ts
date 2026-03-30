@@ -73,6 +73,8 @@ export interface QuestionSet {
   createdAt: string;
   questionIds: string[];
   generationConfig?: GenerationConfig;
+  generationModelId?: string;
+  generationModelLabel?: string;
 }
 
 export interface GenerationConfig {

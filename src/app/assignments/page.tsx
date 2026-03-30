@@ -30,8 +30,12 @@ export default function AssignmentsPage() {
             const params = new URLSearchParams({
               mode: "adaptive",
               assignmentId: assignment.id,
-              questions: String(estimateQuestionCount(assignment.targetMinutes)),
-              topics: assignment.topics.map((topic) => encodeURIComponent(topic)).join(","),
+              questions: String(
+                estimateQuestionCount(assignment.targetMinutes),
+              ),
+              topics: assignment.topics
+                .map((topic) => encodeURIComponent(topic))
+                .join(","),
             });
             return (
               <article
@@ -44,10 +48,14 @@ export default function AssignmentsPage() {
                       <ClipboardList className="w-3.5 h-3.5" />
                       Assignment
                     </p>
-                    <h2 className="text-lg font-semibold text-slate-gray">{assignment.title}</h2>
+                    <h2 className="text-lg font-semibold text-slate-gray">
+                      {assignment.title}
+                    </h2>
                     <p className="text-sm text-slate-gray/70 mt-1">
                       Topics: {assignment.topics.slice(0, 3).join(", ")}
-                      {assignment.topics.length > 3 ? ` +${assignment.topics.length - 3} more` : ""}
+                      {assignment.topics.length > 3
+                        ? ` +${assignment.topics.length - 3} more`
+                        : ""}
                     </p>
                     {assignment.dueDate ? (
                       <p className="text-xs text-slate-gray/60 mt-2 inline-flex items-center gap-1.5">
@@ -55,7 +63,9 @@ export default function AssignmentsPage() {
                         Due {new Date(assignment.dueDate).toLocaleDateString()}
                       </p>
                     ) : (
-                      <p className="text-xs text-slate-gray/50 mt-2">No due date</p>
+                      <p className="text-xs text-slate-gray/50 mt-2">
+                        No due date
+                      </p>
                     )}
                   </div>
                   <Link

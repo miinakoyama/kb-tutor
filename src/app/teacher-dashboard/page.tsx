@@ -52,7 +52,9 @@ function TeacherDashboardContent() {
 
   const visibleStudents = useMemo(
     () =>
-      MOCK_STUDENTS.filter((student) => !classId || student.classId === classId),
+      MOCK_STUDENTS.filter(
+        (student) => !classId || student.classId === classId,
+      ),
     [classId],
   );
 
@@ -63,7 +65,8 @@ function TeacherDashboardContent() {
           Teacher Dashboard
         </h1>
         <p className="text-slate-gray/70">
-          Standard-level performance and engagement metrics for assigned students.
+          Standard-level performance and engagement metrics for assigned
+          students.
         </p>
       </section>
 
@@ -80,7 +83,9 @@ function TeacherDashboardContent() {
               className="w-full rounded-lg border border-slate-200 px-3 py-2"
             >
               <option value="">All classes</option>
-              {MOCK_CLASSES.filter((item) => item.teacherId === DEFAULT_TEACHER_ID).map((item) => (
+              {MOCK_CLASSES.filter(
+                (item) => item.teacherId === DEFAULT_TEACHER_ID,
+              ).map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
                 </option>
@@ -108,7 +113,9 @@ function TeacherDashboardContent() {
             <span className="block mb-1 font-medium">Date range</span>
             <select
               value={range}
-              onChange={(event) => setRange(event.target.value as "7d" | "30d" | "all")}
+              onChange={(event) =>
+                setRange(event.target.value as "7d" | "30d" | "all")
+              }
               className="w-full rounded-lg border border-slate-200 px-3 py-2"
             >
               <option value="7d">Last 7 days</option>
@@ -168,8 +175,12 @@ function TeacherDashboardContent() {
               {dashboard.byStandard.map((row) => (
                 <tr key={row.standardId} className="border-b border-slate-100">
                   <td className="py-2 pr-3">
-                    <p className="font-medium text-slate-gray">{row.standardId}</p>
-                    <p className="text-xs text-slate-gray/60">{row.standardLabel}</p>
+                    <p className="font-medium text-slate-gray">
+                      {row.standardId}
+                    </p>
+                    <p className="text-xs text-slate-gray/60">
+                      {row.standardLabel}
+                    </p>
                   </td>
                   <td className="py-2 pr-3">{row.attempted}</td>
                   <td className="py-2 pr-3">{row.correct}</td>
@@ -235,7 +246,9 @@ function MetricCard({
   return (
     <article className="rounded-xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-slate-gray/60 uppercase tracking-wide">{label}</p>
+        <p className="text-xs text-slate-gray/60 uppercase tracking-wide">
+          {label}
+        </p>
         <Icon className="w-4 h-4 text-[#16a34a]" />
       </div>
       <p className="text-2xl font-bold text-[#14532d]">{value}</p>

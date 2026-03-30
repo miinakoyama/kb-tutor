@@ -47,7 +47,9 @@ export default function ContentPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <Sparkles className="w-6 h-6 text-[#16a34a]" />
-              <h2 className="font-medium text-slate-gray">LLM Mass Production</h2>
+              <h2 className="font-medium text-slate-gray">
+                LLM Mass Production
+              </h2>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-[#16a34a] transition-colors" />
           </div>

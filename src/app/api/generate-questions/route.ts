@@ -278,6 +278,8 @@ export async function POST(request: NextRequest) {
     const basePrompt = buildGenerationPrompt(body);
     const allowedStandardIds = new Set<string>(body.standards);
     let validQuestions: Question[] = [];
+    let generationModelId: string | null = null;
+    let generationModelLabel: string | null = null;
     let lastError: unknown = null;
     let retryReason = "";
     let finalFailureReason = "";
@@ -289,7 +291,10 @@ export async function POST(request: NextRequest) {
           : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} questions and exact diagram counts as requested.`;
 
       try {
-        const responseText = await generateWithGemini(`${basePrompt}${retrySuffix}`);
+        const generated = await generateWithGemini(`${basePrompt}${retrySuffix}`);
+        const responseText = generated.text;
+        generationModelId = generated.modelId;
+        generationModelLabel = generated.modelLabel;
         const rawQuestions = parseGeneratedQuestions(responseText);
 
         const attemptQuestions: Question[] = [];
@@ -356,6 +361,8 @@ export async function POST(request: NextRequest) {
       questions: validQuestions,
       generatedCount: validQuestions.length,
       requestedCount: body.questionCount,
+      generationModelId,
+      generationModelLabel,
     });
   } catch (error) {
     console.error("Generation error:", error);

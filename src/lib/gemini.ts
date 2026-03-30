@@ -2,6 +2,42 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { jsonrepair } from "jsonrepair";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const GEMINI_MODELS = [
+  "gemini-3.1-flash-lite-preview",
+  "gemini-3-flash-preview",
+  "gemini-2.5-flash",
+] as const;
+
+function getGeminiModelLabel(modelName: (typeof GEMINI_MODELS)[number]): string {
+  switch (modelName) {
+    case "gemini-3.1-flash-lite-preview":
+      return "Gemini 3.1 Flash Lite";
+    case "gemini-3-flash-preview":
+      return "Gemini 3 Flash";
+    case "gemini-2.5-flash":
+      return "Gemini 2.5 Flash";
+    default:
+      return modelName;
+  }
+}
+
+function isRetryableGeminiError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const e = error as { message?: string; status?: number; statusText?: string };
+  const message = (e.message || "").toLowerCase();
+  const statusText = (e.statusText || "").toLowerCase();
+
+  return (
+    e.status === 429 ||
+    e.status === 503 ||
+    message.includes("429") ||
+    message.includes("503") ||
+    message.includes("service unavailable") ||
+    message.includes("high demand") ||
+    statusText.includes("service unavailable")
+  );
+}
 
 function stripMarkdownCodeFence(text: string): string {
   let jsonText = text.trim();
@@ -68,26 +104,47 @@ function repairBrokenSvgStrings(jsonText: string): string {
   return result;
 }
 
-export async function generateWithGemini(prompt: string): Promise<string> {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3.1-flash-lite-preview",
-  });
+export async function generateWithGemini(prompt: string): Promise<{
+  text: string;
+  modelId: string;
+  modelLabel: string;
+}> {
+  let lastError: unknown = null;
 
-  const result = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.7,
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: 12288,
-    },
-  });
+  for (const modelName of GEMINI_MODELS) {
+    const model = genAI.getGenerativeModel({ model: modelName });
 
-  const response = result.response;
-  const text = response.text();
+    try {
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.7,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 12288,
+        },
+      });
 
-  return text;
+      return {
+        text: result.response.text(),
+        modelId: modelName,
+        modelLabel: getGeminiModelLabel(modelName),
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableGeminiError(error)) {
+        throw error;
+      }
+      // Retryable capacity/rate-limit error: fall through to next model.
+    }
+  }
+
+  throw lastError instanceof Error
+    ? new Error(
+        `All configured Gemini models failed due to temporary availability issues: ${lastError.message}`
+      )
+    : new Error("All configured Gemini models failed due to temporary availability issues.");
 }
 
 export function parseGeneratedQuestions(text: string): unknown[] {

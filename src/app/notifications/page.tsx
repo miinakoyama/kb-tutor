@@ -20,7 +20,10 @@ export default function NotificationsPage() {
       timeZone: "UTC",
     }).format(new Date(value));
 
-  const notifications = getNotificationsForRecipient("student", DEFAULT_STUDENT_ID);
+  const notifications = getNotificationsForRecipient(
+    "student",
+    DEFAULT_STUDENT_ID,
+  );
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -28,7 +31,9 @@ export default function NotificationsPage() {
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
           Notification
         </h1>
-        <p className="text-slate-gray/70">Recent updates from assignments and learning activity.</p>
+        <p className="text-slate-gray/70">
+          Recent updates from assignments and learning activity.
+        </p>
       </section>
 
       {notifications.length === 0 ? (
@@ -36,8 +41,12 @@ export default function NotificationsPage() {
           <div className="flex items-start gap-3">
             <Lightbulb className="w-5 h-5 text-[#16a34a] mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-slate-gray mb-1">No new notifications</p>
-              <p className="text-sm text-slate-gray/70">{FALLBACK_MESSAGES[0]}</p>
+              <p className="text-sm font-semibold text-slate-gray mb-1">
+                No new notifications
+              </p>
+              <p className="text-sm text-slate-gray/70">
+                {FALLBACK_MESSAGES[0]}
+              </p>
             </div>
           </div>
         </section>
@@ -51,7 +60,9 @@ export default function NotificationsPage() {
               <div className="flex items-start gap-3">
                 <Bell className="w-5 h-5 text-[#16a34a] mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm text-slate-gray leading-relaxed">{item.message}</p>
+                  <p className="text-sm text-slate-gray leading-relaxed">
+                    {item.message}
+                  </p>
                   <p className="text-xs text-slate-gray/50 mt-2">
                     {formatCreatedAt(item.createdAt)}
                   </p>

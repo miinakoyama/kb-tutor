@@ -8,6 +8,7 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Loader2,
 } from "lucide-react";
 import { MODULES } from "@/types/question";
@@ -15,7 +16,6 @@ import type { DOKLevel } from "@/types/question";
 import {
   getAllStandards,
   getStandardsForTopic,
-  type StandardInfo,
 } from "@/lib/standards";
 
 const ALL_TOPICS = MODULES.flatMap((m) => m.topics) as string[];
@@ -61,6 +61,7 @@ export default function MassProductionPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -101,11 +102,16 @@ export default function MassProductionPage() {
   const textOnlyCount = Math.max(0, settings.questionCount - totalDiagramCount);
 
   const handleTopicToggle = (topic: string) => {
+    const topicStandardIds = getStandardsForTopic(topic).map((standard) => standard.id);
+
     setSettings((prev) => ({
       ...prev,
       topics: prev.topics.includes(topic)
         ? prev.topics.filter((t) => t !== topic)
         : [...prev.topics, topic],
+      standards: prev.topics.includes(topic)
+        ? prev.standards.filter((id) => !topicStandardIds.includes(id))
+        : Array.from(new Set([...prev.standards, ...topicStandardIds])),
     }));
   };
 
@@ -113,6 +119,10 @@ export default function MassProductionPage() {
     setSettings((prev) => ({
       ...prev,
       topics: prev.topics.length === ALL_TOPICS.length ? [] : [...ALL_TOPICS],
+      standards:
+        prev.topics.length === ALL_TOPICS.length
+          ? []
+          : ALL_STANDARDS.map((item) => item.id),
     }));
   };
 
@@ -125,26 +135,38 @@ export default function MassProductionPage() {
     }));
   };
 
-  const handleStandardToggle = (standardId: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      standards: prev.standards.includes(standardId)
-        ? prev.standards.filter((id) => id !== standardId)
-        : [...prev.standards, standardId],
-    }));
+  const toggleTopicExpansion = (topic: string) => {
+    setExpandedTopics((prev) =>
+      prev.includes(topic)
+        ? prev.filter((item) => item !== topic)
+        : [...prev, topic]
+    );
   };
 
-  const getRecommendedStandardIds = (): string[] => {
-    const ids = new Set<string>();
-    for (const topic of settings.topics) {
-      for (const standard of getStandardsForTopic(topic)) {
-        ids.add(standard.id);
-      }
-    }
-    if (ids.size === 0) {
-      return ALL_STANDARDS.map((item) => item.id);
-    }
-    return Array.from(ids);
+  const handleTopicStandardToggle = (topic: string, standardId: string) => {
+    const topicStandardIds = getStandardsForTopic(topic).map((standard) => standard.id);
+
+    setSettings((prev) => {
+      const standards = prev.standards.includes(standardId)
+        ? prev.standards.filter((id) => id !== standardId)
+        : [...prev.standards, standardId];
+
+      const topicHasSelectedStandards = topicStandardIds.some((id) =>
+        standards.includes(id)
+      );
+
+      const topics = topicHasSelectedStandards
+        ? prev.topics.includes(topic)
+          ? prev.topics
+          : [...prev.topics, topic]
+        : prev.topics.filter((item) => item !== topic);
+
+      return {
+        ...prev,
+        topics,
+        standards,
+      };
+    });
   };
 
   const handleDiagramCountChange = (type: keyof DiagramConfig, rawValue: string) => {
@@ -215,7 +237,11 @@ export default function MassProductionPage() {
       const setId = addGeneratedQuestionSet(
         data.questions,
         trimmedSetName,
-        generatedAt
+        generatedAt,
+        {
+          id: data.generationModelId,
+          label: data.generationModelLabel,
+        }
       );
 
       router.push(`/content/questions/${encodeURIComponent(setId)}`);
@@ -319,11 +345,11 @@ export default function MassProductionPage() {
             <p className="text-xs text-slate-gray/60 mt-1">1-20 questions per batch</p>
           </div>
 
-          {/* Topic Selection */}
+          {/* Topic and Standard Selection */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-slate-gray">
-                Topics
+                Topics & Standards
               </label>
               <button
                 onClick={handleSelectAllTopics}
@@ -334,21 +360,83 @@ export default function MassProductionPage() {
                   : "Select All"}
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {ALL_TOPICS.map((topic) => (
-                <label
-                  key={topic}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-gray/5 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={settings.topics.includes(topic)}
-                    onChange={() => handleTopicToggle(topic)}
-                    className="w-4 h-4 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
-                  />
-                  <span className="text-sm text-slate-gray">{topic}</span>
-                </label>
-              ))}
+            <div className="space-y-2">
+              {ALL_TOPICS.map((topic) => {
+                const topicStandards = getStandardsForTopic(topic);
+                const selectedCount = topicStandards.filter((item) =>
+                  settings.standards.includes(item.id)
+                ).length;
+                const isExpanded = expandedTopics.includes(topic);
+                const hasStandards = topicStandards.length > 0;
+
+                return (
+                  <div
+                    key={topic}
+                    className="rounded-lg border border-slate-200 overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between gap-2 p-2">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={settings.topics.includes(topic)}
+                          onChange={() => handleTopicToggle(topic)}
+                          className="w-4 h-4 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
+                        />
+                        <span className="text-sm text-slate-gray truncate">{topic}</span>
+                        {hasStandards && (
+                          <span className="text-xs text-slate-gray/60">
+                            ({selectedCount}/{topicStandards.length})
+                          </span>
+                        )}
+                      </label>
+
+                      {hasStandards && (
+                        <button
+                          type="button"
+                          onClick={() => toggleTopicExpansion(topic)}
+                          className="inline-flex items-center gap-1 text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
+                        >
+                          {isExpanded ? (
+                            <>
+                              Hide standards
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </>
+                          ) : (
+                            <>
+                              Show standards
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {isExpanded && hasStandards && (
+                      <div className="border-t border-slate-200 bg-slate-50/70 px-3 py-2 space-y-1.5">
+                        {topicStandards.map((standard) => (
+                          <label
+                            key={`${topic}-${standard.id}`}
+                            className="flex items-start gap-2 p-1.5 rounded hover:bg-white cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={settings.standards.includes(standard.id)}
+                              onChange={() =>
+                                handleTopicStandardToggle(topic, standard.id)
+                              }
+                              className="w-4 h-4 mt-0.5 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
+                            />
+                            <span className="text-sm text-slate-gray">
+                              <span className="font-medium">{standard.id}</span> -{" "}
+                              {standard.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -391,75 +479,6 @@ export default function MassProductionPage() {
             </div>
           </div>
 
-          {/* Standard Selection */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-slate-gray">
-                Standards
-              </label>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      standards: prev.standards.length === ALL_STANDARDS.length
-                        ? []
-                        : ALL_STANDARDS.map((item) => item.id),
-                    }))
-                  }
-                  className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
-                >
-                  {settings.standards.length === ALL_STANDARDS.length
-                    ? "Deselect All"
-                    : "Select All"}
-                </button>
-                <button
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      standards: getRecommendedStandardIds(),
-                    }))
-                  }
-                  className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
-                >
-                  Use Recommended by Topic
-                </button>
-              </div>
-            </div>
-            <p className="text-xs text-slate-gray/60 mb-2">
-              Each generated question will be assigned exactly one selected standard.
-            </p>
-            <div className="space-y-3">
-              {(["A", "B"] as const).map((moduleCode) => {
-                const standards = ALL_STANDARDS.filter((item) => item.module === moduleCode);
-                return (
-                  <div key={moduleCode} className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-semibold text-slate-gray/70 mb-2">
-                      Module {moduleCode}
-                    </p>
-                    <div className="space-y-2">
-                      {standards.map((standard: StandardInfo) => (
-                        <label
-                          key={standard.id}
-                          className="flex items-start gap-2 p-2 rounded hover:bg-slate-gray/5 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={settings.standards.includes(standard.id)}
-                            onChange={() => handleStandardToggle(standard.id)}
-                            className="w-4 h-4 mt-0.5 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
-                          />
-                          <span className="text-sm text-slate-gray">
-                            <span className="font-medium">{standard.id}</span> - {standard.label}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </section>
 
         {/* Diagram Settings */}

@@ -276,6 +276,11 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
               Created: {new Date(questionSet.createdAt).toLocaleString()}
             </p>
           )}
+          {questionSet.generationModelLabel && (
+            <p className="text-xs text-slate-gray/50">
+              Generated with: {questionSet.generationModelLabel}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

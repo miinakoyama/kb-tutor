@@ -14,7 +14,10 @@ const FALLBACK_TIPS = [
 ];
 
 export default function Home() {
-  const notifications = getNotificationsForRecipient("student", DEFAULT_STUDENT_ID).slice(0, 3);
+  const notifications = getNotificationsForRecipient(
+    "student",
+    DEFAULT_STUDENT_ID,
+  ).slice(0, 3);
   const assignments = getAssignmentsForStudent(DEFAULT_STUDENT_ID);
 
   return (
@@ -32,7 +35,9 @@ export default function Home() {
         <div className="flex items-start gap-3">
           <Bell className="w-5 h-5 text-[#16a34a] mt-0.5" />
           <div className="w-full">
-            <h2 className="text-lg font-semibold text-slate-gray mb-3">Latest Notifications</h2>
+            <h2 className="text-lg font-semibold text-slate-gray mb-3">
+              Latest Notifications
+            </h2>
             {notifications.length > 0 ? (
               <ul className="space-y-2">
                 {notifications.map((item) => (
@@ -81,7 +86,8 @@ export default function Home() {
             <span className="font-semibold">Self Practice</span>
           </div>
           <p className="text-sm text-slate-gray/75">
-            Choose topics, mode, and time. Exam mode is available inside Self Practice.
+            Choose topics, mode, and time. Exam mode is available inside Self
+            Practice.
           </p>
         </Link>
       </section>
