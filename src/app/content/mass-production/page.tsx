@@ -438,10 +438,6 @@ export default function MassProductionPage() {
                   setSettings((prev) => ({
                     ...prev,
                     questionCount: nextCount,
-                    standardCounts: distributeStandardCounts(
-                      prev.standards,
-                      nextCount
-                    ),
                   }));
                 }
               }}
@@ -450,7 +446,6 @@ export default function MassProductionPage() {
                   setSettings((prev) => ({
                     ...prev,
                     questionCount: 1,
-                    standardCounts: distributeStandardCounts(prev.standards, 1),
                   }));
                 }
               }}
