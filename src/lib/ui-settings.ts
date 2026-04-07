@@ -18,7 +18,9 @@ export function setStoredBoolean(key: string, value: boolean): void {
 
 export function getStoredNumber(key: string, fallback: number): number {
   if (typeof window === "undefined") return fallback;
-  const parsed = Number(window.localStorage.getItem(key));
+  const raw = window.localStorage.getItem(key);
+  if (raw === null || raw === "") return fallback;
+  const parsed = Number(raw);
   if (!Number.isFinite(parsed)) return fallback;
   return parsed;
 }

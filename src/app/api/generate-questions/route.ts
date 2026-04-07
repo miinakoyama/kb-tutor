@@ -74,6 +74,9 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
   if (!s.standards.every((standardId) => typeof standardId === "string")) {
     return false;
   }
+  if (!s.standards.every((standardId) => getStandardById(standardId) !== undefined)) {
+    return false;
+  }
   
   if (!Array.isArray(s.dokLevels) || s.dokLevels.length === 0) {
     return false;
@@ -171,7 +174,7 @@ function validateQuestion(
     topic: topicFromStandard,
     standardId: selectedStandard?.id,
     standardLabel:
-      (question.standardLabel as string) ||
+      (typeof question.standardLabel === "string" ? question.standardLabel : undefined) ||
       selectedStandard?.label,
     text: question.text as string,
     imageUrl: null,

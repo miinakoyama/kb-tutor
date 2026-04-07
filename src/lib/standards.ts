@@ -187,6 +187,19 @@ const STANDARD_MAP = new Map(
   STANDARD_DEFINITIONS.map((item) => [item.id, item]),
 );
 
+// Legacy module-topic names used in the static question bank (questions.json)
+// that don't match any standard category string.
+const LEGACY_TOPIC_STANDARD_ID: Record<string, string> = {
+  "Basic Biological Principles": "3.1.9-12.A",
+  "Chemical Basis for Life": "3.1.9-12.F",
+  "Bioenergetics": "3.1.9-12.E",
+  "Homeostasis and Transport": "3.1.9-12.C",
+  "Cell Growth and Reproduction": "3.1.9-12.D",
+  "Genetics": "3.1.9-12.P",
+  "Theory of Evolution": "3.1.9-12.S",
+  "Ecology": "3.1.9-12.L",
+};
+
 const MODULE_CATEGORY_TOPIC_PATTERN =
   /^\s*(?:\[?\s*Module\s+([AB])\s*\]?\s*[-:]\s*)?(.+?)\s*$/i;
 
@@ -227,8 +240,12 @@ export function getStandardsForTopic(topic: string): StandardInfo[] {
 export function getDefaultStandardForTopic(topic: string): StandardInfo {
   const mapped = getStandardsForTopic(topic);
   if (mapped.length > 0) return mapped[0];
-  const fallback = STANDARD_DEFINITIONS[0];
-  return fallback;
+  const legacyId = LEGACY_TOPIC_STANDARD_ID[topic];
+  if (legacyId) {
+    const legacy = STANDARD_MAP.get(legacyId);
+    if (legacy) return legacy;
+  }
+  return STANDARD_DEFINITIONS[0];
 }
 
 export function getStandardForTopic(topic: string): StandardInfo {
