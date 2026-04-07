@@ -127,14 +127,17 @@ export function OptionButton({
               setShowTooltip(!showTooltip);
             }}
             onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={() => setShowTooltip(false)}
+            onMouseLeave={(e) => {
+              // Only close on mouse leave for pointer devices; touch has no hover state
+              if (window.matchMedia("(hover: hover)").matches) setShowTooltip(false);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.stopPropagation();
                 setShowTooltip(!showTooltip);
               }
             }}
-            className="flex-shrink-0 p-1 rounded-full text-slate-gray/40 hover:text-slate-gray/70 hover:bg-slate-gray/10 transition-colors cursor-pointer"
+            className="flex-shrink-0 p-2.5 rounded-full text-slate-gray/40 hover:text-slate-gray/70 hover:bg-slate-gray/10 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="Why this option is incorrect"
           >
             <Info className="w-4 h-4" />
@@ -145,7 +148,7 @@ export function OptionButton({
       {shouldShowIcon && showTooltip && (
         <div
           ref={tooltipRef}
-          className="absolute right-0 top-full mt-1 z-20 w-64 p-3 rounded-xl border border-slate-gray/20 bg-white shadow-lg"
+          className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-xl border border-slate-gray/20 bg-white shadow-lg"
         >
           <p className="text-xs font-semibold text-slate-gray/60 mb-1">
             Why this is incorrect

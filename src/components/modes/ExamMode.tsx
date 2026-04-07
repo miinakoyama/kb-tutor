@@ -415,7 +415,7 @@ export function ExamMode({
           />
           <button
             onClick={handleSubmit}
-            className="px-4 py-2 text-sm font-semibold rounded-2xl border border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/10 transition-colors"
+            className="px-4 py-2 min-h-[44px] text-sm font-semibold rounded-2xl border border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/10 transition-colors"
           >
             Submit
           </button>
@@ -505,7 +505,7 @@ export function ExamMode({
             onMouseEnter={() => setIsNavigatorHovered(true)}
             onMouseLeave={() => setIsNavigatorHovered(false)}
             onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex flex-col items-center justify-center gap-1 w-8 h-20 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex flex-col items-center justify-center gap-1 w-11 h-20 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
             aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
           >
             <ChevronLeft className={`w-4 h-4 transition-transform ${isNavigatorOpen ? "translate-x-0.5" : ""}`} />
@@ -518,7 +518,7 @@ export function ExamMode({
         ) : (
           <button
             onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 px-2 py-2 text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 px-3 py-3 min-h-[44px] text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
             aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
           >
             {isNavigatorOpen ? (
@@ -580,7 +580,7 @@ export function ExamMode({
           <button
             onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
             disabled={currentIndex === 0}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
             Previous
@@ -588,7 +588,7 @@ export function ExamMode({
 
           <button
             onClick={toggleFlag}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-[13px] font-medium transition-colors ${
               answers[currentIndex]?.flagged
                 ? "text-amber-600 bg-amber-50 border border-amber-200"
                 : "text-slate-gray/50 hover:text-slate-gray/70 border border-slate-gray/15 hover:border-slate-gray/30"
@@ -606,7 +606,7 @@ export function ExamMode({
               setCurrentIndex((i) => i + 1)
             }
             disabled={currentIndex === totalQuestions - 1}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
             Next
             <ChevronRight className="w-3.5 h-3.5" />

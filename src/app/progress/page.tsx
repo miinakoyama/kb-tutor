@@ -55,7 +55,7 @@ export default function ProgressPage() {
           <p className="text-sm text-slate-gray/80 mb-4">
             Your mastery level by topic. (Demo data — will sync with LTI)
           </p>
-          <div className="h-[400px] min-h-[300px] w-full min-w-0">
+          <div className="h-[280px] sm:h-[360px] md:h-[400px] min-h-[200px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={MOCK_MASTERY}>
                 <PolarGrid stroke="#2d6a4f" strokeOpacity={0.3} />

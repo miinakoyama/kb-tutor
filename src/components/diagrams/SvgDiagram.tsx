@@ -130,7 +130,7 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
           <img
             src={safeSvgDataUrl}
             alt={data.title || "Biology diagram"}
-            className="w-[50%] max-w-[460px] min-w-[220px] h-auto block"
+            className="w-full sm:w-[50%] max-w-[460px] min-w-[140px] sm:min-w-[220px] h-auto block"
           />
         ) : (
           <div className="text-sm text-red-600">Unable to render diagram safely.</div>

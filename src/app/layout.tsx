@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
@@ -14,6 +14,12 @@ const outfit = Outfit({
   variable: "--font-outfit",
   display: "swap",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   title: "CTAG KB Tutor | Keystone Biology Exam",
@@ -34,7 +40,7 @@ export default function RootLayout({
     >
       <body suppressHydrationWarning className="antialiased font-sans min-h-screen bg-sand-beige">
         <Sidebar />
-        <div className="min-h-screen pt-16 pl-14 lg:pt-0 lg:pl-64">
+        <div className="min-h-screen pt-16 lg:pt-0 lg:pl-64">
           {children}
         </div>
 

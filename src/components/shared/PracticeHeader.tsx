@@ -69,7 +69,7 @@ export function PracticeHeader({
             {topicName}
           </h1>
         )}
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="text-[#16a34a] font-medium">{modeLabel}</span>
           {showProgress && (
             <>
@@ -80,7 +80,7 @@ export function PracticeHeader({
                   : `Question ${currentQuestion} of ${totalQuestions}`}
               </span>
               {inlineProgress && (
-                <span className="ml-2 inline-flex items-center flex-1 min-w-[180px]">
+                <span className="ml-1 inline-flex items-center min-w-0 w-24 sm:w-36">
                   <span className="h-1.5 w-full bg-slate-gray/10 rounded-full overflow-hidden">
                     <motion.span
                       className="block h-full rounded-full bg-[#16a34a]"
