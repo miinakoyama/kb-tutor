@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { Question } from "@/types/question";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { LatexText } from "@/components/shared/LatexText";
 
 interface QuestionPreviewCardProps {
   question: Question;
@@ -84,7 +85,7 @@ export function QuestionPreviewCard({
             </div>
 
             <p className="text-sm text-slate-gray line-clamp-2">
-              {question.text}
+              <LatexText text={question.text} />
             </p>
 
             <button
@@ -178,11 +179,11 @@ export function QuestionPreviewCard({
                     </span>
                     <div className="flex-1">
                       <p className={isCorrect ? "font-medium" : ""}>
-                        {option.text}
+                        <LatexText text={option.text} />
                       </p>
                       {option.feedback && (
                         <p className="text-xs text-slate-gray/60 mt-1">
-                          {option.feedback}
+                          <LatexText text={option.feedback} />
                         </p>
                       )}
                     </div>
@@ -198,14 +199,18 @@ export function QuestionPreviewCard({
           {question.keyKnowledge && (
             <div className="mt-4 p-3 bg-[#16a34a]/5 rounded-lg border border-[#16a34a]/20">
               <p className="text-xs font-semibold text-[#16a34a] mb-1">Key Knowledge</p>
-              <p className="text-sm text-slate-gray">{question.keyKnowledge}</p>
+              <p className="text-sm text-slate-gray">
+                <LatexText text={question.keyKnowledge} />
+              </p>
             </div>
           )}
 
           {question.focusHint && (
             <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
               <p className="text-xs font-semibold text-blue-700 mb-1">Focus Hint</p>
-              <p className="text-sm text-blue-800">{question.focusHint}</p>
+              <p className="text-sm text-blue-800">
+                <LatexText text={question.focusHint} />
+              </p>
             </div>
           )}
         </div>

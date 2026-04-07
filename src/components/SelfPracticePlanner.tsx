@@ -3,8 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Clock3, Play, Check } from "lucide-react";
-import { MODULES } from "@/types/question";
 import type { PracticeMode } from "@/types/question";
+import {
+  getStandardsForModule,
+  MODULE_TITLES,
+  type ModuleCode,
+} from "@/lib/standards";
 
 const MODE_CHOICES: Array<{
   mode: PracticeMode;
@@ -30,6 +34,26 @@ const MODE_CHOICES: Array<{
 
 const TIME_PRESETS = [15, 30, 60];
 
+interface CategorySelection {
+  key: string;
+  label: string;
+  module: ModuleCode;
+  category: string;
+}
+
+const MODULE_ORDER: ModuleCode[] = ["A", "B"];
+const CATEGORY_SELECTIONS: CategorySelection[] = MODULE_ORDER.flatMap((module) => {
+  const categories = Array.from(
+    new Set(getStandardsForModule(module).map((standard) => standard.category))
+  );
+  return categories.map((category) => ({
+    key: `Module ${module} - ${category}`,
+    label: `Module ${module} - ${category}`,
+    module,
+    category,
+  }));
+});
+
 function estimateQuestionCount(mode: PracticeMode, minutes: number): number {
   const pace =
     mode === "exam" ? 1.5 : mode === "review" ? 2.2 : 1.8;
@@ -43,7 +67,11 @@ export function SelfPracticePlanner() {
   const [customMinutes, setCustomMinutes] = useState<string>("");
   const [isCustomTime, setIsCustomTime] = useState(false);
 
-  const allTopics = useMemo(() => MODULES.flatMap((module) => module.topics), []);
+  const allTopics = useMemo(
+    () => CATEGORY_SELECTIONS.map((selection) => selection.key),
+    []
+  );
+  const isAllSelected = allTopics.length > 0 && selectedTopics.length === allTopics.length;
   const minutes = isCustomTime
     ? Math.max(5, Number.parseInt(customMinutes || "0", 10) || 0)
     : selectedMinutes;
@@ -69,25 +97,38 @@ export function SelfPracticePlanner() {
       <section className="rounded-2xl border border-[#16a34a]/30 bg-white p-5 sm:p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-[#14532d] mb-2">Choose Topics</h2>
         <p className="text-sm text-slate-gray/70 mb-4">
-          Select one or more topics. This replaces the old separate Mock Exam entry.
+          Select one or more module/category areas for practice.
         </p>
-        <button
-          onClick={() => setSelectedTopics(allTopics)}
-          className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
-        >
-          Select all topics
-        </button>
+        <div className="flex items-center justify-between gap-4">
+          <button
+            onClick={() =>
+              setSelectedTopics((prev) =>
+                prev.length === allTopics.length ? [] : allTopics
+              )
+            }
+            className="inline-flex items-center rounded-lg border border-[#16a34a]/30 bg-[#16a34a]/10 px-3 py-1.5 text-xs font-semibold text-[#14532d] transition-colors hover:bg-[#16a34a]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50"
+          >
+            {isAllSelected ? "Deselect all areas" : "Select all areas"}
+          </button>
+          <span className="text-xs text-slate-gray/70">
+            {selectedTopics.length}/{allTopics.length} selected
+          </span>
+        </div>
         <div className="space-y-4 mt-3">
-          {MODULES.map((module) => (
-            <div key={module.id}>
-              <h3 className="text-sm font-semibold text-slate-gray mb-2">Module {module.id}</h3>
+          {MODULE_ORDER.map((module) => (
+            <div key={module}>
+              <h3 className="text-sm font-semibold text-slate-gray mb-2">
+                Module {module}: {MODULE_TITLES[module]}
+              </h3>
               <div className="grid gap-2 sm:grid-cols-2">
-                {module.topics.map((topic) => {
-                  const active = selectedTopics.includes(topic);
+                {CATEGORY_SELECTIONS.filter(
+                  (selection) => selection.module === module
+                ).map((selection) => {
+                  const active = selectedTopics.includes(selection.key);
                   return (
                     <button
-                      key={topic}
-                      onClick={() => toggleTopic(topic)}
+                      key={selection.key}
+                      onClick={() => toggleTopic(selection.key)}
                       className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
                         active
                           ? "border-[#16a34a] bg-[#16a34a]/10 text-[#14532d]"
@@ -96,7 +137,7 @@ export function SelfPracticePlanner() {
                     >
                       <span className="inline-flex items-center gap-2">
                         {active && <Check className="w-4 h-4 text-[#16a34a]" />}
-                        {topic}
+                        {selection.category}
                       </span>
                     </button>
                   );
@@ -176,10 +217,7 @@ export function SelfPracticePlanner() {
         </div>
       </section>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-gray/70">
-          Selected topics: {selectedTopics.length}
-        </p>
+      <div className="flex items-center justify-end">
         {startHref ? (
           <Link
             href={startHref}

@@ -11,15 +11,41 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import { MODULES } from "@/types/question";
 import type { DOKLevel } from "@/types/question";
 import {
   getAllStandards,
-  getStandardsForTopic,
+  getStandardsByFilter,
+  getStandardsForModule,
+  MODULE_TITLES,
+  type ModuleCode,
 } from "@/lib/standards";
 
-const ALL_TOPICS = MODULES.flatMap((m) => m.topics) as string[];
 const ALL_STANDARDS = getAllStandards();
+const ALL_STANDARD_IDS = new Set(ALL_STANDARDS.map((item) => item.id));
+const MODULE_ORDER: ModuleCode[] = ["A", "B"];
+
+interface TopicSelection {
+  key: string;
+  label: string;
+  module: ModuleCode;
+  category: string;
+}
+
+const TOPIC_SELECTIONS: TopicSelection[] = MODULE_ORDER.flatMap((module) => {
+  const categories = Array.from(
+    new Set(getStandardsForModule(module).map((standard) => standard.category))
+  );
+  return categories.map((category) => ({
+    key: `Module ${module} - ${category}`,
+    label: `Module ${module} - ${category}`,
+    module,
+    category,
+  }));
+});
+
+const TOPIC_SELECTION_BY_KEY = new Map(
+  TOPIC_SELECTIONS.map((selection) => [selection.key, selection])
+);
 
 interface DiagramConfig {
   chart: number;
@@ -33,17 +59,38 @@ interface GenerationSettings {
   questionCount: number;
   topics: string[];
   standards: string[];
+  standardCounts: Record<string, number>;
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
   diagramConfig: DiagramConfig;
   customPrompt: string;
 }
 
+function distributeStandardCounts(
+  standardIds: string[],
+  questionCount: number
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  if (standardIds.length === 0 || questionCount <= 0) return counts;
+
+  const base = Math.floor(questionCount / standardIds.length);
+  let remainder = questionCount % standardIds.length;
+  for (const standardId of standardIds) {
+    counts[standardId] = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+  }
+  return counts;
+}
+
 const DEFAULT_SETTINGS: GenerationSettings = {
   questionSetName: "",
   questionCount: 5,
-  topics: [...ALL_TOPICS],
+  topics: TOPIC_SELECTIONS.map((selection) => selection.key),
   standards: ALL_STANDARDS.map((item) => item.id),
+  standardCounts: distributeStandardCounts(
+    ALL_STANDARDS.map((item) => item.id),
+    5
+  ),
   dokLevels: [1, 2, 3],
   includeDiagrams: false,
   diagramConfig: {
@@ -71,7 +118,54 @@ export default function MassProductionPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+        const merged: GenerationSettings = { ...DEFAULT_SETTINGS, ...parsed };
+
+        const normalizedTopics = Array.isArray(merged.topics)
+          ? merged.topics.filter((topic): topic is string =>
+              TOPIC_SELECTION_BY_KEY.has(topic)
+            )
+          : [];
+
+        const normalizedStandards = Array.isArray(merged.standards)
+          ? merged.standards.filter(
+              (standardId): standardId is string =>
+                ALL_STANDARD_IDS.has(standardId)
+            )
+          : [];
+        const selectedStandards =
+          normalizedStandards.length > 0
+            ? normalizedStandards
+            : DEFAULT_SETTINGS.standards;
+        const rawCounts =
+          merged.standardCounts && typeof merged.standardCounts === "object"
+            ? (merged.standardCounts as Record<string, unknown>)
+            : {};
+        const normalizedStandardCounts: Record<string, number> = {};
+        for (const standardId of selectedStandards) {
+          const value = rawCounts[standardId];
+          normalizedStandardCounts[standardId] =
+            typeof value === "number" && Number.isInteger(value) && value >= 0
+              ? value
+              : 0;
+        }
+        const assignedTotal = Object.values(normalizedStandardCounts).reduce(
+          (sum, count) => sum + count,
+          0
+        );
+        const resolvedStandardCounts =
+          assignedTotal === merged.questionCount
+            ? normalizedStandardCounts
+            : distributeStandardCounts(selectedStandards, merged.questionCount);
+
+        setSettings({
+          ...merged,
+          topics:
+            normalizedTopics.length > 0
+              ? normalizedTopics
+              : DEFAULT_SETTINGS.topics,
+          standards: selectedStandards,
+          standardCounts: resolvedStandardCounts,
+        });
       } catch {
         // ignore
       }
@@ -98,31 +192,43 @@ export default function MassProductionPage() {
     settings.diagramConfig.table +
     settings.diagramConfig.flowchart +
     settings.diagramConfig.diagram;
+  const totalAssignedStandardCount = ALL_STANDARDS.reduce(
+    (sum, standard) => sum + (settings.standardCounts[standard.id] ?? 0),
+    0
+  );
+  const isStandardCountValid =
+    totalAssignedStandardCount === settings.questionCount;
+  const activeStandardIds = ALL_STANDARDS
+    .map((standard) => standard.id)
+    .filter((standardId) => (settings.standardCounts[standardId] ?? 0) > 0);
 
   const textOnlyCount = Math.max(0, settings.questionCount - totalDiagramCount);
 
-  const handleTopicToggle = (topic: string) => {
-    const topicStandardIds = getStandardsForTopic(topic).map((standard) => standard.id);
+  const getStandardsForSelection = (selectionKey: string) => {
+    const selection = TOPIC_SELECTION_BY_KEY.get(selectionKey);
+    if (!selection) return [];
+    return getStandardsByFilter({
+      module: selection.module,
+      category: selection.category,
+    });
+  };
 
+  const handleAutoDistributeCounts = () => {
     setSettings((prev) => ({
       ...prev,
-      topics: prev.topics.includes(topic)
-        ? prev.topics.filter((t) => t !== topic)
-        : [...prev.topics, topic],
-      standards: prev.topics.includes(topic)
-        ? prev.standards.filter((id) => !topicStandardIds.includes(id))
-        : Array.from(new Set([...prev.standards, ...topicStandardIds])),
+      standardCounts: distributeStandardCounts(
+        ALL_STANDARDS.map((item) => item.id),
+        prev.questionCount
+      ),
     }));
   };
 
-  const handleSelectAllTopics = () => {
+  const handleClearAllCounts = () => {
     setSettings((prev) => ({
       ...prev,
-      topics: prev.topics.length === ALL_TOPICS.length ? [] : [...ALL_TOPICS],
-      standards:
-        prev.topics.length === ALL_TOPICS.length
-          ? []
-          : ALL_STANDARDS.map((item) => item.id),
+      standardCounts: Object.fromEntries(
+        ALL_STANDARDS.map((item) => [item.id, 0])
+      ),
     }));
   };
 
@@ -135,38 +241,24 @@ export default function MassProductionPage() {
     }));
   };
 
-  const toggleTopicExpansion = (topic: string) => {
+  const toggleTopicExpansion = (selectionKey: string) => {
     setExpandedTopics((prev) =>
-      prev.includes(topic)
-        ? prev.filter((item) => item !== topic)
-        : [...prev, topic]
+      prev.includes(selectionKey)
+        ? prev.filter((item) => item !== selectionKey)
+        : [...prev, selectionKey]
     );
   };
 
-  const handleTopicStandardToggle = (topic: string, standardId: string) => {
-    const topicStandardIds = getStandardsForTopic(topic).map((standard) => standard.id);
-
-    setSettings((prev) => {
-      const standards = prev.standards.includes(standardId)
-        ? prev.standards.filter((id) => id !== standardId)
-        : [...prev.standards, standardId];
-
-      const topicHasSelectedStandards = topicStandardIds.some((id) =>
-        standards.includes(id)
-      );
-
-      const topics = topicHasSelectedStandards
-        ? prev.topics.includes(topic)
-          ? prev.topics
-          : [...prev.topics, topic]
-        : prev.topics.filter((item) => item !== topic);
-
-      return {
-        ...prev,
-        topics,
-        standards,
-      };
-    });
+  const handleStandardCountChange = (standardId: string, rawValue: string) => {
+    const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
+    if (isNaN(value)) return;
+    setSettings((prev) => ({
+      ...prev,
+      standardCounts: {
+        ...prev.standardCounts,
+        [standardId]: Math.max(0, Math.min(value, prev.questionCount)),
+      },
+    }));
   };
 
   const handleDiagramCountChange = (type: keyof DiagramConfig, rawValue: string) => {
@@ -193,16 +285,18 @@ export default function MassProductionPage() {
       setError("Please enter a question set name.");
       return;
     }
-    if (settings.topics.length === 0) {
-      setError("Please select at least one topic.");
-      return;
-    }
     if (settings.dokLevels.length === 0) {
       setError("Please select at least one DOK level.");
       return;
     }
-    if (settings.standards.length === 0) {
-      setError("Please select at least one standard.");
+    if (activeStandardIds.length === 0) {
+      setError("Please set count > 0 for at least one standard.");
+      return;
+    }
+    if (totalAssignedStandardCount !== settings.questionCount) {
+      setError(
+        `Standard counts must sum to ${settings.questionCount}. Current total: ${totalAssignedStandardCount}.`
+      );
       return;
     }
     if (totalDiagramCount > settings.questionCount) {
@@ -216,7 +310,19 @@ export default function MassProductionPage() {
     try {
       const payload = {
         ...settings,
+        topics: TOPIC_SELECTIONS.filter((selection) =>
+          getStandardsForSelection(selection.key).some(
+            (standard) => (settings.standardCounts[standard.id] ?? 0) > 0
+          )
+        ).map((selection) => selection.key),
+        standards: activeStandardIds,
         questionSetName: trimmedSetName,
+        standardCounts: Object.fromEntries(
+          activeStandardIds.map((standardId) => [
+            standardId,
+            settings.standardCounts[standardId] ?? 0,
+          ])
+        ),
       };
 
       const response = await fetch("/api/generate-questions", {
@@ -328,15 +434,19 @@ export default function MassProductionPage() {
                 }
                 const value = parseInt(rawValue, 10);
                 if (!isNaN(value)) {
+                  const nextCount = Math.max(0, Math.min(20, value));
                   setSettings((prev) => ({
                     ...prev,
-                    questionCount: Math.max(0, Math.min(20, value)),
+                    questionCount: nextCount,
                   }));
                 }
               }}
               onBlur={() => {
                 if (settings.questionCount < 1) {
-                  setSettings((prev) => ({ ...prev, questionCount: 1 }));
+                  setSettings((prev) => ({
+                    ...prev,
+                    questionCount: 1,
+                  }));
                 }
               }}
               placeholder="5"
@@ -349,94 +459,117 @@ export default function MassProductionPage() {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-slate-gray">
-                Topics & Standards
+                Topics & Standards (count-driven)
               </label>
-              <button
-                onClick={handleSelectAllTopics}
-                className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
-              >
-                {settings.topics.length === ALL_TOPICS.length
-                  ? "Deselect All"
-                  : "Select All"}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleAutoDistributeCounts}
+                  className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
+                >
+                  Auto distribute
+                </button>
+                <button
+                  onClick={handleClearAllCounts}
+                  className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
+                >
+                  Clear all counts
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
-              {ALL_TOPICS.map((topic) => {
-                const topicStandards = getStandardsForTopic(topic);
+              {TOPIC_SELECTIONS.map((selection) => {
+                const topicStandards = getStandardsForSelection(selection.key);
                 const selectedCount = topicStandards.filter((item) =>
-                  settings.standards.includes(item.id)
+                  (settings.standardCounts[item.id] ?? 0) > 0
                 ).length;
-                const isExpanded = expandedTopics.includes(topic);
+                const isExpanded = expandedTopics.includes(selection.key);
                 const hasStandards = topicStandards.length > 0;
 
                 return (
                   <div
-                    key={topic}
+                    key={selection.key}
                     className="rounded-lg border border-slate-200 overflow-hidden"
                   >
                     <div className="flex items-center justify-between gap-2 p-2">
-                      <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={settings.topics.includes(topic)}
-                          onChange={() => handleTopicToggle(topic)}
-                          className="w-4 h-4 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
-                        />
-                        <span className="text-sm text-slate-gray truncate">{topic}</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {hasStandards && (
+                          <button
+                            type="button"
+                            onClick={() => toggleTopicExpansion(selection.key)}
+                            className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-slate-100 text-slate-gray/70 hover:text-slate-gray"
+                            aria-label={
+                              isExpanded ? "Hide standards" : "Show standards"
+                            }
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                        <span className="text-sm text-slate-gray truncate">
+                          {selection.label}
+                        </span>
                         {hasStandards && (
                           <span className="text-xs text-slate-gray/60">
                             ({selectedCount}/{topicStandards.length})
                           </span>
                         )}
-                      </label>
-
-                      {hasStandards && (
-                        <button
-                          type="button"
-                          onClick={() => toggleTopicExpansion(topic)}
-                          className="inline-flex items-center gap-1 text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
-                        >
-                          {isExpanded ? (
-                            <>
-                              Hide standards
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            </>
-                          ) : (
-                            <>
-                              Show standards
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </>
-                          )}
-                        </button>
-                      )}
+                      </div>
                     </div>
 
                     {isExpanded && hasStandards && (
                       <div className="border-t border-slate-200 bg-slate-50/70 px-3 py-2 space-y-1.5">
                         {topicStandards.map((standard) => (
-                          <label
-                            key={`${topic}-${standard.id}`}
-                            className="flex items-start gap-2 p-1.5 rounded hover:bg-white cursor-pointer"
+                          <div
+                            key={`${selection.key}-${standard.id}`}
+                            className="flex items-start gap-3 p-1.5 rounded hover:bg-white"
                           >
-                            <input
-                              type="checkbox"
-                              checked={settings.standards.includes(standard.id)}
-                              onChange={() =>
-                                handleTopicStandardToggle(topic, standard.id)
-                              }
-                              className="w-4 h-4 mt-0.5 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
-                            />
-                            <span className="text-sm text-slate-gray">
+                            <div className="flex-1 min-w-0 text-sm text-slate-gray">
                               <span className="font-medium">{standard.id}</span> -{" "}
                               {standard.label}
-                            </span>
-                          </label>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-xs text-slate-gray/60">Count</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={settings.standardCounts[standard.id] ?? 0}
+                                onChange={(event) =>
+                                  handleStandardCountChange(
+                                    standard.id,
+                                    event.target.value
+                                  )
+                                }
+                                className="w-14 px-2 py-1 border border-slate-gray/20 rounded-md text-center text-xs"
+                              />
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}
                   </div>
                 );
               })}
+            </div>
+            <div
+              className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+                isStandardCountValid
+                  ? "border-[#16a34a]/30 bg-[#16a34a]/10 text-[#14532d]"
+                  : "border-red-300 bg-red-50 text-red-700"
+              }`}
+            >
+              <span className="font-medium">
+                Total standard counts: {totalAssignedStandardCount} /{" "}
+                {settings.questionCount} questions
+              </span>
+              {!isStandardCountValid && (
+                <span className="block text-xs mt-1">
+                  Adjust counts so the total matches the number of questions.
+                </span>
+              )}
             </div>
           </div>
 

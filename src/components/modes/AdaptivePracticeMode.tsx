@@ -176,7 +176,9 @@ export function AdaptivePracticeMode({
       setFinalAnswers((prev) => ({ ...prev, [currentIndex]: finalRecord }));
     }
 
-    const standard = getStandardForTopic(question.topic);
+    const resolvedStandard = question.standardId
+      ? { id: question.standardId, label: question.standardLabel }
+      : getStandardForTopic(question.topic);
     const student = getStudentById(DEFAULT_STUDENT_ID);
     saveAnswer({
       questionId: question.id,
@@ -186,8 +188,8 @@ export function AdaptivePracticeMode({
       mode: "adaptive",
       module: question.module,
       topic: question.topic,
-      standardId: standard.id,
-      standardLabel: standard.label,
+      standardId: resolvedStandard.id,
+      standardLabel: resolvedStandard.label,
       timeSpentSec: elapsedSec,
       assignmentId,
       studentId: student?.id,

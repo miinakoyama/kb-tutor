@@ -11,8 +11,11 @@ import { ReviewMode } from "@/components/modes/ReviewMode";
 import { useQuestions } from "@/hooks/useQuestions";
 import type { PracticeMode as PracticeModeType } from "@/types/question";
 import { MODULES } from "@/types/question";
+import { getStandardById, type ModuleCode } from "@/lib/standards";
 
 const VALID_MODES: PracticeModeType[] = ["guided", "practice", "adaptive", "exam", "review"];
+const MODULE_CATEGORY_TOPIC_PATTERN =
+  /^\s*(?:\[?\s*Module\s+([AB])\s*\]?\s*[-:]\s*)?(.+?)\s*$/i;
 
 interface PracticePageClientProps {
   moduleParam?: string;
@@ -143,9 +146,38 @@ export function PracticePageClient({
     selectedTopics = Array.from(new Set(decodedTopics));
     if (selectedTopics.length > 0) {
       filteredQuestions = filteredQuestions.filter((question) =>
-        selectedTopics.includes(question.topic),
+        selectedTopics.some((selection) => {
+          const match = selection.match(MODULE_CATEGORY_TOPIC_PATTERN);
+          if (!match) {
+            return question.topic === selection;
+          }
+
+          const moduleCode = match[1] as ModuleCode | undefined;
+          const category = match[2]?.trim();
+          if (!category) return false;
+
+          const expectedModuleNumber =
+            moduleCode === "A" ? 1 : moduleCode === "B" ? 2 : undefined;
+
+          if (
+            expectedModuleNumber !== undefined &&
+            question.module !== expectedModuleNumber
+          ) {
+            return false;
+          }
+
+          const standard =
+            typeof question.standardId === "string"
+              ? getStandardById(question.standardId)
+              : undefined;
+
+          return standard?.category === category;
+        }),
       );
-      topicName = selectedTopics.length === 1 ? selectedTopics[0] : `${selectedTopics.length} selected topics`;
+      topicName =
+        selectedTopics.length === 1
+          ? selectedTopics[0]
+          : `${selectedTopics.length} selected areas`;
     }
   }
 

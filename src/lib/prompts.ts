@@ -1,4 +1,5 @@
 import type { DOKLevel, DiagramType } from "@/types/question";
+import { getStandardById } from "@/lib/standards";
 
 interface DiagramConfig {
   chart: number;
@@ -12,10 +13,39 @@ interface GenerationSettings {
   questionCount: number;
   topics: string[];
   standards: string[];
+  standardCounts?: Record<string, number>;
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
   diagramConfig: DiagramConfig;
   customPrompt: string;
+}
+
+function resolveStandardCounts(settings: GenerationSettings): Record<string, number> {
+  const selected = settings.standards;
+  if (selected.length === 0 || settings.questionCount <= 0) return {};
+
+  const rawCounts = settings.standardCounts ?? {};
+  const counts: Record<string, number> = {};
+  let total = 0;
+  for (const standardId of selected) {
+    const value = rawCounts[standardId];
+    const normalized =
+      typeof value === "number" && Number.isInteger(value) && value >= 0
+        ? value
+        : 0;
+    counts[standardId] = normalized;
+    total += normalized;
+  }
+  if (total === settings.questionCount) return counts;
+
+  const base = Math.floor(settings.questionCount / selected.length);
+  let remainder = settings.questionCount % selected.length;
+  const distributed: Record<string, number> = {};
+  for (const standardId of selected) {
+    distributed[standardId] = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+  }
+  return distributed;
 }
 
 const DOK_DESCRIPTIONS: Record<DOKLevel, string> = {
@@ -126,13 +156,6 @@ IMPORTANT: examples below intentionally follow the single-line JSON string rule 
 
 Example A (process model style):
 "svg": "<svg viewBox='0 0 400 300' xmlns='http://www.w3.org/2000/svg'><rect x='10' y='10' width='380' height='280' fill='white' stroke='#000' stroke-width='2'/><text x='200' y='35' text-anchor='middle' font-size='16' font-weight='bold'>Photosynthesis Model</text><circle cx='75' cy='85' r='24' fill='none' stroke='#000' stroke-width='2'/><text x='75' y='90' text-anchor='middle' font-size='12'>Sun</text><rect x='150' y='75' width='95' height='55' fill='none' stroke='#000' stroke-width='2'/><text x='197' y='105' text-anchor='middle' font-size='13'>Plant</text><line x1='102' y1='85' x2='150' y2='85' stroke='#000' stroke-width='2'/><polygon points='150,85 142,81 142,89' fill='#000'/><text x='112' y='75' font-size='12'>light</text><line x1='245' y1='90' x2='310' y2='65' stroke='#000' stroke-width='2'/><polygon points='310,65 301,64 304,72' fill='#000'/><text x='314' y='63' font-size='12'>O2</text></svg>"
-
-Example B (cycle model style):
-"svg": "<svg viewBox='0 0 400 300' xmlns='http://www.w3.org/2000/svg'><rect x='12' y='12' width='376' height='276' fill='none' stroke='#000' stroke-width='2'/><text x='200' y='33' text-anchor='middle' font-size='16' font-weight='bold'>Cycling of Matter</text><rect x='45' y='90' width='105' height='42' fill='none' stroke='#000' stroke-width='2'/><text x='97' y='116' text-anchor='middle' font-size='12'>Producers</text><rect x='250' y='90' width='105' height='42' fill='none' stroke='#000' stroke-width='2'/><text x='302' y='116' text-anchor='middle' font-size='12'>Consumers</text><rect x='145' y='205' width='110' height='40' fill='none' stroke='#000' stroke-width='2'/><text x='200' y='230' text-anchor='middle' font-size='12'>CO2 in air</text><path d='M150 110 C185 70, 215 70, 250 110' fill='none' stroke='#000' stroke-width='2'/><polygon points='250,110 241,107 244,116' fill='#000'/><path d='M302 132 C280 170, 245 188, 220 205' fill='none' stroke='#000' stroke-width='2'/><polygon points='220,205 223,196 229,202' fill='#000'/><path d='M180 205 C145 190, 115 162, 97 132' fill='none' stroke='#000' stroke-width='2'/><polygon points='97,132 105,136 98,142' fill='#000'/></svg>"
-
-Example C (labeled structure style):
-"svg": "<svg viewBox='0 0 400 300' xmlns='http://www.w3.org/2000/svg'><text x='200' y='28' text-anchor='middle' font-size='16' font-weight='bold'>Plant Cell (Simplified)</text><rect x='75' y='55' width='250' height='190' rx='12' fill='none' stroke='#000' stroke-width='2.5'/><rect x='95' y='75' width='210' height='150' rx='10' fill='none' stroke='#000' stroke-width='1.8'/><ellipse cx='250' cy='120' rx='28' ry='18' fill='none' stroke='#000' stroke-width='1.8'/><circle cx='252' cy='120' r='6' fill='none' stroke='#000' stroke-width='1.6'/><ellipse cx='145' cy='115' rx='26' ry='14' fill='none' stroke='#000' stroke-width='1.6'/><ellipse cx='150' cy='170' rx='30' ry='16' fill='none' stroke='#000' stroke-width='1.6'/><rect x='190' y='165' width='70' height='45' rx='6' fill='none' stroke='#000' stroke-width='1.6'/><line x1='325' y1='95' x2='280' y2='110' stroke='#000' stroke-width='1.6'/><text x='330' y='95' font-size='12'>nucleus</text><line x1='325' y1='145' x2='270' y2='170' stroke='#000' stroke-width='1.6'/><text x='330' y='146' font-size='12'>vacuole</text><line x1='70' y1='95' x2='95' y2='95' stroke='#000' stroke-width='1.6'/><text x='18' y='99' font-size='12'>cell wall</text></svg>"
-
 Target visual style:
 - Similar to clean worksheet diagrams (labeled, monochrome, readable)
 - Focus on concept clarity, not artistic detail
@@ -140,8 +163,34 @@ Target visual style:
 };
 
 export function buildGenerationPrompt(settings: GenerationSettings): string {
-  const dokDescriptions = settings.dokLevels
+  const selectedDokLevels = [...settings.dokLevels].sort((a, b) => a - b);
+  const standardCounts = resolveStandardCounts(settings);
+  const dokDescriptions = ([1, 2, 3] as DOKLevel[])
     .map((level) => DOK_DESCRIPTIONS[level])
+    .join("\n");
+  const standardsWithContext = settings.standards
+    .map((standardId) => {
+      const standard = getStandardById(standardId);
+      if (!standard) return `- ${standardId}`;
+      return `- ${standard.id} | targetCount=${standardCounts[standard.id] ?? 0} | Module ${standard.module} | ${standard.category} | ${standard.label}`;
+    })
+    .join("\n");
+  const standardDistributionRule =
+    settings.standards.length > 1
+      ? "Use targetCount for each standard exactly as listed above."
+      : "Use the single selected standard for all questions.";
+  const dokPriorityRules = [
+    selectedDokLevels.includes(2)
+      ? "Prefer DOK 2 for most multiple-choice items."
+      : "",
+    selectedDokLevels.includes(2) && selectedDokLevels.includes(3)
+      ? "If both DOK 2 and DOK 3 are selected, generate mostly DOK 2 and some DOK 3."
+      : "",
+    selectedDokLevels.includes(1)
+      ? "If DOK 1 is selected, keep it contextual and avoid stand-alone vocabulary recall."
+      : "",
+  ]
+    .filter(Boolean)
     .join("\n");
 
   let diagramInstructions = "";
@@ -191,7 +240,7 @@ For questions with diagrams:
   }
 
   const customInstructions = settings.customPrompt
-    ? `\n## Additional Instructions\n${settings.customPrompt}\n`
+    ? `\n## Additional Instructions\nThese may refine content focus, but must NOT override JSON validity, standard alignment, one-best-answer structure, scientific accuracy, diagram counts, or selected DOK constraints.\n${settings.customPrompt}\n`
     : "";
 
   return `You are an expert biology educator creating questions for the Pennsylvania Keystone Biology Exam.
@@ -199,50 +248,35 @@ For questions with diagrams:
 ## Task
 Generate ${settings.questionCount} multiple-choice questions for high school biology students.
 
-## Topics
-Generate questions covering these topics (distribute evenly):
-${settings.topics.map((t) => `- ${t}`).join("\n")}
-
 ## Standards
 Each question must be aligned to exactly one of these standards:
-${settings.standards.map((s) => `- ${s}`).join("\n")}
+${standardsWithContext}
+${standardDistributionRule}
+Each question must assess only one standard.
+Avoid repeating the exact same reasoning pattern across multiple questions.
 
 ## DOK Levels
-Use these Depth of Knowledge levels (distribute evenly):
+Reference definitions:
 ${dokDescriptions}
+Generate questions using ONLY these selected levels: ${selectedDokLevels
+    .map((level) => `DOK ${level}`)
+    .join(", ")}.
+${dokPriorityRules}
 
 ## Question Format
 Each question must follow this exact JSON structure:
 
 {
-  "id": "generated-{topic-slug}-{timestamp}-{index}",
-  "module": 1 or 2,
-  "topic": "Exact topic name from the list above",
+  "topic": "Must exactly equal the category of the selected standard",
   "standardId": "Exact standard code from the Standards list above",
   "standardLabel": "Short standard description (human readable)",
   "text": "The question text",
   "imageUrl": null,
   "options": [
-    {
-      "id": "A",
-      "text": "Option A text",
-      "feedback": "Detailed feedback explaining why this is correct/incorrect"
-    },
-    {
-      "id": "B",
-      "text": "Option B text",
-      "feedback": "Detailed feedback..."
-    },
-    {
-      "id": "C",
-      "text": "Option C text",
-      "feedback": "Detailed feedback..."
-    },
-    {
-      "id": "D",
-      "text": "Option D text",
-      "feedback": "Detailed feedback..."
-    }
+    { "id": "A", "text": "Option text", "feedback": "Why correct/incorrect" },
+    { "id": "B", "text": "Option text", "feedback": "Why correct/incorrect" },
+    { "id": "C", "text": "Option text", "feedback": "Why correct/incorrect" },
+    { "id": "D", "text": "Option text", "feedback": "Why correct/incorrect" }
   ],
   "correctOptionId": "A, B, C, or D",
   "focusHint": "A hint to guide student thinking without giving away the answer",
@@ -280,35 +314,51 @@ Each question must follow this exact JSON structure:
   "diagram": null or { diagram object if applicable }
 }
 
+## Style Example (text-only)
+Use this as a style target for clear stem, plausible distractors, and single-best-answer logic:
+{
+  "text": "A student claims that sugar molecules can be converted directly to proteins because both contain carbon, hydrogen, and oxygen. Which statement best evaluates this claim?",
+  "options": [
+    { "id": "A", "text": "The claim is incorrect because proteins require nitrogen; cells must add other elements to build proteins.", "feedback": "Correct. Sugars do not contain the nitrogen needed for amino acids and proteins." },
+    { "id": "B", "text": "The claim is incorrect because all proteins are enzymes that make sugars.", "feedback": "Incorrect. Not all proteins are enzymes, and this does not address required elements." },
+    { "id": "C", "text": "The claim is correct because proteins form DNA, and DNA uses sugar energy.", "feedback": "Incorrect. This does not show that sugars directly become proteins." },
+    { "id": "D", "text": "The claim is correct because proteins contain only carbon, hydrogen, and oxygen.", "feedback": "Incorrect. Proteins also require nitrogen." }
+  ],
+  "correctOptionId": "A"
+}
+
+## Reasoning-First Design (critical)
+Design each item so students must reason, not just recall a definition:
+1. Use a two-part stem: (a) context/data/claim/model, then (b) an inference/prediction/evaluation question.
+2. Avoid stand-alone definition prompts (e.g., "What is...", "What are...") unless embedded in a scenario.
+3. Require interpretation of a relationship, mechanism, or cause-effect, not term memorization.
+4. Make distractors "near-miss" ideas based on common misconceptions, not obviously wrong facts.
+5. For DOK 1, still use simple context and evidence-based choice; do not generate pure vocabulary recall items.
+
 ## Glossary Terms (inlineTerms and sidebarTerms)
-For each question, identify key biology terms that students might need help with:
-
-1. **inlineTerms**: Terms that appear in the question text or options. These will be highlighted as clickable terms.
-   - Include 2-4 terms that are directly mentioned or referenced in the question
-   - Choose terms that are central to understanding the question
-
-2. **sidebarTerms**: Related terms that provide additional context (shown in a sidebar glossary).
-   - Include 2-4 related concepts that help understand the topic
-   - These should complement the inline terms, not duplicate them
-
-For each term, provide:
-- **id**: Unique identifier (lowercase, hyphenated, e.g., "active-transport")
-- **term**: The display name (e.g., "Active Transport")
-- **definition**: A clear, student-friendly definition (1-2 sentences)
-- **example**: Optional real-world or concrete example
+For each question:
+- **inlineTerms**: 2-4 key terms used directly in the stem/options.
+- **sidebarTerms**: 2-4 related terms that add context (no duplicates of inlineTerms).
+- For each term include: **id** (lowercase-hyphenated), **term**, **definition**, optional **example**.
 ${diagramInstructions}${customInstructions}
 ## Requirements
 1. Questions must be appropriate for Pennsylvania Keystone Biology Exam
 2. All scientific content must be accurate
-3. Feedback for each option must be educational and explain WHY the option is correct or incorrect
-4. Avoid using "all of the above" or "none of the above" options
-5. Each question should test understanding, not just memorization
-6. The rationaleQuestion should test WHY the answer is correct, not just recall
-7. Every question MUST include exactly one valid "standardId" from the Standards section
+3. Every option must include feedback explaining why it is correct or incorrect
+4. Every question MUST include exactly one valid "standardId" from the Standards section
+5. The stem and correct-option reasoning must directly assess the selected standard label (not a generic biology fact).
 
-## Module Assignment
-- Module 1 topics: Basic Biological Principles, Chemical Basis for Life, Bioenergetics, Homeostasis and Transport
-- Module 2 topics: Cell Growth and Reproduction, Genetics, Theory of Evolution, Ecology
+## MCQ Quality Checklist (apply to every question)
+1. Write a clear, focused stem that asks one problem.
+2. Put the core problem in the stem, not in an option.
+3. Make stems substantive (prefer 2+ clauses/sentences with context before the final ask).
+4. Ensure all options are parallel in grammar/style and in the same answer category.
+5. Ensure exactly one best answer; make all distractors plausible.
+6. Keep option length/detail balanced; avoid a noticeably longer "correct" choice.
+7. Avoid logical clues (keyword copying, converging combinations, giveaway phrasing).
+8. Avoid absolute terms (e.g., always, never, all, only) and vague frequency words unless scientifically required.
+9. Avoid negatives (NOT/EXCEPT/incorrect) unless essential for the standard.
+10. Do not use "all of the above" or "none of the above".
 
 ## Output Format
 Return ONLY a valid JSON array of question objects. Do not include any explanation or markdown formatting.

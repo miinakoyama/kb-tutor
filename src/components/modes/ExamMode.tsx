@@ -160,7 +160,9 @@ export function ExamMode({
         : 0;
     const batch = sessionQuestions.map((q, i) => {
       const a = answers[i];
-      const standard = getStandardForTopic(q.topic);
+      const resolvedStandard = q.standardId
+        ? { id: q.standardId, label: q.standardLabel }
+        : getStandardForTopic(q.topic);
       return {
         questionId: q.id,
         selectedOptionId: a?.selectedOptionId ?? "",
@@ -169,8 +171,8 @@ export function ExamMode({
         mode: "exam" as const,
         module: q.module,
         topic: q.topic,
-        standardId: standard.id,
-        standardLabel: standard.label,
+        standardId: resolvedStandard.id,
+        standardLabel: resolvedStandard.label,
         timeSpentSec: timePerQuestion,
         studentId: student?.id,
         classId: student?.classId,

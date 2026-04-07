@@ -59,7 +59,9 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
         ...prev,
         [currentIndex]: { selectedOptionId: optionId, isCorrect },
       }));
-      const standard = getStandardForTopic(question.topic);
+      const resolvedStandard = question.standardId
+        ? { id: question.standardId, label: question.standardLabel }
+        : getStandardForTopic(question.topic);
       const student = getStudentById(DEFAULT_STUDENT_ID);
       saveAnswer({
         questionId: question.id,
@@ -69,8 +71,8 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
         mode: "review",
         module: question.module,
         topic: question.topic,
-        standardId: standard.id,
-        standardLabel: standard.label,
+        standardId: resolvedStandard.id,
+        standardLabel: resolvedStandard.label,
         studentId: student?.id,
         classId: student?.classId,
         teacherId: student?.teacherId,

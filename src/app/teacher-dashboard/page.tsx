@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   Download,
   Users,
@@ -30,7 +30,11 @@ function TeacherDashboardContent() {
   const [classId, setClassId] = useState<string>("");
   const [studentId, setStudentId] = useState<string>("");
   const [range, setRange] = useState<"7d" | "30d" | "all">("30d");
-  const answerHistory = getAnswerHistory();
+  const [answerHistory, setAnswerHistory] = useState<ReturnType<typeof getAnswerHistory>>([]);
+
+  useEffect(() => {
+    setAnswerHistory(getAnswerHistory());
+  }, []);
 
   const fromDate = useMemo(() => {
     if (range === "all") return undefined;

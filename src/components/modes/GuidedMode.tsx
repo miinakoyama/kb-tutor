@@ -149,7 +149,9 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
       const isCorrect = optionId === question.correctOptionId;
       const record: AnswerRecord = { selectedOptionId: optionId, isCorrect };
       setAnswers((prev) => ({ ...prev, [currentIndex]: record }));
-      const standard = getStandardForTopic(question.topic);
+      const resolvedStandard = question.standardId
+        ? { id: question.standardId, label: question.standardLabel }
+        : getStandardForTopic(question.topic);
       const student = getStudentById(DEFAULT_STUDENT_ID);
       saveAnswer({
         questionId: question.id,
@@ -159,8 +161,8 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
         mode: "guided",
         module: question.module,
         topic: question.topic,
-        standardId: standard.id,
-        standardLabel: standard.label,
+        standardId: resolvedStandard.id,
+        standardLabel: resolvedStandard.label,
         studentId: student?.id,
         classId: student?.classId,
         teacherId: student?.teacherId,

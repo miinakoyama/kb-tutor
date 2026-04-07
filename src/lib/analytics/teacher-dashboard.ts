@@ -1,5 +1,6 @@
 import type { StoredAnswer } from "@/lib/storage";
 import type { MockAttempt } from "@/lib/mock-data";
+import { getStandardById } from "@/lib/standards";
 
 export interface DashboardFilters {
   teacherId: string;
@@ -48,6 +49,55 @@ interface NormalizedAttempt {
   timestamp: Date;
 }
 
+const LEGACY_STANDARD_ID_ALIASES: Record<string, string> = {
+  "BIO.2.1": "3.1.9-12.D",
+};
+
+const LEGACY_TOPIC_DEFAULT_STANDARD_ID: Record<string, string> = {
+  "Basic Biological Principles": "3.1.9-12.A",
+  "Chemical Basis for Life": "3.1.9-12.F",
+  Bioenergetics: "3.1.9-12.E",
+  "Homeostasis and Transport": "3.1.9-12.C",
+  "Cell Growth and Reproduction": "3.1.9-12.D",
+  Genetics: "3.1.9-12.P",
+  "Theory of Evolution": "3.1.9-12.S",
+  Ecology: "3.1.9-12.L",
+};
+
+function resolveStoredStandard(
+  answer: StoredAnswer,
+): { id: string; label: string } | undefined {
+  if (answer.standardId) {
+    const direct = getStandardById(answer.standardId);
+    if (direct) {
+      return { id: direct.id, label: direct.label };
+    }
+  }
+
+  const aliasId = answer.standardId
+    ? LEGACY_STANDARD_ID_ALIASES[answer.standardId]
+    : undefined;
+  if (aliasId) {
+    const aliased = getStandardById(aliasId);
+    if (aliased) {
+      return { id: aliased.id, label: aliased.label };
+    }
+  }
+
+  const legacyTopicKey = answer.topic ?? answer.standardLabel;
+  if (legacyTopicKey) {
+    const fallbackId = LEGACY_TOPIC_DEFAULT_STANDARD_ID[legacyTopicKey];
+    if (fallbackId) {
+      const fallback = getStandardById(fallbackId);
+      if (fallback) {
+        return { id: fallback.id, label: fallback.label };
+      }
+    }
+  }
+
+  return undefined;
+}
+
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, value));
@@ -68,12 +118,17 @@ function normalizeMockAttempt(attempt: MockAttempt): NormalizedAttempt {
 
 function normalizeStoredAnswer(answer: StoredAnswer): NormalizedAttempt | null {
   if (!answer.studentId || !answer.teacherId || !answer.classId) return null;
+  const resolvedStandard = resolveStoredStandard(answer);
   return {
     studentId: answer.studentId,
     teacherId: answer.teacherId,
     classId: answer.classId,
-    standardId: answer.standardId ?? "BIO.OTHER",
-    standardLabel: answer.standardLabel ?? answer.topic ?? "Other",
+    standardId: resolvedStandard?.id ?? answer.standardId ?? "BIO.OTHER",
+    standardLabel:
+      resolvedStandard?.label ??
+      answer.standardLabel ??
+      answer.topic ??
+      "Other",
     isCorrect: answer.isCorrect,
     timeSpentSec: answer.timeSpentSec ?? 0,
     timestamp: new Date(answer.timestamp),

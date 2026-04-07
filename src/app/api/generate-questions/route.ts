@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateWithGemini, parseGeneratedQuestions } from "@/lib/gemini";
 import { buildGenerationPrompt } from "@/lib/prompts";
 import type { Question, DOKLevel } from "@/types/question";
-import { getDefaultStandardForTopic, getStandardById } from "@/lib/standards";
+import { getAllStandards, getStandardById } from "@/lib/standards";
 
 interface GenerationSettings {
   questionSetName: string;
   questionCount: number;
   topics: string[];
   standards: string[];
+  standardCounts?: Record<string, number>;
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
   diagramConfig: {
@@ -21,6 +22,34 @@ interface GenerationSettings {
 }
 
 const MAX_GENERATION_ATTEMPTS = 5;
+const SHOULD_LOG_PROMPT = process.env.LOG_GENERATION_PROMPT === "true";
+const FALLBACK_STANDARD = getAllStandards()[0];
+
+function resolveStandardCounts(settings: GenerationSettings): Record<string, number> {
+  if (settings.standards.length === 0) return {};
+  const raw = settings.standardCounts ?? {};
+  const normalized: Record<string, number> = {};
+  let total = 0;
+  for (const standardId of settings.standards) {
+    const value = raw[standardId];
+    const count =
+      typeof value === "number" && Number.isInteger(value) && value >= 0
+        ? value
+        : 0;
+    normalized[standardId] = count;
+    total += count;
+  }
+  if (total === settings.questionCount) return normalized;
+
+  const base = Math.floor(settings.questionCount / settings.standards.length);
+  let remainder = settings.questionCount % settings.standards.length;
+  const distributed: Record<string, number> = {};
+  for (const standardId of settings.standards) {
+    distributed[standardId] = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+  }
+  return distributed;
+}
 
 function validateSettings(settings: unknown): settings is GenerationSettings {
   if (!settings || typeof settings !== "object") return false;
@@ -40,6 +69,12 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
   }
 
   if (!Array.isArray(s.standards) || s.standards.length === 0) {
+    return false;
+  }
+  if (!s.standards.every((standardId) => typeof standardId === "string")) {
+    return false;
+  }
+  if (!s.standards.every((standardId) => getStandardById(standardId) !== undefined)) {
     return false;
   }
   
@@ -71,6 +106,25 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
   if (requestedDiagramTotal > (s.questionCount as number)) {
     return false;
   }
+
+  if (s.standardCounts !== undefined) {
+    if (!s.standardCounts || typeof s.standardCounts !== "object") {
+      return false;
+    }
+    const standardCounts = s.standardCounts as Record<string, unknown>;
+    const standardIdSet = new Set<string>(s.standards as string[]);
+    let providedTotal = 0;
+    for (const [standardId, value] of Object.entries(standardCounts)) {
+      if (!standardIdSet.has(standardId)) return false;
+      if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+        return false;
+      }
+      providedTotal += value;
+    }
+    if (providedTotal > 0 && providedTotal !== (s.questionCount as number)) {
+      return false;
+    }
+  }
   
   return true;
 }
@@ -84,7 +138,7 @@ function validateQuestion(
   
   const question = q as Record<string, unknown>;
   
-  const requiredFields = ["text", "options", "correctOptionId", "topic"];
+  const requiredFields = ["text", "options", "correctOptionId"];
   for (const field of requiredFields) {
     if (!question[field]) {
       console.warn(`Question ${index} missing field: ${field}`);
@@ -98,28 +152,30 @@ function validateQuestion(
   }
   
   const timestamp = Date.now();
-  const topicSlug = (question.topic as string)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, 20);
-  const defaultStandard = getDefaultStandardForTopic(question.topic as string);
-  const fallbackStandardId = allowedStandardIds.has(defaultStandard.id)
-    ? defaultStandard.id
-    : Array.from(allowedStandardIds)[0] ?? defaultStandard.id;
+  const fallbackStandardId =
+    Array.from(allowedStandardIds)[0] ?? FALLBACK_STANDARD?.id;
   const standardIdRaw = typeof question.standardId === "string" ? question.standardId : "";
   const validStandard =
     allowedStandardIds.has(standardIdRaw) ? getStandardById(standardIdRaw) : undefined;
-  const fallbackStandard = getStandardById(fallbackStandardId) ?? defaultStandard;
+  const fallbackStandard =
+    (fallbackStandardId ? getStandardById(fallbackStandardId) : undefined) ??
+    FALLBACK_STANDARD;
+  const selectedStandard = validStandard ?? fallbackStandard;
+  const topicFromStandard = selectedStandard?.category ?? "general-biology";
+  const topicSlug = topicFromStandard
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 20);
+  const moduleFromStandard = selectedStandard?.module === "B" ? 2 : 1;
   
   return {
     id: `generated-${topicSlug}-${timestamp}-${String(index + 1).padStart(3, "0")}`,
-    module: (question.module as number) || 1,
-    topic: question.topic as string,
-    standardId: validStandard?.id ?? fallbackStandard.id,
+    module: moduleFromStandard,
+    topic: topicFromStandard,
+    standardId: selectedStandard?.id,
     standardLabel:
-      (question.standardLabel as string) ||
-      validStandard?.label ||
-      fallbackStandard.label,
+      (typeof question.standardLabel === "string" ? question.standardLabel : undefined) ||
+      selectedStandard?.label,
     text: question.text as string,
     imageUrl: null,
     options: question.options as Question["options"],
@@ -257,6 +313,78 @@ function tryNormalizeDiagramDistribution(
   return { ok: true, questions: normalized };
 }
 
+function getStandardDistributionSummary(
+  questions: Question[],
+  standardIds: string[]
+): Record<string, number> {
+  const summary: Record<string, number> = {};
+  for (const standardId of standardIds) {
+    summary[standardId] = 0;
+  }
+  for (const question of questions) {
+    if (!question.standardId) continue;
+    if (summary[question.standardId] !== undefined) {
+      summary[question.standardId] += 1;
+    }
+  }
+  return summary;
+}
+
+function hasExactStandardDistribution(
+  questions: Question[],
+  settings: GenerationSettings
+): { ok: boolean; error?: string } {
+  const expected = resolveStandardCounts(settings);
+  const actual = getStandardDistributionSummary(questions, settings.standards);
+
+  const mismatches = settings.standards
+    .filter((standardId) => (actual[standardId] ?? 0) !== (expected[standardId] ?? 0))
+    .map(
+      (standardId) =>
+        `${standardId}: expected ${(expected[standardId] ?? 0)}, got ${(actual[standardId] ?? 0)}`
+    );
+
+  if (mismatches.length === 0) return { ok: true };
+  return {
+    ok: false,
+    error: `Standard distribution mismatch. ${mismatches.join("; ")}`,
+  };
+}
+
+function tryNormalizeStandardDistribution(
+  questions: Question[],
+  settings: GenerationSettings
+): { ok: true; questions: Question[] } | { ok: false; reason: string } {
+  const expected = resolveStandardCounts(settings);
+  const buckets: Record<string, Question[]> = {};
+  for (const standardId of settings.standards) {
+    buckets[standardId] = questions.filter((q) => q.standardId === standardId);
+  }
+
+  for (const standardId of settings.standards) {
+    const need = expected[standardId] ?? 0;
+    if ((buckets[standardId]?.length ?? 0) < need) {
+      return {
+        ok: false,
+        reason: `Not enough questions for standard ${standardId} (${buckets[standardId]?.length ?? 0}/${need}).`,
+      };
+    }
+  }
+
+  const normalized = settings.standards.flatMap((standardId) =>
+    (buckets[standardId] ?? []).slice(0, expected[standardId] ?? 0)
+  );
+
+  if (normalized.length !== settings.questionCount) {
+    return {
+      ok: false,
+      reason: `Standard normalization produced ${normalized.length}/${settings.questionCount} questions.`,
+    };
+  }
+
+  return { ok: true, questions: normalized };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!process.env.GEMINI_API_KEY) {
@@ -285,13 +413,21 @@ export async function POST(request: NextRequest) {
     let finalFailureReason = "";
 
     for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+      validQuestions = [];
       const retrySuffix =
         attempt === 0
           ? ""
-          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} questions and exact diagram counts as requested.`;
+          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} questions, exact standard counts, and exact diagram counts as requested. Keep the MCQ Quality Checklist constraints (single best answer, plausible distractors, no giveaway cues).`;
+      const finalPrompt = `${basePrompt}${retrySuffix}`;
 
       try {
-        const generated = await generateWithGemini(`${basePrompt}${retrySuffix}`);
+        if (SHOULD_LOG_PROMPT) {
+          console.info(
+            `[generate-questions] Prompt attempt ${attempt + 1}/${MAX_GENERATION_ATTEMPTS} (length: ${finalPrompt.length})\n---BEGIN PROMPT---\n${finalPrompt}\n---END PROMPT---`
+          );
+        }
+
+        const generated = await generateWithGemini(finalPrompt);
         const responseText = generated.text;
         generationModelId = generated.modelId;
         generationModelLabel = generated.modelLabel;
@@ -310,9 +446,32 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const distributionCheck = hasExactDiagramDistribution(attemptQuestions, body);
+        const standardDistributionCheck = hasExactStandardDistribution(
+          attemptQuestions,
+          body
+        );
+        if (!standardDistributionCheck.ok) {
+          const normalizedByStandard = tryNormalizeStandardDistribution(
+            attemptQuestions,
+            body
+          );
+          if (normalizedByStandard.ok) {
+            validQuestions = normalizedByStandard.questions;
+          } else {
+            retryReason =
+              standardDistributionCheck.error ||
+              normalizedByStandard.reason ||
+              "Standard distribution mismatch.";
+            finalFailureReason = retryReason;
+            continue;
+          }
+        } else {
+          validQuestions = attemptQuestions;
+        }
+
+        const distributionCheck = hasExactDiagramDistribution(validQuestions, body);
         if (!distributionCheck.ok) {
-          const normalized = tryNormalizeDiagramDistribution(attemptQuestions, body);
+          const normalized = tryNormalizeDiagramDistribution(validQuestions, body);
           if (normalized.ok) {
             validQuestions = normalized.questions;
             lastError = null;
@@ -327,7 +486,6 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        validQuestions = attemptQuestions;
         lastError = null;
         break;
       } catch (error) {

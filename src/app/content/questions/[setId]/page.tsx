@@ -10,6 +10,7 @@ import {
   Square,
   FileJson,
   FileSpreadsheet,
+  FileText,
   Loader2,
 } from "lucide-react";
 import questionsData from "@/data/questions.json";
@@ -17,7 +18,7 @@ import questionSetsData from "@/data/question-sets.json";
 import type { Question, QuestionSet } from "@/types/question";
 import { QuestionPreviewCard } from "@/components/mass-production/QuestionPreviewCard";
 import { QuestionEditModal } from "@/components/mass-production/QuestionEditModal";
-import { downloadAsJson, downloadAsTsv } from "@/lib/export-utils";
+import { downloadAsJson, downloadAsText, downloadAsTsv } from "@/lib/export-utils";
 import {
   getGeneratedQuestionSetById,
   updateGeneratedQuestionInStorage,
@@ -219,6 +220,18 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     downloadAsTsv(toDownload, filename);
   };
 
+  const handleDownloadText = () => {
+    const toDownload = questions.filter((q) => selectedIds.has(q.id));
+    if (toDownload.length === 0) {
+      alert("Please select at least one question to download.");
+      return;
+    }
+    const filename = questionSet?.name
+      ? questionSet.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()
+      : `questions-${Date.now()}`;
+    downloadAsText(toDownload, filename);
+  };
+
   if (isLoading) {
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -334,9 +347,17 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
             TSV
           </button>
           <button
+            onClick={handleDownloadText}
+            disabled={selectedIds.size === 0}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <FileText className="w-4 h-4" />
+            TXT
+          </button>
+          <button
             onClick={handleDownloadJson}
             disabled={selectedIds.size === 0}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileJson className="w-4 h-4" />
             JSON
