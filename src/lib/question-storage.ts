@@ -1,4 +1,5 @@
 import type { Question, QuestionSet } from "@/types/question";
+import { getDefaultStandardForTopic } from "@/lib/standards";
 
 const GENERATED_SETS_KEY = "generatedQuestionSets";
 
@@ -7,10 +8,22 @@ interface StoredQuestionSet {
   name: string;
   questions: Question[];
   generatedAt: string;
+  generationModelId?: string;
+  generationModelLabel?: string;
 }
 
 interface StoredData {
   sets: StoredQuestionSet[];
+}
+
+function withStandard(question: Question): Question {
+  if (question.standardId) return question;
+  const standard = getDefaultStandardForTopic(question.topic);
+  return {
+    ...question,
+    standardId: standard.id,
+    standardLabel: standard.label,
+  };
 }
 
 function getStoredData(): StoredData {
@@ -53,7 +66,8 @@ function saveStoredData(data: StoredData): void {
 export function addGeneratedQuestionSet(
   questions: Question[],
   name: string,
-  generatedAt: string
+  generatedAt: string,
+  generationModel?: { id?: string; label?: string }
 ): string {
   const data = getStoredData();
   const setId = `generated-${generatedAt}`;
@@ -61,8 +75,10 @@ export function addGeneratedQuestionSet(
   const newSet: StoredQuestionSet = {
     id: setId,
     name: name || `Generated ${new Date(generatedAt).toLocaleDateString()}`,
-    questions,
+    questions: questions.map(withStandard),
     generatedAt,
+    generationModelId: generationModel?.id,
+    generationModelLabel: generationModel?.label,
   };
   
   data.sets.unshift(newSet);
@@ -91,11 +107,13 @@ export function getAllGeneratedQuestionSets(): {
       source: "generated",
       createdAt: set.generatedAt,
       questionIds: set.questions.map((q) => q.id),
+      generationModelId: set.generationModelId,
+      generationModelLabel: set.generationModelLabel,
     };
     questionSets.push(questionSet);
 
     const questionsWithSetId = set.questions.map((q) => ({
-      ...q,
+      ...withStandard(q),
       questionSetId: set.id,
     }));
     allQuestions.push(...questionsWithSetId);
@@ -121,10 +139,12 @@ export function getGeneratedQuestionSetById(setId: string): {
     source: "generated",
     createdAt: set.generatedAt,
     questionIds: set.questions.map((q) => q.id),
+    generationModelId: set.generationModelId,
+    generationModelLabel: set.generationModelLabel,
   };
 
   const questionsWithSetId = set.questions.map((q) => ({
-    ...q,
+    ...withStandard(q),
     questionSetId: set.id,
   }));
 

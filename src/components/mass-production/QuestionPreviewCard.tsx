@@ -59,6 +59,11 @@ export function QuestionPreviewCard({
                 Q{index + 1}
               </span>
               <span className="text-xs text-slate-gray/60">{question.topic}</span>
+              {question.standardId && (
+                <span className="text-xs text-slate-gray/60 bg-slate-gray/10 px-2 py-0.5 rounded">
+                  {question.standardId}
+                </span>
+              )}
               {question.dok && (
                 <span className="text-xs text-white bg-[#16a34a]/80 px-2 py-0.5 rounded">
                   DOK {question.dok}

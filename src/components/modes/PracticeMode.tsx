@@ -26,6 +26,8 @@ import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer, isBookmarked, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
+import { getStandardForTopic } from "@/lib/standards";
+import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 
 const QUESTIONS_PER_SESSION = 10;
 
@@ -95,12 +97,21 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
       const isCorrect = optionId === question.correctOptionId;
       const record: AnswerRecord = { selectedOptionId: optionId, isCorrect };
       setAnswers((prev) => ({ ...prev, [currentIndex]: record }));
+      const standard = getStandardForTopic(question.topic);
+      const student = getStudentById(DEFAULT_STUDENT_ID);
       saveAnswer({
         questionId: question.id,
         selectedOptionId: optionId,
         isCorrect,
         timestamp: Date.now(),
         mode: "practice",
+        module: question.module,
+        topic: question.topic,
+        standardId: standard.id,
+        standardLabel: standard.label,
+        studentId: student?.id,
+        classId: student?.classId,
+        teacherId: student?.teacherId,
       });
     },
     [currentIndex, currentAnswer, question]

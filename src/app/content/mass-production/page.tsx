@@ -8,12 +8,18 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Loader2,
 } from "lucide-react";
 import { MODULES } from "@/types/question";
 import type { DOKLevel } from "@/types/question";
+import {
+  getAllStandards,
+  getStandardsForTopic,
+} from "@/lib/standards";
 
 const ALL_TOPICS = MODULES.flatMap((m) => m.topics) as string[];
+const ALL_STANDARDS = getAllStandards();
 
 interface DiagramConfig {
   chart: number;
@@ -26,6 +32,7 @@ interface GenerationSettings {
   questionSetName: string;
   questionCount: number;
   topics: string[];
+  standards: string[];
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
   diagramConfig: DiagramConfig;
@@ -36,6 +43,7 @@ const DEFAULT_SETTINGS: GenerationSettings = {
   questionSetName: "",
   questionCount: 5,
   topics: [...ALL_TOPICS],
+  standards: ALL_STANDARDS.map((item) => item.id),
   dokLevels: [1, 2, 3],
   includeDiagrams: false,
   diagramConfig: {
@@ -53,6 +61,7 @@ export default function MassProductionPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -93,11 +102,16 @@ export default function MassProductionPage() {
   const textOnlyCount = Math.max(0, settings.questionCount - totalDiagramCount);
 
   const handleTopicToggle = (topic: string) => {
+    const topicStandardIds = getStandardsForTopic(topic).map((standard) => standard.id);
+
     setSettings((prev) => ({
       ...prev,
       topics: prev.topics.includes(topic)
         ? prev.topics.filter((t) => t !== topic)
         : [...prev.topics, topic],
+      standards: prev.topics.includes(topic)
+        ? prev.standards.filter((id) => !topicStandardIds.includes(id))
+        : Array.from(new Set([...prev.standards, ...topicStandardIds])),
     }));
   };
 
@@ -105,6 +119,10 @@ export default function MassProductionPage() {
     setSettings((prev) => ({
       ...prev,
       topics: prev.topics.length === ALL_TOPICS.length ? [] : [...ALL_TOPICS],
+      standards:
+        prev.topics.length === ALL_TOPICS.length
+          ? []
+          : ALL_STANDARDS.map((item) => item.id),
     }));
   };
 
@@ -115,6 +133,40 @@ export default function MassProductionPage() {
         ? prev.dokLevels.filter((l) => l !== level)
         : [...prev.dokLevels, level].sort(),
     }));
+  };
+
+  const toggleTopicExpansion = (topic: string) => {
+    setExpandedTopics((prev) =>
+      prev.includes(topic)
+        ? prev.filter((item) => item !== topic)
+        : [...prev, topic]
+    );
+  };
+
+  const handleTopicStandardToggle = (topic: string, standardId: string) => {
+    const topicStandardIds = getStandardsForTopic(topic).map((standard) => standard.id);
+
+    setSettings((prev) => {
+      const standards = prev.standards.includes(standardId)
+        ? prev.standards.filter((id) => id !== standardId)
+        : [...prev.standards, standardId];
+
+      const topicHasSelectedStandards = topicStandardIds.some((id) =>
+        standards.includes(id)
+      );
+
+      const topics = topicHasSelectedStandards
+        ? prev.topics.includes(topic)
+          ? prev.topics
+          : [...prev.topics, topic]
+        : prev.topics.filter((item) => item !== topic);
+
+      return {
+        ...prev,
+        topics,
+        standards,
+      };
+    });
   };
 
   const handleDiagramCountChange = (type: keyof DiagramConfig, rawValue: string) => {
@@ -149,6 +201,10 @@ export default function MassProductionPage() {
       setError("Please select at least one DOK level.");
       return;
     }
+    if (settings.standards.length === 0) {
+      setError("Please select at least one standard.");
+      return;
+    }
     if (totalDiagramCount > settings.questionCount) {
       setError("Total diagram count cannot exceed question count.");
       return;
@@ -181,7 +237,11 @@ export default function MassProductionPage() {
       const setId = addGeneratedQuestionSet(
         data.questions,
         trimmedSetName,
-        generatedAt
+        generatedAt,
+        {
+          id: data.generationModelId,
+          label: data.generationModelLabel,
+        }
       );
 
       router.push(`/content/questions/${encodeURIComponent(setId)}`);
@@ -192,7 +252,7 @@ export default function MassProductionPage() {
   };
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/content"
         className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-6"
@@ -285,11 +345,11 @@ export default function MassProductionPage() {
             <p className="text-xs text-slate-gray/60 mt-1">1-20 questions per batch</p>
           </div>
 
-          {/* Topic Selection */}
+          {/* Topic and Standard Selection */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-slate-gray">
-                Topics
+                Topics & Standards
               </label>
               <button
                 onClick={handleSelectAllTopics}
@@ -300,21 +360,83 @@ export default function MassProductionPage() {
                   : "Select All"}
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {ALL_TOPICS.map((topic) => (
-                <label
-                  key={topic}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-gray/5 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={settings.topics.includes(topic)}
-                    onChange={() => handleTopicToggle(topic)}
-                    className="w-4 h-4 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
-                  />
-                  <span className="text-sm text-slate-gray">{topic}</span>
-                </label>
-              ))}
+            <div className="space-y-2">
+              {ALL_TOPICS.map((topic) => {
+                const topicStandards = getStandardsForTopic(topic);
+                const selectedCount = topicStandards.filter((item) =>
+                  settings.standards.includes(item.id)
+                ).length;
+                const isExpanded = expandedTopics.includes(topic);
+                const hasStandards = topicStandards.length > 0;
+
+                return (
+                  <div
+                    key={topic}
+                    className="rounded-lg border border-slate-200 overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between gap-2 p-2">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={settings.topics.includes(topic)}
+                          onChange={() => handleTopicToggle(topic)}
+                          className="w-4 h-4 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
+                        />
+                        <span className="text-sm text-slate-gray truncate">{topic}</span>
+                        {hasStandards && (
+                          <span className="text-xs text-slate-gray/60">
+                            ({selectedCount}/{topicStandards.length})
+                          </span>
+                        )}
+                      </label>
+
+                      {hasStandards && (
+                        <button
+                          type="button"
+                          onClick={() => toggleTopicExpansion(topic)}
+                          className="inline-flex items-center gap-1 text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
+                        >
+                          {isExpanded ? (
+                            <>
+                              Hide standards
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </>
+                          ) : (
+                            <>
+                              Show standards
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {isExpanded && hasStandards && (
+                      <div className="border-t border-slate-200 bg-slate-50/70 px-3 py-2 space-y-1.5">
+                        {topicStandards.map((standard) => (
+                          <label
+                            key={`${topic}-${standard.id}`}
+                            className="flex items-start gap-2 p-1.5 rounded hover:bg-white cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={settings.standards.includes(standard.id)}
+                              onChange={() =>
+                                handleTopicStandardToggle(topic, standard.id)
+                              }
+                              className="w-4 h-4 mt-0.5 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
+                            />
+                            <span className="text-sm text-slate-gray">
+                              <span className="font-medium">{standard.id}</span> -{" "}
+                              {standard.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -356,6 +478,7 @@ export default function MassProductionPage() {
               ))}
             </div>
           </div>
+
         </section>
 
         {/* Diagram Settings */}

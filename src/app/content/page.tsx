@@ -3,8 +3,8 @@ import { FileSpreadsheet, Edit3, Sparkles, ChevronRight } from "lucide-react";
 
 export default function ContentPage() {
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-xl font-bold text-slate-gray mb-2">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+      <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
         Content Management
       </h1>
       <p className="text-slate-gray/70 mb-8">
@@ -47,7 +47,9 @@ export default function ContentPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <Sparkles className="w-6 h-6 text-[#16a34a]" />
-              <h2 className="font-medium text-slate-gray">LLM Mass Production</h2>
+              <h2 className="font-medium text-slate-gray">
+                LLM Mass Production
+              </h2>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-[#16a34a] transition-colors" />
           </div>

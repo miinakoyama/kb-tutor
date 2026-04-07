@@ -5,18 +5,22 @@ import { Home, Loader2 } from "lucide-react";
 import { ModeSelector } from "@/components/ModeSelector";
 import { GuidedMode } from "@/components/modes/GuidedMode";
 import { PracticeMode } from "@/components/modes/PracticeMode";
+import { AdaptivePracticeMode } from "@/components/modes/AdaptivePracticeMode";
 import { ExamMode } from "@/components/modes/ExamMode";
 import { ReviewMode } from "@/components/modes/ReviewMode";
 import { useQuestions } from "@/hooks/useQuestions";
 import type { PracticeMode as PracticeModeType } from "@/types/question";
 import { MODULES } from "@/types/question";
 
-const VALID_MODES: PracticeModeType[] = ["guided", "practice", "exam", "review"];
+const VALID_MODES: PracticeModeType[] = ["guided", "practice", "adaptive", "exam", "review"];
 
 interface PracticePageClientProps {
   moduleParam?: string;
   topicParam?: string;
+  topicsParam?: string;
   modeParam?: string;
+  questionsParam?: string;
+  assignmentIdParam?: string;
 }
 
 function InvalidParamsMessage({ message }: { message: string }) {
@@ -85,7 +89,10 @@ function validateTopicParam(
 export function PracticePageClient({
   moduleParam,
   topicParam,
+  topicsParam,
   modeParam,
+  questionsParam,
+  assignmentIdParam,
 }: PracticePageClientProps) {
   const { visibleQuestions, isLoaded } = useQuestions();
 
@@ -112,6 +119,8 @@ export function PracticePageClient({
 
   let filteredQuestions = visibleQuestions;
   let topicName: string | undefined;
+  let selectedTopics: string[] = [];
+  let requestedQuestionCount: number | undefined;
 
   if (moduleValidation.moduleNum !== undefined) {
     filteredQuestions = filteredQuestions.filter(
@@ -124,6 +133,27 @@ export function PracticePageClient({
       (q) => q.topic === topicValidation.decodedTopic
     );
     topicName = topicValidation.decodedTopic;
+  }
+
+  if (topicsParam) {
+    const decodedTopics = topicsParam
+      .split(",")
+      .map((topic) => decodeURIComponent(topic).trim())
+      .filter(Boolean);
+    selectedTopics = Array.from(new Set(decodedTopics));
+    if (selectedTopics.length > 0) {
+      filteredQuestions = filteredQuestions.filter((question) =>
+        selectedTopics.includes(question.topic),
+      );
+      topicName = selectedTopics.length === 1 ? selectedTopics[0] : `${selectedTopics.length} selected topics`;
+    }
+  }
+
+  if (questionsParam) {
+    const parsed = parseInt(questionsParam, 10);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      requestedQuestionCount = parsed;
+    }
   }
 
   if (!modeParam && moduleValidation.moduleNum && topicName) {
@@ -140,6 +170,15 @@ export function PracticePageClient({
   }
 
   switch (modeParam) {
+    case "adaptive":
+      return (
+        <AdaptivePracticeMode
+          questions={filteredQuestions}
+          topicName={topicName}
+          questionCount={requestedQuestionCount}
+          assignmentId={assignmentIdParam}
+        />
+      );
     case "guided":
       return (
         <GuidedMode questions={filteredQuestions} topicName={topicName} />
@@ -153,13 +192,13 @@ export function PracticePageClient({
         <ExamMode
           questions={filteredQuestions}
           topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
-          requestedQuestionCount={10}
+          requestedQuestionCount={requestedQuestionCount ?? 10}
         />
       );
     }
     case "review":
       return (
-        <ReviewMode questions={visibleQuestions} topicName={topicName} />
+        <ReviewMode questions={filteredQuestions} topicName={topicName} />
       );
     default:
       return (

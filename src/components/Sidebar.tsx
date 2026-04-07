@@ -12,18 +12,24 @@ import {
   Database,
   Menu,
   X,
-  ClipboardCheck,
+  Bell,
+  ClipboardList,
   Bookmark,
+  NotebookPen,
+  School,
 } from "lucide-react";
 import { getBookmarkedIds } from "@/lib/storage";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/exam", label: "Mock Exam", icon: ClipboardCheck },
+  { href: "/notifications", label: "Notification", icon: Bell },
+  { href: "/assignments", label: "My Assignment", icon: ClipboardList },
+  { href: "/self-practice", label: "Self Practice", icon: NotebookPen },
   { href: "/progress", label: "My Progress", icon: BarChart3 },
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/content", label: "Content Management", icon: Database },
+  { href: "/teacher-dashboard", label: "Teacher Dashboard", icon: School },
 ] as const;
 
 export function Sidebar() {

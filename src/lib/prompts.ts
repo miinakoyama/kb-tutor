@@ -11,6 +11,7 @@ interface GenerationSettings {
   questionSetName: string;
   questionCount: number;
   topics: string[];
+  standards: string[];
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
   diagramConfig: DiagramConfig;
@@ -202,6 +203,10 @@ Generate ${settings.questionCount} multiple-choice questions for high school bio
 Generate questions covering these topics (distribute evenly):
 ${settings.topics.map((t) => `- ${t}`).join("\n")}
 
+## Standards
+Each question must be aligned to exactly one of these standards:
+${settings.standards.map((s) => `- ${s}`).join("\n")}
+
 ## DOK Levels
 Use these Depth of Knowledge levels (distribute evenly):
 ${dokDescriptions}
@@ -213,6 +218,8 @@ Each question must follow this exact JSON structure:
   "id": "generated-{topic-slug}-{timestamp}-{index}",
   "module": 1 or 2,
   "topic": "Exact topic name from the list above",
+  "standardId": "Exact standard code from the Standards list above",
+  "standardLabel": "Short standard description (human readable)",
   "text": "The question text",
   "imageUrl": null,
   "options": [
@@ -297,6 +304,7 @@ ${diagramInstructions}${customInstructions}
 4. Avoid using "all of the above" or "none of the above" options
 5. Each question should test understanding, not just memorization
 6. The rationaleQuestion should test WHY the answer is correct, not just recall
+7. Every question MUST include exactly one valid "standardId" from the Standards section
 
 ## Module Assignment
 - Module 1 topics: Basic Biological Principles, Chemical Basis for Life, Bioenergetics, Homeostasis and Transport
