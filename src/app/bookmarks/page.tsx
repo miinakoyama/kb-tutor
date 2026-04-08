@@ -27,7 +27,7 @@ export default function BookmarksPage() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    
+
     const ids = getBookmarkedIds();
     const bookmarked = ids
       .map((id) => {

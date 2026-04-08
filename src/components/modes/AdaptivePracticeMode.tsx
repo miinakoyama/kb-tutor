@@ -57,7 +57,7 @@ export function AdaptivePracticeMode({
   const [retryReadyByIndex, setRetryReadyByIndex] = useState<Record<number, boolean>>({});
   const [finalAnswers, setFinalAnswers] = useState<Record<number, AnswerRecord>>({});
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
-  const [questionStartMs, setQuestionStartMs] = useState<number>(Date.now());
+  const [questionStartMs, setQuestionStartMs] = useState<number>(() => Date.now());
   const [showSummary, setShowSummary] = useState(false);
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);

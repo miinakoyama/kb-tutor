@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -59,7 +59,7 @@ export function ExamMode({
   const [isNavigatorPinnedOpen, setIsNavigatorPinnedOpen] = useState(false);
   const [isNavigatorHovered, setIsNavigatorHovered] = useState(false);
   const [supportsHover, setSupportsHover] = useState(false);
-  const elapsedRef = useRef(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
   const {
     isSupported,
@@ -212,7 +212,7 @@ export function ExamMode({
         answers={answers}
         correctCount={correctCount}
         totalQuestions={totalQuestions}
-        elapsedMs={elapsedRef.current}
+        elapsedMs={elapsedMs}
         topicName={topicName}
         onReview={(index) => {
           setReviewIndex(index);
@@ -409,9 +409,7 @@ export function ExamMode({
         <div className="flex items-center justify-end gap-4">
           <Timer
             isRunning={phase === "exam"}
-            onElapsedChange={(ms) => {
-              elapsedRef.current = ms;
-            }}
+            onElapsedChange={setElapsedMs}
           />
           <button
             onClick={handleSubmit}
