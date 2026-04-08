@@ -68,7 +68,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${
+              className={`flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg font-medium transition-all ${
                 active
                   ? "bg-white/20 text-white shadow-inner"
                   : "text-white/90 hover:bg-white/10 hover:text-white"
@@ -90,14 +90,25 @@ export function Sidebar() {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg text-white shadow-lg"
-        style={{ background: "#166534" }}
-        aria-label="Open menu"
+      {/* Mobile / tablet top header bar */}
+      <header
+        className="lg:hidden fixed top-0 left-0 right-0 h-16 z-40 flex items-center px-4 shadow-sm"
+        style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
       >
-        <Menu className="w-6 h-6" />
-      </button>
+        <button
+          onClick={() => setIsOpen(true)}
+          className="p-3 rounded-lg text-white min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/10 transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <div className="flex-1 flex items-center justify-center gap-2">
+          <FlaskConical className="w-5 h-5 text-white flex-shrink-0" />
+          <span className="font-bold text-white text-base">CTAG KB Tutor</span>
+        </div>
+        {/* Spacer balances the hamburger so the title stays centered */}
+        <div className="w-[44px]" aria-hidden />
+      </header>
 
       <div
         className={`fixed inset-0 bg-black/40 z-40 lg:hidden ${
@@ -127,7 +138,7 @@ export function Sidebar() {
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-2 rounded-lg text-white hover:bg-white/10"
+                  className="p-3 rounded-lg text-white hover:bg-white/10 min-w-[44px] min-h-[44px] flex items-center justify-center"
                   aria-label="Close menu"
                 >
                   <X className="w-5 h-5" />
@@ -142,7 +153,7 @@ export function Sidebar() {
                       key={href}
                       href={href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${
+                      className={`flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg font-medium transition-all ${
                         active
                           ? "bg-white/20 text-white shadow-inner"
                           : "text-white/90 hover:bg-white/10 hover:text-white"
