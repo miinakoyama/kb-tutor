@@ -94,6 +94,7 @@ export default function QuestionsPage() {
           q.topic.toLowerCase().includes(query)
       );
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allQuestionSets, searchQuery, localStorageData]);
 
   const getSourceIcon = (source: QuestionSource) => {

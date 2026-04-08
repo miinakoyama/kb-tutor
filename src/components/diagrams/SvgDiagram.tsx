@@ -127,6 +127,7 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
       )}
       <div className="flex justify-center items-center">
         {safeSvgDataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={safeSvgDataUrl}
             alt={data.title || "Biology diagram"}

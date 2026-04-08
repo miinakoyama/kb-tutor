@@ -8,7 +8,6 @@ import {
   ChevronRight,
   RotateCcw,
   Home,
-  ArrowLeft,
   BookOpen,
   Bookmark,
 } from "lucide-react";
@@ -16,7 +15,6 @@ import type {
   Question,
   AnswerRecord,
   ConfidenceLevel,
-  GlossaryTerm,
 } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
@@ -67,8 +65,6 @@ export function PracticeMode({ questions, topicName }: PracticeModeProps) {
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.keys(answers).length;
   const allAnswered = answeredCount === totalQuestions;
-  const progressPercent =
-    totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
   const glossaryTerms = useMemo(() => {
     if (!question) return [];

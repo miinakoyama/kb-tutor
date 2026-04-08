@@ -156,7 +156,7 @@ export function ExamMode({
     const student = getStudentById(DEFAULT_STUDENT_ID);
     const timePerQuestion =
       sessionQuestions.length > 0
-        ? Math.max(5, Math.round(elapsedRef.current / 1000 / sessionQuestions.length))
+        ? Math.max(5, Math.round(elapsedMs / 1000 / sessionQuestions.length))
         : 0;
     const batch = sessionQuestions.map((q, i) => {
       const a = answers[i];
@@ -181,7 +181,7 @@ export function ExamMode({
     });
     saveAnswerBatch(batch.filter((b) => b.selectedOptionId));
     setPhase("results");
-  }, [answers, sessionQuestions]);
+  }, [answers, sessionQuestions, elapsedMs]);
 
   if (phase === "config") {
     return (

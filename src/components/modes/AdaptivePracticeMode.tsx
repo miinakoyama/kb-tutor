@@ -77,7 +77,10 @@ export function AdaptivePracticeMode({
   }, [currentIndex]);
 
   const question = sessionQuestions[currentIndex];
-  const attempts = attemptsByIndex[currentIndex] ?? [];
+  const attempts = useMemo(
+    () => attemptsByIndex[currentIndex] ?? [],
+    [attemptsByIndex, currentIndex]
+  );
   const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
   const isCorrect = !!lastAttempt?.isCorrect;
   const isCompleted = isCorrect || attempts.length >= MAX_ATTEMPTS;
