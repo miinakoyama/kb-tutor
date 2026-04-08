@@ -94,6 +94,10 @@ export default function QuestionsPage() {
           q.topic.toLowerCase().includes(query)
       );
     });
+    // Note: getQuestionCountForSet and isLocalStorageSet are derived from localStorageData,
+    // so including them as dependencies would cause unnecessary re-memoization.
+    // localStorageData already captures the data they depend on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allQuestionSets, searchQuery, localStorageData]);
 
   const getSourceIcon = (source: QuestionSource) => {

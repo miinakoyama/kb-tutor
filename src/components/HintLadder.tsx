@@ -41,7 +41,7 @@ export function HintLadder({ hints, onReveal }: HintLadderProps) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex-1 min-w-0">
           <AnimatePresence mode="wait">
-            {LEVEL_ORDER.slice(0, revealedCount).map((key, index) => (
+            {LEVEL_ORDER.slice(0, revealedCount).map((key) => (
               <motion.div
                 key={key}
                 initial={{ opacity: 0, y: -4 }}

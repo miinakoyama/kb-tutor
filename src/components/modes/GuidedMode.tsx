@@ -9,7 +9,6 @@ import {
   RotateCcw,
   Home,
   Lightbulb,
-  ArrowLeft,
   Bookmark,
 } from "lucide-react";
 import type {
@@ -69,8 +68,6 @@ export function GuidedMode({ questions, topicName }: GuidedModeProps) {
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.keys(answers).length;
   const allAnswered = answeredCount === totalQuestions;
-  const progressPercent =
-    totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
   const inlineTerms = useMemo(() => question?.inlineTerms ?? [], [question]);
 

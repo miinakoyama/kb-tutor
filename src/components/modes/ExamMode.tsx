@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -59,7 +59,7 @@ export function ExamMode({
   const [isNavigatorPinnedOpen, setIsNavigatorPinnedOpen] = useState(false);
   const [isNavigatorHovered, setIsNavigatorHovered] = useState(false);
   const [supportsHover, setSupportsHover] = useState(false);
-  const elapsedRef = useRef(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
   const {
     isSupported,
@@ -156,7 +156,7 @@ export function ExamMode({
     const student = getStudentById(DEFAULT_STUDENT_ID);
     const timePerQuestion =
       sessionQuestions.length > 0
-        ? Math.max(5, Math.round(elapsedRef.current / 1000 / sessionQuestions.length))
+        ? Math.max(5, Math.round(elapsedMs / 1000 / sessionQuestions.length))
         : 0;
     const batch = sessionQuestions.map((q, i) => {
       const a = answers[i];
@@ -181,7 +181,7 @@ export function ExamMode({
     });
     saveAnswerBatch(batch.filter((b) => b.selectedOptionId));
     setPhase("results");
-  }, [answers, sessionQuestions]);
+  }, [answers, sessionQuestions, elapsedMs]);
 
   if (phase === "config") {
     return (
@@ -212,7 +212,7 @@ export function ExamMode({
         answers={answers}
         correctCount={correctCount}
         totalQuestions={totalQuestions}
-        elapsedMs={elapsedRef.current}
+        elapsedMs={elapsedMs}
         topicName={topicName}
         onReview={(index) => {
           setReviewIndex(index);
@@ -409,9 +409,7 @@ export function ExamMode({
         <div className="flex items-center justify-end gap-4">
           <Timer
             isRunning={phase === "exam"}
-            onElapsedChange={(ms) => {
-              elapsedRef.current = ms;
-            }}
+            onElapsedChange={setElapsedMs}
           />
           <button
             onClick={handleSubmit}

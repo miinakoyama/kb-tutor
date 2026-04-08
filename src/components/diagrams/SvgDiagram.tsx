@@ -127,6 +127,11 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
       )}
       <div className="flex justify-center items-center">
         {safeSvgDataUrl ? (
+          // Using <img> instead of next/image because:
+          // - safeSvgDataUrl is a data URL generated at runtime, not a static asset
+          // - next/image doesn't support data URLs and requires static images for optimization
+          // - Data URLs don't benefit from image optimization as they're inline content
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={safeSvgDataUrl}
             alt={data.title || "Biology diagram"}

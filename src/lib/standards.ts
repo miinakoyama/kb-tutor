@@ -230,11 +230,11 @@ export function getStandardsForTopic(topic: string): StandardInfo[] {
   const match = topic.match(MODULE_CATEGORY_TOPIC_PATTERN);
   if (!match) return [];
 
-  const module = match[1] as ModuleCode | undefined;
+  const moduleCode = match[1] as ModuleCode | undefined;
   const category = match[2]?.trim();
   if (!category) return [];
 
-  return getStandardsByFilter({ module, category });
+  return getStandardsByFilter({ module: moduleCode, category });
 }
 
 export function getDefaultStandardForTopic(topic: string): StandardInfo {
