@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
+import { AppChrome } from "@/components/AppChrome";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -33,10 +33,7 @@ export default function RootLayout({
       className={`${inter.variable} ${outfit.variable}`}
     >
       <body suppressHydrationWarning className="antialiased font-sans min-h-screen bg-sand-beige">
-        <Sidebar />
-        <div className="min-h-screen pt-16 pl-14 lg:pt-0 lg:pl-64">
-          {children}
-        </div>
+        <AppChrome>{children}</AppChrome>
 
         <div className="fixed bottom-0 right-0 pointer-events-none opacity-10 translate-x-1/4 translate-y-1/4">
           <svg

@@ -9,7 +9,11 @@ import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
-import { getIncorrectQuestionIds, saveAnswer } from "@/lib/storage";
+import {
+  getIncorrectQuestionIds,
+  saveAnswer,
+  syncAnswerHistoryFromDb,
+} from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { getStandardForTopic } from "@/lib/standards";
@@ -31,13 +35,17 @@ export function ReviewMode({ questions, topicName }: ReviewModeProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const incorrectIds = getIncorrectQuestionIds();
-    const incorrectQuestions = questions.filter((q) =>
-      incorrectIds.includes(q.id),
-    );
-    const shuffled = shuffleArray(incorrectQuestions);
-    setReviewQuestions(shuffled.slice(0, MAX_REVIEW_QUESTIONS));
-    setIsInitialized(true);
+    const load = async () => {
+      await syncAnswerHistoryFromDb();
+      const incorrectIds = getIncorrectQuestionIds();
+      const incorrectQuestions = questions.filter((q) =>
+        incorrectIds.includes(q.id),
+      );
+      const shuffled = shuffleArray(incorrectQuestions);
+      setReviewQuestions(shuffled.slice(0, MAX_REVIEW_QUESTIONS));
+      setIsInitialized(true);
+    };
+    void load();
   }, [questions]);
 
   const question = reviewQuestions[currentIndex];

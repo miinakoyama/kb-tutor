@@ -53,7 +53,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLocalStorage, setIsLocalStorage] = useState(false);
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     const decodedSetId = decodeURIComponent(setId);
 
     const fileSet = fileQuestionSets.find((s) => s.id === decodedSetId);
@@ -70,7 +70,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     }
 
     const { questions: localQuestions, questionSet: localSet } =
-      getGeneratedQuestionSetById(decodedSetId);
+      await getGeneratedQuestionSetById(decodedSetId);
 
     if (localSet) {
       setQuestionSet(localSet);
@@ -85,7 +85,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   }, [setId, router]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const handleToggleSelect = (id: string) => {
@@ -108,7 +108,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!isLocalStorage || !questionSet) {
       alert(
         "Cannot delete questions from file. Only generated questions can be deleted."
@@ -116,7 +116,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
       return;
     }
 
-    deleteGeneratedQuestionFromStorage(questionSet.id, id);
+    await deleteGeneratedQuestionFromStorage(questionSet.id, id);
     const updated = questions.filter((q) => q.id !== id);
     setQuestions(updated);
     setSelectedIds((prev) => {
@@ -130,7 +130,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     }
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (!isLocalStorage || !questionSet) {
       alert(
         "Cannot delete questions from file. Only generated questions can be deleted."
@@ -140,9 +140,11 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} selected question(s)?`)) return;
 
-    selectedIds.forEach((id) => {
-      deleteGeneratedQuestionFromStorage(questionSet.id, id);
-    });
+    await Promise.all(
+      Array.from(selectedIds).map((id) =>
+        deleteGeneratedQuestionFromStorage(questionSet.id, id)
+      )
+    );
 
     const updated = questions.filter((q) => !selectedIds.has(q.id));
     setQuestions(updated);
@@ -153,7 +155,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     }
   };
 
-  const handleDeleteAll = () => {
+  const handleDeleteAll = async () => {
     if (!isLocalStorage || !questionSet) {
       alert(
         "Cannot delete questions from file. Only generated questions can be deleted."
@@ -163,7 +165,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     if (!confirm("Delete all questions in this set? This cannot be undone."))
       return;
 
-    deleteGeneratedQuestionSet(questionSet.id);
+    await deleteGeneratedQuestionSet(questionSet.id);
     router.push("/content/questions");
   };
 
@@ -171,9 +173,9 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     setEditingQuestion(question);
   };
 
-  const handleSaveEdit = (updated: Question) => {
+  const handleSaveEdit = async (updated: Question) => {
     if (isLocalStorage && questionSet) {
-      updateGeneratedQuestionInStorage(questionSet.id, updated);
+      await updateGeneratedQuestionInStorage(questionSet.id, updated);
     }
     setQuestions((prev) =>
       prev.map((q) => (q.id === updated.id ? updated : q))
@@ -181,12 +183,12 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     setEditingQuestion(null);
   };
 
-  const handleToggleVisibility = (question: Question) => {
+  const handleToggleVisibility = async (question: Question) => {
     if (!isLocalStorage || !questionSet) {
       alert("Cannot change visibility of questions from file.");
       return;
     }
-    toggleQuestionVisibility(questionSet.id, question.id);
+    await toggleQuestionVisibility(questionSet.id, question.id);
     setQuestions((prev) =>
       prev.map((q) =>
         q.id === question.id

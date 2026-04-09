@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   DEFAULT_TTS_RATE,
   TTS_RATE_OPTIONS,
-  getStoredTtsRate,
+  syncTtsRateFromDb,
   setStoredTtsRate,
 } from "@/lib/tts-settings";
 
@@ -12,7 +12,11 @@ export default function SettingsPage() {
   const [ttsRate, setTtsRate] = useState(DEFAULT_TTS_RATE);
 
   useEffect(() => {
-    setTtsRate(getStoredTtsRate(DEFAULT_TTS_RATE));
+    const load = async () => {
+      const value = await syncTtsRateFromDb(DEFAULT_TTS_RATE);
+      setTtsRate(value);
+    };
+    void load();
   }, []);
 
   const handleRateChange = (value: number) => {

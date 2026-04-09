@@ -339,7 +339,7 @@ export default function MassProductionPage() {
 
       const generatedAt = new Date().toISOString();
       const { addGeneratedQuestionSet } = await import("@/lib/question-storage");
-      const setId = addGeneratedQuestionSet(
+      const setId = await addGeneratedQuestionSet(
         data.questions,
         trimmedSetName,
         generatedAt,
