@@ -17,6 +17,7 @@ interface ClassView {
   grade: number | null;
   teacher_user_id: string;
   teacher_label: string;
+  teachers: { id: string; label: string; is_primary: boolean }[];
   students: { id: string; label: string }[];
 }
 
@@ -39,10 +40,8 @@ export default function ClassManagementPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [createForm, setCreateForm] = useState({
-    id: "",
     name: "",
-    grade: "",
-    teacherUserId: "",
+    teacherUserIds: [] as string[],
   });
 
   const selectedClass = useMemo(
@@ -51,16 +50,14 @@ export default function ClassManagementPage() {
   );
 
   const [editName, setEditName] = useState("");
-  const [editGrade, setEditGrade] = useState("");
-  const [editTeacher, setEditTeacher] = useState("");
+  const [editTeacherIds, setEditTeacherIds] = useState<string[]>([]);
   const [editStudentIds, setEditStudentIds] = useState<string[]>([]);
 
   useEffect(() => {
     const cls = selectedClass;
     if (!cls) return;
     setEditName(cls.name);
-    setEditGrade(cls.grade !== null ? String(cls.grade) : "");
-    setEditTeacher(cls.teacher_user_id);
+    setEditTeacherIds(cls.teachers.map((teacher) => teacher.id));
     setEditStudentIds(cls.students.map((student) => student.id));
   }, [selectedClassId, selectedClass]);
 
@@ -101,21 +98,23 @@ export default function ClassManagementPage() {
   }, [loadAll]);
 
   function resetCreateForm() {
-    setCreateForm({ id: "", name: "", grade: "", teacherUserId: "" });
+    setCreateForm({ name: "", teacherUserIds: [] });
   }
 
   async function createClass(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     setError(null);
+    if (createForm.teacherUserIds.length === 0) {
+      setError("Please select at least one teacher.");
+      return;
+    }
     const response = await fetch("/api/admin/classes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        id: createForm.id.trim(),
         name: createForm.name.trim(),
-        grade: createForm.grade ? Number(createForm.grade) : null,
-        teacherUserId: createForm.teacherUserId,
+        teacherUserIds: createForm.teacherUserIds,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -133,14 +132,17 @@ export default function ClassManagementPage() {
     if (!selectedClass) return;
     setMessage(null);
     setError(null);
+    if (editTeacherIds.length === 0) {
+      setError("Please keep at least one teacher assigned.");
+      return;
+    }
     const response = await fetch("/api/admin/classes", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: selectedClass.id,
         name: editName.trim(),
-        grade: editGrade ? Number(editGrade) : null,
-        teacherUserId: editTeacher,
+        teacherUserIds: editTeacherIds,
         studentUserIds: editStudentIds,
       }),
     });
@@ -238,18 +240,13 @@ export default function ClassManagementPage() {
                       <h3 className="text-base font-semibold text-slate-gray truncate">
                         {classItem.name}
                       </h3>
-                      {classItem.grade !== null && (
-                        <span className="flex-shrink-0 inline-flex items-center text-xs font-medium text-[#16a34a] bg-[#16a34a]/10 px-2 py-0.5 rounded-full">
-                          Grade {classItem.grade}
-                        </span>
-                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-gray/70">
                       <span className="inline-flex items-center gap-1">
                         <Users className="w-3.5 h-3.5" />
                         {classItem.students.length} students
                       </span>
-                      <span>Teacher: {classItem.teacher_label}</span>
+                      <span>Teachers: {classItem.teacher_label}</span>
                       <span className="text-slate-gray/50 text-xs">ID: {classItem.id}</span>
                     </div>
                   </div>
@@ -278,16 +275,6 @@ export default function ClassManagementPage() {
             </div>
             <form className="p-5 space-y-4" onSubmit={createClass}>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Class ID</span>
-                <input
-                  placeholder="e.g. bio_p1"
-                  value={createForm.id}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, id: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
-                  required
-                />
-              </label>
-              <label className="block text-sm text-slate-gray">
                 <span className="block mb-1 font-medium">Class Name</span>
                 <input
                   placeholder="e.g. Biology Period 1"
@@ -297,36 +284,41 @@ export default function ClassManagementPage() {
                   required
                 />
               </label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="block text-sm text-slate-gray">
-                  <span className="block mb-1 font-medium">Grade (optional)</span>
-                  <input
-                    placeholder="e.g. 10"
-                    value={createForm.grade}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, grade: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
-                    type="number"
-                  />
-                </label>
-                <label className="block text-sm text-slate-gray">
-                  <span className="block mb-1 font-medium">Teacher</span>
-                  <select
-                    value={createForm.teacherUserId}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({ ...prev, teacherUserId: e.target.value }))
-                    }
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
-                    required
-                  >
-                    <option value="">Select teacher</option>
-                    {teachers.map((teacher) => (
-                      <option key={teacher.id} value={teacher.id}>
-                        {teacher.display_name || teacher.student_id || teacher.email}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              <label className="block text-sm text-slate-gray">
+                <span className="block mb-1 font-medium">Teachers</span>
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 p-3 space-y-2">
+                  {teachers.length === 0 ? (
+                    <p className="text-sm text-slate-gray/60">No teachers available.</p>
+                  ) : (
+                    teachers.map((teacher) => {
+                      const checked = createForm.teacherUserIds.includes(teacher.id);
+                      return (
+                        <label
+                          key={teacher.id}
+                          className="flex items-center gap-2 text-sm text-slate-gray"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                teacherUserIds: e.target.checked
+                                  ? [...prev.teacherUserIds, teacher.id]
+                                  : prev.teacherUserIds.filter((id) => id !== teacher.id),
+                              }));
+                            }}
+                          />
+                          <span>{teacher.display_name || teacher.student_id || teacher.email}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <span className="block mt-1 text-xs text-slate-gray/60">
+                  The first selected teacher is used as primary for compatibility.
+                </span>
+              </label>
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
@@ -365,39 +357,44 @@ export default function ClassManagementPage() {
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <label className="block text-sm text-slate-gray">
-                  <span className="block mb-1 font-medium">Class Name</span>
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
-                  />
-                </label>
-                <label className="block text-sm text-slate-gray">
-                  <span className="block mb-1 font-medium">Grade</span>
-                  <input
-                    value={editGrade}
-                    onChange={(e) => setEditGrade(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
-                    type="number"
-                  />
-                </label>
-              </div>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Teacher</span>
-                <select
-                  value={editTeacher}
-                  onChange={(e) => setEditTeacher(e.target.value)}
+                <span className="block mb-1 font-medium">Class Name</span>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
-                >
-                  <option value="">Select teacher</option>
-                  {teachers.map((teacher) => (
-                    <option key={teacher.id} value={teacher.id}>
-                      {teacher.display_name || teacher.student_id || teacher.email}
-                    </option>
-                  ))}
-                </select>
+                />
+              </label>
+              <label className="block text-sm text-slate-gray">
+                <span className="block mb-1 font-medium">Teachers</span>
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 p-3 space-y-2">
+                  {teachers.length === 0 ? (
+                    <p className="text-sm text-slate-gray/60">No teachers available.</p>
+                  ) : (
+                    teachers.map((teacher) => {
+                      const checked = editTeacherIds.includes(teacher.id);
+                      return (
+                        <label
+                          key={teacher.id}
+                          className="flex items-center gap-2 text-sm text-slate-gray"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setEditTeacherIds((prev) =>
+                                e.target.checked
+                                  ? [...prev, teacher.id]
+                                  : prev.filter((id) => id !== teacher.id),
+                              );
+                            }}
+                          />
+                          <span>{teacher.display_name || teacher.student_id || teacher.email}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               </label>
 
               <div>

@@ -14,6 +14,8 @@ const TEACHER_PATHS = [
 ];
 const ADMIN_PATHS = ["/content/accounts", "/content/classes"];
 
+type AppRole = "student" | "teacher" | "admin";
+
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
@@ -24,6 +26,12 @@ function needsTeacherRole(pathname: string) {
 
 function needsAdminRole(pathname: string) {
   return ADMIN_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
+function getPostLoginPath(role: AppRole | null) {
+  if (role === "admin") return "/content/accounts";
+  if (role === "teacher") return "/teacher-dashboard";
+  return "/";
 }
 
 export async function middleware(req: NextRequest) {
@@ -77,7 +85,13 @@ export async function middleware(req: NextRequest) {
 
   if (pathname === "/login") {
     const nextUrl = req.nextUrl.clone();
-    nextUrl.pathname = "/";
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    const role = resolveRole(profile?.role, user);
+    nextUrl.pathname = getPostLoginPath(role);
     return NextResponse.redirect(nextUrl);
   }
 

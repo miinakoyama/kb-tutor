@@ -64,11 +64,41 @@ async function getScopedClassIds(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   requester: Requester,
 ) {
-  let query = admin.from("classes").select("id,name,teacher_user_id").order("name", { ascending: true });
   if (requester.role === "teacher") {
-    query = query.eq("teacher_user_id", requester.id);
+    const [{ data: classTeachers, error: classTeacherError }, { data: legacyClasses, error: legacyError }] =
+      await Promise.all([
+        admin.from("class_teachers").select("class_id").eq("teacher_user_id", requester.id),
+        admin.from("classes").select("id").eq("teacher_user_id", requester.id),
+      ]);
+    if (classTeacherError) {
+      return { error: classTeacherError.message, classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
+    }
+    if (legacyError) {
+      return { error: legacyError.message, classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
+    }
+    const classIds = Array.from(
+      new Set([
+        ...(classTeachers ?? []).map((row) => row.class_id),
+        ...(legacyClasses ?? []).map((row) => row.id),
+      ]),
+    );
+    if (classIds.length === 0) {
+      return { classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
+    }
+    const { data, error } = await admin
+      .from("classes")
+      .select("id,name,teacher_user_id")
+      .in("id", classIds)
+      .order("name", { ascending: true });
+    if (error) {
+      return { error: error.message, classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
+    }
+    return { classes: data ?? [] };
   }
-  const { data, error } = await query;
+  const { data, error } = await admin
+    .from("classes")
+    .select("id,name,teacher_user_id")
+    .order("name", { ascending: true });
   if (error) return { error: error.message, classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
   return { classes: data ?? [] };
 }

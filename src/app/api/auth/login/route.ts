@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveRole } from "@/lib/auth/role";
 import { studentIdToLoginEmail } from "@/lib/auth/student-id";
+
+type AppRole = "student" | "teacher" | "admin";
+
+function getPostLoginPath(role: AppRole | null) {
+  if (role === "admin") return "/content/accounts";
+  if (role === "teacher") return "/teacher-dashboard";
+  return "/";
+}
 
 export async function POST(request: Request) {
   try {
@@ -31,7 +41,31 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ ok: true, redirectTo: "/" });
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    let role = resolveRole(profile?.role, user);
+    if (!role) {
+      const admin = createSupabaseAdminClient();
+      const { data: adminProfile } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      role = resolveRole(adminProfile?.role, user);
+    }
+
+    return NextResponse.json({ ok: true, redirectTo: getPostLoginPath(role) });
   } catch {
     return NextResponse.json(
       { error: "An unexpected error occurred during login." },

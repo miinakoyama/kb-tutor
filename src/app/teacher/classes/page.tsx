@@ -22,11 +22,9 @@ export default function TeacherClassManagementPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newClassName, setNewClassName] = useState("");
-  const [newClassGrade, setNewClassGrade] = useState("");
 
   const [editingClass, setEditingClass] = useState<TeacherClassRow | null>(null);
   const [editName, setEditName] = useState("");
-  const [editGrade, setEditGrade] = useState("");
 
   const loadClasses = useCallback(async () => {
     setIsLoading(true);
@@ -64,9 +62,7 @@ export default function TeacherClassManagementPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        id: `cls_${Date.now()}`,
         name,
-        grade: newClassGrade ? Number(newClassGrade) : null,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -80,7 +76,6 @@ export default function TeacherClassManagementPage() {
     setMessage(`Class "${name}" created.`);
     setShowCreateModal(false);
     setNewClassName("");
-    setNewClassGrade("");
     await loadClasses();
   }
 
@@ -94,7 +89,6 @@ export default function TeacherClassManagementPage() {
       body: JSON.stringify({
         id: editingClass.id,
         name: editName.trim(),
-        grade: editGrade ? Number(editGrade) : null,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -184,7 +178,6 @@ export default function TeacherClassManagementPage() {
                     </h3>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-gray/70 mt-1">
                       <span>{classItem.member_count} students</span>
-                      {classItem.grade !== null && <span>Grade {classItem.grade}</span>}
                       <span className="text-xs text-slate-gray/50">ID: {classItem.id}</span>
                     </div>
                   </div>
@@ -199,7 +192,6 @@ export default function TeacherClassManagementPage() {
                       onClick={() => {
                         setEditingClass(classItem);
                         setEditName(classItem.name);
-                        setEditGrade(classItem.grade !== null ? String(classItem.grade) : "");
                       }}
                       className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                     >
@@ -242,15 +234,6 @@ export default function TeacherClassManagementPage() {
                   required
                 />
               </label>
-              <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Grade (optional)</span>
-                <input
-                  type="number"
-                  value={newClassGrade}
-                  onChange={(e) => setNewClassGrade(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                />
-              </label>
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
@@ -291,15 +274,6 @@ export default function TeacherClassManagementPage() {
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Grade (optional)</span>
-                <input
-                  type="number"
-                  value={editGrade}
-                  onChange={(e) => setEditGrade(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2"
                 />
               </label>

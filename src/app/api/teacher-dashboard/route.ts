@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { resolveRole } from "@/lib/auth/role";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 interface AttemptRow {
@@ -16,6 +18,7 @@ export async function GET(request: Request) {
   const range = (url.searchParams.get("range") as "7d" | "30d" | "all" | null) ?? "30d";
 
   const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -28,15 +31,45 @@ export async function GET(request: Request) {
     .select("id,role")
     .eq("id", user.id)
     .maybeSingle();
-  if (!currentProfile || !["teacher", "admin"].includes(String(currentProfile.role))) {
+  const role = resolveRole(currentProfile?.role, user);
+  if (!role || !["teacher", "admin"].includes(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let classesQuery = supabase.from("classes").select("id,name,teacher_user_id");
-  if (currentProfile.role === "teacher") {
-    classesQuery = classesQuery.eq("teacher_user_id", user.id);
+  let classesData:
+    | Array<{ id: string; name: string; teacher_user_id: string }>
+    | null = null;
+  if (role === "teacher") {
+    const [{ data: classTeachers }, { data: legacyClasses }] = await Promise.all([
+      admin
+        .from("class_teachers")
+        .select("class_id")
+        .eq("teacher_user_id", user.id),
+      admin.from("classes").select("id").eq("teacher_user_id", user.id),
+    ]);
+    const classIds = Array.from(
+      new Set([
+        ...(classTeachers ?? []).map((row) => row.class_id),
+        ...(legacyClasses ?? []).map((row) => row.id),
+      ]),
+    );
+    if (classIds.length === 0) {
+      classesData = [];
+    } else {
+      const { data } = await admin
+        .from("classes")
+        .select("id,name,teacher_user_id")
+        .in("id", classIds)
+        .order("name", { ascending: true });
+      classesData = data;
+    }
+  } else {
+    const { data } = await admin
+      .from("classes")
+      .select("id,name,teacher_user_id")
+      .order("name", { ascending: true });
+    classesData = data;
   }
-  const { data: classesData } = await classesQuery.order("name", { ascending: true });
   const classIds = (classesData ?? []).map((item) => String(item.id));
   if (classIds.length === 0) {
     return NextResponse.json({
@@ -50,7 +83,7 @@ export async function GET(request: Request) {
 
   const effectiveClassIds = classId && classIds.includes(classId) ? [classId] : classIds;
 
-  const { data: memberRows } = await supabase
+  const { data: memberRows } = await admin
     .from("class_members")
     .select("class_id,student_user_id")
     .in("class_id", effectiveClassIds);
@@ -73,7 +106,7 @@ export async function GET(request: Request) {
       ? [studentId]
       : scopedStudentIds;
 
-  const { data: profileRows } = await supabase
+  const { data: profileRows } = await admin
     .from("profiles")
     .select("id,display_name,student_id")
     .in("id", scopedStudentIds);
@@ -86,7 +119,7 @@ export async function GET(request: Request) {
     );
   }
 
-  let attemptsQuery = supabase
+  let attemptsQuery = admin
     .from("attempts")
     .select("user_id,standard_id,standard_label,is_correct,time_spent_sec,answered_at")
     .in("user_id", effectiveStudentIds);

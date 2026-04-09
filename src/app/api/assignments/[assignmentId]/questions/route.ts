@@ -72,13 +72,21 @@ export async function GET(
     if (requester.role === "admin") {
       canAccess = true;
     } else {
-      const { data: teacherClass } = await admin
-        .from("classes")
-        .select("id")
-        .eq("id", assignment.class_id)
-        .eq("teacher_user_id", requester.id)
-        .maybeSingle();
-      canAccess = Boolean(teacherClass);
+      const [{ data: teacherClass }, { data: classTeacherRow }] = await Promise.all([
+        admin
+          .from("classes")
+          .select("id")
+          .eq("id", assignment.class_id)
+          .eq("teacher_user_id", requester.id)
+          .maybeSingle(),
+        admin
+          .from("class_teachers")
+          .select("class_id")
+          .eq("class_id", assignment.class_id)
+          .eq("teacher_user_id", requester.id)
+          .maybeSingle(),
+      ]);
+      canAccess = Boolean(teacherClass || classTeacherRow);
     }
   }
 

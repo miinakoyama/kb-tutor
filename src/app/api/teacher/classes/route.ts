@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -31,21 +32,65 @@ async function requireTeacher() {
   return { ok: true as const, userId: user.id, role: role as AppRole };
 }
 
+function buildClassId(name: string) {
+  const slug = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+  return `cls_${slug || "class"}_${randomUUID().slice(0, 6)}`;
+}
+
+async function getTeacherScopedClassIds(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  teacherUserId: string,
+) {
+  const [{ data: classTeachers }, { data: legacyClasses }] = await Promise.all([
+    admin
+      .from("class_teachers")
+      .select("class_id")
+      .eq("teacher_user_id", teacherUserId),
+    admin
+      .from("classes")
+      .select("id")
+      .eq("teacher_user_id", teacherUserId),
+  ]);
+  return Array.from(
+    new Set([
+      ...(classTeachers ?? []).map((row) => row.class_id),
+      ...(legacyClasses ?? []).map((row) => row.id),
+    ]),
+  );
+}
+
 export async function GET() {
   const guard = await requireTeacher();
   if (!guard.ok) return guard.response;
 
   const admin = createSupabaseAdminClient();
-  let classesQuery = admin
-    .from("classes")
-    .select("id,name,grade,teacher_user_id,created_at")
-    .order("name", { ascending: true });
+  const scopedClassIds =
+    guard.role === "teacher"
+      ? await getTeacherScopedClassIds(admin, guard.userId)
+      : null;
 
-  if (guard.role === "teacher") {
-    classesQuery = classesQuery.eq("teacher_user_id", guard.userId);
-  }
+  const classesQuery =
+    guard.role === "teacher" && scopedClassIds
+      ? scopedClassIds.length === 0
+        ? null
+        : admin
+            .from("classes")
+            .select("id,name,grade,teacher_user_id,created_at")
+            .in("id", scopedClassIds)
+            .order("name", { ascending: true })
+      : admin
+          .from("classes")
+          .select("id,name,grade,teacher_user_id,created_at")
+          .order("name", { ascending: true });
 
-  const { data: classesData, error: classError } = await classesQuery;
+  const { data: classesData, error: classError } = classesQuery
+    ? await classesQuery
+    : { data: [], error: null as null | { message: string } };
   if (classError) {
     return NextResponse.json({ error: classError.message }, { status: 400 });
   }
@@ -92,14 +137,16 @@ export async function POST(request: Request) {
     grade?: number | null;
   };
 
-  if (!body.id || !body.name) {
-    return NextResponse.json({ error: "Missing required fields: id, name" }, { status: 400 });
+  const className = body.name?.trim();
+  if (!className) {
+    return NextResponse.json({ error: "Missing required field: name" }, { status: 400 });
   }
+  const classId = body.id?.trim() || buildClassId(className);
 
   const admin = createSupabaseAdminClient();
   const { error: classError } = await admin.from("classes").insert({
-    id: body.id,
-    name: body.name,
+    id: classId,
+    name: className,
     grade: body.grade ?? null,
     teacher_user_id: guard.userId,
   });
@@ -107,7 +154,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: classError.message }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true });
+  const { error: teacherError } = await admin.from("class_teachers").insert({
+    class_id: classId,
+    teacher_user_id: guard.userId,
+    teacher_role: "primary",
+  });
+  if (teacherError) {
+    return NextResponse.json({ error: teacherError.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, id: classId });
 }
 
 export async function PATCH(request: Request) {
@@ -136,8 +192,11 @@ export async function PATCH(request: Request) {
   if (!existing) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
-  if (guard.role === "teacher" && existing.teacher_user_id !== guard.userId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (guard.role === "teacher") {
+    const scopedClassIds = await getTeacherScopedClassIds(admin, guard.userId);
+    if (!scopedClassIds.includes(body.id)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const updates: { name?: string; grade?: number | null } = {};
@@ -176,8 +235,11 @@ export async function DELETE(request: Request) {
   if (!existing) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
-  if (guard.role === "teacher" && existing.teacher_user_id !== guard.userId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (guard.role === "teacher") {
+    const scopedClassIds = await getTeacherScopedClassIds(admin, guard.userId);
+    if (!scopedClassIds.includes(body.id)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const { error } = await admin.from("classes").delete().eq("id", body.id);
