@@ -284,7 +284,9 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               <p className="text-sm font-semibold text-slate-700 truncate">
                 {getDisplayName(userProfile)}
               </p>
-              <p className="text-xs text-slate-400 truncate">{userProfile.email}</p>
+              {role !== "student" && (
+                <p className="text-xs text-slate-400 truncate">{userProfile.email}</p>
+              )}
             </div>
           )}
           <Link

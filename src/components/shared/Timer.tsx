@@ -15,14 +15,14 @@ export function Timer({ isRunning, onElapsedChange }: TimerProps) {
   useEffect(() => {
     if (!isRunning) return;
     const interval = setInterval(() => {
-      setElapsedMs((prev) => {
-        const next = prev + 1000;
-        onElapsedChange?.(next);
-        return next;
-      });
+      setElapsedMs((prev) => prev + 1000);
     }, 1000);
     return () => clearInterval(interval);
-  }, [isRunning, onElapsedChange]);
+  }, [isRunning]);
+
+  useEffect(() => {
+    onElapsedChange?.(elapsedMs);
+  }, [elapsedMs, onElapsedChange]);
 
   const formatTime = useCallback((ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
