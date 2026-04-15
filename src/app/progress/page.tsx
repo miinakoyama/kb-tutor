@@ -19,6 +19,11 @@ import {
   getDefaultStandardForTopic,
   type ModuleCode,
 } from "@/lib/standards";
+import {
+  getBrowserTimeZone,
+  DEFAULT_APP_TIME_ZONE,
+} from "@/lib/timezone";
+import { syncTimeZoneFromDb } from "@/lib/timezone-settings";
 
 type AttemptRow = {
   is_correct: boolean;
@@ -36,7 +41,8 @@ type MasteryDatum = {
 };
 
 const MODULE_ORDER: ModuleCode[] = ["A", "B"];
-const APP_TIME_ZONE = "America/New_York";
+const PROGRESS_LOOKBACK_DAYS = 365;
+const PROGRESS_FETCH_LIMIT = 2000;
 
 const PROGRESS_TOPICS = MODULE_ORDER.flatMap((module) => {
   const categories = Array.from(
@@ -49,12 +55,13 @@ const PROGRESS_TOPICS = MODULE_ORDER.flatMap((module) => {
   }));
 });
 
-function toDateKey(value: Date): string {
+function toDateKey(value: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIME_ZONE,
+    timeZone,
   }).format(value);
 }
 
+/** Maps each attempt into the current module/category topic axis. */
 function resolveTopicKey(row: AttemptRow): string | null {
   const byStandard =
     typeof row.standard_id === "string" && row.standard_id.trim()
@@ -70,9 +77,13 @@ function resolveTopicKey(row: AttemptRow): string | null {
   return `Module ${fallback.module} - ${fallback.category}`;
 }
 
-function calculateStreak(rows: AttemptRow[]): number {
+/**
+ * Calculates current daily streak from answered timestamps in the user's timezone.
+ * A streak counts consecutive calendar days up to today.
+ */
+function calculateStreak(rows: AttemptRow[], timeZone: string): number {
   const answeredDates = new Set(
-    rows.map((row) => toDateKey(new Date(row.answered_at))),
+    rows.map((row) => toDateKey(new Date(row.answered_at), timeZone)),
   );
   if (answeredDates.size === 0) return 0;
 
@@ -80,7 +91,7 @@ function calculateStreak(rows: AttemptRow[]): number {
   const cursor = new Date();
 
   while (true) {
-    const key = toDateKey(cursor);
+    const key = toDateKey(cursor, timeZone);
     if (!answeredDates.has(key)) break;
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
@@ -89,6 +100,7 @@ function calculateStreak(rows: AttemptRow[]): number {
   return streak;
 }
 
+/** Aggregates mastery percentage by current module/category topic keys. */
 function calculateMastery(rows: AttemptRow[]): MasteryDatum[] {
   const totals = new Map<string, { correct: number; total: number }>();
 
@@ -118,6 +130,7 @@ function calculateMastery(rows: AttemptRow[]): MasteryDatum[] {
 
 export default function ProgressPage() {
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
   const [masteryData, setMasteryData] = useState<MasteryDatum[]>(() =>
     PROGRESS_TOPICS.map(({ key }) => ({
@@ -132,21 +145,47 @@ export default function ProgressPage() {
   useEffect(() => {
     const loadProgress = async () => {
       try {
+        const browserTimeZone = getBrowserTimeZone(DEFAULT_APP_TIME_ZONE);
+        const timeZone = await syncTimeZoneFromDb(browserTimeZone);
+
+        const since = new Date();
+        since.setDate(since.getDate() - PROGRESS_LOOKBACK_DAYS);
+
         const supabase = getSupabaseBrowserClient();
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+        if (userError || !user) {
+          setErrorMessage(
+            "Failed to load progress data. Please refresh and try again.",
+          );
+          return;
+        }
+
         const { data, error } = await supabase
           .from("attempts")
           .select("is_correct,answered_at,topic,standard_id")
+          .eq("user_id", user.id)
+          .gte("answered_at", since.toISOString())
           .order("answered_at", { ascending: false })
-          .limit(5000);
+          .limit(PROGRESS_FETCH_LIMIT);
 
         if (error) {
-          setIsLoading(false);
+          setErrorMessage(
+            "Failed to load progress data. Please refresh and try again.",
+          );
           return;
         }
 
         const rows = (data ?? []) as AttemptRow[];
-        setStreak(calculateStreak(rows));
+        setStreak(calculateStreak(rows, timeZone));
         setMasteryData(calculateMastery(rows));
+        setErrorMessage(null);
+      } catch {
+        setErrorMessage(
+          "Failed to load progress data. Please refresh and try again.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -167,6 +206,12 @@ export default function ProgressPage() {
       </h1>
 
       <div className="space-y-8">
+        {errorMessage && (
+          <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm text-red-700">{errorMessage}</p>
+          </section>
+        )}
+
         <section className="rounded-lg border border-leaf/30 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-4 flex items-center gap-2">
             <Flame className="w-5 h-5 text-orange-500" />

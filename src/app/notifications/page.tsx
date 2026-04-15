@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { Bell, Lightbulb } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStudentNotifications, STUDENT_TIME_ZONE } from "@/lib/notifications";
+import { getStudentNotifications } from "@/lib/notifications";
+import { DEFAULT_APP_TIME_ZONE, normalizeTimeZone } from "@/lib/timezone";
 
 const FALLBACK_MESSAGES = [
   "You're all caught up. Check Self Practice to keep momentum.",
@@ -17,14 +18,27 @@ export default async function NotificationsPage() {
     redirect("/login");
   }
 
-  const notifications = await getStudentNotifications(supabase, user.id);
+  const { data: settingsData } = await supabase
+    .from("user_settings")
+    .select("time_zone")
+    .maybeSingle();
+  const timeZone = normalizeTimeZone(
+    settingsData?.time_zone,
+    DEFAULT_APP_TIME_ZONE,
+  );
+
+  const notificationResult = await getStudentNotifications(supabase, user.id, {
+    timeZone,
+  });
+  const notifications = notificationResult.notifications;
+  const notificationsError = notificationResult.error;
 
   const formatCreatedAt = (value: string) =>
     new Intl.DateTimeFormat("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
       timeZoneName: "short",
-      timeZone: STUDENT_TIME_ZONE,
+      timeZone,
     }).format(new Date(value));
 
   return (
@@ -37,6 +51,14 @@ export default async function NotificationsPage() {
           Recent updates from assignments and deadlines.
         </p>
       </section>
+
+      {notificationsError && (
+        <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4">
+          <p className="text-sm text-red-700">
+            Failed to load notifications. Please refresh and try again.
+          </p>
+        </section>
+      )}
 
       {notifications.length === 0 ? (
         <section className="rounded-xl border border-[#16a34a]/30 bg-white p-5 sm:p-6 shadow-sm">
