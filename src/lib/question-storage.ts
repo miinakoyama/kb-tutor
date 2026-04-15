@@ -134,7 +134,10 @@ export async function getAllGeneratedQuestionSets(): Promise<{
             .order("generated_at", { ascending: false }),
           supabase
             .from("generated_questions")
-            .select("id,set_id,payload,is_visible"),
+            .select("id,set_id,payload,is_visible")
+            .order("set_id", { ascending: true })
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true }),
         ]);
 
       if (!setError && !questionError && setsData) {
@@ -226,7 +229,9 @@ export async function getGeneratedQuestionSetById(setId: string): Promise<{
           supabase
             .from("generated_questions")
             .select("id,payload,is_visible")
-            .eq("set_id", setId),
+            .eq("set_id", setId)
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true }),
         ]);
 
       if (!setError && !questionError && setData) {

@@ -2,29 +2,57 @@ import { createServerClient } from "@supabase/ssr";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { resolveRole } from "@/lib/auth/role";
+import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = ["/login", "/login/staff"];
-const TEACHER_PATHS = [
-  "/teacher-dashboard",
-  "/assignments/manage",
-  "/content",
-  "/content/questions",
-  "/content/mass-production",
-];
-const ADMIN_PATHS = ["/content/accounts", "/content/schools"];
 
 type AppRole = "student" | "teacher" | "admin";
+type RoleRule = {
+  paths: string[];
+  allowedRoles: AppRole[];
+};
+
+const PAGE_ROLE_RULES: RoleRule[] = [
+  {
+    // Keep admin-only routes first because "/content" is also guarded below.
+    paths: ["/content/accounts", "/content/schools"],
+    allowedRoles: ["admin"],
+  },
+  {
+    paths: [
+      "/teacher-dashboard",
+      "/assignments/manage",
+      "/content",
+      "/content/questions",
+      "/content/mass-production",
+    ],
+    allowedRoles: ["teacher", "admin"],
+  },
+];
+
+const API_ROLE_RULES: RoleRule[] = [
+  { paths: ["/api/admin"], allowedRoles: ["admin"] },
+  {
+    paths: ["/api/assignments/manage", "/api/teacher"],
+    allowedRoles: ["teacher", "admin"],
+  },
+];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-function needsTeacherRole(pathname: string) {
-  return TEACHER_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+function matchesPath(pathname: string, path: string) {
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
-function needsAdminRole(pathname: string) {
-  return ADMIN_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+function getAllowedRoles(pathname: string, rules: RoleRule[]): AppRole[] | null {
+  for (const rule of rules) {
+    if (rule.paths.some((path) => matchesPath(pathname, path))) {
+      return rule.allowedRoles;
+    }
+  }
+  return null;
 }
 
 function getPostLoginPath(role: AppRole | null) {
@@ -39,17 +67,14 @@ export async function middleware(req: NextRequest) {
   });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getSupabaseUrl(),
+    getSupabaseAnonKey(),
     {
       cookies: {
         getAll() {
           return req.cookies.getAll();
         },
         setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
-          cookiesToSet.forEach(({ name, value }) =>
-            req.cookies.set(name, value),
-          );
           supabaseResponse = NextResponse.next({
             request: req,
           });
@@ -70,6 +95,9 @@ export async function middleware(req: NextRequest) {
   const isApiPublic =
     pathname.startsWith("/api/generate-questions") ||
     pathname.startsWith("/api/public/");
+  const requiredPageRoles = getAllowedRoles(pathname, PAGE_ROLE_RULES);
+  const requiredApiRoles = getAllowedRoles(pathname, API_ROLE_RULES);
+  const requiredRoles = requiredPageRoles ?? requiredApiRoles;
 
   if (!user) {
     if (isPublicPath(pathname) || isApiAuthPath || isApiPublic) {
@@ -84,37 +112,32 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated users visiting a login page → redirect to their dashboard
-  if (pathname === "/login" || pathname === "/login/staff") {
-    const nextUrl = req.nextUrl.clone();
+  let resolvedRole: AppRole | null | undefined;
+  const getResolvedRole = async (): Promise<AppRole | null> => {
+    if (resolvedRole !== undefined) return resolvedRole;
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .maybeSingle();
-    const role = resolveRole(profile?.role, user);
+    resolvedRole = resolveRole(profile?.role, user);
+    return resolvedRole;
+  };
+
+  // Authenticated users visiting a login page → redirect to their dashboard
+  if (pathname === "/login" || pathname === "/login/staff") {
+    const nextUrl = req.nextUrl.clone();
+    const role = await getResolvedRole();
     nextUrl.pathname = getPostLoginPath(role);
     return NextResponse.redirect(nextUrl);
   }
 
-  if (
-    needsTeacherRole(pathname) ||
-    needsAdminRole(pathname) ||
-    pathname.startsWith("/api/admin") ||
-    pathname.startsWith("/api/assignments/manage") ||
-    pathname.startsWith("/api/teacher")
-  ) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const role = resolveRole(profile?.role, user);
+  if (requiredRoles) {
+    const role = await getResolvedRole();
     if (!role) {
       // Let admin API routes perform definitive checks in route handlers,
       // because profile reads in middleware can fail under RLS/policy setups.
-      if (pathname.startsWith("/api/admin")) {
+      if (requiredApiRoles?.includes("admin") && requiredApiRoles.length === 1) {
         return supabaseResponse;
       }
       if (pathname.startsWith("/api/")) {
@@ -123,23 +146,11 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/", req.url));
     }
 
-    if (pathname.startsWith("/api/admin") && role !== "admin") {
+    if (requiredApiRoles && !requiredApiRoles.includes(role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    if (pathname.startsWith("/api/assignments/manage") && !["teacher", "admin"].includes(role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    if (pathname.startsWith("/api/teacher") && !["teacher", "admin"].includes(role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    if (needsAdminRole(pathname) && role !== "admin") {
-      return NextResponse.redirect(new URL("/", req.url));
-    }
-
-    if (needsTeacherRole(pathname) && !["teacher", "admin"].includes(role)) {
+    if (requiredPageRoles && !requiredPageRoles.includes(role)) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }

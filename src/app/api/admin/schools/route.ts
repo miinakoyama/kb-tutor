@@ -89,7 +89,7 @@ export async function GET() {
         (schoolsData ?? []).map((row) => row.teacher_user_id),
       ),
     ),
-  );
+  ).filter((id): id is string => typeof id === "string" && id.length > 0);
   const { data: teacherProfiles } =
     teacherIds.length > 0
       ? await admin
@@ -150,12 +150,13 @@ export async function GET() {
       teachers.length > 0
         ? teachers.map((teacher) => teacher.label).join(", ")
         : (() => {
+            if (!s.teacher_user_id) return "Unassigned";
             const teacher = teacherMap.get(s.teacher_user_id);
             return (
               teacher?.display_name ||
               teacher?.student_id ||
               teacher?.email ||
-              s.teacher_user_id
+              "Unassigned"
             );
           })();
     return {

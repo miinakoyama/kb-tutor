@@ -26,6 +26,11 @@ export function getStoredTtsRate(fallback = DEFAULT_TTS_RATE): number {
 }
 
 export function setStoredTtsRate(rate: number): void {
+  setStoredTtsRateLocalOnly(rate);
+  void saveTtsRateToDb(rate);
+}
+
+function setStoredTtsRateLocalOnly(rate: number): void {
   if (typeof window === "undefined") return;
   if (!isValidTtsRate(rate)) return;
 
@@ -34,8 +39,6 @@ export function setStoredTtsRate(rate: number): void {
   } catch {
     // localStorage may be unavailable in restricted environments
   }
-
-  void saveTtsRateToDb(rate);
 }
 
 function canUseRemoteDb(): boolean {
@@ -66,7 +69,7 @@ export async function syncTtsRateFromDb(
       .maybeSingle();
     const value = Number(data?.tts_rate);
     if (isValidTtsRate(value)) {
-      setStoredTtsRate(value);
+      setStoredTtsRateLocalOnly(value);
       return value;
     }
   } catch {

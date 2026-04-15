@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRole } from "@/lib/auth/role";
+import { normalizeStudentId } from "@/lib/auth/student-id";
 
 type AppRole = "student" | "teacher" | "admin";
 
@@ -29,7 +30,7 @@ async function handleStudentLogin(body: {
   studentId?: string;
 }) {
   const schoolId = body.schoolId?.trim();
-  const studentId = body.studentId?.trim();
+  const studentId = normalizeStudentId(body.studentId ?? "");
 
   if (!schoolId || !studentId) {
     return NextResponse.json(
@@ -45,20 +46,23 @@ async function handleStudentLogin(body: {
     .from("school_members")
     .select("student_user_id, profiles!inner(id, email, student_id)")
     .eq("school_id", schoolId)
-    .eq("profiles.student_id", studentId);
+    .ilike("profiles.student_id", studentId);
 
   const existingMember = (memberRows ?? []).find(
     (row) =>
-      (row.profiles as unknown as { student_id: string }).student_id === studentId,
+      normalizeStudentId(
+        (row.profiles as unknown as { student_id?: string | null }).student_id ?? "",
+      ) === studentId,
   );
 
   const supabase = await createSupabaseServerClient();
 
   if (existingMember) {
     // Existing account — sign in with the internal email/password
-    const profile = existingMember.profiles as unknown as { email: string };
+    const profile = existingMember.profiles as unknown as { email: string; student_id?: string };
     const email = profile.email;
-    const password = buildStudentPassword(schoolId, studentId);
+    const canonicalStudentId = profile.student_id || studentId;
+    const password = buildStudentPassword(schoolId, canonicalStudentId);
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
@@ -92,7 +96,11 @@ async function handleStudentLogin(body: {
     email,
     password,
     email_confirm: true,
-    user_metadata: { role: "student" },
+    user_metadata: {
+      role: "student",
+      student_id: studentId,
+      display_name: studentId,
+    },
   });
 
   if (createError) {
@@ -134,6 +142,7 @@ async function handleStudentLogin(body: {
   });
 
   if (memberError) {
+    await admin.auth.admin.deleteUser(newUser.user.id);
     return NextResponse.json(
       { error: `Failed to register for school: ${memberError.message}` },
       { status: 500 },
