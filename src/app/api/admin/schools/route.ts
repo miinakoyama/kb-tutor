@@ -31,14 +31,14 @@ async function requireAdmin() {
   return { ok: true as const };
 }
 
-function buildClassId(name: string) {
+function buildSchoolId(name: string) {
   const slug = name
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 32);
-  return `cls_${slug || "class"}_${randomUUID().slice(0, 6)}`;
+  return `sch_${slug || "school"}_${randomUUID().slice(0, 6)}`;
 }
 
 function normalizeTeacherIds(body: {
@@ -61,32 +61,32 @@ export async function GET() {
   if (!guard.ok) return guard.response;
 
   const admin = createSupabaseAdminClient();
-  const { data: classesData, error: classError } = await admin
-    .from("classes")
-    .select("id,name,grade,teacher_user_id,created_at")
+  const { data: schoolsData, error: schoolError } = await admin
+    .from("schools")
+    .select("id,name,teacher_user_id,created_at")
     .order("name", { ascending: true });
-  if (classError) {
-    return NextResponse.json({ error: classError.message }, { status: 400 });
+  if (schoolError) {
+    return NextResponse.json({ error: schoolError.message }, { status: 400 });
   }
 
-  const classIds = (classesData ?? []).map((c) => c.id);
+  const schoolIds = (schoolsData ?? []).map((s) => s.id);
 
-  const [{ data: classTeachers }, { data: members }] = await Promise.all([
-    classIds.length > 0
+  const [{ data: schoolTeachers }, { data: members }] = await Promise.all([
+    schoolIds.length > 0
       ? admin
-          .from("class_teachers")
-          .select("class_id,teacher_user_id,teacher_role")
-          .in("class_id", classIds)
-      : Promise.resolve({ data: [] as Array<{ class_id: string; teacher_user_id: string; teacher_role: "primary" | "assistant" }> }),
-    classIds.length > 0
-      ? admin.from("class_members").select("class_id,student_user_id").in("class_id", classIds)
-      : Promise.resolve({ data: [] as Array<{ class_id: string; student_user_id: string }> }),
+          .from("school_teachers")
+          .select("school_id,teacher_user_id,teacher_role")
+          .in("school_id", schoolIds)
+      : Promise.resolve({ data: [] as Array<{ school_id: string; teacher_user_id: string; teacher_role: "primary" | "assistant" }> }),
+    schoolIds.length > 0
+      ? admin.from("school_members").select("school_id,student_user_id").in("school_id", schoolIds)
+      : Promise.resolve({ data: [] as Array<{ school_id: string; student_user_id: string }> }),
   ]);
 
   const teacherIds = Array.from(
     new Set(
-      (classTeachers ?? []).map((row) => row.teacher_user_id).concat(
-        (classesData ?? []).map((row) => row.teacher_user_id),
+      (schoolTeachers ?? []).map((row) => row.teacher_user_id).concat(
+        (schoolsData ?? []).map((row) => row.teacher_user_id),
       ),
     ),
   );
@@ -118,13 +118,13 @@ export async function GET() {
 
   const teacherMap = new Map((teacherProfiles ?? []).map((p) => [p.id, p]));
   const studentMap = new Map((studentProfiles ?? []).map((p) => [p.id, p]));
-  const teachersByClass = new Map<
+  const teachersBySchool = new Map<
     string,
     Array<{ id: string; label: string; is_primary: boolean }>
   >();
-  for (const row of classTeachers ?? []) {
+  for (const row of schoolTeachers ?? []) {
     const profile = teacherMap.get(row.teacher_user_id);
-    const list = teachersByClass.get(row.class_id) ?? [];
+    const list = teachersBySchool.get(row.school_id) ?? [];
     list.push({
       id: row.teacher_user_id,
       label:
@@ -134,36 +134,35 @@ export async function GET() {
         row.teacher_user_id,
       is_primary: row.teacher_role === "primary",
     });
-    teachersByClass.set(row.class_id, list);
+    teachersBySchool.set(row.school_id, list);
   }
-  const membersByClass = new Map<string, string[]>();
+  const membersBySchool = new Map<string, string[]>();
   for (const row of members ?? []) {
-    const list = membersByClass.get(row.class_id) ?? [];
+    const list = membersBySchool.get(row.school_id) ?? [];
     list.push(row.student_user_id);
-    membersByClass.set(row.class_id, list);
+    membersBySchool.set(row.school_id, list);
   }
 
-  const classes = (classesData ?? []).map((c) => {
-    const teachers = teachersByClass.get(c.id) ?? [];
-    const studentUserIds = membersByClass.get(c.id) ?? [];
+  const schools = (schoolsData ?? []).map((s) => {
+    const teachers = teachersBySchool.get(s.id) ?? [];
+    const studentUserIds = membersBySchool.get(s.id) ?? [];
     const teacherLabel =
       teachers.length > 0
         ? teachers.map((teacher) => teacher.label).join(", ")
         : (() => {
-            const teacher = teacherMap.get(c.teacher_user_id);
+            const teacher = teacherMap.get(s.teacher_user_id);
             return (
               teacher?.display_name ||
               teacher?.student_id ||
               teacher?.email ||
-              c.teacher_user_id
+              s.teacher_user_id
             );
           })();
     return {
-      id: c.id,
-      name: c.name,
-      grade: c.grade,
-      created_at: c.created_at,
-      teacher_user_id: c.teacher_user_id,
+      id: s.id,
+      name: s.name,
+      created_at: s.created_at,
+      teacher_user_id: s.teacher_user_id,
       teacher_label: teacherLabel,
       teachers,
       students: studentUserIds.map((id) => {
@@ -176,7 +175,7 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ classes });
+  return NextResponse.json({ schools });
 }
 
 export async function POST(request: Request) {
@@ -186,47 +185,47 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     id?: string;
     name?: string;
-    grade?: number | null;
     teacherUserId?: string;
     teacherUserIds?: string[];
     studentUserIds?: string[];
   };
 
-  const className = body.name?.trim();
+  const schoolName = body.name?.trim();
   const teacherIds = normalizeTeacherIds(body);
-  if (!className || teacherIds.length === 0) {
-    return NextResponse.json({ error: "Missing required fields: name, teacherUserIds" }, { status: 400 });
+  if (!schoolName) {
+    return NextResponse.json({ error: "Missing required field: name" }, { status: 400 });
   }
-  const classId = body.id?.trim() || buildClassId(className);
-  const primaryTeacherId = teacherIds[0];
+  const schoolId = body.id?.trim() || buildSchoolId(schoolName);
+  const primaryTeacherId = teacherIds[0] ?? null;
 
   const admin = createSupabaseAdminClient();
-  const { error: classError } = await admin.from("classes").insert({
-    id: classId,
-    name: className,
-    grade: body.grade ?? null,
+  const { error: schoolError } = await admin.from("schools").insert({
+    id: schoolId,
+    name: schoolName,
     teacher_user_id: primaryTeacherId,
   });
-  if (classError) {
-    return NextResponse.json({ error: classError.message }, { status: 400 });
+  if (schoolError) {
+    return NextResponse.json({ error: schoolError.message }, { status: 400 });
   }
 
-  const { error: teacherError } = await admin.from("class_teachers").insert(
-    teacherIds.map((teacherId, index) => ({
-      class_id: classId,
-      teacher_user_id: teacherId,
-      teacher_role: index === 0 ? "primary" : "assistant",
-    })),
-  );
-  if (teacherError) {
-    return NextResponse.json({ error: teacherError.message }, { status: 400 });
+  if (teacherIds.length > 0) {
+    const { error: teacherError } = await admin.from("school_teachers").insert(
+      teacherIds.map((teacherId, index) => ({
+        school_id: schoolId,
+        teacher_user_id: teacherId,
+        teacher_role: index === 0 ? "primary" : "assistant",
+      })),
+    );
+    if (teacherError) {
+      return NextResponse.json({ error: teacherError.message }, { status: 400 });
+    }
   }
 
   const studentIds = Array.from(new Set(body.studentUserIds ?? []));
   if (studentIds.length > 0) {
-    const { error: memberError } = await admin.from("class_members").insert(
+    const { error: memberError } = await admin.from("school_members").insert(
       studentIds.map((studentUserId) => ({
-        class_id: classId,
+        school_id: schoolId,
         student_user_id: studentUserId,
       })),
     );
@@ -235,7 +234,7 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, id: classId });
+  return NextResponse.json({ ok: true, id: schoolId });
 }
 
 export async function PATCH(request: Request) {
@@ -245,30 +244,24 @@ export async function PATCH(request: Request) {
   const body = (await request.json()) as {
     id?: string;
     name?: string;
-    grade?: number | null;
     teacherUserId?: string;
     teacherUserIds?: string[];
     studentUserIds?: string[];
   };
 
   if (!body.id) {
-    return NextResponse.json({ error: "Missing class id" }, { status: 400 });
+    return NextResponse.json({ error: "Missing school id" }, { status: 400 });
   }
 
   const admin = createSupabaseAdminClient();
-  const updates: {
-    name?: string;
-    grade?: number | null;
-    teacher_user_id?: string;
-  } = {};
+  const updates: { name?: string; teacher_user_id?: string | null } = {};
   if (body.name !== undefined) updates.name = body.name;
-  if (body.grade !== undefined) updates.grade = body.grade;
   const teacherIds = normalizeTeacherIds(body);
   if (teacherIds.length > 0) updates.teacher_user_id = teacherIds[0];
 
   if (Object.keys(updates).length > 0) {
     const { error: updateError } = await admin
-      .from("classes")
+      .from("schools")
       .update(updates)
       .eq("id", body.id);
     if (updateError) {
@@ -276,49 +269,45 @@ export async function PATCH(request: Request) {
     }
   }
 
-  if (
-    body.teacherUserId !== undefined ||
-    body.teacherUserIds !== undefined
-  ) {
+  if (body.teacherUserId !== undefined || body.teacherUserIds !== undefined) {
     const nextTeacherIds = normalizeTeacherIds(body);
-    if (nextTeacherIds.length === 0) {
-      return NextResponse.json({ error: "At least one teacher is required." }, { status: 400 });
-    }
     const { error: deleteTeacherError } = await admin
-      .from("class_teachers")
+      .from("school_teachers")
       .delete()
-      .eq("class_id", body.id);
+      .eq("school_id", body.id);
     if (deleteTeacherError) {
       return NextResponse.json({ error: deleteTeacherError.message }, { status: 400 });
     }
-    const { error: insertTeacherError } = await admin
-      .from("class_teachers")
-      .insert(
-        nextTeacherIds.map((teacherId, index) => ({
-          class_id: body.id,
-          teacher_user_id: teacherId,
-          teacher_role: index === 0 ? "primary" : "assistant",
-        })),
-      );
-    if (insertTeacherError) {
-      return NextResponse.json({ error: insertTeacherError.message }, { status: 400 });
+    if (nextTeacherIds.length > 0) {
+      const { error: insertTeacherError } = await admin
+        .from("school_teachers")
+        .insert(
+          nextTeacherIds.map((teacherId, index) => ({
+            school_id: body.id,
+            teacher_user_id: teacherId,
+            teacher_role: index === 0 ? "primary" : "assistant",
+          })),
+        );
+      if (insertTeacherError) {
+        return NextResponse.json({ error: insertTeacherError.message }, { status: 400 });
+      }
     }
   }
 
-  if (body.studentUserIds) {
+  if (body.studentUserIds !== undefined) {
     const nextIds = Array.from(new Set(body.studentUserIds));
     const { error: deleteError } = await admin
-      .from("class_members")
+      .from("school_members")
       .delete()
-      .eq("class_id", body.id);
+      .eq("school_id", body.id);
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 400 });
     }
 
     if (nextIds.length > 0) {
-      const { error: insertError } = await admin.from("class_members").insert(
+      const { error: insertError } = await admin.from("school_members").insert(
         nextIds.map((studentUserId) => ({
-          class_id: body.id,
+          school_id: body.id,
           student_user_id: studentUserId,
         })),
       );
@@ -337,15 +326,14 @@ export async function DELETE(request: Request) {
 
   const body = (await request.json()) as { id?: string };
   if (!body.id) {
-    return NextResponse.json({ error: "Missing class id" }, { status: 400 });
+    return NextResponse.json({ error: "Missing school id" }, { status: 400 });
   }
 
   const admin = createSupabaseAdminClient();
-  const { error } = await admin.from("classes").delete().eq("id", body.id);
+  const { error } = await admin.from("schools").delete().eq("id", body.id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true });
 }
-

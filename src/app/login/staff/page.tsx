@@ -1,38 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-interface School {
-  id: string;
-  name: string;
-}
-
-export default function LoginPage() {
+export default function StaffLoginPage() {
   const router = useRouter();
-  const [schools, setSchools] = useState<School[]>([]);
-  const [schoolId, setSchoolId] = useState("");
-  const [studentId, setStudentId] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const response = await fetch("/api/public/schools");
-        if (response.ok) {
-          const json = (await response.json()) as { schools?: School[] };
-          setSchools(json.schools ?? []);
-          if ((json.schools ?? []).length > 0) {
-            setSchoolId(json.schools![0].id);
-          }
-        }
-      } catch {
-        // Non-critical — school list stays empty, user can still try
-      }
-    })();
-  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,7 +19,7 @@ export default function LoginPage() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "student", schoolId, studentId }),
+        body: JSON.stringify({ type: "staff", email, password }),
       });
       const json = (await response.json()) as { error?: string; redirectTo?: string };
       if (!response.ok) {
@@ -61,41 +38,31 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-sand-beige px-4">
       <section className="w-full max-w-md rounded-2xl border border-[#16a34a]/25 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-[#14532d] mb-2">Student Login</h1>
+        <h1 className="text-2xl font-bold text-[#14532d] mb-2">Staff Login</h1>
         <p className="text-sm text-slate-gray/70 mb-6">
-          Select your school and enter your student ID.
+          Sign in with your email and password.
         </p>
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
-            <span className="text-sm font-medium text-slate-gray">School</span>
-            {schools.length === 0 ? (
-              <p className="mt-1 text-sm text-slate-gray/60">Loading schools...</p>
-            ) : (
-              <select
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={schoolId}
-                onChange={(e) => setSchoolId(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Select your school
-                </option>
-                {schools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-slate-gray">Student ID</span>
+            <span className="text-sm font-medium text-slate-gray">Email</span>
             <input
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              autoComplete="username"
-              placeholder="e.g. st004720601"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="teacher@school.example"
+              required
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-slate-gray">Password</span>
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               required
             />
           </label>
@@ -106,16 +73,16 @@ export default function LoginPage() {
           )}
           <button
             type="submit"
-            disabled={isSubmitting || !schoolId}
+            disabled={isSubmitting}
             className="w-full rounded-lg bg-[#16a34a] px-4 py-2.5 text-white font-medium hover:bg-[#15803d] disabled:opacity-50"
           >
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
         <p className="mt-6 text-center text-sm text-slate-gray/60">
-          Teacher or admin?{" "}
+          Student?{" "}
           <Link
-            href="/login/staff"
+            href="/login"
             className="text-[#16a34a] hover:underline font-medium"
           >
             Sign in here

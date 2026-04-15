@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { studentIdToLoginEmail, normalizeStudentId } from "@/lib/auth/student-id";
 import type { AppRole } from "@/lib/auth/types";
 import { resolveRole } from "@/lib/auth/role";
 
-interface ProvisionPayload {
-  studentId: string;
+interface StaffProvisionPayload {
+  email: string;
   password: string;
   displayName?: string;
-  role: AppRole;
+  role: "teacher" | "admin";
 }
 
 export async function POST(request: Request) {
@@ -40,31 +39,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const payload = (await request.json()) as ProvisionPayload;
-  const studentId = normalizeStudentId(payload.studentId || "");
-  const password = payload.password?.trim() || "";
-  const role = payload.role;
+  const payload = (await request.json()) as StaffProvisionPayload;
+  const email = payload.email?.trim().toLowerCase();
+  const password = payload.password?.trim();
+  const role = payload.role as AppRole;
   const displayName = payload.displayName?.trim() || null;
 
-  if (!studentId || !password || !role) {
+  if (!email || !password || !role) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  if (!["student", "teacher", "admin"].includes(role)) {
-    return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+  if (!["teacher", "admin"].includes(role)) {
+    return NextResponse.json({ error: "Only teacher and admin roles can be provisioned here." }, { status: 400 });
   }
 
   const admin = createSupabaseAdminClient();
-  const email = studentIdToLoginEmail(studentId);
 
   const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    user_metadata: {
-      student_id: studentId,
-      role,
-    },
+    user_metadata: { role },
   });
 
   if (createError || !createdUser.user) {
@@ -78,7 +73,6 @@ export async function POST(request: Request) {
     {
       id: createdUser.user.id,
       email,
-      student_id: studentId,
       display_name: displayName,
       role,
     },
@@ -98,4 +92,3 @@ export async function POST(request: Request) {
     email,
   });
 }
-

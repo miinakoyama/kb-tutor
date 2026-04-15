@@ -3,16 +3,15 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { resolveRole } from "@/lib/auth/role";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/login/staff"];
 const TEACHER_PATHS = [
   "/teacher-dashboard",
-  "/teacher/classes",
   "/assignments/manage",
   "/content",
   "/content/questions",
   "/content/mass-production",
 ];
-const ADMIN_PATHS = ["/content/accounts", "/content/classes"];
+const ADMIN_PATHS = ["/content/accounts", "/content/schools"];
 
 type AppRole = "student" | "teacher" | "admin";
 
@@ -47,7 +46,7 @@ export async function middleware(req: NextRequest) {
         getAll() {
           return req.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
           cookiesToSet.forEach(({ name, value }) =>
             req.cookies.set(name, value),
           );
@@ -68,7 +67,9 @@ export async function middleware(req: NextRequest) {
 
   const pathname = req.nextUrl.pathname;
   const isApiAuthPath = pathname.startsWith("/api/auth");
-  const isApiPublic = pathname.startsWith("/api/generate-questions");
+  const isApiPublic =
+    pathname.startsWith("/api/generate-questions") ||
+    pathname.startsWith("/api/public/");
 
   if (!user) {
     if (isPublicPath(pathname) || isApiAuthPath || isApiPublic) {
@@ -83,7 +84,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (pathname === "/login") {
+  // Authenticated users visiting a login page → redirect to their dashboard
+  if (pathname === "/login" || pathname === "/login/staff") {
     const nextUrl = req.nextUrl.clone();
     const { data: profile } = await supabase
       .from("profiles")
@@ -95,7 +97,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(nextUrl);
   }
 
-  if (needsTeacherRole(pathname) || needsAdminRole(pathname) || pathname.startsWith("/api/admin") || pathname.startsWith("/api/assignments/manage") || pathname.startsWith("/api/teacher")) {
+  if (
+    needsTeacherRole(pathname) ||
+    needsAdminRole(pathname) ||
+    pathname.startsWith("/api/admin") ||
+    pathname.startsWith("/api/assignments/manage") ||
+    pathname.startsWith("/api/teacher")
+  ) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -144,4 +152,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
-

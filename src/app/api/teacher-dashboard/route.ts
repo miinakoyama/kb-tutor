@@ -13,7 +13,6 @@ interface AttemptRow {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const classId = url.searchParams.get("classId") || undefined;
   const studentId = url.searchParams.get("studentId") || undefined;
   const range = (url.searchParams.get("range") as "7d" | "30d" | "all" | null) ?? "30d";
 
@@ -36,44 +35,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let classesData:
-    | Array<{ id: string; name: string; teacher_user_id: string }>
-    | null = null;
+  // Get all schools the teacher has access to
+  let schoolIds: string[] = [];
   if (role === "teacher") {
-    const [{ data: classTeachers }, { data: legacyClasses }] = await Promise.all([
+    const [{ data: schoolTeachers }, { data: legacySchools }] = await Promise.all([
       admin
-        .from("class_teachers")
-        .select("class_id")
+        .from("school_teachers")
+        .select("school_id")
         .eq("teacher_user_id", user.id),
-      admin.from("classes").select("id").eq("teacher_user_id", user.id),
+      admin.from("schools").select("id").eq("teacher_user_id", user.id),
     ]);
-    const classIds = Array.from(
+    schoolIds = Array.from(
       new Set([
-        ...(classTeachers ?? []).map((row) => row.class_id),
-        ...(legacyClasses ?? []).map((row) => row.id),
+        ...(schoolTeachers ?? []).map((row) => row.school_id),
+        ...(legacySchools ?? []).map((row) => row.id),
       ]),
     );
-    if (classIds.length === 0) {
-      classesData = [];
-    } else {
-      const { data } = await admin
-        .from("classes")
-        .select("id,name,teacher_user_id")
-        .in("id", classIds)
-        .order("name", { ascending: true });
-      classesData = data;
-    }
   } else {
-    const { data } = await admin
-      .from("classes")
-      .select("id,name,teacher_user_id")
+    const { data: allSchools } = await admin
+      .from("schools")
+      .select("id")
       .order("name", { ascending: true });
-    classesData = data;
+    schoolIds = (allSchools ?? []).map((row) => row.id);
   }
-  const classIds = (classesData ?? []).map((item) => String(item.id));
-  if (classIds.length === 0) {
+
+  if (schoolIds.length === 0) {
     return NextResponse.json({
-      classes: [],
       students: [],
       summary: { totalAnswered: 0, totalCorrect: 0, overallAccuracy: 0 },
       byStandard: [],
@@ -81,19 +68,16 @@ export async function GET(request: Request) {
     });
   }
 
-  const effectiveClassIds = classId && classIds.includes(classId) ? [classId] : classIds;
-
   const { data: memberRows } = await admin
-    .from("class_members")
-    .select("class_id,student_user_id")
-    .in("class_id", effectiveClassIds);
+    .from("school_members")
+    .select("school_id,student_user_id")
+    .in("school_id", schoolIds);
 
   const scopedStudentIds = Array.from(
     new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
   );
   if (scopedStudentIds.length === 0) {
     return NextResponse.json({
-      classes: classesData ?? [],
       students: [],
       summary: { totalAnswered: 0, totalCorrect: 0, overallAccuracy: 0 },
       byStandard: [],
@@ -201,11 +185,9 @@ export async function GET(request: Request) {
   }));
 
   return NextResponse.json({
-    classes: (classesData ?? []).map((item) => ({ id: item.id, name: item.name })),
     students,
     summary: { totalAnswered, totalCorrect, overallAccuracy },
     byStandard,
     byStudent,
   });
 }
-

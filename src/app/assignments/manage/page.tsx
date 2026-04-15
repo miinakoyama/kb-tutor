@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays, ClipboardList, Plus, Trash2, X } from "lucide-react";
 import { getAllStandards } from "@/lib/standards";
 import type { Question } from "@/types/question";
 
-interface ClassRow {
+interface SchoolRow {
   id: string;
   name: string;
   member_count: number;
@@ -15,7 +15,7 @@ interface ClassRow {
 interface AssignmentRow {
   id: string;
   title: string;
-  class_id: string;
+  school_id: string;
   due_date: string | null;
   module_ids: number[];
   topics: string[];
@@ -42,9 +42,17 @@ interface ManualDraft {
 }
 
 export default function AssignmentManagementPage() {
+  return (
+    <Suspense>
+      <AssignmentManagementContent />
+    </Suspense>
+  );
+}
+
+function AssignmentManagementContent() {
   const searchParams = useSearchParams();
-  const classFromQuery = searchParams.get("classId") ?? "";
-  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const schoolFromQuery = searchParams.get("schoolId") ?? "";
+  const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [questionSets, setQuestionSets] = useState<QuestionSetRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +60,7 @@ export default function AssignmentManagementPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedSchoolId, setSelectedSchoolId] = useState("");
   const [title, setTitle] = useState("");
   const [targetMinutes, setTargetMinutes] = useState("20");
   const [dueDate, setDueDate] = useState("");
@@ -68,9 +76,9 @@ export default function AssignmentManagementPage() {
   const [draftOptions, setDraftOptions] = useState(["", "", "", ""]);
   const [draftCorrectIndex, setDraftCorrectIndex] = useState(0);
 
-  const classNameById = useMemo(
-    () => new Map(classes.map((item) => [item.id, item.name])),
-    [classes],
+  const schoolNameById = useMemo(
+    () => new Map(schools.map((item) => [item.id, item.name])),
+    [schools],
   );
 
   const loadData = useCallback(async () => {
@@ -79,7 +87,7 @@ export default function AssignmentManagementPage() {
     const response = await fetch("/api/assignments/manage", { cache: "no-store" });
     const payload = (await response.json()) as {
       error?: string;
-      classes?: ClassRow[];
+      schools?: SchoolRow[];
       assignments?: AssignmentRow[];
       question_sets?: QuestionSetRow[];
     };
@@ -88,28 +96,28 @@ export default function AssignmentManagementPage() {
       setIsLoading(false);
       return;
     }
-    const loadedClasses = payload.classes ?? [];
-    setClasses(loadedClasses);
+    const loadedSchools = payload.schools ?? [];
+    setSchools(loadedSchools);
     setAssignments(payload.assignments ?? []);
     setQuestionSets(payload.question_sets ?? []);
-    if (loadedClasses.length === 0) {
-      setError("You don't have any classes yet. Create a class to get started.");
+    if (loadedSchools.length === 0) {
+      setError("You don't have any schools yet. Create a school to get started.");
     }
-    if (loadedClasses.length > 0) {
-      const hasRequestedClass = classFromQuery
-        ? loadedClasses.some((item) => item.id === classFromQuery)
+    if (loadedSchools.length > 0) {
+      const hasRequestedSchool = schoolFromQuery
+        ? loadedSchools.some((item) => item.id === schoolFromQuery)
         : false;
-      if (hasRequestedClass) {
-        setSelectedClassId(classFromQuery);
-      } else if (!selectedClassId) {
-        setSelectedClassId(loadedClasses[0].id);
+      if (hasRequestedSchool) {
+        setSelectedSchoolId(schoolFromQuery);
+      } else if (!selectedSchoolId) {
+        setSelectedSchoolId(loadedSchools[0].id);
       }
     }
     if (!selectedSetId && (payload.question_sets?.length ?? 0) > 0) {
       setSelectedSetId(payload.question_sets![0].id);
     }
     setIsLoading(false);
-  }, [selectedClassId, selectedSetId, classFromQuery]);
+  }, [selectedSchoolId, selectedSetId, schoolFromQuery]);
 
   useEffect(() => {
     void loadData();
@@ -129,8 +137,8 @@ export default function AssignmentManagementPage() {
     setDraftModule("1");
     setDraftOptions(["", "", "", ""]);
     setDraftCorrectIndex(0);
-    if (classes.length > 0) {
-      setSelectedClassId(classes[0].id);
+    if (schools.length > 0) {
+      setSelectedSchoolId(schools[0].id);
     }
     if (questionSets.length > 0) {
       setSelectedSetId(questionSets[0].id);
@@ -188,8 +196,8 @@ export default function AssignmentManagementPage() {
     setError(null);
 
     const cleanTitle = title.trim();
-    if (!cleanTitle || !selectedClassId) {
-      setError("Title and class are required.");
+    if (!cleanTitle || !selectedSchoolId) {
+      setError("Title and school are required.");
       return;
     }
     const targetMinutesValue = Number(targetMinutes);
@@ -264,7 +272,7 @@ export default function AssignmentManagementPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: cleanTitle,
-        classId: selectedClassId,
+        schoolId: selectedSchoolId,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         targetMinutes: targetMinutesValue,
         ...sourcePayload,
@@ -316,7 +324,7 @@ export default function AssignmentManagementPage() {
             Assignment Management
           </h1>
           <p className="text-slate-gray/70 text-sm">
-            Create assignments per class and automatically assign to students.
+            Create assignments per school and automatically assign to students.
           </p>
         </div>
         <button
@@ -365,7 +373,7 @@ export default function AssignmentManagementPage() {
                         {assignment.title}
                       </h3>
                       <span className="flex-shrink-0 inline-flex items-center text-xs font-medium text-[#16a34a] bg-[#16a34a]/10 px-2 py-0.5 rounded-full">
-                        {classNameById.get(assignment.class_id) ?? assignment.class_id}
+                        {schoolNameById.get(assignment.school_id) ?? assignment.school_id}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-gray/70">
@@ -432,17 +440,17 @@ export default function AssignmentManagementPage() {
                 />
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Class</span>
+                <span className="block mb-1 font-medium">School</span>
                 <select
-                  value={selectedClassId}
-                  onChange={(e) => setSelectedClassId(e.target.value)}
+                  value={selectedSchoolId}
+                  onChange={(e) => setSelectedSchoolId(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
                   required
                 >
-                  <option value="">Select class</option>
-                  {classes.map((classItem) => (
-                    <option key={classItem.id} value={classItem.id}>
-                      {classItem.name} ({classItem.member_count} students)
+                  <option value="">Select school</option>
+                  {schools.map((schoolItem) => (
+                    <option key={schoolItem.id} value={schoolItem.id}>
+                      {schoolItem.name} ({schoolItem.member_count} students)
                     </option>
                   ))}
                 </select>
@@ -640,7 +648,7 @@ export default function AssignmentManagementPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || classes.length === 0}
+                  disabled={isSubmitting || schools.length === 0}
                   className="rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isSubmitting ? "Creating..." : "Create"}

@@ -26,76 +26,65 @@ export async function GET() {
   if (!guard.ok) return guard.response;
   const admin = createSupabaseAdminClient();
 
-  let classes:
-    | Array<{ id: string; name: string; grade: number | null }>
-    | null = null;
-  let classQueryError: string | null = null;
+  let schoolIds: string[] = [];
+  let schoolQueryError: string | null = null;
+
   if (guard.role === "teacher") {
-    const [{ data: classTeachers, error: classTeachersError }, { data: legacyClasses, error: legacyClassesError }] = await Promise.all([
+    const [{ data: schoolTeachers, error: schoolTeachersError }, { data: legacySchools, error: legacyError }] = await Promise.all([
       admin
-        .from("class_teachers")
-        .select("class_id")
+        .from("school_teachers")
+        .select("school_id")
         .eq("teacher_user_id", guard.userId),
-      admin.from("classes").select("id").eq("teacher_user_id", guard.userId),
+      admin.from("schools").select("id").eq("teacher_user_id", guard.userId),
     ]);
-    if (classTeachersError) classQueryError = classTeachersError.message;
-    if (legacyClassesError) classQueryError = legacyClassesError.message;
-    const classIds = Array.from(
+    if (schoolTeachersError) schoolQueryError = schoolTeachersError.message;
+    if (legacyError) schoolQueryError = legacyError.message;
+    schoolIds = Array.from(
       new Set([
-        ...(classTeachers ?? []).map((row) => row.class_id),
-        ...(legacyClasses ?? []).map((row) => row.id),
+        ...(schoolTeachers ?? []).map((row) => row.school_id),
+        ...(legacySchools ?? []).map((row) => row.id),
       ]),
     );
-    if (classIds.length === 0) {
-      classes = [];
-    } else {
-      const { data, error } = await admin
-        .from("classes")
-        .select("id,name,grade")
-        .in("id", classIds);
-      classes = data;
-      if (error) classQueryError = error.message;
-    }
   } else {
-    const { data, error } = await admin.from("classes").select("id,name,grade");
-    classes = data;
-    if (error) classQueryError = error.message;
-  }
-  if (classQueryError) {
-    return NextResponse.json({ error: classQueryError }, { status: 400 });
+    const { data, error } = await admin.from("schools").select("id");
+    if (error) schoolQueryError = error.message;
+    schoolIds = (data ?? []).map((row) => row.id);
   }
 
-  if (!classes || classes.length === 0) {
-    return NextResponse.json({
-      classes: [],
-      metrics: [],
-    });
+  if (schoolQueryError) {
+    return NextResponse.json({ error: schoolQueryError }, { status: 400 });
   }
 
-  const classIds = classes.map((c) => c.id);
+  if (schoolIds.length === 0) {
+    return NextResponse.json({ schools: [], metrics: [], standardMetrics: [] });
+  }
 
-  // Get student metrics for all students in the teacher's classes
+  const { data: schoolsData, error: schoolsError } = await admin
+    .from("schools")
+    .select("id,name")
+    .in("id", schoolIds);
+  if (schoolsError) {
+    return NextResponse.json({ error: schoolsError.message }, { status: 400 });
+  }
+
   const { data: metrics, error: metricsError } = await admin
     .from("teacher_dashboard_student_metrics")
     .select("*")
-    .in("class_id", classIds);
-
+    .eq("teacher_user_id", guard.userId);
   if (metricsError) {
     return NextResponse.json({ error: metricsError.message }, { status: 400 });
   }
 
-  // Get standard metrics for all students in the teacher's classes
   const { data: standardMetrics, error: standardError } = await admin
     .from("teacher_dashboard_standard_metrics")
     .select("*")
-    .in("class_id", classIds);
-
+    .eq("teacher_user_id", guard.userId);
   if (standardError) {
     return NextResponse.json({ error: standardError.message }, { status: 400 });
   }
 
   return NextResponse.json({
-    classes,
+    schools: schoolsData ?? [],
     metrics: metrics ?? [],
     standardMetrics: standardMetrics ?? [],
   });

@@ -11,11 +11,10 @@ interface ProfileOption {
   role: "student" | "teacher" | "admin";
 }
 
-interface ClassView {
+interface SchoolView {
   id: string;
   name: string;
-  grade: number | null;
-  teacher_user_id: string;
+  teacher_user_id: string | null;
   teacher_label: string;
   teachers: { id: string; label: string; is_primary: boolean }[];
   students: { id: string; label: string }[];
@@ -29,11 +28,10 @@ function normalizeAdminError(message?: string) {
   return message;
 }
 
-export default function ClassManagementPage() {
+export default function SchoolManagementPage() {
   const [teachers, setTeachers] = useState<ProfileOption[]>([]);
-  const [students, setStudents] = useState<ProfileOption[]>([]);
-  const [classes, setClasses] = useState<ClassView[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [schools, setSchools] = useState<SchoolView[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,52 +42,42 @@ export default function ClassManagementPage() {
     teacherUserIds: [] as string[],
   });
 
-  const selectedClass = useMemo(
-    () => (selectedClassId ? classes.find((item) => item.id === selectedClassId) ?? null : null),
-    [classes, selectedClassId],
+  const selectedSchool = useMemo(
+    () => (selectedSchoolId ? schools.find((s) => s.id === selectedSchoolId) ?? null : null),
+    [schools, selectedSchoolId],
   );
 
   const [editName, setEditName] = useState("");
   const [editTeacherIds, setEditTeacherIds] = useState<string[]>([]);
-  const [editStudentIds, setEditStudentIds] = useState<string[]>([]);
 
   useEffect(() => {
-    const cls = selectedClass;
-    if (!cls) return;
-    setEditName(cls.name);
-    setEditTeacherIds(cls.teachers.map((teacher) => teacher.id));
-    setEditStudentIds(cls.students.map((student) => student.id));
-  }, [selectedClassId, selectedClass]);
+    const school = selectedSchool;
+    if (!school) return;
+    setEditName(school.name);
+    setEditTeacherIds(school.teachers.map((t) => t.id));
+  }, [selectedSchoolId, selectedSchool]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [teacherRes, studentRes, classRes] = await Promise.all([
+    const [teacherRes, schoolRes] = await Promise.all([
       fetch("/api/admin/users?role=teacher", { cache: "no-store" }),
-      fetch("/api/admin/users?role=student", { cache: "no-store" }),
-      fetch("/api/admin/classes", { cache: "no-store" }),
+      fetch("/api/admin/schools", { cache: "no-store" }),
     ]);
 
     const teacherPayload = (await teacherRes.json()) as { users?: ProfileOption[]; error?: string };
-    const studentPayload = (await studentRes.json()) as { users?: ProfileOption[]; error?: string };
-    const classPayload = (await classRes.json()) as { classes?: ClassView[]; error?: string };
+    const schoolPayload = (await schoolRes.json()) as { schools?: SchoolView[]; error?: string };
 
-    if (!teacherRes.ok || !studentRes.ok || !classRes.ok) {
+    if (!teacherRes.ok || !schoolRes.ok) {
       setError(
-        normalizeAdminError(
-          teacherPayload.error ||
-            studentPayload.error ||
-            classPayload.error ||
-            "Failed to load admin data.",
-        ),
+        normalizeAdminError(teacherPayload.error || schoolPayload.error || "Failed to load data."),
       );
       setLoading(false);
       return;
     }
 
     setTeachers(teacherPayload.users ?? []);
-    setStudents(studentPayload.users ?? []);
-    setClasses(classPayload.classes ?? []);
+    setSchools(schoolPayload.schools ?? []);
     setLoading(false);
   }, []);
 
@@ -101,15 +89,11 @@ export default function ClassManagementPage() {
     setCreateForm({ name: "", teacherUserIds: [] });
   }
 
-  async function createClass(event: React.FormEvent<HTMLFormElement>) {
+  async function createSchool(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     setError(null);
-    if (createForm.teacherUserIds.length === 0) {
-      setError("Please select at least one teacher.");
-      return;
-    }
-    const response = await fetch("/api/admin/classes", {
+    const response = await fetch("/api/admin/schools", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -119,65 +103,56 @@ export default function ClassManagementPage() {
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to create class.");
+      setError(normalizeAdminError(payload.error) || "Failed to create school.");
       return;
     }
-    setMessage("Class created.");
+    setMessage("School created.");
     setShowCreateModal(false);
     resetCreateForm();
     await loadAll();
   }
 
-  async function saveClass() {
-    if (!selectedClass) return;
+  async function saveSchool() {
+    if (!selectedSchool) return;
     setMessage(null);
     setError(null);
-    if (editTeacherIds.length === 0) {
-      setError("Please keep at least one teacher assigned.");
-      return;
-    }
-    const response = await fetch("/api/admin/classes", {
+    const response = await fetch("/api/admin/schools", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        id: selectedClass.id,
+        id: selectedSchool.id,
         name: editName.trim(),
         teacherUserIds: editTeacherIds,
-        studentUserIds: editStudentIds,
       }),
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to update class.");
+      setError(normalizeAdminError(payload.error) || "Failed to update school.");
       return;
     }
-    setMessage("Class updated.");
-    setSelectedClassId(null);
+    setMessage("School updated.");
+    setSelectedSchoolId(null);
     await loadAll();
   }
 
-  async function deleteClass() {
-    if (!selectedClass) return;
-    if (!confirm(`Delete class "${selectedClass.name}"?`)) return;
+  async function deleteSchool() {
+    if (!selectedSchool) return;
+    if (!confirm(`Delete school "${selectedSchool.name}"? This will also delete all associated assignments and student data.`)) return;
     setMessage(null);
     setError(null);
-    const response = await fetch("/api/admin/classes", {
+    const response = await fetch("/api/admin/schools", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: selectedClass.id }),
+      body: JSON.stringify({ id: selectedSchool.id }),
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to delete class.");
+      setError(normalizeAdminError(payload.error) || "Failed to delete school.");
       return;
     }
-    setMessage("Class deleted.");
-    setSelectedClassId(null);
+    setMessage("School deleted.");
+    setSelectedSchoolId(null);
     await loadAll();
-  }
-
-  function studentLabel(profile: ProfileOption) {
-    return profile.display_name || profile.student_id || profile.email;
   }
 
   return (
@@ -185,10 +160,10 @@ export default function ClassManagementPage() {
       <header className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-1">
-            Class Management
+            School Management
           </h1>
           <p className="text-slate-gray/70 text-sm">
-            Create classes, assign teachers, and manage student rosters.
+            Create schools, assign teachers, and view enrolled students.
           </p>
         </div>
         <button
@@ -196,7 +171,7 @@ export default function ClassManagementPage() {
           className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
-          Create Class
+          Create School
         </button>
       </header>
 
@@ -213,41 +188,41 @@ export default function ClassManagementPage() {
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm">
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-gray/70">Loading classes...</div>
-        ) : classes.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-gray/70">Loading schools...</div>
+        ) : schools.length === 0 ? (
           <div className="p-8 text-center">
             <School className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-gray/70 mb-4">No classes yet.</p>
+            <p className="text-slate-gray/70 mb-4">No schools yet.</p>
             <button
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
             >
               <Plus className="w-4 h-4" />
-              Create your first class
+              Create your first school
             </button>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {classes.map((classItem) => (
+            {schools.map((school) => (
               <article
-                key={classItem.id}
+                key={school.id}
                 className="p-4 sm:p-5 hover:bg-slate-50/50 transition-colors cursor-pointer"
-                onClick={() => setSelectedClassId(classItem.id)}
+                onClick={() => setSelectedSchoolId(school.id)}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-base font-semibold text-slate-gray truncate">
-                        {classItem.name}
-                      </h3>
-                    </div>
+                    <h3 className="text-base font-semibold text-slate-gray truncate mb-1">
+                      {school.name}
+                    </h3>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-gray/70">
                       <span className="inline-flex items-center gap-1">
                         <Users className="w-3.5 h-3.5" />
-                        {classItem.students.length} students
+                        {school.students.length} students
                       </span>
-                      <span>Teachers: {classItem.teacher_label}</span>
-                      <span className="text-slate-gray/50 text-xs">ID: {classItem.id}</span>
+                      {school.teacher_label && (
+                        <span>Teachers: {school.teacher_label}</span>
+                      )}
+                      <span className="text-slate-gray/50 text-xs">ID: {school.id}</span>
                     </div>
                   </div>
                 </div>
@@ -265,7 +240,7 @@ export default function ClassManagementPage() {
           />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <h2 className="text-lg font-semibold text-slate-gray">Create Class</h2>
+              <h2 className="text-lg font-semibold text-slate-gray">Create School</h2>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
@@ -273,11 +248,11 @@ export default function ClassManagementPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form className="p-5 space-y-4" onSubmit={createClass}>
+            <form className="p-5 space-y-4" onSubmit={createSchool}>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Class Name</span>
+                <span className="block mb-1 font-medium">School Name</span>
                 <input
-                  placeholder="e.g. Biology Period 1"
+                  placeholder="e.g. Greenfield High School"
                   value={createForm.name}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
@@ -285,10 +260,10 @@ export default function ClassManagementPage() {
                 />
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Teachers</span>
+                <span className="block mb-1 font-medium">Teachers (optional)</span>
                 <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 p-3 space-y-2">
                   {teachers.length === 0 ? (
-                    <p className="text-sm text-slate-gray/60">No teachers available.</p>
+                    <p className="text-sm text-slate-gray/60">No teachers available. Create teacher accounts first.</p>
                   ) : (
                     teachers.map((teacher) => {
                       const checked = createForm.teacherUserIds.includes(teacher.id);
@@ -309,15 +284,12 @@ export default function ClassManagementPage() {
                               }));
                             }}
                           />
-                          <span>{teacher.display_name || teacher.student_id || teacher.email}</span>
+                          <span>{teacher.display_name || teacher.email}</span>
                         </label>
                       );
                     })
                   )}
                 </div>
-                <span className="block mt-1 text-xs text-slate-gray/60">
-                  The first selected teacher is used as primary for compatibility.
-                </span>
               </label>
 
               <div className="flex justify-end gap-3 pt-2">
@@ -340,17 +312,17 @@ export default function ClassManagementPage() {
         </div>
       )}
 
-      {selectedClass && (
+      {selectedSchool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/40"
-            onClick={() => setSelectedClassId(null)}
+            onClick={() => setSelectedSchoolId(null)}
           />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <h2 className="text-lg font-semibold text-slate-gray">Edit Class</h2>
+              <h2 className="text-lg font-semibold text-slate-gray">Edit School</h2>
               <button
-                onClick={() => setSelectedClassId(null)}
+                onClick={() => setSelectedSchoolId(null)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -358,7 +330,7 @@ export default function ClassManagementPage() {
             </div>
             <div className="p-5 space-y-4">
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Class Name</span>
+                <span className="block mb-1 font-medium">School Name</span>
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
@@ -389,7 +361,7 @@ export default function ClassManagementPage() {
                               );
                             }}
                           />
-                          <span>{teacher.display_name || teacher.student_id || teacher.email}</span>
+                          <span>{teacher.display_name || teacher.email}</span>
                         </label>
                       );
                     })
@@ -398,40 +370,26 @@ export default function ClassManagementPage() {
               </label>
 
               <div>
-                <p className="text-sm font-medium text-slate-gray mb-2">Students</p>
-                <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 p-3 space-y-2">
-                  {students.length === 0 ? (
-                    <p className="text-sm text-slate-gray/60">No students available.</p>
-                  ) : (
-                    students.map((student) => {
-                      const checked = editStudentIds.includes(student.id);
-                      return (
-                        <label
-                          key={student.id}
-                          className="flex items-center gap-2 text-sm text-slate-gray"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              setEditStudentIds((prev) =>
-                                e.target.checked
-                                  ? [...prev, student.id]
-                                  : prev.filter((id) => id !== student.id),
-                              );
-                            }}
-                          />
-                          <span>{studentLabel(student)}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
+                <p className="text-sm font-medium text-slate-gray mb-2">
+                  Students ({selectedSchool.students.length} enrolled)
+                </p>
+                <p className="text-xs text-slate-gray/60">
+                  Students are enrolled automatically when they log in with this school selected.
+                </p>
+                {selectedSchool.students.length > 0 && (
+                  <div className="mt-2 max-h-32 overflow-y-auto rounded-lg border border-slate-200 p-3 space-y-1">
+                    {selectedSchool.students.map((student) => (
+                      <p key={student.id} className="text-sm text-slate-gray">
+                        {student.label}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-2">
                 <button
-                  onClick={() => void deleteClass()}
+                  onClick={() => void deleteSchool()}
                   className="inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -440,13 +398,13 @@ export default function ClassManagementPage() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setSelectedClassId(null)}
+                    onClick={() => setSelectedSchoolId(null)}
                     className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={() => void saveClass()}
+                    onClick={() => void saveSchool()}
                     className="rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
                   >
                     Save Changes
@@ -460,4 +418,3 @@ export default function ClassManagementPage() {
     </main>
   );
 }
-

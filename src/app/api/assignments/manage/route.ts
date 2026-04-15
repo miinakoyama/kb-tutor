@@ -19,7 +19,7 @@ async function getRequester(): Promise<Requester | null> {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser();
-  
+
   if (userError) {
     console.error("[getRequester] Auth error:", userError.message);
     return null;
@@ -55,52 +55,53 @@ async function getRequester(): Promise<Requester | null> {
 
   if (!role) {
     console.warn("[getRequester] Could not resolve role for user:", user.id);
+    return null;
   }
 
   return { id: user.id, role };
 }
 
-async function getScopedClassIds(
+async function getScopedSchoolIds(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   requester: Requester,
 ) {
   if (requester.role === "teacher") {
-    const [{ data: classTeachers, error: classTeacherError }, { data: legacyClasses, error: legacyError }] =
+    const [{ data: schoolTeachers, error: schoolTeacherError }, { data: legacySchools, error: legacyError }] =
       await Promise.all([
-        admin.from("class_teachers").select("class_id").eq("teacher_user_id", requester.id),
-        admin.from("classes").select("id").eq("teacher_user_id", requester.id),
+        admin.from("school_teachers").select("school_id").eq("teacher_user_id", requester.id),
+        admin.from("schools").select("id").eq("teacher_user_id", requester.id),
       ]);
-    if (classTeacherError) {
-      return { error: classTeacherError.message, classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
+    if (schoolTeacherError) {
+      return { error: schoolTeacherError.message, schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
     }
     if (legacyError) {
-      return { error: legacyError.message, classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
+      return { error: legacyError.message, schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
     }
-    const classIds = Array.from(
+    const schoolIds = Array.from(
       new Set([
-        ...(classTeachers ?? []).map((row) => row.class_id),
-        ...(legacyClasses ?? []).map((row) => row.id),
+        ...(schoolTeachers ?? []).map((row) => row.school_id),
+        ...(legacySchools ?? []).map((row) => row.id),
       ]),
     );
-    if (classIds.length === 0) {
-      return { classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
+    if (schoolIds.length === 0) {
+      return { schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
     }
     const { data, error } = await admin
-      .from("classes")
+      .from("schools")
       .select("id,name,teacher_user_id")
-      .in("id", classIds)
+      .in("id", schoolIds)
       .order("name", { ascending: true });
     if (error) {
-      return { error: error.message, classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
+      return { error: error.message, schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
     }
-    return { classes: data ?? [] };
+    return { schools: data ?? [] };
   }
   const { data, error } = await admin
-    .from("classes")
+    .from("schools")
     .select("id,name,teacher_user_id")
     .order("name", { ascending: true });
-  if (error) return { error: error.message, classes: [] as Array<{ id: string; name: string; teacher_user_id: string }> };
-  return { classes: data ?? [] };
+  if (error) return { error: error.message, schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
+  return { schools: data ?? [] };
 }
 
 function normalizeQuestionPayload(
@@ -255,25 +256,25 @@ export async function GET() {
   }
 
   const admin = createSupabaseAdminClient();
-  const classResult = await getScopedClassIds(admin, requester);
-  if ("error" in classResult) {
-    return NextResponse.json({ error: classResult.error }, { status: 400 });
+  const schoolResult = await getScopedSchoolIds(admin, requester);
+  if ("error" in schoolResult) {
+    return NextResponse.json({ error: schoolResult.error }, { status: 400 });
   }
-  const classes = classResult.classes;
-  const classIds = classes.map((item) => item.id);
+  const schools = schoolResult.schools;
+  const schoolIds = schools.map((item) => item.id);
 
-  if (classIds.length === 0) {
-    return NextResponse.json({ classes: [], assignments: [] });
+  if (schoolIds.length === 0) {
+    return NextResponse.json({ schools: [], assignments: [] });
   }
 
   const [{ data: assignmentsData, error: assignmentError }, { data: memberRows, error: memberError }] =
     await Promise.all([
       admin
         .from("assignments")
-        .select("id,title,class_id,due_date,module_ids,topics,target_minutes,created_at,created_by")
-        .in("class_id", classIds)
+        .select("id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by")
+        .in("school_id", schoolIds)
         .order("created_at", { ascending: false }),
-      admin.from("class_members").select("class_id,student_user_id").in("class_id", classIds),
+      admin.from("school_members").select("school_id,student_user_id").in("school_id", schoolIds),
     ]);
 
   if (assignmentError) {
@@ -334,9 +335,9 @@ export async function GET() {
     );
   }
 
-  const classMemberCount = new Map<string, number>();
+  const schoolMemberCount = new Map<string, number>();
   for (const row of memberRows ?? []) {
-    classMemberCount.set(row.class_id, (classMemberCount.get(row.class_id) ?? 0) + 1);
+    schoolMemberCount.set(row.school_id, (schoolMemberCount.get(row.school_id) ?? 0) + 1);
   }
 
   const targetCountByAssignment = new Map<string, number>();
@@ -360,11 +361,11 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    classes: classes.map((item) => ({
+    schools: schools.map((item) => ({
       id: item.id,
       name: item.name,
       teacher_user_id: item.teacher_user_id,
-      member_count: classMemberCount.get(item.id) ?? 0,
+      member_count: schoolMemberCount.get(item.id) ?? 0,
     })),
     assignments: (assignmentsData ?? []).map((assignment) => ({
       ...assignment,
@@ -393,7 +394,7 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as {
     title?: string;
-    classId?: string;
+    schoolId?: string;
     dueDate?: string | null;
     moduleIds?: number[];
     topics?: string[];
@@ -405,24 +406,24 @@ export async function POST(request: Request) {
   };
 
   const title = body.title?.trim();
-  const classId = body.classId?.trim();
+  const schoolId = body.schoolId?.trim();
   const targetMinutes =
     typeof body.targetMinutes === "number" && Number.isFinite(body.targetMinutes)
       ? Math.max(1, Math.min(180, Math.round(body.targetMinutes)))
       : 20;
 
-  if (!title || !classId) {
+  if (!title || !schoolId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
   const admin = createSupabaseAdminClient();
-  const classResult = await getScopedClassIds(admin, requester);
-  if ("error" in classResult) {
-    return NextResponse.json({ error: classResult.error }, { status: 400 });
+  const schoolResult = await getScopedSchoolIds(admin, requester);
+  if ("error" in schoolResult) {
+    return NextResponse.json({ error: schoolResult.error }, { status: 400 });
   }
-  const targetClass = classResult.classes.find((item) => item.id === classId);
-  if (!targetClass) {
-    return NextResponse.json({ error: "You do not have access to this class." }, { status: 403 });
+  const targetSchool = schoolResult.schools.find((item) => item.id === schoolId);
+  if (!targetSchool) {
+    return NextResponse.json({ error: "You do not have access to this school." }, { status: 403 });
   }
 
   const snapshotResolution = await resolveSnapshotQuestions(admin, requester, body);
@@ -447,7 +448,7 @@ export async function POST(request: Request) {
   const { error: assignmentError } = await admin.from("assignments").insert({
     id: assignmentId,
     title,
-    class_id: classId,
+    school_id: schoolId,
     due_date: body.dueDate || null,
     module_ids: moduleIds,
     topics,
@@ -458,16 +459,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: assignmentError.message }, { status: 400 });
   }
 
-  const { data: classMembers, error: classMemberError } = await admin
-    .from("class_members")
+  const { data: schoolMembers, error: schoolMemberError } = await admin
+    .from("school_members")
     .select("student_user_id")
-    .eq("class_id", classId);
-  if (classMemberError) {
-    return NextResponse.json({ error: classMemberError.message }, { status: 400 });
+    .eq("school_id", schoolId);
+  if (schoolMemberError) {
+    return NextResponse.json({ error: schoolMemberError.message }, { status: 400 });
   }
 
   const studentIds = Array.from(
-    new Set((classMembers ?? []).map((member) => member.student_user_id)),
+    new Set((schoolMembers ?? []).map((member) => member.student_user_id)),
   );
   if (studentIds.length > 0) {
     const { error: targetInsertError } = await admin.from("assignment_targets").insert(
@@ -522,7 +523,7 @@ export async function DELETE(request: Request) {
   const admin = createSupabaseAdminClient();
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
-    .select("id,class_id,created_by")
+    .select("id,school_id,created_by")
     .eq("id", assignmentId)
     .maybeSingle();
 
@@ -534,12 +535,12 @@ export async function DELETE(request: Request) {
   }
 
   if (requester.role === "teacher") {
-    const classResult = await getScopedClassIds(admin, requester);
-    if ("error" in classResult) {
-      return NextResponse.json({ error: classResult.error }, { status: 400 });
+    const schoolResult = await getScopedSchoolIds(admin, requester);
+    if ("error" in schoolResult) {
+      return NextResponse.json({ error: schoolResult.error }, { status: 400 });
     }
-    const canAccessClass = classResult.classes.some((item) => item.id === assignment.class_id);
-    if (!canAccessClass) {
+    const canAccessSchool = schoolResult.schools.some((item) => item.id === assignment.school_id);
+    if (!canAccessSchool) {
       return NextResponse.json({ error: "You do not have access to this assignment." }, { status: 403 });
     }
   }
@@ -551,4 +552,3 @@ export async function DELETE(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
-

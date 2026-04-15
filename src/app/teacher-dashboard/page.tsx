@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
-import Link from "next/link";
 import {
   Download,
   Users,
@@ -9,7 +8,6 @@ import {
   CheckCircle2,
   Timer,
   BarChart3,
-  School,
 } from "lucide-react";
 import {
   downloadStandardMetricsCsv,
@@ -21,12 +19,10 @@ export default function TeacherDashboardPage() {
 }
 
 function TeacherDashboardContent() {
-  const [classId, setClassId] = useState<string>("");
   const [studentId, setStudentId] = useState<string>("");
   const [range, setRange] = useState<"7d" | "30d" | "all">("30d");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<{
-    classes: { id: string; name: string }[];
     students: { id: string; label: string }[];
     summary: { totalAnswered: number; totalCorrect: number; overallAccuracy: number };
     byStandard: {
@@ -45,7 +41,6 @@ function TeacherDashboardContent() {
       accuracy: number;
     }[];
   }>({
-    classes: [],
     students: [],
     summary: { totalAnswered: 0, totalCorrect: 0, overallAccuracy: 0 },
     byStandard: [],
@@ -55,10 +50,7 @@ function TeacherDashboardContent() {
   useEffect(() => {
     const load = async () => {
       setIsLoading(true);
-      const params = new URLSearchParams({
-        range,
-      });
-      if (classId) params.set("classId", classId);
+      const params = new URLSearchParams({ range });
       if (studentId) params.set("studentId", studentId);
 
       const response = await fetch(`/api/teacher-dashboard?${params.toString()}`, {
@@ -71,50 +63,21 @@ function TeacherDashboardContent() {
       setIsLoading(false);
     };
     void load();
-  }, [classId, studentId, range]);
+  }, [studentId, range]);
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <section className="mb-8 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
-            Teacher Dashboard
-          </h1>
-          <p className="text-slate-gray/70">
-            Standard-level performance and engagement metrics for assigned
-            students.
-          </p>
-        </div>
-        <Link
-          href="/teacher/classes"
-          className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors shadow-sm flex-shrink-0"
-        >
-          <School className="w-4 h-4" />
-          Open Class Management
-        </Link>
+      <section className="mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+          Teacher Dashboard
+        </h1>
+        <p className="text-slate-gray/70">
+          Standard-level performance and engagement metrics for enrolled students.
+        </p>
       </section>
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">Class</span>
-            <select
-              value={classId}
-              onChange={(event) => {
-                setClassId(event.target.value);
-                setStudentId("");
-              }}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            >
-              <option value="">All classes</option>
-              {data.classes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm text-slate-gray">
             <span className="block mb-1 font-medium">Student</span>
             <select
@@ -255,7 +218,6 @@ function TeacherDashboardContent() {
       {isLoading && (
         <p className="text-sm text-slate-gray/60 mt-4">Loading dashboard data...</p>
       )}
-
     </main>
   );
 }

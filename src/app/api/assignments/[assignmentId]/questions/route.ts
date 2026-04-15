@@ -47,7 +47,7 @@ export async function GET(
   const admin = createSupabaseAdminClient();
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
-    .select("id,class_id")
+    .select("id,school_id")
     .eq("id", normalizedAssignmentId)
     .maybeSingle();
   if (assignmentError) {
@@ -72,21 +72,21 @@ export async function GET(
     if (requester.role === "admin") {
       canAccess = true;
     } else {
-      const [{ data: teacherClass }, { data: classTeacherRow }] = await Promise.all([
+      const [{ data: teacherSchool }, { data: schoolTeacherRow }] = await Promise.all([
         admin
-          .from("classes")
+          .from("schools")
           .select("id")
-          .eq("id", assignment.class_id)
+          .eq("id", assignment.school_id)
           .eq("teacher_user_id", requester.id)
           .maybeSingle(),
         admin
-          .from("class_teachers")
-          .select("class_id")
-          .eq("class_id", assignment.class_id)
+          .from("school_teachers")
+          .select("school_id")
+          .eq("school_id", assignment.school_id)
           .eq("teacher_user_id", requester.id)
           .maybeSingle(),
       ]);
-      canAccess = Boolean(teacherClass || classTeacherRow);
+      canAccess = Boolean(teacherSchool || schoolTeacherRow);
     }
   }
 

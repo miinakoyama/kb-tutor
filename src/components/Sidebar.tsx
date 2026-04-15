@@ -54,7 +54,6 @@ const TEACHER_SECTION: NavSection = {
   title: "Teacher",
   items: [
     { href: "/teacher-dashboard", label: "Teacher Dashboard", icon: LayoutDashboard },
-    { href: "/teacher/classes", label: "Class Management", icon: School },
     { href: "/assignments/manage", label: "Assignment Management", icon: ClipboardList },
     { href: "/content", label: "Contents Management", icon: Database },
   ],
@@ -64,7 +63,7 @@ const ADMIN_SECTION: NavSection = {
   title: "Admin Console",
   items: [
     { href: "/content/accounts", label: "Account Management", icon: Users },
-    { href: "/content/classes", label: "Class Management", icon: School },
+    { href: "/content/schools", label: "School Management", icon: School },
     { href: "/assignments/manage", label: "Assignment Management", icon: ClipboardList },
     { href: "/content", label: "Contents Management", icon: Database },
     { href: "/teacher-dashboard", label: "Teacher Dashboard", icon: LayoutDashboard },
