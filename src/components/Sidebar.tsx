@@ -349,7 +349,9 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         <button
           onClick={onToggle}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0"
+          className={`p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 ${
+            isCollapsed ? "" : "ml-0.5"
+          }`}
         >
           {isCollapsed
             ? <ChevronRight className="w-5 h-5" />

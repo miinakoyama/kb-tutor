@@ -1,38 +1,40 @@
-"use client";
-
+import { redirect } from "next/navigation";
 import { Bell, Lightbulb } from "lucide-react";
-import {
-  DEFAULT_STUDENT_ID,
-  getNotificationsForRecipient,
-} from "@/lib/mock-data";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getStudentNotifications, STUDENT_TIME_ZONE } from "@/lib/notifications";
 
 const FALLBACK_MESSAGES = [
-  "Study tip: explain one concept out loud after every 5 questions.",
-  "Fun fact: ATP can be recycled quickly, but your body stores very little at once.",
-  "Study tip: compare two similar terms to strengthen memory retrieval.",
+  "You're all caught up. Check Self Practice to keep momentum.",
 ];
 
-export default function NotificationsPage() {
+export default async function NotificationsPage() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const notifications = await getStudentNotifications(supabase, user.id);
+
   const formatCreatedAt = (value: string) =>
     new Intl.DateTimeFormat("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
-      timeZone: "UTC",
+      timeZoneName: "short",
+      timeZone: STUDENT_TIME_ZONE,
     }).format(new Date(value));
-
-  const notifications = getNotificationsForRecipient(
-    "student",
-    DEFAULT_STUDENT_ID,
-  );
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <section className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
-          Notification
+          Notifications
         </h1>
         <p className="text-slate-gray/70">
-          Recent updates from assignments and learning activity.
+          Recent updates from assignments and deadlines.
         </p>
       </section>
 
