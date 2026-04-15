@@ -82,8 +82,8 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
       )}
       <svg
         viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-        className="w-full h-auto max-h-[360px]"
-        style={{ minHeight: "240px" }}
+        className="w-full h-auto max-h-[260px] sm:max-h-[360px]"
+        style={{ minHeight: "180px" }}
       >
         <defs>
           <marker

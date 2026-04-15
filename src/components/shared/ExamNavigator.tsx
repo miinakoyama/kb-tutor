@@ -64,8 +64,8 @@ export function ExamNavigator({
         ))}
       </div>
 
-      <div className="p-4 max-h-80 overflow-y-auto">
-        <div className="grid grid-cols-8 gap-2" role="navigation" aria-label="Question navigation">
+      <div className="p-4 max-h-[60vh] sm:max-h-80 overflow-y-auto overflow-x-hidden">
+        <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2" role="navigation" aria-label="Question navigation">
           {filteredIndices.map((i) => {
             const answer = answers[i];
             const isCurrent = i === currentIndex;
@@ -80,7 +80,7 @@ export function ExamNavigator({
                 onClick={() => onNavigate(i)}
                 aria-label={ariaLabel}
                 aria-current={isCurrent ? "true" : undefined}
-                className={`relative w-full aspect-square rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#14532d]/50 flex items-center justify-center ${
+                className={`relative w-full aspect-square min-h-[44px] rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#14532d]/50 flex items-center justify-center ${
                   isCurrent
                     ? "ring-2 ring-[#14532d] ring-offset-1"
                     : ""

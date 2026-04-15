@@ -12,7 +12,7 @@ export function TableDiagram({ data }: TableDiagramProps) {
           {data.title}
         </h3>
       )}
-      <table className="table-auto w-max min-w-[320px] mx-auto border-collapse border-2 border-black text-sm">
+      <table className="table-auto w-max min-w-[240px] sm:min-w-[320px] mx-auto border-collapse border-2 border-black text-sm">
         <thead>
           <tr className="bg-gray-100">
             {data.headers.map((header, index) => (
