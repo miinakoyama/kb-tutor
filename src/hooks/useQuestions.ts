@@ -24,14 +24,14 @@ export function useQuestions() {
   const [localStorageQuestions, setLocalStorageQuestions] = useState<Question[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  const loadQuestions = useCallback(() => {
-    const { questions } = getAllGeneratedQuestionSets();
-    setLocalStorageQuestions(questions);
+  const loadQuestions = useCallback(async () => {
+    const { questions } = await getAllGeneratedQuestionSets();
+    setLocalStorageQuestions(questions.map(withStandard));
     setIsLoaded(true);
   }, []);
 
   useEffect(() => {
-    loadQuestions();
+    void loadQuestions();
   }, [loadQuestions]);
 
   const allQuestions = useMemo(() => {

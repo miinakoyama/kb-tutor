@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import {
   Download,
   Users,
@@ -9,14 +9,6 @@ import {
   Timer,
   BarChart3,
 } from "lucide-react";
-import { getAnswerHistory } from "@/lib/storage";
-import {
-  DEFAULT_TEACHER_ID,
-  MOCK_ATTEMPTS,
-  MOCK_CLASSES,
-  MOCK_STUDENTS,
-} from "@/lib/mock-data";
-import { buildTeacherDashboardData } from "@/lib/analytics/teacher-dashboard";
 import {
   downloadStandardMetricsCsv,
   downloadStudentMetricsCsv,
@@ -27,40 +19,51 @@ export default function TeacherDashboardPage() {
 }
 
 function TeacherDashboardContent() {
-  const [classId, setClassId] = useState<string>("");
   const [studentId, setStudentId] = useState<string>("");
   const [range, setRange] = useState<"7d" | "30d" | "all">("30d");
-  const [answerHistory, setAnswerHistory] = useState<ReturnType<typeof getAnswerHistory>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [data, setData] = useState<{
+    students: { id: string; label: string }[];
+    summary: { totalAnswered: number; totalCorrect: number; overallAccuracy: number };
+    byStandard: {
+      standardId: string;
+      standardLabel: string;
+      attempted: number;
+      correct: number;
+      accuracy: number;
+      averageTimeSec: number;
+    }[];
+    byStudent: {
+      studentId: string;
+      label: string;
+      totalAnswered: number;
+      totalCorrect: number;
+      accuracy: number;
+    }[];
+  }>({
+    students: [],
+    summary: { totalAnswered: 0, totalCorrect: 0, overallAccuracy: 0 },
+    byStandard: [],
+    byStudent: [],
+  });
 
   useEffect(() => {
-    setAnswerHistory(getAnswerHistory());
-  }, []);
+    const load = async () => {
+      setIsLoading(true);
+      const params = new URLSearchParams({ range });
+      if (studentId) params.set("studentId", studentId);
 
-  const fromDate = useMemo(() => {
-    if (range === "all") return undefined;
-    const d = new Date();
-    d.setDate(d.getDate() - (range === "7d" ? 7 : 30));
-    return d;
-  }, [range]);
-
-  const dashboard = useMemo(
-    () =>
-      buildTeacherDashboardData(MOCK_ATTEMPTS, answerHistory, {
-        teacherId: DEFAULT_TEACHER_ID,
-        classId: classId || undefined,
-        studentId: studentId || undefined,
-        from: fromDate,
-      }),
-    [answerHistory, classId, fromDate, studentId],
-  );
-
-  const visibleStudents = useMemo(
-    () =>
-      MOCK_STUDENTS.filter(
-        (student) => !classId || student.classId === classId,
-      ),
-    [classId],
-  );
+      const response = await fetch(`/api/teacher-dashboard?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (response.ok) {
+        const json = (await response.json()) as typeof data;
+        setData(json);
+      }
+      setIsLoading(false);
+    };
+    void load();
+  }, [studentId, range]);
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -69,34 +72,12 @@ function TeacherDashboardContent() {
           Teacher Dashboard
         </h1>
         <p className="text-slate-gray/70">
-          Standard-level performance and engagement metrics for assigned
-          students.
+          Standard-level performance and engagement metrics for enrolled students.
         </p>
       </section>
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">Class</span>
-            <select
-              value={classId}
-              onChange={(event) => {
-                setClassId(event.target.value);
-                setStudentId("");
-              }}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            >
-              <option value="">All classes</option>
-              {MOCK_CLASSES.filter(
-                (item) => item.teacherId === DEFAULT_TEACHER_ID,
-              ).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm text-slate-gray">
             <span className="block mb-1 font-medium">Student</span>
             <select
@@ -105,9 +86,9 @@ function TeacherDashboardContent() {
               className="w-full rounded-lg border border-slate-200 px-3 py-2"
             >
               <option value="">All students</option>
-              {visibleStudents.map((student) => (
+              {data.students.map((student) => (
                 <option key={student.id} value={student.id}>
-                  {student.name}
+                  {student.label}
                 </option>
               ))}
             </select>
@@ -133,22 +114,22 @@ function TeacherDashboardContent() {
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <MetricCard
           label="Total Questions Answered"
-          value={dashboard.summary.totalAnswered}
+          value={data.summary.totalAnswered}
           icon={Target}
         />
         <MetricCard
           label="Total Correct"
-          value={dashboard.summary.totalCorrect}
+          value={data.summary.totalCorrect}
           icon={CheckCircle2}
         />
         <MetricCard
           label="Overall Accuracy"
-          value={`${dashboard.summary.overallAccuracy}%`}
+          value={`${data.summary.overallAccuracy}%`}
           icon={BarChart3}
         />
         <MetricCard
           label="Students in Scope"
-          value={dashboard.byStudent.length}
+          value={data.byStudent.length}
           icon={Users}
         />
       </section>
@@ -157,7 +138,7 @@ function TeacherDashboardContent() {
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-semibold text-slate-gray">By Standard</h2>
           <button
-            onClick={() => downloadStandardMetricsCsv(dashboard.byStandard)}
+            onClick={() => downloadStandardMetricsCsv(data.byStandard)}
             className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
           >
             <Download className="w-4 h-4" />
@@ -176,7 +157,7 @@ function TeacherDashboardContent() {
               </tr>
             </thead>
             <tbody>
-              {dashboard.byStandard.map((row) => (
+              {data.byStandard.map((row) => (
                 <tr key={row.standardId} className="border-b border-slate-100">
                   <td className="py-2 pr-3">
                     <p className="font-medium text-slate-gray">
@@ -204,7 +185,7 @@ function TeacherDashboardContent() {
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-semibold text-slate-gray">By Student</h2>
           <button
-            onClick={() => downloadStudentMetricsCsv(dashboard.byStudent)}
+            onClick={() => downloadStudentMetricsCsv(data.byStudent)}
             className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a] px-3 py-2 text-sm font-medium text-[#166534] hover:bg-[#16a34a]/10 transition-colors"
           >
             <Download className="w-4 h-4" />
@@ -222,9 +203,9 @@ function TeacherDashboardContent() {
               </tr>
             </thead>
             <tbody>
-              {dashboard.byStudent.map((row) => (
+              {data.byStudent.map((row) => (
                 <tr key={row.studentId} className="border-b border-slate-100">
-                  <td className="py-2 pr-3">{row.studentId}</td>
+                  <td className="py-2 pr-3">{row.label}</td>
                   <td className="py-2 pr-3">{row.totalAnswered}</td>
                   <td className="py-2 pr-3">{row.totalCorrect}</td>
                   <td className="py-2">{row.accuracy}%</td>
@@ -234,6 +215,9 @@ function TeacherDashboardContent() {
           </table>
         </div>
       </section>
+      {isLoading && (
+        <p className="text-sm text-slate-gray/60 mt-4">Loading dashboard data...</p>
+      )}
     </main>
   );
 }

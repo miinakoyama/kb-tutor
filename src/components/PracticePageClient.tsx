@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Home, Loader2 } from "lucide-react";
 import { ModeSelector } from "@/components/ModeSelector";
 import { GuidedMode } from "@/components/modes/GuidedMode";
@@ -9,7 +10,10 @@ import { AdaptivePracticeMode } from "@/components/modes/AdaptivePracticeMode";
 import { ExamMode } from "@/components/modes/ExamMode";
 import { ReviewMode } from "@/components/modes/ReviewMode";
 import { useQuestions } from "@/hooks/useQuestions";
-import type { PracticeMode as PracticeModeType } from "@/types/question";
+import type {
+  PracticeMode as PracticeModeType,
+  Question,
+} from "@/types/question";
 import { MODULES } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
 
@@ -98,8 +102,46 @@ export function PracticePageClient({
   assignmentIdParam,
 }: PracticePageClientProps) {
   const { visibleQuestions, isLoaded } = useQuestions();
+  const [snapshotQuestions, setSnapshotQuestions] = useState<Question[] | null>(
+    null
+  );
+  const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
 
-  if (!isLoaded) {
+  useEffect(() => {
+    const assignmentId = assignmentIdParam?.trim();
+    if (!assignmentId) {
+      setSnapshotQuestions(null);
+      setIsSnapshotLoading(false);
+      return;
+    }
+
+    const loadSnapshot = async () => {
+      setIsSnapshotLoading(true);
+      try {
+        const response = await fetch(
+          `/api/assignments/${encodeURIComponent(assignmentId)}/questions`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) {
+          setSnapshotQuestions(null);
+          setIsSnapshotLoading(false);
+          return;
+        }
+        const payload = (await response.json()) as { questions?: Question[] };
+        const questions = Array.isArray(payload.questions)
+          ? payload.questions
+          : [];
+        setSnapshotQuestions(questions.length > 0 ? questions : null);
+      } catch {
+        setSnapshotQuestions(null);
+      } finally {
+        setIsSnapshotLoading(false);
+      }
+    };
+    void loadSnapshot();
+  }, [assignmentIdParam]);
+
+  if (!isLoaded || isSnapshotLoading) {
     return (
       <div className="h-full flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#16a34a] animate-spin" />
@@ -120,25 +162,27 @@ export function PracticePageClient({
     return <InvalidParamsMessage message={topicValidation.error!} />;
   }
 
-  let filteredQuestions = visibleQuestions;
+  let filteredQuestions = snapshotQuestions ?? visibleQuestions;
   let topicName: string | undefined;
   let selectedTopics: string[] = [];
   let requestedQuestionCount: number | undefined;
+  const hasAssignmentSnapshot =
+    Boolean(assignmentIdParam) && Array.isArray(snapshotQuestions);
 
-  if (moduleValidation.moduleNum !== undefined) {
+  if (!hasAssignmentSnapshot && moduleValidation.moduleNum !== undefined) {
     filteredQuestions = filteredQuestions.filter(
       (q) => q.module === moduleValidation.moduleNum
     );
   }
 
-  if (topicValidation.decodedTopic) {
+  if (!hasAssignmentSnapshot && topicValidation.decodedTopic) {
     filteredQuestions = filteredQuestions.filter(
       (q) => q.topic === topicValidation.decodedTopic
     );
     topicName = topicValidation.decodedTopic;
   }
 
-  if (topicsParam) {
+  if (!hasAssignmentSnapshot && topicsParam) {
     const decodedTopics = topicsParam
       .split(",")
       .map((topic) => decodeURIComponent(topic).trim())

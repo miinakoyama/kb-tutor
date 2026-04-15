@@ -12,6 +12,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.57.4",
     "@google/generative-ai": "^0.24.1",
     "framer-motion": "^12.34.0",
     "jsonrepair": "^3.13.3",

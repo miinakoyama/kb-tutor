@@ -37,6 +37,9 @@ interface AdaptivePracticeModeProps {
   topicName?: string;
   questionCount?: number;
   assignmentId?: string;
+  mode?: "adaptive" | "review";
+  backHref?: string;
+  showBackLink?: boolean;
 }
 
 interface AttemptRecord {
@@ -49,6 +52,9 @@ export function AdaptivePracticeMode({
   topicName,
   questionCount = DEFAULT_QUESTION_COUNT,
   assignmentId,
+  mode = "adaptive",
+  backHref = "/self-practice",
+  showBackLink = false,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -64,7 +70,6 @@ export function AdaptivePracticeMode({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (questions.length === 0) return;
     const selected = shuffleArray(questions).slice(0, questionCount);
     setSessionQuestions(selected);
     setBookmarkedQuestions(new Set(selected.map((q) => q.id).filter((id) => isBookmarked(id))));
@@ -188,7 +193,7 @@ export function AdaptivePracticeMode({
       selectedOptionId: selectedOptionId,
       isCorrect: result.isCorrect,
       timestamp: Date.now(),
-      mode: "adaptive",
+      mode,
       module: question.module,
       topic: question.topic,
       standardId: resolvedStandard.id,
@@ -204,6 +209,7 @@ export function AdaptivePracticeMode({
     attempts,
     currentIndex,
     isCompleted,
+    mode,
     question,
     questionStartMs,
     isRetryReady,
@@ -296,7 +302,9 @@ export function AdaptivePracticeMode({
       >
         <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm text-center">
           {topicName && <p className="text-sm text-slate-gray/70 mb-2">{topicName}</p>}
-          <h2 className="text-2xl font-bold text-slate-gray mb-2">Session Complete</h2>
+          <h2 className="text-2xl font-bold text-slate-gray mb-2">
+            {mode === "review" ? "Review Complete" : "Session Complete"}
+          </h2>
           <p className="text-4xl font-bold text-[#16a34a] mb-1">{scorePercent}%</p>
           <p className="text-sm text-slate-gray/60">
             {correctCount} of {totalQuestions} final answers correct
@@ -313,7 +321,7 @@ export function AdaptivePracticeMode({
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
-            Try Again
+            {mode === "review" ? "Review Again" : "Try Again"}
           </button>
           <Link
             href="/"
@@ -340,9 +348,9 @@ export function AdaptivePracticeMode({
     <div className="flex flex-col h-full">
       <PracticeHeader
         topicName={topicName}
-        mode="adaptive"
-        backHref="/self-practice"
-        showBackLink={false}
+        mode={mode}
+        backHref={backHref}
+        showBackLink={showBackLink}
         inlineProgress
         compactSpacing
         currentQuestion={currentIndex + 1}

@@ -11,7 +11,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
-import { getBookmarkedIds, removeBookmark } from "@/lib/storage";
+import { getBookmarkedIds, removeBookmark, syncBookmarksFromDb } from "@/lib/storage";
 import { useQuestions } from "@/hooks/useQuestions";
 import type { Question } from "@/types/question";
 
@@ -27,15 +27,18 @@ export default function BookmarksPage() {
 
   useEffect(() => {
     if (!isLoaded) return;
-
-    const ids = getBookmarkedIds();
-    const bookmarked = ids
-      .map((id) => {
-        const question = visibleQuestions.find((q) => q.id === id);
-        return question ? { question, id } : null;
-      })
-      .filter((item): item is BookmarkedQuestion => item !== null);
-    setBookmarkedQuestions(bookmarked);
+    const load = async () => {
+      await syncBookmarksFromDb();
+      const ids = getBookmarkedIds();
+      const bookmarked = ids
+        .map((id) => {
+          const question = visibleQuestions.find((q) => q.id === id);
+          return question ? { question, id } : null;
+        })
+        .filter((item): item is BookmarkedQuestion => item !== null);
+      setBookmarkedQuestions(bookmarked);
+    };
+    void load();
   }, [isLoaded, visibleQuestions]);
 
   const handleRemoveBookmark = useCallback((questionId: string) => {

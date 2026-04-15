@@ -40,8 +40,11 @@ export default function QuestionsPage() {
   }>({ questions: [], questionSets: [] });
 
   useEffect(() => {
-    const data = getAllGeneratedQuestionSets();
-    setLocalStorageData(data);
+    const load = async () => {
+      const data = await getAllGeneratedQuestionSets();
+      setLocalStorageData(data);
+    };
+    void load();
   }, []);
 
   const allQuestionSets = useMemo(() => {
@@ -122,14 +125,14 @@ export default function QuestionsPage() {
     }
   };
 
-  const handleDeleteSet = (e: React.MouseEvent, setId: string) => {
+  const handleDeleteSet = async (e: React.MouseEvent, setId: string) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!confirm("Delete this question set? This cannot be undone.")) {
       return;
     }
-    deleteGeneratedQuestionSet(setId);
+    await deleteGeneratedQuestionSet(setId);
     setLocalStorageData((prev) => ({
       questions: prev.questions.filter((q) => q.questionSetId !== setId),
       questionSets: prev.questionSets.filter((s) => s.id !== setId),

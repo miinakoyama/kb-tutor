@@ -1,7 +1,10 @@
 import type { Question, QuestionSet } from "@/types/question";
 import { getDefaultStandardForTopic } from "@/lib/standards";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const GENERATED_SETS_KEY = "generatedQuestionSets";
+const GENERATED_SETS_MIGRATION_KEY = "generatedQuestionSetsMigratedV1";
 
 interface StoredQuestionSet {
   id: string;
@@ -63,12 +66,16 @@ function saveStoredData(data: StoredData): void {
   localStorage.setItem(GENERATED_SETS_KEY, JSON.stringify(data));
 }
 
-export function addGeneratedQuestionSet(
+function canUseRemoteDb(): boolean {
+  return typeof window !== "undefined" && hasSupabaseEnv();
+}
+
+export async function addGeneratedQuestionSet(
   questions: Question[],
   name: string,
   generatedAt: string,
   generationModel?: { id?: string; label?: string }
-): string {
+): Promise<string> {
   const data = getStoredData();
   const setId = `generated-${generatedAt}`;
   
@@ -83,14 +90,97 @@ export function addGeneratedQuestionSet(
   
   data.sets.unshift(newSet);
   saveStoredData(data);
-  
+
+  if (canUseRemoteDb()) {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase.from("generated_question_sets").upsert({
+        id: setId,
+        name: newSet.name,
+        generated_at: newSet.generatedAt,
+        generation_model_id: newSet.generationModelId ?? null,
+        generation_model_label: newSet.generationModelLabel ?? null,
+      });
+      await supabase
+        .from("generated_questions")
+        .upsert(
+          newSet.questions.map((q) => ({
+            id: q.id,
+            set_id: setId,
+            payload: q,
+            is_visible: q.isVisible !== false,
+          })),
+        );
+    } catch {
+      // keep local fallback
+    }
+  }
+
   return setId;
 }
 
-export function getAllGeneratedQuestionSets(): {
+export async function getAllGeneratedQuestionSets(): Promise<{
   questions: Question[];
   questionSets: QuestionSet[];
-} {
+}> {
+  if (canUseRemoteDb()) {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const [{ data: setsData, error: setError }, { data: questionsData, error: questionError }] =
+        await Promise.all([
+          supabase
+            .from("generated_question_sets")
+            .select("id,name,generated_at,generation_model_id,generation_model_label")
+            .order("generated_at", { ascending: false }),
+          supabase
+            .from("generated_questions")
+            .select("id,set_id,payload,is_visible")
+            .order("set_id", { ascending: true })
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true }),
+        ]);
+
+      if (!setError && !questionError && setsData) {
+        const questionBySet = new Map<string, Question[]>();
+        for (const row of questionsData ?? []) {
+          const setId = String(row.set_id);
+          const payload = row.payload as Question;
+          const list = questionBySet.get(setId) ?? [];
+          list.push({
+            ...withStandard(payload),
+            questionSetId: setId,
+            isVisible: row.is_visible === false ? false : payload.isVisible,
+          });
+          questionBySet.set(setId, list);
+        }
+
+        const questionSets: QuestionSet[] = [];
+        const allQuestions: Question[] = [];
+        for (const set of setsData) {
+          const setId = String(set.id);
+          const questions = questionBySet.get(setId) ?? [];
+          questionSets.push({
+            id: setId,
+            name: String(set.name),
+            source: "generated",
+            createdAt: String(set.generated_at),
+            questionIds: questions.map((q) => q.id),
+            generationModelId: set.generation_model_id
+              ? String(set.generation_model_id)
+              : undefined,
+            generationModelLabel: set.generation_model_label
+              ? String(set.generation_model_label)
+              : undefined,
+          });
+          allQuestions.push(...questions);
+        }
+        return { questions: allQuestions, questionSets };
+      }
+    } catch {
+      // fallback to local
+    }
+  }
+
   const data = getStoredData();
   
   if (data.sets.length === 0) {
@@ -122,10 +212,54 @@ export function getAllGeneratedQuestionSets(): {
   return { questions: allQuestions, questionSets };
 }
 
-export function getGeneratedQuestionSetById(setId: string): {
+export async function getGeneratedQuestionSetById(setId: string): Promise<{
   questions: Question[];
   questionSet: QuestionSet | null;
-} {
+}> {
+  if (canUseRemoteDb()) {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const [{ data: setData, error: setError }, { data: questionRows, error: questionError }] =
+        await Promise.all([
+          supabase
+            .from("generated_question_sets")
+            .select("id,name,generated_at,generation_model_id,generation_model_label")
+            .eq("id", setId)
+            .maybeSingle(),
+          supabase
+            .from("generated_questions")
+            .select("id,payload,is_visible")
+            .eq("set_id", setId)
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true }),
+        ]);
+
+      if (!setError && !questionError && setData) {
+        const questions = (questionRows ?? []).map((row) => ({
+          ...(row.payload as Question),
+          questionSetId: setId,
+          isVisible: row.is_visible === false ? false : (row.payload as Question).isVisible,
+        }));
+        const questionSet: QuestionSet = {
+          id: String(setData.id),
+          name: String(setData.name),
+          source: "generated",
+          createdAt: String(setData.generated_at),
+          questionIds: questions.map((q) => q.id),
+          generationModelId: setData.generation_model_id
+            ? String(setData.generation_model_id)
+            : undefined,
+          generationModelLabel: setData.generation_model_label
+            ? String(setData.generation_model_label)
+            : undefined,
+        };
+        return { questions, questionSet };
+      }
+    } catch {
+      // fallback to local
+    }
+  }
+
   const data = getStoredData();
   const set = data.sets.find((s) => s.id === setId);
   
@@ -157,16 +291,25 @@ export function clearAllGeneratedQuestions(): void {
   localStorage.removeItem("generatedQuestions"); // Clean up old format
 }
 
-export function deleteGeneratedQuestionSet(setId: string): void {
+export async function deleteGeneratedQuestionSet(setId: string): Promise<void> {
   const data = getStoredData();
   data.sets = data.sets.filter((s) => s.id !== setId);
   saveStoredData(data);
+
+  if (canUseRemoteDb()) {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase.from("generated_question_sets").delete().eq("id", setId);
+    } catch {
+      // keep local fallback
+    }
+  }
 }
 
-export function updateGeneratedQuestionInStorage(
+export async function updateGeneratedQuestionInStorage(
   setId: string,
   updated: Question
-): void {
+): Promise<void> {
   const data = getStoredData();
   const setIndex = data.sets.findIndex((s) => s.id === setId);
   if (setIndex === -1) return;
@@ -176,12 +319,26 @@ export function updateGeneratedQuestionInStorage(
   );
 
   saveStoredData(data);
+
+  if (canUseRemoteDb()) {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase.from("generated_questions").upsert({
+        id: updated.id,
+        set_id: setId,
+        payload: { ...updated, questionSetId: undefined },
+        is_visible: updated.isVisible !== false,
+      });
+    } catch {
+      // keep local fallback
+    }
+  }
 }
 
-export function deleteGeneratedQuestionFromStorage(
+export async function deleteGeneratedQuestionFromStorage(
   setId: string,
   questionId: string
-): void {
+): Promise<void> {
   const data = getStoredData();
   const setIndex = data.sets.findIndex((s) => s.id === setId);
   if (setIndex === -1) return;
@@ -195,35 +352,102 @@ export function deleteGeneratedQuestionFromStorage(
   }
 
   saveStoredData(data);
+
+  if (canUseRemoteDb()) {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase
+        .from("generated_questions")
+        .delete()
+        .eq("set_id", setId)
+        .eq("id", questionId);
+    } catch {
+      // keep local fallback
+    }
+  }
 }
 
-export function toggleQuestionVisibility(
+export async function toggleQuestionVisibility(
   setId: string,
   questionId: string
-): void {
+): Promise<void> {
   const data = getStoredData();
   const setIndex = data.sets.findIndex((s) => s.id === setId);
   if (setIndex === -1) return;
 
+  let nextVisible = true;
   data.sets[setIndex].questions = data.sets[setIndex].questions.map((q) => {
     if (q.id === questionId) {
-      return { ...q, isVisible: q.isVisible === false ? true : false };
+      nextVisible = q.isVisible === false ? true : false;
+      return { ...q, isVisible: nextVisible };
     }
     return q;
   });
 
   saveStoredData(data);
+
+  if (canUseRemoteDb()) {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase
+        .from("generated_questions")
+        .update({ is_visible: nextVisible })
+        .eq("set_id", setId)
+        .eq("id", questionId);
+    } catch {
+      // keep local fallback
+    }
+  }
 }
 
 // Legacy compatibility - for single set operations
-export function getGeneratedQuestionsFromStorage(): {
+export async function getGeneratedQuestionsFromStorage(): Promise<{
   questions: Question[];
   questionSet: QuestionSet | null;
-} {
-  const { questions, questionSets } = getAllGeneratedQuestionSets();
+}> {
+  const { questions, questionSets } = await getAllGeneratedQuestionSets();
   if (questionSets.length === 0) {
     return { questions: [], questionSet: null };
   }
   // Return the most recent set for backward compatibility
   return { questions, questionSet: questionSets[0] };
+}
+
+export async function migrateGeneratedSetsToDbOnce(): Promise<void> {
+  if (!canUseRemoteDb() || typeof window === "undefined") return;
+  if (window.localStorage.getItem(GENERATED_SETS_MIGRATION_KEY) === "1") return;
+
+  const local = getStoredData();
+  if (local.sets.length === 0) {
+    window.localStorage.setItem(GENERATED_SETS_MIGRATION_KEY, "1");
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseBrowserClient();
+    for (const set of local.sets) {
+      await supabase.from("generated_question_sets").upsert({
+        id: set.id,
+        name: set.name,
+        generated_at: set.generatedAt,
+        generation_model_id: set.generationModelId ?? null,
+        generation_model_label: set.generationModelLabel ?? null,
+      });
+      await supabase
+        .from("generated_questions")
+        .upsert(
+          set.questions.map((q) => ({
+            id: q.id,
+            set_id: set.id,
+            payload: q,
+            is_visible: q.isVisible !== false,
+          })),
+        );
+    }
+    window.localStorage.setItem(GENERATED_SETS_MIGRATION_KEY, "1");
+    window.localStorage.removeItem(GENERATED_SETS_KEY);
+    window.localStorage.removeItem("generatedQuestions");
+  } catch {
+    // retry next launch
+  }
 }

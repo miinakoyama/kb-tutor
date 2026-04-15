@@ -1,13 +1,45 @@
 import Link from "next/link";
 import { CalendarDays, ClipboardList, Play } from "lucide-react";
-import { DEFAULT_STUDENT_ID, getAssignmentsForStudent } from "@/lib/mock-data";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function estimateQuestionCount(targetMinutes: number): number {
   return Math.max(6, Math.min(40, Math.round(targetMinutes / 1.8)));
 }
 
-export default function AssignmentsPage() {
-  const assignments = getAssignmentsForStudent(DEFAULT_STUDENT_ID);
+export default async function AssignmentsPage() {
+  type AssignmentRecord = {
+    id: string;
+    title: string;
+    due_date?: string | null;
+    topics: string[];
+    target_minutes: number;
+  };
+
+  type AssignmentTargetRow = {
+    assignments: AssignmentRecord | AssignmentRecord[] | null;
+  };
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: assignedRows } = await supabase
+    .from("assignment_targets")
+    .select(
+      "assignment_id,assignments(id,title,due_date,module_ids,topics,target_minutes)",
+    )
+    .eq("student_user_id", user.id);
+
+  const assignments: AssignmentRecord[] = (assignedRows ?? []).flatMap((row) => {
+    const relation = (row as AssignmentTargetRow).assignments;
+    if (!relation) return [];
+    return Array.isArray(relation) ? relation : [relation];
+  });
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -31,7 +63,7 @@ export default function AssignmentsPage() {
               mode: "adaptive",
               assignmentId: assignment.id,
               questions: String(
-                estimateQuestionCount(assignment.targetMinutes),
+                estimateQuestionCount(assignment.target_minutes),
               ),
               topics: assignment.topics
                 .map((topic) => encodeURIComponent(topic))
@@ -57,10 +89,10 @@ export default function AssignmentsPage() {
                         ? ` +${assignment.topics.length - 3} more`
                         : ""}
                     </p>
-                    {assignment.dueDate ? (
+                    {assignment.due_date ? (
                       <p className="text-xs text-slate-gray/60 mt-2 inline-flex items-center gap-1.5">
                         <CalendarDays className="w-3.5 h-3.5" />
-                        Due {new Date(assignment.dueDate).toLocaleDateString()}
+                        Due {new Date(assignment.due_date).toLocaleDateString()}
                       </p>
                     ) : (
                       <p className="text-xs text-slate-gray/50 mt-2">
