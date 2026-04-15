@@ -1,40 +1,64 @@
-"use client";
-
+import { redirect } from "next/navigation";
 import { Bell, Lightbulb } from "lucide-react";
-import {
-  DEFAULT_STUDENT_ID,
-  getNotificationsForRecipient,
-} from "@/lib/mock-data";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getStudentNotifications } from "@/lib/notifications";
+import { DEFAULT_APP_TIME_ZONE, normalizeTimeZone } from "@/lib/timezone";
 
 const FALLBACK_MESSAGES = [
-  "Study tip: explain one concept out loud after every 5 questions.",
-  "Fun fact: ATP can be recycled quickly, but your body stores very little at once.",
-  "Study tip: compare two similar terms to strengthen memory retrieval.",
+  "You're all caught up. Check Self Practice to keep momentum.",
 ];
 
-export default function NotificationsPage() {
+export default async function NotificationsPage() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: settingsData } = await supabase
+    .from("user_settings")
+    .select("time_zone")
+    .maybeSingle();
+  const timeZone = normalizeTimeZone(
+    settingsData?.time_zone,
+    DEFAULT_APP_TIME_ZONE,
+  );
+
+  const notificationResult = await getStudentNotifications(supabase, user.id, {
+    timeZone,
+  });
+  const notifications = notificationResult.notifications;
+  const notificationsError = notificationResult.error;
+
   const formatCreatedAt = (value: string) =>
     new Intl.DateTimeFormat("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
-      timeZone: "UTC",
+      timeZoneName: "short",
+      timeZone,
     }).format(new Date(value));
-
-  const notifications = getNotificationsForRecipient(
-    "student",
-    DEFAULT_STUDENT_ID,
-  );
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <section className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
-          Notification
+          Notifications
         </h1>
         <p className="text-slate-gray/70">
-          Recent updates from assignments and learning activity.
+          Recent updates from assignments and deadlines.
         </p>
       </section>
+
+      {notificationsError && (
+        <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4">
+          <p className="text-sm text-red-700">
+            Failed to load notifications. Please refresh and try again.
+          </p>
+        </section>
+      )}
 
       {notifications.length === 0 ? (
         <section className="rounded-xl border border-[#16a34a]/30 bg-white p-5 sm:p-6 shadow-sm">
