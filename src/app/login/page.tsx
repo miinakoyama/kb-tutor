@@ -95,7 +95,7 @@ export default function LoginPage() {
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
               autoComplete="username"
-              placeholder="e.g. st004720601"
+              placeholder="e.g. st000000000"
               required
             />
           </label>

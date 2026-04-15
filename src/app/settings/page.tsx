@@ -65,7 +65,7 @@ export default function SettingsPage() {
           Read Aloud
         </h2>
         <p className="text-sm text-slate-gray/70 mb-4">
-          Reading speed is applied across Guided, Practice, Review, and Exam
+          Reading speed is applied across Practice, Review, and Exam
           modes.
         </p>
 

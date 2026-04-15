@@ -223,9 +223,6 @@ export default function ProgressPage() {
             </span>
             <span className="text-slate-gray">days in a row</span>
           </div>
-          <p className="text-sm text-slate-gray/80 mt-2">
-            Calculated from your actual answer history.
-          </p>
         </section>
 
         <section className="rounded-lg border border-leaf/30 bg-white p-6 shadow-sm">
