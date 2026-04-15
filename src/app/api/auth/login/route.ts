@@ -117,14 +117,17 @@ async function handleStudentLogin(body: {
     );
   }
 
-  // Insert profile
-  const { error: profileError } = await admin.from("profiles").insert({
-    id: newUser.user.id,
-    email,
-    student_id: studentId,
-    display_name: studentId,
-    role: "student",
-  });
+  // Ensure profile exists whether it's auto-created by DB trigger or not.
+  const { error: profileError } = await admin.from("profiles").upsert(
+    {
+      id: newUser.user.id,
+      email,
+      student_id: studentId,
+      display_name: studentId,
+      role: "student",
+    },
+    { onConflict: "id" },
+  );
 
   if (profileError) {
     // Clean up the auth user if profile insert fails
