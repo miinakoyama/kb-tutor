@@ -100,6 +100,13 @@ export async function fetchStudentSelfPracticeQuestions(
 
 /**
  * Link a generated set to one or more schools (upsert junction rows).
+ *
+ * Self Practice **content** is controlled per question (`generated_questions.include_in_self_practice`),
+ * not by this junction row. The link only means “this set is associated with this school.”
+ *
+ * @deprecated The column `school_question_sets.available_for_self_practice` is legacy: RLS and
+ *   client queries no longer filter on it. Upserts set it to `true` to satisfy NOT NULL until a
+ *   future migration can drop the column.
  */
 export async function upsertSchoolQuestionSetLinks(
   supabase: SupabaseClient,
