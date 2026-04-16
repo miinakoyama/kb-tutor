@@ -101,7 +101,7 @@ export function PracticePageClient({
 }: PracticePageClientProps) {
   const normalizedModeParam =
     modeParam === "adaptive" ? "practice" : modeParam;
-  const { visibleQuestions, isLoaded } = useQuestions();
+  const { visibleQuestions, isLoaded, role } = useQuestions();
   const [snapshotQuestions, setSnapshotQuestions] = useState<Question[] | null>(
     null
   );
@@ -246,6 +246,33 @@ export function PracticePageClient({
     !VALID_MODES.includes(normalizedModeParam as PracticeModeType)
   ) {
     return <InvalidParamsMessage message={`Invalid mode: "${modeParam}". Please select a valid mode.`} />;
+  }
+
+  if (
+    !hasAssignmentSnapshot &&
+    filteredQuestions.length === 0 &&
+    normalizedModeParam &&
+    VALID_MODES.includes(normalizedModeParam as PracticeModeType)
+  ) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="max-w-md text-center rounded-xl border border-[#16a34a]/30 bg-white p-8 shadow-sm">
+          <p className="text-slate-gray mb-2 font-medium">No questions available</p>
+          <p className="text-sm text-slate-gray/70">
+            {role === "student"
+              ? "Your teacher has not published any question sets for Self Practice yet, or none match this topic. Check back later or ask your teacher."
+              : "No generated question sets are loaded. Add questions from Content management or check your connection."}
+          </p>
+          <Link
+            href="/"
+            className="inline-flex mt-6 items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d]"
+          >
+            <Home className="w-4 h-4" />
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   switch (normalizedModeParam) {

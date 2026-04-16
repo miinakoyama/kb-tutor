@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { assertSetNameUniqueForSchools } from "@/lib/generated-set-naming";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -103,6 +105,8 @@ const DEFAULT_SETTINGS: GenerationSettings = {
 
 const STORAGE_KEY = "massProductionSettings";
 
+type SchoolOption = { id: string; name: string };
+
 export default function MassProductionPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
@@ -111,6 +115,31 @@ export default function MassProductionPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
+  const [selectedSchoolIds, setSelectedSchoolIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function loadSchools() {
+      try {
+        const res = await fetch("/api/teacher/schools");
+        if (!res.ok) return;
+        const data = (await res.json()) as { schools: SchoolOption[] };
+        setSchoolOptions(data.schools ?? []);
+      } catch {
+        // ignore
+      }
+    }
+    void loadSchools();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = new URLSearchParams(window.location.search).get("schoolIds");
+    if (raw) {
+      const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+      if (ids.length > 0) setSelectedSchoolIds(ids);
+    }
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -302,6 +331,21 @@ export default function MassProductionPage() {
       setError("Total diagram count cannot exceed question count.");
       return;
     }
+    if (selectedSchoolIds.length === 0) {
+      setError("Select at least one school to attach this question set.");
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    const dup = await assertSetNameUniqueForSchools(
+      supabase,
+      trimmedSetName,
+      selectedSchoolIds,
+    );
+    if (!dup.ok) {
+      setError(dup.message);
+      return;
+    }
 
     setError(null);
     setIsGenerating(true);
@@ -344,9 +388,15 @@ export default function MassProductionPage() {
         trimmedSetName,
         generatedAt,
         {
-          id: data.generationModelId,
-          label: data.generationModelLabel,
-        }
+          generationModel: {
+            id: data.generationModelId,
+            label: data.generationModelLabel,
+          },
+          schoolLinks: selectedSchoolIds.map((schoolId) => ({
+            schoolId,
+            availableForSelfPractice: false,
+          })),
+        },
       );
 
       router.push(`/content/questions/${encodeURIComponent(setId)}`);
@@ -405,8 +455,47 @@ export default function MassProductionPage() {
             />
             <p className="text-xs text-slate-gray/60 mt-1">
               Required: this name is used to identify the generated set later.
+              It must be unique among sets linked to each selected school.
             </p>
           </div>
+        </section>
+
+        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-medium text-slate-gray mb-4">
+            Schools *
+          </h2>
+          <p className="text-sm text-slate-gray/70 mb-3">
+            Choose which school catalogs receive this set. You can enable Self
+            Practice later in Question Manager.
+          </p>
+          {schoolOptions.length === 0 ? (
+            <p className="text-sm text-amber-700">
+              No schools found. Ensure your account is a teacher or admin with
+              access to schools.
+            </p>
+          ) : (
+            <ul className="space-y-2 max-h-48 overflow-y-auto">
+              {schoolOptions.map((school) => (
+                <li key={school.id}>
+                  <label className="flex items-center gap-2 text-sm text-slate-gray cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedSchoolIds.includes(school.id)}
+                      onChange={() => {
+                        setSelectedSchoolIds((prev) =>
+                          prev.includes(school.id)
+                            ? prev.filter((id) => id !== school.id)
+                            : [...prev, school.id],
+                        );
+                      }}
+                      className="rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]"
+                    />
+                    {school.name}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         {/* Basic Settings */}
