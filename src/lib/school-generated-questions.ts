@@ -15,7 +15,6 @@ function withStandard(question: Question): Question {
 export type SchoolQuestionSetRow = {
   schoolId: string;
   setId: string;
-  availableForSelfPractice: boolean;
   setName: string;
   generatedAt: string;
   generationModelId?: string;
@@ -23,15 +22,14 @@ export type SchoolQuestionSetRow = {
 };
 
 /**
- * Questions for students: only sets enabled for Self Practice at schools they attend.
+ * Questions for students: sets linked to a school they attend, with per-question SP flag.
  */
 export async function fetchStudentSelfPracticeQuestions(
   supabase: SupabaseClient,
 ): Promise<{ questions: Question[]; questionSets: QuestionSet[] }> {
   const { data: links, error: linkError } = await supabase
     .from("school_question_sets")
-    .select("set_id")
-    .eq("available_for_self_practice", true);
+    .select("set_id");
 
   if (linkError) {
     return { questions: [], questionSets: [] };
@@ -106,7 +104,7 @@ export async function fetchStudentSelfPracticeQuestions(
 export async function upsertSchoolQuestionSetLinks(
   supabase: SupabaseClient,
   setId: string,
-  entries: { schoolId: string; availableForSelfPractice: boolean }[],
+  entries: { schoolId: string }[],
 ): Promise<{ error: string | null }> {
   if (entries.length === 0) {
     return { error: null };
@@ -115,27 +113,12 @@ export async function upsertSchoolQuestionSetLinks(
   const rows = entries.map((e) => ({
     school_id: e.schoolId,
     set_id: setId,
-    available_for_self_practice: e.availableForSelfPractice,
+    available_for_self_practice: true,
   }));
 
   const { error } = await supabase.from("school_question_sets").upsert(rows, {
     onConflict: "school_id,set_id",
   });
-
-  return { error: error?.message ?? null };
-}
-
-export async function updateSchoolQuestionSetSelfPractice(
-  supabase: SupabaseClient,
-  schoolId: string,
-  setId: string,
-  available: boolean,
-): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from("school_question_sets")
-    .update({ available_for_self_practice: available })
-    .eq("school_id", schoolId)
-    .eq("set_id", setId);
 
   return { error: error?.message ?? null };
 }
@@ -149,7 +132,7 @@ export async function fetchQuestionSetsForSchool(
 ): Promise<{ rows: SchoolQuestionSetRow[]; error: string | null }> {
   const { data: links, error: linkError } = await supabase
     .from("school_question_sets")
-    .select("school_id, set_id, available_for_self_practice")
+    .select("school_id, set_id")
     .eq("school_id", schoolId);
 
   if (linkError) {
@@ -182,7 +165,6 @@ export async function fetchQuestionSetsForSchool(
     rows.push({
       schoolId: String(link.school_id),
       setId: String(link.set_id),
-      availableForSelfPractice: Boolean(link.available_for_self_practice),
       setName: String(meta.name),
       generatedAt: String(meta.generated_at),
       generationModelId: meta.generation_model_id

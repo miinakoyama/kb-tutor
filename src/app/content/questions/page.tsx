@@ -17,7 +17,6 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   fetchQuestionSetsForSchool,
   deleteSchoolQuestionSetLink,
-  updateSchoolQuestionSetSelfPractice,
   type SchoolQuestionSetRow,
 } from "@/lib/school-generated-questions";
 import { deleteGeneratedQuestionSet } from "@/lib/question-storage";
@@ -140,26 +139,6 @@ export default function QuestionsPage() {
     }
     await deleteGeneratedQuestionSet(setId);
     await reloadSets();
-  };
-
-  const handleToggleSp = async (setId: string, next: boolean) => {
-    if (!selectedSchoolId) return;
-    const supabase = getSupabaseBrowserClient();
-    const { error: uErr } = await updateSchoolQuestionSetSelfPractice(
-      supabase,
-      selectedSchoolId,
-      setId,
-      next,
-    );
-    if (uErr) {
-      setError(uErr);
-      return;
-    }
-    setRows((prev) =>
-      prev.map((r) =>
-        r.setId === setId ? { ...r, availableForSelfPractice: next } : r,
-      ),
-    );
   };
 
   const totalQuestionCount = rows.length;
@@ -309,7 +288,6 @@ export default function QuestionsPage() {
       ) : (
         <div className="space-y-3">
           {filteredSets.map((set) => {
-            const row = rows.find((r) => r.setId === set.id);
             return (
               <div
                 key={set.id}
@@ -341,17 +319,6 @@ export default function QuestionsPage() {
                     <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-[#16a34a] shrink-0" />
                   </Link>
                   <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                    <label className="flex items-center gap-2 text-xs text-slate-gray cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={row?.availableForSelfPractice ?? false}
-                        onChange={(e) => {
-                          void handleToggleSp(set.id, e.target.checked);
-                        }}
-                        className="rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]"
-                      />
-                      Self Practice
-                    </label>
                     <button
                       type="button"
                       onClick={(e) => void handleRemoveFromSchool(e, set.id)}

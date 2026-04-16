@@ -130,10 +130,7 @@ export default function ManualQuestionSetPage() {
     try {
       const generatedAt = new Date().toISOString();
       const setId = await addGeneratedQuestionSet([q], name, generatedAt, {
-        schoolLinks: selectedSchoolIds.map((schoolId) => ({
-          schoolId,
-          availableForSelfPractice: false,
-        })),
+        schoolLinks: selectedSchoolIds.map((schoolId) => ({ schoolId })),
       });
       router.push(`/content/questions/${encodeURIComponent(setId)}`);
     } catch (err) {

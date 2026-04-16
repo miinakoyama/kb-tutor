@@ -74,7 +74,7 @@ function canUseRemoteDb(): boolean {
 export type AddGeneratedSetOptions = {
   generationModel?: { id?: string; label?: string };
   /** When provided, creates junction rows after saving the set. */
-  schoolLinks?: { schoolId: string; availableForSelfPractice: boolean }[];
+  schoolLinks?: { schoolId: string }[];
 };
 
 export async function addGeneratedQuestionSet(

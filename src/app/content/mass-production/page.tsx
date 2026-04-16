@@ -392,10 +392,7 @@ export default function MassProductionPage() {
             id: data.generationModelId,
             label: data.generationModelLabel,
           },
-          schoolLinks: selectedSchoolIds.map((schoolId) => ({
-            schoolId,
-            availableForSelfPractice: false,
-          })),
+          schoolLinks: selectedSchoolIds.map((schoolId) => ({ schoolId })),
         },
       );
 
