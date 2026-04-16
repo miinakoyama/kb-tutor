@@ -1,6 +1,6 @@
 export type QuestionType = "mcq" | "open-ended";
 
-export type PracticeMode = "guided" | "practice" | "adaptive" | "exam" | "review";
+export type PracticeMode = "practice" | "exam" | "review";
 
 export type QuestionSource = "manual" | "imported" | "generated";
 

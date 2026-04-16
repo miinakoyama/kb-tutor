@@ -6,9 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import type { PracticeMode } from "@/types/question";
 
 const MODE_LABELS: Record<PracticeMode, string> = {
-  guided: "Guided Mode",
   practice: "Practice Mode",
-  adaptive: "Adaptive Practice",
   exam: "Mock Exam",
   review: "Review Mode",
 };

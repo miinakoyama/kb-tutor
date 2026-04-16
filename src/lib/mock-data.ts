@@ -54,7 +54,7 @@ export interface MockAttempt {
   questionId: string;
   isCorrect: boolean;
   timeSpentSec: number;
-  mode: "adaptive" | "review" | "exam";
+  mode: "practice" | "review" | "exam";
   timestamp: string;
 }
 
@@ -200,7 +200,7 @@ function generateAttempts(): MockAttempt[] {
             questionId: `${standard.id.replace(/\./g, "_")}_q_${a + 1}`,
             isCorrect,
             timeSpentSec: seconds,
-            mode: a % 4 === 0 ? "exam" : a % 3 === 0 ? "review" : "adaptive",
+            mode: a % 4 === 0 ? "exam" : a % 3 === 0 ? "review" : "practice",
             timestamp,
           });
           index += 1;

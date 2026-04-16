@@ -35,8 +35,11 @@ export default async function NotificationsPage() {
 
   const formatCreatedAt = (value: string) =>
     new Intl.DateTimeFormat("en-US", {
-      dateStyle: "medium",
-      timeStyle: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
       timeZoneName: "short",
       timeZone,
     }).format(new Date(value));

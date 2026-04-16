@@ -66,7 +66,7 @@ export default function BookmarksPage() {
   return (
     <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 h-full flex flex-col">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6">
           <div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
@@ -77,13 +77,6 @@ export default function BookmarksPage() {
               </p>
             </div>
           </div>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-slate-gray/70 hover:text-slate-gray hover:bg-slate-gray/5 transition-colors text-sm font-medium"
-          >
-            <Home className="w-4 h-4" />
-            Home
-          </Link>
         </div>
 
         {bookmarkedQuestions.length === 0 ? (

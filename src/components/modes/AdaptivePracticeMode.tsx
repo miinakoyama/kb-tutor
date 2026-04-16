@@ -37,7 +37,7 @@ interface AdaptivePracticeModeProps {
   topicName?: string;
   questionCount?: number;
   assignmentId?: string;
-  mode?: "adaptive" | "review";
+  mode?: "practice" | "review";
   backHref?: string;
   showBackLink?: boolean;
 }
@@ -52,7 +52,7 @@ export function AdaptivePracticeMode({
   topicName,
   questionCount = DEFAULT_QUESTION_COUNT,
   assignmentId,
-  mode = "adaptive",
+  mode = "practice",
   backHref = "/self-practice",
   showBackLink = false,
 }: AdaptivePracticeModeProps) {
