@@ -16,7 +16,7 @@ const MODE_CHOICES: Array<{
   description: string;
 }> = [
   {
-    mode: "adaptive",
+    mode: "practice",
     title: "Practice",
     description: "Adaptive attempts with hint unlock after an incorrect answer.",
   },
@@ -62,7 +62,7 @@ function estimateQuestionCount(mode: PracticeMode, minutes: number): number {
 
 export function SelfPracticePlanner() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-  const [selectedMode, setSelectedMode] = useState<PracticeMode>("adaptive");
+  const [selectedMode, setSelectedMode] = useState<PracticeMode>("practice");
   const [selectedMinutes, setSelectedMinutes] = useState<number>(30);
   const [customMinutes, setCustomMinutes] = useState<string>("");
   const [isCustomTime, setIsCustomTime] = useState(false);

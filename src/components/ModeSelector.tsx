@@ -28,9 +28,9 @@ interface ModeCardData {
 
 const MODE_CARDS: ModeCardData[] = [
   {
-    mode: "adaptive",
+    mode: "practice",
     title: "Practice",
-    subtitle: "Adaptive support",
+    subtitle: "Hint-supported",
     description:
       "First attempt without hints. If incorrect, glossary and hints unlock for your next try.",
     icon: Sparkles,

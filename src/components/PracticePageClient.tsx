@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Home, Loader2 } from "lucide-react";
 import { ModeSelector } from "@/components/ModeSelector";
-import { GuidedMode } from "@/components/modes/GuidedMode";
-import { PracticeMode } from "@/components/modes/PracticeMode";
 import { AdaptivePracticeMode } from "@/components/modes/AdaptivePracticeMode";
 import { ExamMode } from "@/components/modes/ExamMode";
 import { ReviewMode } from "@/components/modes/ReviewMode";
@@ -17,7 +15,7 @@ import type {
 import { MODULES } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
 
-const VALID_MODES: PracticeModeType[] = ["guided", "practice", "adaptive", "exam", "review"];
+const VALID_MODES: PracticeModeType[] = ["practice", "exam", "review"];
 const MODULE_CATEGORY_TOPIC_PATTERN =
   /^\s*(?:\[?\s*Module\s+([AB])\s*\]?\s*[-:]\s*)?(.+?)\s*$/i;
 
@@ -101,6 +99,8 @@ export function PracticePageClient({
   questionsParam,
   assignmentIdParam,
 }: PracticePageClientProps) {
+  const normalizedModeParam =
+    modeParam === "adaptive" ? "practice" : modeParam;
   const { visibleQuestions, isLoaded } = useQuestions();
   const [snapshotQuestions, setSnapshotQuestions] = useState<Question[] | null>(
     null
@@ -241,12 +241,15 @@ export function PracticePageClient({
     );
   }
 
-  if (modeParam && !VALID_MODES.includes(modeParam as PracticeModeType)) {
+  if (
+    normalizedModeParam &&
+    !VALID_MODES.includes(normalizedModeParam as PracticeModeType)
+  ) {
     return <InvalidParamsMessage message={`Invalid mode: "${modeParam}". Please select a valid mode.`} />;
   }
 
-  switch (modeParam) {
-    case "adaptive":
+  switch (normalizedModeParam) {
+    case "practice":
       return (
         <AdaptivePracticeMode
           questions={filteredQuestions}
@@ -254,14 +257,6 @@ export function PracticePageClient({
           questionCount={requestedQuestionCount}
           assignmentId={assignmentIdParam}
         />
-      );
-    case "guided":
-      return (
-        <GuidedMode questions={filteredQuestions} topicName={topicName} />
-      );
-    case "practice":
-      return (
-        <PracticeMode questions={filteredQuestions} topicName={topicName} />
       );
     case "exam": {
       return (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, ClipboardList, Play } from "lucide-react";
 import { redirect } from "next/navigation";
+import { getStudentAssignmentList } from "@/lib/student-assignments";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function estimateQuestionCount(targetMinutes: number): number {
@@ -8,18 +9,6 @@ function estimateQuestionCount(targetMinutes: number): number {
 }
 
 export default async function AssignmentsPage() {
-  type AssignmentRecord = {
-    id: string;
-    title: string;
-    due_date?: string | null;
-    topics: string[];
-    target_minutes: number;
-  };
-
-  type AssignmentTargetRow = {
-    assignments: AssignmentRecord | AssignmentRecord[] | null;
-  };
-
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -28,18 +17,10 @@ export default async function AssignmentsPage() {
     redirect("/login");
   }
 
-  const { data: assignedRows } = await supabase
-    .from("assignment_targets")
-    .select(
-      "assignment_id,assignments(id,title,due_date,module_ids,topics,target_minutes)",
-    )
-    .eq("student_user_id", user.id);
-
-  const assignments: AssignmentRecord[] = (assignedRows ?? []).flatMap((row) => {
-    const relation = (row as AssignmentTargetRow).assignments;
-    if (!relation) return [];
-    return Array.isArray(relation) ? relation : [relation];
-  });
+  const { assignments, error: listError } = await getStudentAssignmentList(
+    supabase,
+    user.id,
+  );
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -48,11 +29,17 @@ export default async function AssignmentsPage() {
           My Assignment
         </h1>
         <p className="text-slate-gray/70">
-          Complete teacher-assigned practice with adaptive support.
+          Complete teacher-assigned practice with guided hints after misses.
         </p>
       </section>
 
-      {assignments.length === 0 ? (
+      {listError ? (
+        <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4">
+          <p className="text-sm text-red-700">
+            Failed to load assignments. Please refresh and try again.
+          </p>
+        </section>
+      ) : assignments.length === 0 ? (
         <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
           <p className="text-slate-gray">No active assignments right now.</p>
         </section>
@@ -60,7 +47,7 @@ export default async function AssignmentsPage() {
         <div className="space-y-4">
           {assignments.map((assignment) => {
             const params = new URLSearchParams({
-              mode: "adaptive",
+              mode: "practice",
               assignmentId: assignment.id,
               questions: String(
                 estimateQuestionCount(assignment.target_minutes),
