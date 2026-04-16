@@ -7,8 +7,6 @@ import {
   CheckCircle2,
   Edit2,
   Trash2,
-  Eye,
-  EyeOff,
   BarChart3,
 } from "lucide-react";
 import type { Question } from "@/types/question";
@@ -18,42 +16,29 @@ import { LatexText } from "@/components/shared/LatexText";
 interface QuestionPreviewCardProps {
   question: Question;
   index: number;
-  isSelected: boolean;
-  onToggleSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onToggleVisibility?: () => void;
+  /** Highlight when this question is in the Self Practice bank (with onToggleIncludeInSelfPractice). */
+  includeInSelfPractice?: boolean;
+  onToggleIncludeInSelfPractice?: () => void;
   isEditable?: boolean;
 }
 
 export function QuestionPreviewCard({
   question,
   index,
-  isSelected,
-  onToggleSelect,
   onEdit,
   onDelete,
-  onToggleVisibility,
+  includeInSelfPractice,
+  onToggleIncludeInSelfPractice,
   isEditable = true,
 }: QuestionPreviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isHidden = question.isVisible === false;
 
   return (
-    <div
-      className={`rounded-xl border bg-white shadow-sm overflow-hidden transition-colors ${
-        isSelected ? "border-[#16a34a]" : "border-slate-gray/20"
-      } ${isHidden ? "opacity-60" : ""}`}
-    >
+    <div className="rounded-xl border border-slate-gray/20 bg-white shadow-sm overflow-hidden transition-colors">
       <div className="p-4">
         <div className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={onToggleSelect}
-            className="mt-1 w-4 h-4 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
-          />
-
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="text-xs font-medium text-slate-gray/60 bg-slate-gray/10 px-2 py-0.5 rounded">
@@ -74,12 +59,6 @@ export function QuestionPreviewCard({
                 <span className="text-xs text-[#16a34a] flex items-center gap-1">
                   <BarChart3 className="w-3 h-3" />
                   {question.diagram.type}
-                </span>
-              )}
-              {isHidden && (
-                <span className="text-xs text-amber-600 flex items-center gap-1">
-                  <EyeOff className="w-3 h-3" />
-                  Hidden
                 </span>
               )}
             </div>
@@ -107,23 +86,35 @@ export function QuestionPreviewCard({
           </div>
 
           {isEditable && (
-            <div className="flex items-center gap-1">
-              {onToggleVisibility && (
-                <button
-                  onClick={onToggleVisibility}
-                  className={`p-2 rounded-lg transition-colors ${
-                    isHidden
-                      ? "text-amber-500 hover:text-[#16a34a] hover:bg-[#16a34a]/10"
-                      : "text-slate-gray/50 hover:text-amber-500 hover:bg-amber-50"
-                  }`}
-                  title={isHidden ? "Show in tutor" : "Hide from tutor"}
-                >
-                  {isHidden ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
+            <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3 flex-shrink-0">
+              {onToggleIncludeInSelfPractice && (
+                <div className="flex items-center gap-2">
+                  <span
+                    id={`sp-label-${question.id}`}
+                    className="text-xs font-medium text-slate-gray/70 whitespace-nowrap"
+                  >
+                    Self Practice
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-labelledby={`sp-label-${question.id}`}
+                    aria-checked={includeInSelfPractice === true}
+                    onClick={onToggleIncludeInSelfPractice}
+                    className={`flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 focus-visible:ring-offset-2 ${
+                      includeInSelfPractice === true
+                        ? "justify-end bg-[#16a34a]"
+                        : "justify-start bg-slate-200"
+                    }`}
+                    title={
+                      includeInSelfPractice === true
+                        ? "Included in Self Practice question bank"
+                        : "Not included in Self Practice"
+                    }
+                  >
+                    <span className="pointer-events-none h-5 w-5 rounded-full bg-white shadow-sm" />
+                  </button>
+                </div>
               )}
               <button
                 onClick={onEdit}

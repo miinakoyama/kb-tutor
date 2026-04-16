@@ -3,7 +3,15 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import questionsData from "@/data/questions.json";
 import type { Question } from "@/types/question";
-import { getAllGeneratedQuestionSets } from "@/lib/question-storage";
+import { resolveRole } from "@/lib/auth/role";
+import type { AppRole } from "@/lib/auth/types";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  getAllGeneratedQuestionSets,
+  migrateGeneratedSetsToDbOnce,
+} from "@/lib/question-storage";
+import { fetchStudentSelfPracticeQuestions } from "@/lib/school-generated-questions";
 import { getDefaultStandardForTopic } from "@/lib/standards";
 
 const fileQuestions = questionsData as Question[];
@@ -21,12 +29,51 @@ function withStandard(question: Question): Question {
 }
 
 export function useQuestions() {
-  const [localStorageQuestions, setLocalStorageQuestions] = useState<Question[]>([]);
+  const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [role, setRole] = useState<AppRole | null>(null);
 
   const loadQuestions = useCallback(async () => {
-    const { questions } = await getAllGeneratedQuestionSets();
-    setLocalStorageQuestions(questions.map(withStandard));
+    if (typeof window === "undefined") return;
+
+    if (!hasSupabaseEnv()) {
+      setRole(null);
+      setDynamicQuestions([]);
+      setIsLoaded(true);
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setRole(null);
+      setDynamicQuestions([]);
+      setIsLoaded(true);
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const resolved = resolveRole(profile?.role, user) ?? "student";
+    setRole(resolved);
+
+    await migrateGeneratedSetsToDbOnce();
+
+    if (resolved === "student") {
+      const { questions } = await fetchStudentSelfPracticeQuestions(supabase);
+      setDynamicQuestions(questions.map(withStandard));
+    } else {
+      const { questions } = await getAllGeneratedQuestionSets();
+      setDynamicQuestions(questions.map(withStandard));
+    }
+
     setIsLoaded(true);
   }, []);
 
@@ -35,18 +82,21 @@ export function useQuestions() {
   }, [loadQuestions]);
 
   const allQuestions = useMemo(() => {
-    return [...fileQuestions, ...localStorageQuestions].map(withStandard);
-  }, [localStorageQuestions]);
+    if (role === "student") {
+      return dynamicQuestions.map(withStandard);
+    }
+    return [...fileQuestions, ...dynamicQuestions].map(withStandard);
+  }, [role, dynamicQuestions]);
 
-  const visibleQuestions = useMemo(() => {
-    return allQuestions.filter((q) => q.isVisible !== false);
-  }, [allQuestions]);
+  /** Same as `allQuestions`; visibility is controlled only via Self Practice inclusion for generated sets. */
+  const visibleQuestions = useMemo(() => allQuestions, [allQuestions]);
 
   return {
     allQuestions,
     visibleQuestions,
     isLoaded,
     reload: loadQuestions,
+    role,
   };
 }
 

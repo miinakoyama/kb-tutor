@@ -143,6 +143,8 @@ export interface Question {
   questionSetId?: string;
   dok?: DOKLevel;
   isVisible?: boolean;
+  /** When set is linked for Self Practice, include this question in the student bank (generated sets only). */
+  includeInSelfPractice?: boolean;
   generatedAt?: string;
   diagram?: Diagram;
 }

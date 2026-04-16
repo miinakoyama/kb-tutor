@@ -6,8 +6,6 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Trash2,
-  CheckSquare,
-  Square,
   FileJson,
   FileSpreadsheet,
   FileText,
@@ -23,7 +21,7 @@ import {
   getGeneratedQuestionSetById,
   updateGeneratedQuestionInStorage,
   deleteGeneratedQuestionFromStorage,
-  toggleQuestionVisibility,
+  toggleIncludeInSelfPractice,
   deleteGeneratedQuestionSet,
 } from "@/lib/question-storage";
 import { getDefaultStandardForTopic } from "@/lib/standards";
@@ -48,10 +46,10 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   const router = useRouter();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionSet, setQuestionSet] = useState<QuestionSet | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLocalStorage, setIsLocalStorage] = useState(false);
+  const [isGeneratedFromDb, setIsGeneratedFromDb] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const decodedSetId = decodeURIComponent(setId);
@@ -63,8 +61,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
       );
       setQuestionSet(fileSet);
       setQuestions(filteredQuestions);
-      setSelectedIds(new Set(filteredQuestions.map((q) => q.id)));
-      setIsLocalStorage(false);
+      setIsGeneratedFromDb(false);
       setIsLoading(false);
       return;
     }
@@ -75,8 +72,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     if (localSet) {
       setQuestionSet(localSet);
       setQuestions(localQuestions);
-      setSelectedIds(new Set(localQuestions.map((q) => q.id)));
-      setIsLocalStorage(true);
+      setIsGeneratedFromDb(true);
       setIsLoading(false);
       return;
     }
@@ -88,67 +84,25 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     void loadData();
   }, [loadData]);
 
-  const handleToggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const handleSelectAll = () => {
-    if (selectedIds.size === questions.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(questions.map((q) => q.id)));
-    }
-  };
-
   const handleDelete = async (id: string) => {
-    if (!isLocalStorage || !questionSet) {
+    if (!isGeneratedFromDb || !questionSet) {
       alert(
         "Cannot delete questions from file. Only generated questions can be deleted."
       );
       return;
     }
 
-    await deleteGeneratedQuestionFromStorage(questionSet.id, id);
+    setActionError(null);
+    try {
+      await deleteGeneratedQuestionFromStorage(questionSet.id, id);
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : "Failed to delete the question.",
+      );
+      return;
+    }
     const updated = questions.filter((q) => q.id !== id);
     setQuestions(updated);
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-
-    if (updated.length === 0) {
-      router.push("/content/questions");
-    }
-  };
-
-  const handleDeleteSelected = async () => {
-    if (!isLocalStorage || !questionSet) {
-      alert(
-        "Cannot delete questions from file. Only generated questions can be deleted."
-      );
-      return;
-    }
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} selected question(s)?`)) return;
-
-    await Promise.all(
-      Array.from(selectedIds).map((id) =>
-        deleteGeneratedQuestionFromStorage(questionSet.id, id)
-      )
-    );
-
-    const updated = questions.filter((q) => !selectedIds.has(q.id));
-    setQuestions(updated);
-    setSelectedIds(new Set());
 
     if (updated.length === 0) {
       router.push("/content/questions");
@@ -156,7 +110,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   };
 
   const handleDeleteAll = async () => {
-    if (!isLocalStorage || !questionSet) {
+    if (!isGeneratedFromDb || !questionSet) {
       alert(
         "Cannot delete questions from file. Only generated questions can be deleted."
       );
@@ -165,7 +119,15 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     if (!confirm("Delete all questions in this set? This cannot be undone."))
       return;
 
-    await deleteGeneratedQuestionSet(questionSet.id);
+    setActionError(null);
+    try {
+      await deleteGeneratedQuestionSet(questionSet.id);
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : "Failed to delete questions.",
+      );
+      return;
+    }
     router.push("/content/questions");
   };
 
@@ -174,36 +136,55 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   };
 
   const handleSaveEdit = async (updated: Question) => {
-    if (isLocalStorage && questionSet) {
-      await updateGeneratedQuestionInStorage(questionSet.id, updated);
+    const prev = questions.find((q) => q.id === updated.id);
+    const merged: Question = {
+      ...updated,
+      includeInSelfPractice:
+        updated.includeInSelfPractice ?? prev?.includeInSelfPractice,
+    };
+    if (isGeneratedFromDb && questionSet) {
+      setActionError(null);
+      try {
+        await updateGeneratedQuestionInStorage(questionSet.id, merged);
+      } catch (e) {
+        setActionError(
+          e instanceof Error ? e.message : "Failed to save the question.",
+        );
+        return;
+      }
     }
-    setQuestions((prev) =>
-      prev.map((q) => (q.id === updated.id ? updated : q))
+    setQuestions((prevQs) =>
+      prevQs.map((q) => (q.id === merged.id ? merged : q)),
     );
     setEditingQuestion(null);
   };
 
-  const handleToggleVisibility = async (question: Question) => {
-    if (!isLocalStorage || !questionSet) {
-      alert("Cannot change visibility of questions from file.");
-      return;
+  const handleToggleIncludeInSelfPractice = async (question: Question) => {
+    if (!isGeneratedFromDb || !questionSet) return;
+    setActionError(null);
+    try {
+      const next = await toggleIncludeInSelfPractice(
+        questionSet.id,
+        question.id,
+      );
+      setQuestions((prev) =>
+        prev.map((q) =>
+          q.id === question.id ? { ...q, includeInSelfPractice: next } : q,
+        ),
+      );
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : "Failed to update Self Practice.",
+      );
     }
-    await toggleQuestionVisibility(questionSet.id, question.id);
-    setQuestions((prev) =>
-      prev.map((q) =>
-        q.id === question.id
-          ? { ...q, isVisible: q.isVisible === false ? true : false }
-          : q
-      )
-    );
   };
 
   const handleDownloadJson = () => {
-    const toDownload = questions.filter((q) => selectedIds.has(q.id));
-    if (toDownload.length === 0) {
-      alert("Please select at least one question to download.");
+    if (questions.length === 0) {
+      alert("No questions to download.");
       return;
     }
+    const toDownload = questions;
     const filename = questionSet?.name
       ? questionSet.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()
       : `questions-${Date.now()}`;
@@ -211,11 +192,11 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   };
 
   const handleDownloadTsv = () => {
-    const toDownload = questions.filter((q) => selectedIds.has(q.id));
-    if (toDownload.length === 0) {
-      alert("Please select at least one question to download.");
+    if (questions.length === 0) {
+      alert("No questions to download.");
       return;
     }
+    const toDownload = questions;
     const filename = questionSet?.name
       ? questionSet.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()
       : `questions-${Date.now()}`;
@@ -223,11 +204,11 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   };
 
   const handleDownloadText = () => {
-    const toDownload = questions.filter((q) => selectedIds.has(q.id));
-    if (toDownload.length === 0) {
-      alert("Please select at least one question to download.");
+    if (questions.length === 0) {
+      alert("No questions to download.");
       return;
     }
+    const toDownload = questions;
     const filename = questionSet?.name
       ? questionSet.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()
       : `questions-${Date.now()}`;
@@ -263,7 +244,8 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     );
   }
 
-  const visibleCount = questions.filter((q) => q.isVisible !== false).length;
+  const selfPracticeCount = questions.filter((q) => q.includeInSelfPractice === true)
+    .length;
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -277,14 +259,21 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         Back to Question Manager
       </Link>
 
+      {actionError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
+
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-gray">
             {questionSet.name}
           </h1>
           <p className="text-sm text-slate-gray/70">
-            {questions.length} question(s) • {visibleCount} visible in tutor
-            {selectedIds.size > 0 && ` • ${selectedIds.size} selected`}
+            {questions.length} question(s)
+            {isGeneratedFromDb &&
+              ` • ${selfPracticeCount} in Self Practice bank`}
           </p>
           {questionSet.createdAt && (
             <p className="text-xs text-slate-gray/50 mt-1">
@@ -299,7 +288,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {isLocalStorage && (
+          {isGeneratedFromDb && (
             <button
               onClick={handleDeleteAll}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
@@ -311,54 +300,31 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Action Bar */}
-      <div className="flex items-center justify-between mb-4 p-3 bg-slate-gray/5 rounded-lg">
+      {/* Export */}
+      <div className="flex items-center justify-end mb-4 p-3 bg-slate-gray/5 rounded-lg">
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSelectAll}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-gray hover:bg-white transition-colors"
-          >
-            {selectedIds.size === questions.length ? (
-              <CheckSquare className="w-4 h-4" />
-            ) : (
-              <Square className="w-4 h-4" />
-            )}
-            {selectedIds.size === questions.length
-              ? "Deselect All"
-              : "Select All"}
-          </button>
-
-          {isLocalStorage && selectedIds.size > 0 && (
-            <button
-              onClick={handleDeleteSelected}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete Selected
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
+            type="button"
             onClick={handleDownloadTsv}
-            disabled={selectedIds.size === 0}
+            disabled={questions.length === 0}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4" />
             TSV
           </button>
           <button
+            type="button"
             onClick={handleDownloadText}
-            disabled={selectedIds.size === 0}
+            disabled={questions.length === 0}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileText className="w-4 h-4" />
             TXT
           </button>
           <button
+            type="button"
             onClick={handleDownloadJson}
-            disabled={selectedIds.size === 0}
+            disabled={questions.length === 0}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileJson className="w-4 h-4" />
@@ -374,14 +340,15 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
             key={question.id}
             question={question}
             index={index}
-            isSelected={selectedIds.has(question.id)}
-            onToggleSelect={() => handleToggleSelect(question.id)}
             onEdit={() => handleEdit(question)}
             onDelete={() => handleDelete(question.id)}
-            onToggleVisibility={
-              isLocalStorage ? () => handleToggleVisibility(question) : undefined
+            includeInSelfPractice={question.includeInSelfPractice}
+            onToggleIncludeInSelfPractice={
+              isGeneratedFromDb
+                ? () => void handleToggleIncludeInSelfPractice(question)
+                : undefined
             }
-            isEditable={isLocalStorage}
+            isEditable={isGeneratedFromDb}
           />
         ))}
       </div>
