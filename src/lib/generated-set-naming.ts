@@ -19,33 +19,26 @@ export async function assertSetNameUniqueForSchools(
   }
   const normalized = trimmed.toLowerCase();
 
-  for (const schoolId of schoolIds) {
-    const { data: links, error } = await supabase
-      .from("school_question_sets")
-      .select("set_id")
-      .eq("school_id", schoolId);
+  const { data: rows, error } = await supabase
+    .from("school_question_sets")
+    .select("set_id, generated_question_sets!inner(id, name)")
+    .in("school_id", schoolIds);
 
-    if (error) {
-      return { ok: false, message: error.message };
-    }
+  if (error) {
+    return { ok: false, message: error.message };
+  }
 
-    const setIds = [...new Set((links ?? []).map((row) => row.set_id))];
-    if (setIds.length === 0) continue;
-
-    const { data: sets, error: setsError } = await supabase
-      .from("generated_question_sets")
-      .select("id, name")
-      .in("id", setIds);
-
-    if (setsError) {
-      return { ok: false, message: setsError.message };
-    }
-
-    for (const row of sets ?? []) {
-      if (excludeSetId && row.id === excludeSetId) continue;
-      if (String(row.name).trim().toLowerCase() === normalized) {
-        return { ok: false, message: DUPLICATE_MESSAGE };
-      }
+  for (const row of rows ?? []) {
+    const g = row.generated_question_sets as
+      | { id: string; name: string }
+      | { id: string; name: string }[]
+      | null
+      | undefined;
+    const meta = Array.isArray(g) ? g[0] : g;
+    if (!meta) continue;
+    if (excludeSetId && String(meta.id) === excludeSetId) continue;
+    if (String(meta.name).trim().toLowerCase() === normalized) {
+      return { ok: false, message: DUPLICATE_MESSAGE };
     }
   }
 

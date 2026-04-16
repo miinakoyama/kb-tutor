@@ -31,6 +31,16 @@ function withStandard(question: Question): Question {
   };
 }
 
+/** Payload JSON must not duplicate table-backed fields (`include_in_self_practice`, etc.). */
+function persistedPayloadForQuestion(
+  q: Question,
+): Omit<Question, "questionSetId" | "includeInSelfPractice"> {
+  const { questionSetId, includeInSelfPractice, ...rest } = q;
+  void questionSetId;
+  void includeInSelfPractice;
+  return rest;
+}
+
 function getStoredData(): StoredData {
   if (typeof window === "undefined") return { sets: [] };
 
@@ -119,13 +129,16 @@ export async function addGeneratedQuestionSet(
   }
 
   const { error: qErr } = await supabase.from("generated_questions").upsert(
-    questions.map(withStandard).map((q) => ({
-      id: q.id,
-      set_id: setId,
-      payload: q,
-      is_visible: true,
-      include_in_self_practice: q.includeInSelfPractice === true,
-    })),
+    questions.map((raw) => {
+      const q = withStandard(raw);
+      return {
+        id: q.id,
+        set_id: setId,
+        payload: persistedPayloadForQuestion(q),
+        is_visible: true,
+        include_in_self_practice: q.includeInSelfPractice === true,
+      };
+    }),
   );
 
   if (qErr) {
@@ -271,63 +284,86 @@ export async function getGeneratedQuestionSetById(setId: string): Promise<{
 }
 
 export async function deleteGeneratedQuestionSet(setId: string): Promise<void> {
-  if (!canUseRemoteDb()) return;
+  if (!canUseRemoteDb()) {
+    throw new Error("Supabase is not configured; cannot delete question sets.");
+  }
   const supabase = getSupabaseBrowserClient();
-  await supabase.from("generated_question_sets").delete().eq("id", setId);
+  const { error } = await supabase
+    .from("generated_question_sets")
+    .delete()
+    .eq("id", setId);
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function updateGeneratedQuestionInStorage(
   setId: string,
   updated: Question,
 ): Promise<void> {
-  if (!canUseRemoteDb()) return;
+  if (!canUseRemoteDb()) {
+    throw new Error("Supabase is not configured; cannot save questions.");
+  }
   const supabase = getSupabaseBrowserClient();
-  const { questionSetId, includeInSelfPractice, ...payloadBody } = updated;
-  void questionSetId;
-  void includeInSelfPractice;
-  await supabase.from("generated_questions").upsert({
+  const { error } = await supabase.from("generated_questions").upsert({
     id: updated.id,
     set_id: setId,
-    payload: payloadBody,
+    payload: persistedPayloadForQuestion(updated),
     is_visible: true,
     include_in_self_practice: updated.includeInSelfPractice === true,
   });
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function deleteGeneratedQuestionFromStorage(
   setId: string,
   questionId: string,
 ): Promise<void> {
-  if (!canUseRemoteDb()) return;
+  if (!canUseRemoteDb()) {
+    throw new Error("Supabase is not configured; cannot delete questions.");
+  }
   const supabase = getSupabaseBrowserClient();
-  await supabase
+  const { error } = await supabase
     .from("generated_questions")
     .delete()
     .eq("set_id", setId)
     .eq("id", questionId);
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
+/**
+ * Atomically flips `include_in_self_practice` via RPC. Returns the new value.
+ * @throws If Supabase rejects the call (RLS, network, or no row updated).
+ */
 export async function toggleIncludeInSelfPractice(
   setId: string,
   questionId: string,
-): Promise<void> {
-  if (!canUseRemoteDb()) return;
+): Promise<boolean> {
+  if (!canUseRemoteDb()) {
+    throw new Error("Supabase is not configured.");
+  }
   const supabase = getSupabaseBrowserClient();
-  const { data: row } = await supabase
-    .from("generated_questions")
-    .select("include_in_self_practice")
-    .eq("set_id", setId)
-    .eq("id", questionId)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc(
+    "toggle_generated_question_include_sp",
+    {
+      p_set_id: setId,
+      p_question_id: questionId,
+    },
+  );
 
-  if (!row) return;
-  const next = row.include_in_self_practice !== true;
-
-  await supabase
-    .from("generated_questions")
-    .update({ include_in_self_practice: next })
-    .eq("set_id", setId)
-    .eq("id", questionId);
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (data === null || data === undefined) {
+    throw new Error(
+      "Could not update Self Practice flag. The question may not exist or you may not have access.",
+    );
+  }
+  return Boolean(data);
 }
 
 export async function getGeneratedQuestionsFromStorage(): Promise<{
@@ -363,13 +399,16 @@ export async function migrateGeneratedSetsToDbOnce(): Promise<void> {
         generation_model_label: set.generationModelLabel ?? null,
       });
       await supabase.from("generated_questions").upsert(
-        set.questions.map((q) => ({
-          id: q.id,
-          set_id: set.id,
-          payload: withStandard(q),
-          is_visible: true,
-          include_in_self_practice: q.includeInSelfPractice === true,
-        })),
+        set.questions.map((raw) => {
+          const q = withStandard(raw);
+          return {
+            id: q.id,
+            set_id: set.id,
+            payload: persistedPayloadForQuestion(q),
+            is_visible: true,
+            include_in_self_practice: q.includeInSelfPractice === true,
+          };
+        }),
       );
     }
     window.localStorage.setItem(GENERATED_SETS_MIGRATION_KEY, "1");

@@ -49,6 +49,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratedFromDb, setIsGeneratedFromDb] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const decodedSetId = decodeURIComponent(setId);
@@ -91,7 +92,15 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
       return;
     }
 
-    await deleteGeneratedQuestionFromStorage(questionSet.id, id);
+    setActionError(null);
+    try {
+      await deleteGeneratedQuestionFromStorage(questionSet.id, id);
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : "Failed to delete the question.",
+      );
+      return;
+    }
     const updated = questions.filter((q) => q.id !== id);
     setQuestions(updated);
 
@@ -110,7 +119,15 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     if (!confirm("Delete all questions in this set? This cannot be undone."))
       return;
 
-    await deleteGeneratedQuestionSet(questionSet.id);
+    setActionError(null);
+    try {
+      await deleteGeneratedQuestionSet(questionSet.id);
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : "Failed to delete questions.",
+      );
+      return;
+    }
     router.push("/content/questions");
   };
 
@@ -126,7 +143,15 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         updated.includeInSelfPractice ?? prev?.includeInSelfPractice,
     };
     if (isGeneratedFromDb && questionSet) {
-      await updateGeneratedQuestionInStorage(questionSet.id, merged);
+      setActionError(null);
+      try {
+        await updateGeneratedQuestionInStorage(questionSet.id, merged);
+      } catch (e) {
+        setActionError(
+          e instanceof Error ? e.message : "Failed to save the question.",
+        );
+        return;
+      }
     }
     setQuestions((prevQs) =>
       prevQs.map((q) => (q.id === merged.id ? merged : q)),
@@ -136,17 +161,22 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   const handleToggleIncludeInSelfPractice = async (question: Question) => {
     if (!isGeneratedFromDb || !questionSet) return;
-    await toggleIncludeInSelfPractice(questionSet.id, question.id);
-    setQuestions((prev) =>
-      prev.map((q) =>
-        q.id === question.id
-          ? {
-              ...q,
-              includeInSelfPractice: q.includeInSelfPractice !== true,
-            }
-          : q,
-      ),
-    );
+    setActionError(null);
+    try {
+      const next = await toggleIncludeInSelfPractice(
+        questionSet.id,
+        question.id,
+      );
+      setQuestions((prev) =>
+        prev.map((q) =>
+          q.id === question.id ? { ...q, includeInSelfPractice: next } : q,
+        ),
+      );
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : "Failed to update Self Practice.",
+      );
+    }
   };
 
   const handleDownloadJson = () => {
@@ -228,6 +258,12 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         </span>
         Back to Question Manager
       </Link>
+
+      {actionError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
 
       <div className="flex items-start justify-between mb-6">
         <div>

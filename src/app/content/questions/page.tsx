@@ -137,8 +137,17 @@ export default function QuestionsPage() {
     if (!confirm("Delete this question set entirely? This cannot be undone.")) {
       return;
     }
-    await deleteGeneratedQuestionSet(setId);
-    await reloadSets();
+    setError(null);
+    try {
+      await deleteGeneratedQuestionSet(setId);
+      await reloadSets();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not delete the set. You may not have permission, or the set is still linked in a way that blocks deletion.",
+      );
+    }
   };
 
   const totalQuestionCount = rows.length;
