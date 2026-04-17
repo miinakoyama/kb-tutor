@@ -12,6 +12,7 @@ import {
 import type { Question } from "@/types/question";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { LatexText } from "@/components/shared/LatexText";
+import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
 
 interface QuestionPreviewCardProps {
   question: Question;
@@ -34,6 +35,9 @@ export function QuestionPreviewCard({
   isEditable = true,
 }: QuestionPreviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const inlineTerms = question.inlineTerms ?? [];
+  const sidebarTerms = question.sidebarTerms ?? [];
+  const glossaryCount = inlineTerms.length + sidebarTerms.length;
 
   return (
     <div className="rounded-xl border border-slate-gray/20 bg-white shadow-sm overflow-hidden transition-colors">
@@ -59,6 +63,11 @@ export function QuestionPreviewCard({
                 <span className="text-xs text-[#16a34a] flex items-center gap-1">
                   <BarChart3 className="w-3 h-3" />
                   {question.diagram.type}
+                </span>
+              )}
+              {glossaryCount > 0 && (
+                <span className="text-xs text-[#14532d] bg-[#16a34a]/10 px-2 py-0.5 rounded">
+                  Glossary {glossaryCount}
                 </span>
               )}
             </div>
@@ -202,6 +211,23 @@ export function QuestionPreviewCard({
               <p className="text-sm text-blue-800">
                 <LatexText text={question.focusHint} />
               </p>
+            </div>
+          )}
+
+          {glossaryCount > 0 && (
+            <div className="mt-4 space-y-2">
+              {inlineTerms.length > 0 && (
+                <GlossaryPanel
+                  terms={inlineTerms}
+                  title={`Inline Terms (${inlineTerms.length})`}
+                />
+              )}
+              {sidebarTerms.length > 0 && (
+                <GlossaryPanel
+                  terms={sidebarTerms}
+                  title={`Sidebar Terms (${sidebarTerms.length})`}
+                />
+              )}
             </div>
           )}
         </div>

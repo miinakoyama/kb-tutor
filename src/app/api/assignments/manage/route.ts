@@ -5,12 +5,19 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import type { AppRole } from "@/lib/auth/types";
 import type { Question } from "@/types/question";
+import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
 
 type AssignmentSourceType = "existing_set" | "generated_now" | "manual";
 
 interface Requester {
   id: string;
   role: AppRole;
+}
+
+function asOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 async function getRequester(): Promise<Requester | null> {
@@ -118,12 +125,14 @@ function normalizeQuestionPayload(
     .map((item, optionIndex) => {
       const value = item as Record<string, unknown>;
       const textValue = typeof value.text === "string" ? value.text : "";
+      const feedbackValue = asOptionalString(value.feedback);
       return {
         id:
           typeof value.id === "string" && value.id.trim()
             ? value.id
             : `opt_${optionIndex + 1}`,
         text: textValue,
+        feedback: feedbackValue,
       };
     })
     .filter((item) => item.text.trim().length > 0);
@@ -135,6 +144,12 @@ function normalizeQuestionPayload(
     options.some((option) => option.id === question.correctOptionId)
       ? question.correctOptionId
       : options[0].id;
+
+  const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
+    question.inlineTerms,
+    question.sidebarTerms,
+    `${sourceType}-${index + 1}`,
+  );
 
   return {
     id:
@@ -154,7 +169,12 @@ function normalizeQuestionPayload(
     options,
     correctOptionId,
     explanation:
-      typeof question.explanation === "string" ? question.explanation : undefined,
+      asOptionalString(question.explanation),
+    focusHint: asOptionalString(question.focusHint),
+    keyKnowledge: asOptionalString(question.keyKnowledge),
+    commonMisconception: asOptionalString(question.commonMisconception),
+    inlineTerms,
+    sidebarTerms,
     source: "generated",
     isVisible: true,
     generatedAt: new Date().toISOString(),
