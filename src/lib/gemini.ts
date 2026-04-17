@@ -119,7 +119,7 @@ export async function generateWithGemini(prompt: string): Promise<{
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: {
           responseMimeType: "application/json",
-          temperature: 0.7,
+          temperature: 1.0,
           topP: 0.95,
           topK: 40,
           maxOutputTokens: 12288,
