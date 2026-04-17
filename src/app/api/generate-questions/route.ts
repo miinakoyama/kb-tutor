@@ -3,6 +3,7 @@ import { generateWithGemini, parseGeneratedQuestions } from "@/lib/gemini";
 import { buildGenerationPrompt } from "@/lib/prompts";
 import type { Question, DOKLevel } from "@/types/question";
 import { getAllStandards, getStandardById } from "@/lib/standards";
+import { normalizeGlossaryTerms } from "@/lib/glossary";
 
 interface GenerationSettings {
   questionSetName: string;
@@ -167,6 +168,23 @@ function validateQuestion(
     .replace(/[^a-z0-9]+/g, "-")
     .slice(0, 20);
   const moduleFromStandard = selectedStandard?.module === "B" ? 2 : 1;
+  const inlineTerms = normalizeGlossaryTerms(
+    question.inlineTerms,
+    `${topicSlug}-inline-${index + 1}`,
+  );
+  const sidebarTermsRaw = normalizeGlossaryTerms(
+    question.sidebarTerms,
+    `${topicSlug}-sidebar-${index + 1}`,
+  );
+  const inlineIds = new Set((inlineTerms ?? []).map((term) => term.id));
+  const inlineLabels = new Set(
+    (inlineTerms ?? []).map((term) => term.term.toLowerCase()),
+  );
+  const sidebarTerms = (sidebarTermsRaw ?? []).filter((term) => {
+    if (inlineIds.has(term.id)) return false;
+    if (inlineLabels.has(term.term.toLowerCase())) return false;
+    return true;
+  });
   
   return {
     id: `generated-${topicSlug}-${timestamp}-${String(index + 1).padStart(3, "0")}`,
@@ -183,10 +201,13 @@ function validateQuestion(
     focusHint: (question.focusHint as string) || undefined,
     keyKnowledge: (question.keyKnowledge as string) || undefined,
     commonMisconception: (question.commonMisconception as string) || undefined,
+    inlineTerms,
+    sidebarTerms: sidebarTerms.length > 0 ? sidebarTerms : undefined,
     rationaleQuestion: question.rationaleQuestion as Question["rationaleQuestion"],
     source: "generated",
     dok: (question.dok as DOKLevel) || 2,
     isVisible: true,
+    includeInSelfPractice: true,
     generatedAt: new Date().toISOString(),
     diagram: question.diagram as Question["diagram"],
   };
