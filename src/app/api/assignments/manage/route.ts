@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveRole } from "@/lib/auth/role";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import type { AppRole } from "@/lib/auth/types";
 import type { Question } from "@/types/question";
 
@@ -39,19 +39,7 @@ async function getRequester(): Promise<Requester | null> {
     console.warn("[getRequester] Profile query warning:", profileError.message);
   }
 
-  let role = resolveRole(profile?.role, user);
-  if (!role) {
-    const admin = createSupabaseAdminClient();
-    const { data: adminProfile, error: adminProfileError } = await admin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (adminProfileError) {
-      console.warn("[getRequester] Admin profile query warning:", adminProfileError.message);
-    }
-    role = resolveRole(adminProfile?.role, user);
-  }
+  const role = await resolveRoleWithServerFallback(user, profile?.role);
 
   if (!role) {
     console.warn("[getRequester] Could not resolve role for user:", user.id);
