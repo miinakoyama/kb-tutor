@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveRole } from "@/lib/auth/role";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 
 async function getRequester() {
   const supabase = await createSupabaseServerClient();
@@ -15,16 +15,7 @@ async function getRequester() {
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
-  let role = resolveRole(profile?.role, user);
-  if (!role) {
-    const admin = createSupabaseAdminClient();
-    const { data: adminProfile } = await admin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    role = resolveRole(adminProfile?.role, user);
-  }
+  const role = await resolveRoleWithServerFallback(user, profile?.role);
 
   return { id: user.id, role };
 }
