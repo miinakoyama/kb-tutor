@@ -37,8 +37,38 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const roleFilter = url.searchParams.get("role");
+  const schoolFilter = url.searchParams.get("schoolId");
 
   const admin = createSupabaseAdminClient();
+  let userIdsForSchoolFilter: string[] | null = null;
+
+  if (schoolFilter) {
+    const [{ data: teacherLinks, error: teacherLinkError }, { data: studentLinks, error: studentLinkError }] =
+      await Promise.all([
+        admin.from("school_teachers").select("teacher_user_id").eq("school_id", schoolFilter),
+        admin.from("school_members").select("student_user_id").eq("school_id", schoolFilter),
+      ]);
+
+    if (teacherLinkError) {
+      return NextResponse.json({ error: teacherLinkError.message }, { status: 400 });
+    }
+    if (studentLinkError) {
+      return NextResponse.json({ error: studentLinkError.message }, { status: 400 });
+    }
+
+    userIdsForSchoolFilter = Array.from(
+      new Set(
+        (teacherLinks ?? [])
+          .map((link) => link.teacher_user_id)
+          .concat((studentLinks ?? []).map((link) => link.student_user_id)),
+      ),
+    );
+
+    if (userIdsForSchoolFilter.length === 0) {
+      return NextResponse.json({ users: [] });
+    }
+  }
+
   let query = admin
     .from("profiles")
     .select("id,email,student_id,display_name,role,created_at")
@@ -47,12 +77,75 @@ export async function GET(request: Request) {
   if (roleFilter && ["student", "teacher", "admin"].includes(roleFilter)) {
     query = query.eq("role", roleFilter as AppRole);
   }
+  if (userIdsForSchoolFilter) {
+    query = query.in("id", userIdsForSchoolFilter);
+  }
 
   const { data, error } = await query;
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-  return NextResponse.json({ users: data ?? [] });
+
+  const users = data ?? [];
+  const userIds = users.map((user) => user.id);
+  if (userIds.length === 0) {
+    return NextResponse.json({ users });
+  }
+
+  const [{ data: teacherLinks, error: teacherLinkError }, { data: studentLinks, error: studentLinkError }] =
+    await Promise.all([
+      admin.from("school_teachers").select("teacher_user_id,school_id").in("teacher_user_id", userIds),
+      admin.from("school_members").select("student_user_id,school_id").in("student_user_id", userIds),
+    ]);
+
+  if (teacherLinkError) {
+    return NextResponse.json({ error: teacherLinkError.message }, { status: 400 });
+  }
+  if (studentLinkError) {
+    return NextResponse.json({ error: studentLinkError.message }, { status: 400 });
+  }
+
+  const schoolIds = Array.from(
+    new Set(
+      (teacherLinks ?? [])
+        .map((link) => link.school_id)
+        .concat((studentLinks ?? []).map((link) => link.school_id)),
+    ),
+  );
+  const { data: schoolRows, error: schoolError } =
+    schoolIds.length > 0
+      ? await admin.from("schools").select("id,name").in("id", schoolIds)
+      : { data: [] as Array<{ id: string; name: string }>, error: null };
+
+  if (schoolError) {
+    return NextResponse.json({ error: schoolError.message }, { status: 400 });
+  }
+
+  const schoolNameById = new Map((schoolRows ?? []).map((school) => [school.id, school.name]));
+  const schoolNamesByUser = new Map<string, Set<string>>();
+
+  for (const link of teacherLinks ?? []) {
+    const schoolName = schoolNameById.get(link.school_id);
+    if (!schoolName) continue;
+    const existing = schoolNamesByUser.get(link.teacher_user_id) ?? new Set<string>();
+    existing.add(schoolName);
+    schoolNamesByUser.set(link.teacher_user_id, existing);
+  }
+
+  for (const link of studentLinks ?? []) {
+    const schoolName = schoolNameById.get(link.school_id);
+    if (!schoolName) continue;
+    const existing = schoolNamesByUser.get(link.student_user_id) ?? new Set<string>();
+    existing.add(schoolName);
+    schoolNamesByUser.set(link.student_user_id, existing);
+  }
+
+  const usersWithSchools = users.map((user) => ({
+    ...user,
+    school_names: Array.from(schoolNamesByUser.get(user.id) ?? []).sort((a, b) => a.localeCompare(b)),
+  }));
+
+  return NextResponse.json({ users: usersWithSchools });
 }
 
 export async function PATCH(request: Request) {
@@ -109,4 +202,3 @@ export async function DELETE(request: Request) {
   }
   return NextResponse.json({ ok: true });
 }
-
