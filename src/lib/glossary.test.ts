@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizeGlossaryTerms } from "@/lib/glossary";
+import {
+  dedupeSidebarTermsAgainstInline,
+  normalizeGlossaryTerms,
+  normalizeQuestionGlossaryTerms,
+} from "@/lib/glossary";
 
 describe("normalizeGlossaryTerms", () => {
   it("returns undefined when input is not an array", () => {
@@ -45,6 +49,47 @@ describe("normalizeGlossaryTerms", () => {
       id: "atp",
       term: "ATP",
       definition: "Cell energy",
+    });
+  });
+});
+
+describe("dedupeSidebarTermsAgainstInline", () => {
+  it("removes sidebar terms duplicated in inline by id or term text", () => {
+    const inlineTerms = [
+      { id: "osmosis", term: "Osmosis", definition: "inline" },
+    ];
+    const sidebarTerms = [
+      { id: "osmosis", term: "Osmosis duplicate", definition: "dup by id" },
+      { id: "diffusion", term: "osmosis", definition: "dup by label" },
+      { id: "atp", term: "ATP", definition: "kept" },
+    ];
+
+    const deduped = dedupeSidebarTermsAgainstInline(inlineTerms, sidebarTerms);
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped?.[0]).toMatchObject({
+      id: "atp",
+      term: "ATP",
+    });
+  });
+});
+
+describe("normalizeQuestionGlossaryTerms", () => {
+  it("normalizes inline/sidebar and removes cross-list duplicates", () => {
+    const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
+      [{ id: "atp", term: "ATP", definition: "Energy molecule" }],
+      [
+        { id: "atp", term: "ATP duplicate", definition: "duplicate id" },
+        { id: "mitochondrion", term: "Mitochondrion", definition: "Organelle" },
+      ],
+      "q1",
+    );
+
+    expect(inlineTerms).toHaveLength(1);
+    expect(sidebarTerms).toHaveLength(1);
+    expect(sidebarTerms?.[0]).toMatchObject({
+      id: "mitochondrion",
+      term: "Mitochondrion",
     });
   });
 });

@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import type { AppRole } from "@/lib/auth/types";
 import type { Question } from "@/types/question";
-import { normalizeGlossaryTerms } from "@/lib/glossary";
+import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
 
 type AssignmentSourceType = "existing_set" | "generated_now" | "manual";
 
@@ -145,23 +145,11 @@ function normalizeQuestionPayload(
       ? question.correctOptionId
       : options[0].id;
 
-  const inlineTerms = normalizeGlossaryTerms(
+  const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
     question.inlineTerms,
-    `${sourceType}-inline-${index + 1}`,
-  );
-  const sidebarTermsRaw = normalizeGlossaryTerms(
     question.sidebarTerms,
-    `${sourceType}-sidebar-${index + 1}`,
+    `${sourceType}-${index + 1}`,
   );
-  const inlineIds = new Set((inlineTerms ?? []).map((term) => term.id));
-  const inlineLabels = new Set(
-    (inlineTerms ?? []).map((term) => term.term.toLowerCase()),
-  );
-  const sidebarTerms = (sidebarTermsRaw ?? []).filter((term) => {
-    if (inlineIds.has(term.id)) return false;
-    if (inlineLabels.has(term.term.toLowerCase())) return false;
-    return true;
-  });
 
   return {
     id:
@@ -186,7 +174,7 @@ function normalizeQuestionPayload(
     keyKnowledge: asOptionalString(question.keyKnowledge),
     commonMisconception: asOptionalString(question.commonMisconception),
     inlineTerms,
-    sidebarTerms: sidebarTerms.length > 0 ? sidebarTerms : undefined,
+    sidebarTerms,
     source: "generated",
     isVisible: true,
     generatedAt: new Date().toISOString(),

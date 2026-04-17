@@ -228,6 +228,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   const handleSaveSetName = async () => {
     if (!isGeneratedFromDb || !questionSet) return;
+    setActionError(null);
     const trimmed = setNameDraft.trim();
     if (!trimmed) {
       setActionError("Question set name cannot be empty.");
@@ -237,8 +238,6 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
       setIsEditingSetName(false);
       return;
     }
-
-    setActionError(null);
     setIsSavingSetName(true);
     try {
       const updatedName = await updateGeneratedQuestionSetName(questionSet.id, trimmed);
@@ -330,6 +329,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                 onClick={() => {
                   setSetNameDraft(questionSet.name);
                   setIsEditingSetName(false);
+                  setActionError(null);
                 }}
                 disabled={isSavingSetName}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-slate-gray/20 text-slate-gray hover:bg-slate-gray/5 disabled:opacity-50"
@@ -349,6 +349,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                   onClick={() => {
                     setSetNameDraft(questionSet.name);
                     setIsEditingSetName(true);
+                    setActionError(null);
                   }}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-gray/20 text-slate-gray hover:bg-slate-gray/5"
                 >

@@ -4,40 +4,44 @@ import { useState, useEffect } from "react";
 import { X, Save, Plus, Trash2 } from "lucide-react";
 import type { Question, DOKLevel, GlossaryTerm } from "@/types/question";
 import { getAllStandards } from "@/lib/standards";
-import { normalizeGlossaryTerms } from "@/lib/glossary";
+import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
 
 const ALL_STANDARDS = getAllStandards();
 type GlossaryListKey = "inlineTerms" | "sidebarTerms";
 type EditableGlossaryField = "term" | "definition" | "example";
+let glossaryIdFallbackCounter = 0;
 
 function getGlossaryTerms(question: Question, listKey: GlossaryListKey): GlossaryTerm[] {
   return [...(question[listKey] ?? [])];
 }
 
+function generateGlossaryTermId(prefix: string, index: number): string {
+  const cryptoApi: Crypto | undefined =
+    typeof window !== "undefined" ? window.crypto : undefined;
+  if (cryptoApi && typeof cryptoApi.randomUUID === "function") {
+    return `${prefix}-${cryptoApi.randomUUID()}`;
+  }
+  if (cryptoApi && typeof cryptoApi.getRandomValues === "function") {
+    const bytes = new Uint8Array(8);
+    cryptoApi.getRandomValues(bytes);
+    const randomHex = Array.from(bytes, (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    return `${prefix}-${randomHex}`;
+  }
+
+  glossaryIdFallbackCounter += 1;
+  return `${prefix}-${Date.now()}-${index + 1}-${glossaryIdFallbackCounter}`;
+}
+
 function createNewGlossaryTerm(listKey: GlossaryListKey, index: number): GlossaryTerm {
   const prefix = listKey === "inlineTerms" ? "inline" : "sidebar";
-  const seed = Math.floor(Math.random() * 1000);
   return {
-    id: `${prefix}-${Date.now()}-${index + 1}-${seed}`,
+    id: generateGlossaryTermId(prefix, index),
     term: "",
     definition: "",
     example: "",
   };
-}
-
-function dedupeSidebarTerms(
-  inlineTerms: GlossaryTerm[] | undefined,
-  sidebarTerms: GlossaryTerm[] | undefined,
-): GlossaryTerm[] {
-  const inlineIds = new Set((inlineTerms ?? []).map((term) => term.id));
-  const inlineLabels = new Set(
-    (inlineTerms ?? []).map((term) => term.term.toLowerCase()),
-  );
-  return (sidebarTerms ?? []).filter((term) => {
-    if (inlineIds.has(term.id)) return false;
-    if (inlineLabels.has(term.term.toLowerCase())) return false;
-    return true;
-  });
 }
 
 interface QuestionEditModalProps {
@@ -115,19 +119,15 @@ export function QuestionEditModal({
   };
 
   const handleSave = () => {
-    const inlineTerms = normalizeGlossaryTerms(
+    const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
       edited.inlineTerms,
-      `${edited.id}-inline`,
-    );
-    const sidebarTermsRaw = normalizeGlossaryTerms(
       edited.sidebarTerms,
-      `${edited.id}-sidebar`,
+      edited.id,
     );
-    const sidebarTerms = dedupeSidebarTerms(inlineTerms, sidebarTermsRaw);
     onSave({
       ...edited,
       inlineTerms,
-      sidebarTerms: sidebarTerms.length > 0 ? sidebarTerms : undefined,
+      sidebarTerms,
     });
     onClose();
   };

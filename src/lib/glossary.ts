@@ -89,3 +89,48 @@ export function normalizeGlossaryTerms(
 
   return terms.length > 0 ? terms : undefined;
 }
+
+export function dedupeSidebarTermsAgainstInline(
+  inlineTerms: GlossaryTerm[] | undefined,
+  sidebarTerms: GlossaryTerm[] | undefined,
+): GlossaryTerm[] | undefined {
+  if (!sidebarTerms || sidebarTerms.length === 0) return undefined;
+  if (!inlineTerms || inlineTerms.length === 0) return sidebarTerms;
+
+  const inlineIds = new Set(inlineTerms.map((term) => term.id));
+  const inlineLabels = new Set(
+    inlineTerms.map((term) => term.term.toLowerCase()),
+  );
+  const deduped = sidebarTerms.filter((term) => {
+    if (inlineIds.has(term.id)) return false;
+    if (inlineLabels.has(term.term.toLowerCase())) return false;
+    return true;
+  });
+  return deduped.length > 0 ? deduped : undefined;
+}
+
+export function normalizeQuestionGlossaryTerms(
+  rawInlineTerms: unknown,
+  rawSidebarTerms: unknown,
+  seed: string,
+  maxTerms: number = DEFAULT_MAX_TERMS,
+): {
+  inlineTerms: GlossaryTerm[] | undefined;
+  sidebarTerms: GlossaryTerm[] | undefined;
+} {
+  const inlineTerms = normalizeGlossaryTerms(
+    rawInlineTerms,
+    `${seed}-inline`,
+    maxTerms,
+  );
+  const sidebarTermsRaw = normalizeGlossaryTerms(
+    rawSidebarTerms,
+    `${seed}-sidebar`,
+    maxTerms,
+  );
+  const sidebarTerms = dedupeSidebarTermsAgainstInline(
+    inlineTerms,
+    sidebarTermsRaw,
+  );
+  return { inlineTerms, sidebarTerms };
+}
