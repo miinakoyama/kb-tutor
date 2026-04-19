@@ -15,17 +15,28 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const { data: settingsData } = await supabase
-    .from("user_settings")
-    .select("time_zone")
-    .maybeSingle();
+  // Fetch each column independently so a missing column in one legacy
+  // environment (e.g. `time_zone` before migration or
+  // `notifications_last_read_at` before migration) doesn't poison the other.
+  const [{ data: timeZoneRow }, { data: notifReadRow }] = await Promise.all([
+    supabase.from("user_settings").select("time_zone").maybeSingle(),
+    supabase
+      .from("user_settings")
+      .select("notifications_last_read_at")
+      .maybeSingle(),
+  ]);
   const timeZone = normalizeTimeZone(
-    settingsData?.time_zone,
+    timeZoneRow?.time_zone,
     DEFAULT_APP_TIME_ZONE,
   );
+  const notificationsLastReadAt =
+    notifReadRow?.notifications_last_read_at ?? null;
 
   const [notificationResult, assignmentResult] = await Promise.all([
-    getStudentNotifications(supabase, user.id, { timeZone }),
+    getStudentNotifications(supabase, user.id, {
+      timeZone,
+      lastReadAt: notificationsLastReadAt,
+    }),
     getStudentAssignmentList(supabase, user.id),
   ]);
 
