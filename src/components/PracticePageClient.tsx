@@ -16,6 +16,11 @@ import { MODULES } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
 
 const VALID_MODES: PracticeModeType[] = ["practice", "exam", "review"];
+
+export type AnsweredMap = Record<
+  string,
+  { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
+>;
 const MODULE_CATEGORY_TOPIC_PATTERN =
   /^\s*(?:\[?\s*Module\s+([AB])\s*\]?\s*[-:]\s*)?(.+?)\s*$/i;
 
@@ -105,12 +110,14 @@ export function PracticePageClient({
   const [snapshotQuestions, setSnapshotQuestions] = useState<Question[] | null>(
     null
   );
+  const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
 
   useEffect(() => {
     const assignmentId = assignmentIdParam?.trim();
     if (!assignmentId) {
       setSnapshotQuestions(null);
+      setAnsweredMap({});
       setIsSnapshotLoading(false);
       return;
     }
@@ -124,16 +131,26 @@ export function PracticePageClient({
         );
         if (!response.ok) {
           setSnapshotQuestions(null);
+          setAnsweredMap({});
           setIsSnapshotLoading(false);
           return;
         }
-        const payload = (await response.json()) as { questions?: Question[] };
+        const payload = (await response.json()) as {
+          questions?: Question[];
+          answered?: AnsweredMap;
+        };
         const questions = Array.isArray(payload.questions)
           ? payload.questions
           : [];
         setSnapshotQuestions(questions.length > 0 ? questions : null);
+        setAnsweredMap(
+          payload.answered && typeof payload.answered === "object"
+            ? payload.answered
+            : {},
+        );
       } catch {
         setSnapshotQuestions(null);
+        setAnsweredMap({});
       } finally {
         setIsSnapshotLoading(false);
       }
@@ -283,6 +300,7 @@ export function PracticePageClient({
           topicName={topicName}
           questionCount={requestedQuestionCount}
           assignmentId={assignmentIdParam}
+          answered={hasAssignmentSnapshot ? answeredMap : undefined}
         />
       );
     case "exam": {
@@ -291,6 +309,8 @@ export function PracticePageClient({
           questions={filteredQuestions}
           topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
           requestedQuestionCount={requestedQuestionCount ?? 10}
+          assignmentId={assignmentIdParam}
+          answered={hasAssignmentSnapshot ? answeredMap : undefined}
         />
       );
     }

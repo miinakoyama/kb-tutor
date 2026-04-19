@@ -1,260 +1,18 @@
 import { randomUUID } from "crypto";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
-import type { AppRole } from "@/lib/auth/types";
 import type { Question } from "@/types/question";
-import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
+import {
+  type AssignmentMode,
+  type AssignmentSourceType,
+  getRequester,
+  getScopedSchoolIds,
+  resolveSnapshotQuestions,
+  sanitizeMode,
+  sanitizeStringArray,
+} from "@/lib/assignments/manage-helpers";
 
-type AssignmentSourceType = "existing_set" | "generated_now" | "manual";
-
-interface Requester {
-  id: string;
-  role: AppRole;
-}
-
-function asOptionalString(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-async function getRequester(): Promise<Requester | null> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError) {
-    console.error("[getRequester] Auth error:", userError.message);
-    return null;
-  }
-  if (!user) {
-    console.error("[getRequester] No user in session");
-    return null;
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id,role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileError) {
-    console.warn("[getRequester] Profile query warning:", profileError.message);
-  }
-
-  const role = await resolveRoleWithServerFallback(user, profile?.role);
-
-  if (!role) {
-    console.warn("[getRequester] Could not resolve role for user:", user.id);
-    return null;
-  }
-
-  return { id: user.id, role };
-}
-
-async function getScopedSchoolIds(
-  admin: ReturnType<typeof createSupabaseAdminClient>,
-  requester: Requester,
-) {
-  if (requester.role === "teacher") {
-    const [{ data: schoolTeachers, error: schoolTeacherError }, { data: legacySchools, error: legacyError }] =
-      await Promise.all([
-        admin.from("school_teachers").select("school_id").eq("teacher_user_id", requester.id),
-        admin.from("schools").select("id").eq("teacher_user_id", requester.id),
-      ]);
-    if (schoolTeacherError) {
-      return { error: schoolTeacherError.message, schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
-    }
-    if (legacyError) {
-      return { error: legacyError.message, schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
-    }
-    const schoolIds = Array.from(
-      new Set([
-        ...(schoolTeachers ?? []).map((row) => row.school_id),
-        ...(legacySchools ?? []).map((row) => row.id),
-      ]),
-    );
-    if (schoolIds.length === 0) {
-      return { schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
-    }
-    const { data, error } = await admin
-      .from("schools")
-      .select("id,name,teacher_user_id")
-      .in("id", schoolIds)
-      .order("name", { ascending: true });
-    if (error) {
-      return { error: error.message, schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
-    }
-    return { schools: data ?? [] };
-  }
-  const { data, error } = await admin
-    .from("schools")
-    .select("id,name,teacher_user_id")
-    .order("name", { ascending: true });
-  if (error) return { error: error.message, schools: [] as Array<{ id: string; name: string; teacher_user_id: string | null }> };
-  return { schools: data ?? [] };
-}
-
-function normalizeQuestionPayload(
-  raw: unknown,
-  index: number,
-  sourceType: AssignmentSourceType,
-): Question | null {
-  if (!raw || typeof raw !== "object") return null;
-  const question = raw as Record<string, unknown>;
-  const text =
-    typeof question.text === "string" ? question.text.trim() : "";
-  if (!text) return null;
-
-  const topic =
-    typeof question.topic === "string" && question.topic.trim()
-      ? question.topic.trim()
-      : "Assignment";
-  const moduleNumber =
-    typeof question.module === "number" && Number.isFinite(question.module)
-      ? Math.max(1, Math.round(question.module))
-      : 1;
-
-  const optionsRaw = Array.isArray(question.options) ? question.options : [];
-  const options = optionsRaw
-    .filter((item) => item && typeof item === "object")
-    .map((item, optionIndex) => {
-      const value = item as Record<string, unknown>;
-      const textValue = typeof value.text === "string" ? value.text : "";
-      const feedbackValue = asOptionalString(value.feedback);
-      return {
-        id:
-          typeof value.id === "string" && value.id.trim()
-            ? value.id
-            : `opt_${optionIndex + 1}`,
-        text: textValue,
-        feedback: feedbackValue,
-      };
-    })
-    .filter((item) => item.text.trim().length > 0);
-
-  if (options.length < 2) return null;
-
-  const correctOptionId =
-    typeof question.correctOptionId === "string" &&
-    options.some((option) => option.id === question.correctOptionId)
-      ? question.correctOptionId
-      : options[0].id;
-
-  const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
-    question.inlineTerms,
-    question.sidebarTerms,
-    `${sourceType}-${index + 1}`,
-  );
-
-  return {
-    id:
-      typeof question.id === "string" && question.id.trim()
-        ? question.id
-        : `assignment-${sourceType}-${Date.now()}-${index + 1}`,
-    module: moduleNumber,
-    topic,
-    standardId:
-      typeof question.standardId === "string" ? question.standardId : undefined,
-    standardLabel:
-      typeof question.standardLabel === "string"
-        ? question.standardLabel
-        : undefined,
-    text,
-    imageUrl: null,
-    options,
-    correctOptionId,
-    explanation:
-      asOptionalString(question.explanation),
-    focusHint: asOptionalString(question.focusHint),
-    keyKnowledge: asOptionalString(question.keyKnowledge),
-    commonMisconception: asOptionalString(question.commonMisconception),
-    inlineTerms,
-    sidebarTerms,
-    source: "generated",
-    isVisible: true,
-    generatedAt: new Date().toISOString(),
-  };
-}
-
-async function resolveSnapshotQuestions(
-  admin: ReturnType<typeof createSupabaseAdminClient>,
-  requester: Requester,
-  body: {
-    sourceType?: AssignmentSourceType;
-    existingSetId?: string;
-    generatedQuestions?: unknown[];
-    manualQuestions?: unknown[];
-  },
-): Promise<{ questions: Question[]; sourceType: AssignmentSourceType } | { error: string; status: number }> {
-  const sourceType = body.sourceType ?? "existing_set";
-
-  if (sourceType === "existing_set") {
-    const setId = body.existingSetId?.trim();
-    if (!setId) {
-      return { error: "Missing question set id.", status: 400 };
-    }
-    let setQuery = admin
-      .from("generated_question_sets")
-      .select("id,user_id")
-      .eq("id", setId);
-    if (requester.role === "teacher") {
-      setQuery = setQuery.eq("user_id", requester.id);
-    }
-    const { data: setRow, error: setError } = await setQuery.maybeSingle();
-    if (setError) {
-      return { error: setError.message, status: 400 };
-    }
-    if (!setRow) {
-      return { error: "Question set not found or not accessible.", status: 403 };
-    }
-
-    const { data: questionRows, error: questionError } = await admin
-      .from("generated_questions")
-      .select("payload,created_at")
-      .eq("set_id", setId)
-      .order("created_at", { ascending: true });
-    if (questionError) {
-      return { error: questionError.message, status: 400 };
-    }
-
-    const questions = (questionRows ?? [])
-      .map((row, index) => normalizeQuestionPayload(row.payload, index, "existing_set"))
-      .filter((row): row is Question => row !== null);
-    if (questions.length === 0) {
-      return { error: "Selected question set has no usable questions.", status: 400 };
-    }
-    return { questions, sourceType: "existing_set" };
-  }
-
-  if (sourceType === "generated_now") {
-    const questions = (body.generatedQuestions ?? [])
-      .map((row, index) => normalizeQuestionPayload(row, index, "generated_now"))
-      .filter((row): row is Question => row !== null);
-    if (questions.length === 0) {
-      return { error: "Generated questions are missing or invalid.", status: 400 };
-    }
-    return { questions, sourceType: "generated_now" };
-  }
-
-  if (sourceType === "manual") {
-    const questions = (body.manualQuestions ?? [])
-      .map((row, index) => normalizeQuestionPayload(row, index, "manual"))
-      .filter((row): row is Question => row !== null);
-    if (questions.length === 0) {
-      return { error: "Manual questions are missing or invalid.", status: 400 };
-    }
-    return { questions, sourceType: "manual" };
-  }
-
-  return { error: "Invalid source type.", status: 400 };
-}
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   const requester = await getRequester();
   if (!requester) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -263,7 +21,50 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const url = new URL(request.url);
+  const includeQuestionsForSetId = url.searchParams.get("questionsForSetId");
+
   const admin = createSupabaseAdminClient();
+
+  if (includeQuestionsForSetId) {
+    const setId = includeQuestionsForSetId.trim();
+    if (!setId) {
+      return NextResponse.json({ error: "Missing set id" }, { status: 400 });
+    }
+    let setQuery = admin
+      .from("generated_question_sets")
+      .select("id,user_id,name")
+      .eq("id", setId);
+    if (requester.role === "teacher") {
+      setQuery = setQuery.eq("user_id", requester.id);
+    }
+    const { data: setRow, error: setError } = await setQuery.maybeSingle();
+    if (setError) {
+      return NextResponse.json({ error: setError.message }, { status: 400 });
+    }
+    if (!setRow) {
+      return NextResponse.json(
+        { error: "Question set not found or not accessible." },
+        { status: 403 },
+      );
+    }
+    const { data: questionRows, error: questionError } = await admin
+      .from("generated_questions")
+      .select("id,payload,created_at")
+      .eq("set_id", setId)
+      .order("created_at", { ascending: true });
+    if (questionError) {
+      return NextResponse.json({ error: questionError.message }, { status: 400 });
+    }
+    return NextResponse.json({
+      setId,
+      questions: (questionRows ?? []).map((row) => ({
+        questionId: String(row.id),
+        payload: row.payload,
+      })),
+    });
+  }
+
   const schoolResult = await getScopedSchoolIds(admin, requester);
   if ("error" in schoolResult) {
     return NextResponse.json({ error: schoolResult.error }, { status: 400 });
@@ -272,18 +73,25 @@ export async function GET() {
   const schoolIds = schools.map((item) => item.id);
 
   if (schoolIds.length === 0) {
-    return NextResponse.json({ schools: [], assignments: [] });
+    return NextResponse.json({ schools: [], assignments: [], question_sets: [] });
   }
 
-  const [{ data: assignmentsData, error: assignmentError }, { data: memberRows, error: memberError }] =
-    await Promise.all([
-      admin
-        .from("assignments")
-        .select("id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by")
-        .in("school_id", schoolIds)
-        .order("created_at", { ascending: false }),
-      admin.from("school_members").select("school_id,student_user_id").in("school_id", schoolIds),
-    ]);
+  const [
+    { data: assignmentsData, error: assignmentError },
+    { data: memberRows, error: memberError },
+  ] = await Promise.all([
+    admin
+      .from("assignments")
+      .select(
+        "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards",
+      )
+      .in("school_id", schoolIds)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("school_members")
+      .select("school_id,student_user_id")
+      .in("school_id", schoolIds),
+  ]);
 
   if (assignmentError) {
     return NextResponse.json({ error: assignmentError.message }, { status: 400 });
@@ -293,27 +101,39 @@ export async function GET() {
   }
 
   const assignmentIds = (assignmentsData ?? []).map((a) => a.id);
-  const { data: targetRows, error: targetError } =
+  const [
+    { data: targetRows, error: targetError },
+    { data: snapshotRows, error: snapshotError },
+    { data: attemptRows, error: attemptError },
+  ] = await Promise.all([
     assignmentIds.length > 0
-      ? await admin
+      ? admin
           .from("assignment_targets")
           .select("assignment_id,student_user_id")
           .in("assignment_id", assignmentIds)
-      : { data: [], error: null as null | { message: string } };
+      : Promise.resolve({ data: [], error: null as null | { message: string } }),
+    assignmentIds.length > 0
+      ? admin
+          .from("assignment_question_snapshots")
+          .select("assignment_id,source_type")
+          .in("assignment_id", assignmentIds)
+      : Promise.resolve({ data: [], error: null as null | { message: string } }),
+    assignmentIds.length > 0
+      ? admin
+          .from("attempts")
+          .select("assignment_id,user_id")
+          .in("assignment_id", assignmentIds)
+      : Promise.resolve({ data: [], error: null as null | { message: string } }),
+  ]);
 
   if (targetError) {
     return NextResponse.json({ error: targetError.message }, { status: 400 });
   }
-
-  const { data: snapshotRows, error: snapshotError } =
-    assignmentIds.length > 0
-      ? await admin
-          .from("assignment_question_snapshots")
-          .select("assignment_id,source_type")
-          .in("assignment_id", assignmentIds)
-      : { data: [], error: null as null | { message: string } };
   if (snapshotError) {
     return NextResponse.json({ error: snapshotError.message }, { status: 400 });
+  }
+  if (attemptError) {
+    return NextResponse.json({ error: attemptError.message }, { status: 400 });
   }
 
   let setQuery = admin
@@ -368,6 +188,18 @@ export async function GET() {
     }
   }
 
+  const attemptCountByAssignment = new Map<string, number>();
+  const respondentsByAssignment = new Map<string, Set<string>>();
+  for (const row of attemptRows ?? []) {
+    const id = row.assignment_id as string | null;
+    if (!id) continue;
+    attemptCountByAssignment.set(id, (attemptCountByAssignment.get(id) ?? 0) + 1);
+    if (!respondentsByAssignment.has(id)) {
+      respondentsByAssignment.set(id, new Set());
+    }
+    respondentsByAssignment.get(id)!.add(String(row.user_id));
+  }
+
   return NextResponse.json({
     schools: schools.map((item) => ({
       id: item.id,
@@ -380,6 +212,8 @@ export async function GET() {
       target_count: targetCountByAssignment.get(assignment.id) ?? 0,
       snapshot_count: snapshotCountByAssignment.get(assignment.id) ?? 0,
       source_type: sourceTypeByAssignment.get(assignment.id) ?? null,
+      attempt_count: attemptCountByAssignment.get(assignment.id) ?? 0,
+      respondent_count: respondentsByAssignment.get(assignment.id)?.size ?? 0,
     })),
     question_sets: (questionSetsData ?? []).map((row) => ({
       id: String(row.id),
@@ -407,10 +241,19 @@ export async function POST(request: Request) {
     moduleIds?: number[];
     topics?: string[];
     targetMinutes?: number;
+    mode?: AssignmentMode;
+    randomizeOrder?: boolean;
     sourceType?: AssignmentSourceType;
     existingSetId?: string;
+    selectedQuestions?: Array<{ setId: string; questionIds: string[] }>;
     generatedQuestions?: unknown[];
     manualQuestions?: unknown[];
+    reviewScope?: {
+      topics?: string[];
+      standards?: string[];
+      maxQuestions?: number;
+    };
+    saveAsNewSet?: boolean;
   };
 
   const title = body.title?.trim();
@@ -419,6 +262,8 @@ export async function POST(request: Request) {
     typeof body.targetMinutes === "number" && Number.isFinite(body.targetMinutes)
       ? Math.max(1, Math.min(180, Math.round(body.targetMinutes)))
       : 20;
+  const mode = sanitizeMode(body.mode);
+  const randomizeOrder = body.randomizeOrder !== false;
 
   if (!title || !schoolId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -431,26 +276,65 @@ export async function POST(request: Request) {
   }
   const targetSchool = schoolResult.schools.find((item) => item.id === schoolId);
   if (!targetSchool) {
-    return NextResponse.json({ error: "You do not have access to this school." }, { status: 403 });
+    return NextResponse.json(
+      { error: "You do not have access to this school." },
+      { status: 403 },
+    );
   }
 
-  const snapshotResolution = await resolveSnapshotQuestions(admin, requester, body);
-  if ("error" in snapshotResolution) {
-    return NextResponse.json({ error: snapshotResolution.error }, { status: snapshotResolution.status });
+  let snapshotQuestions: Question[] = [];
+  let resolvedSourceType: AssignmentSourceType | null = null;
+  let reviewTopics: string[] = [];
+  let reviewStandards: string[] = [];
+  let maxQuestions: number | null = null;
+  let moduleIds: number[] = [];
+  let topics: string[] = [];
+
+  if (mode === "review") {
+    reviewTopics = sanitizeStringArray(body.reviewScope?.topics);
+    reviewStandards = sanitizeStringArray(body.reviewScope?.standards);
+    if (reviewTopics.length === 0 && reviewStandards.length === 0) {
+      return NextResponse.json(
+        { error: "Review mode requires at least one topic or standard." },
+        { status: 400 },
+      );
+    }
+    const rawMax = body.reviewScope?.maxQuestions;
+    if (typeof rawMax !== "number" || !Number.isFinite(rawMax) || rawMax < 1) {
+      return NextResponse.json(
+        { error: "Review mode requires maxQuestions >= 1." },
+        { status: 400 },
+      );
+    }
+    maxQuestions = Math.max(1, Math.min(50, Math.round(rawMax)));
+    topics =
+      Array.isArray(body.topics) && body.topics.length > 0
+        ? body.topics.map((item) => item.trim()).filter(Boolean)
+        : reviewTopics;
+  } else {
+    const snapshotResolution = await resolveSnapshotQuestions(admin, requester, body);
+    if ("error" in snapshotResolution) {
+      return NextResponse.json(
+        { error: snapshotResolution.error },
+        { status: snapshotResolution.status },
+      );
+    }
+    snapshotQuestions = snapshotResolution.questions;
+    resolvedSourceType = snapshotResolution.sourceType;
+    moduleIds = Array.from(
+      new Set(
+        snapshotQuestions
+          .map((question) => question.module)
+          .filter((value) => Number.isFinite(value)),
+      ),
+    );
+    topics =
+      Array.isArray(body.topics) && body.topics.length > 0
+        ? body.topics.map((item) => item.trim()).filter(Boolean)
+        : Array.from(
+            new Set(snapshotQuestions.map((question) => question.topic).filter(Boolean)),
+          );
   }
-  const snapshotQuestions = snapshotResolution.questions;
-  const sourceType = snapshotResolution.sourceType;
-  const moduleIds = Array.from(
-    new Set(
-      snapshotQuestions
-        .map((question) => question.module)
-        .filter((value) => Number.isFinite(value)),
-    ),
-  );
-  const topics =
-    Array.isArray(body.topics) && body.topics.length > 0
-      ? body.topics.map((item) => item.trim()).filter(Boolean)
-      : Array.from(new Set(snapshotQuestions.map((question) => question.topic).filter(Boolean)));
 
   const assignmentId = `as_${randomUUID().slice(0, 8)}`;
   const { error: assignmentError } = await admin.from("assignments").insert({
@@ -462,6 +346,11 @@ export async function POST(request: Request) {
     topics,
     target_minutes: targetMinutes,
     created_by: requester.id,
+    mode,
+    randomize_order: randomizeOrder,
+    max_questions: maxQuestions,
+    review_topics: mode === "review" ? reviewTopics : null,
+    review_standards: mode === "review" ? reviewStandards : null,
   });
   if (assignmentError) {
     return NextResponse.json({ error: assignmentError.message }, { status: 400 });
@@ -490,19 +379,71 @@ export async function POST(request: Request) {
     }
   }
 
-  const { error: snapshotInsertError } = await admin
-    .from("assignment_question_snapshots")
-    .insert(
-      snapshotQuestions.map((question, index) => ({
-        assignment_id: assignmentId,
-        order_index: index,
-        question_id: question.id,
-        source_type: sourceType,
-        payload: question,
-      })),
-    );
-  if (snapshotInsertError) {
-    return NextResponse.json({ error: snapshotInsertError.message }, { status: 400 });
+  if (mode !== "review" && resolvedSourceType) {
+    const { error: snapshotInsertError } = await admin
+      .from("assignment_question_snapshots")
+      .insert(
+        snapshotQuestions.map((question, index) => ({
+          assignment_id: assignmentId,
+          order_index: index,
+          question_id: question.id,
+          source_type: resolvedSourceType,
+          payload: question,
+        })),
+      );
+    if (snapshotInsertError) {
+      return NextResponse.json({ error: snapshotInsertError.message }, { status: 400 });
+    }
+  }
+
+  let createdQuestionSetId: string | null = null;
+  if (
+    mode !== "review" &&
+    resolvedSourceType === "manual" &&
+    body.saveAsNewSet === true &&
+    snapshotQuestions.length > 0
+  ) {
+    const generatedAt = new Date().toISOString();
+    const newSetId = `manual-${assignmentId}-${Date.now().toString(36)}`;
+    const { error: setInsertError } = await admin
+      .from("generated_question_sets")
+      .insert({
+        id: newSetId,
+        user_id: requester.id,
+        name: title,
+        generated_at: generatedAt,
+        generation_model_id: null,
+        generation_model_label: "Manual",
+      });
+    if (setInsertError) {
+      return NextResponse.json(
+        {
+          error: `Assignment created but failed to save question set: ${setInsertError.message}`,
+        },
+        { status: 400 },
+      );
+    }
+    const { error: setQuestionsInsertError } = await admin
+      .from("generated_questions")
+      .insert(
+        snapshotQuestions.map((question) => ({
+          id: question.id,
+          set_id: newSetId,
+          user_id: requester.id,
+          payload: question,
+          is_visible: true,
+          include_in_self_practice: false,
+        })),
+      );
+    if (setQuestionsInsertError) {
+      return NextResponse.json(
+        {
+          error: `Assignment created but failed to save question set rows: ${setQuestionsInsertError.message}`,
+        },
+        { status: 400 },
+      );
+    }
+    createdQuestionSetId = newSetId;
   }
 
   return NextResponse.json({
@@ -510,6 +451,8 @@ export async function POST(request: Request) {
     assignmentId,
     targetCount: studentIds.length,
     questionCount: snapshotQuestions.length,
+    mode,
+    questionSetId: createdQuestionSetId,
   });
 }
 
@@ -547,13 +490,21 @@ export async function DELETE(request: Request) {
     if ("error" in schoolResult) {
       return NextResponse.json({ error: schoolResult.error }, { status: 400 });
     }
-    const canAccessSchool = schoolResult.schools.some((item) => item.id === assignment.school_id);
+    const canAccessSchool = schoolResult.schools.some(
+      (item) => item.id === assignment.school_id,
+    );
     if (!canAccessSchool) {
-      return NextResponse.json({ error: "You do not have access to this assignment." }, { status: 403 });
+      return NextResponse.json(
+        { error: "You do not have access to this assignment." },
+        { status: 403 },
+      );
     }
   }
 
-  const { error: deleteError } = await admin.from("assignments").delete().eq("id", assignmentId);
+  const { error: deleteError } = await admin
+    .from("assignments")
+    .delete()
+    .eq("id", assignmentId);
   if (deleteError) {
     return NextResponse.json({ error: deleteError.message }, { status: 400 });
   }

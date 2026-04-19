@@ -13,6 +13,7 @@ import {
   Pencil,
   Check,
   X,
+  ClipboardList,
 } from "lucide-react";
 import questionsData from "@/data/questions.json";
 import questionSetsData from "@/data/question-sets.json";
@@ -377,6 +378,15 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {isGeneratedFromDb && questionSet && (
+            <Link
+              href={`/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}`}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-[#16a34a] hover:bg-[#15803d] transition-colors"
+            >
+              <ClipboardList className="w-4 h-4" />
+              Create assignment from this set
+            </Link>
+          )}
           {isGeneratedFromDb && (
             <button
               onClick={handleDeleteAll}
