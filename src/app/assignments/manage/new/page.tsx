@@ -19,6 +19,7 @@ import {
   type ReviewScope,
 } from "@/components/assignments/ReviewScopePicker";
 import { getTopicForStandard } from "@/lib/standards";
+import { dateTimeLocalValueToIso } from "@/lib/due-date";
 
 interface SchoolRow {
   id: string;
@@ -172,7 +173,7 @@ function CreateAssignmentContent() {
       const body: Record<string, unknown> = {
         title: cleanTitle,
         schoolId: selectedSchoolId,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+        dueDate: dateTimeLocalValueToIso(dueDate),
         targetMinutes: targetMinutesValue,
         mode,
         randomizeOrder,
@@ -330,9 +331,11 @@ function CreateAssignmentContent() {
               />
             </label>
             <label className="block text-sm text-slate-gray md:col-span-2">
-              <span className="block mb-1 font-medium">Due date (optional)</span>
+              <span className="block mb-1 font-medium">
+                Due date &amp; time (optional)
+              </span>
               <input
-                type="date"
+                type="datetime-local"
                 value={dueDate}
                 onChange={(event) => setDueDate(event.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"

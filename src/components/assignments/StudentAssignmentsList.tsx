@@ -14,6 +14,7 @@ import type {
   StudentAssignmentListItem,
   StudentAssignmentStatus,
 } from "@/lib/student-assignments";
+import { formatDueDateTime } from "@/lib/due-date";
 
 interface StudentAssignmentsListProps {
   assignments: StudentAssignmentListItem[];
@@ -235,7 +236,7 @@ function AssignmentCard({
               }`}
             >
               <CalendarDays className="w-3.5 h-3.5" />
-              Due {new Date(assignment.due_date).toLocaleDateString()}
+              Due {formatDueDateTime(assignment.due_date)}
             </p>
           ) : (
             <p className="text-xs text-slate-gray/50 mt-2">No due date</p>

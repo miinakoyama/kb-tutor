@@ -17,6 +17,11 @@ import {
 } from "lucide-react";
 import type { Question } from "@/types/question";
 import { QuestionDetails } from "@/components/assignments/QuestionDetails";
+import {
+  dateTimeLocalValueToIso,
+  formatDueDateTime,
+  isoToDateTimeLocalValue,
+} from "@/lib/due-date";
 
 type AssignmentMode = "practice" | "exam" | "review";
 type SourceType = "existing_set" | "generated_now" | "manual";
@@ -150,7 +155,11 @@ function AssignmentDetailContent({
 
   // --- Safe-field form state ---
   const [title, setTitle] = useState(assignment.title);
-  const [dueDate, setDueDate] = useState(assignment.due_date ?? "");
+  // Keep local form state as `YYYY-MM-DDTHH:mm` (datetime-local format) so
+  // it round-trips cleanly with the input. Convert back to ISO on save.
+  const [dueDate, setDueDate] = useState(
+    isoToDateTimeLocalValue(assignment.due_date),
+  );
   const [targetMinutes, setTargetMinutes] = useState(assignment.target_minutes);
   const [randomizeOrder, setRandomizeOrder] = useState(
     assignment.randomize_order !== false,
@@ -159,9 +168,16 @@ function AssignmentDetailContent({
   const [metaError, setMetaError] = useState<string | null>(null);
 
   const metaDirty = useMemo(() => {
+    // Compare normalized ISO strings so clock-skew/precision differences
+    // (datetime-local has minute precision, DB stores down to ms) don't
+    // register as edits when the user didn't touch the input.
+    const formIso = dateTimeLocalValueToIso(dueDate);
+    const storedIso = assignment.due_date
+      ? new Date(assignment.due_date).toISOString()
+      : null;
     return (
       title.trim() !== assignment.title ||
-      (dueDate || null) !== (assignment.due_date ?? null) ||
+      formIso !== storedIso ||
       Number(targetMinutes) !== assignment.target_minutes ||
       randomizeOrder !== (assignment.randomize_order !== false)
     );
@@ -177,7 +193,7 @@ function AssignmentDetailContent({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
-          dueDate: dueDate ? dueDate : null,
+          dueDate: dateTimeLocalValueToIso(dueDate),
           targetMinutes,
           randomizeOrder,
         }),
@@ -318,10 +334,10 @@ function AssignmentDetailContent({
           </label>
 
           <label className="block text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">Due date</span>
+            <span className="block mb-1 font-medium">Due date &amp; time</span>
             <input
-              type="date"
-              value={dueDate ? dueDate.split("T")[0] : ""}
+              type="datetime-local"
+              value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             />
@@ -560,7 +576,7 @@ function ReviewScopeDisplay({ assignment }: { assignment: AssignmentDetail }) {
       {assignment.due_date && (
         <p className="inline-flex items-center gap-1 text-xs text-slate-gray/70">
           <CalendarDays className="w-3.5 h-3.5" />
-          Due {new Date(assignment.due_date).toLocaleDateString()}
+          Due {formatDueDateTime(assignment.due_date)}
         </p>
       )}
     </section>

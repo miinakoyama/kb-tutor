@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ClipboardList, Plus, Trash2, Users } from "lucide-react";
+import { formatDueDateTime } from "@/lib/due-date";
 
 interface SchoolRow {
   id: string;
@@ -240,7 +241,7 @@ function AssignmentManagementContent() {
                         {assignment.due_date && (
                           <span className="inline-flex items-center gap-1">
                             <CalendarDays className="w-3.5 h-3.5" />
-                            Due {new Date(assignment.due_date).toLocaleDateString()}
+                            Due {formatDueDateTime(assignment.due_date)}
                           </span>
                         )}
                       </div>

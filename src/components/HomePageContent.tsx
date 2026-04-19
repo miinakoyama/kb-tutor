@@ -15,6 +15,7 @@ import type {
   StudentAssignmentListItem,
   StudentAssignmentStatus,
 } from "@/lib/student-assignments";
+import { formatDueDateTime } from "@/lib/due-date";
 
 interface HomePageContentProps {
   assignments: StudentAssignmentListItem[];
@@ -92,7 +93,6 @@ export function HomePageContent({
               className="inline-flex items-center justify-center rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d] transition-colors"
             >
               View all assignments
-              {totalAssignments > 0 ? ` (${totalAssignments})` : ""}
             </Link>
           </div>
         </div>
@@ -199,7 +199,7 @@ function DueLabel({
   if (!dueDate) {
     return <span className="text-slate-gray/50">No due date</span>;
   }
-  const text = `Due ${new Date(dueDate).toLocaleDateString()}`;
+  const text = `Due ${formatDueDateTime(dueDate)}`;
   return (
     <span
       className={`inline-flex items-center gap-1 ${
