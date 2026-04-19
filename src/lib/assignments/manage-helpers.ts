@@ -22,6 +22,42 @@ export interface Requester {
 
 export type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
+/**
+ * Best-effort compensation for a partially-created assignment.
+ *
+ * Supabase's HTTP-based client can't run multiple statements in a single
+ * Postgres transaction, so when a child insert fails AFTER the parent row
+ * exists, we simulate atomicity by deleting the parent. The assignment FKs
+ * for `assignment_question_snapshots` and `assignment_targets` are
+ * `ON DELETE CASCADE` (see baseline migration), so this single delete cleans
+ * up every child table that was partially populated.
+ *
+ * This is best-effort: if the cleanup DELETE itself fails (e.g. connectivity
+ * drop), the caller's error response is still returned to the user. In that
+ * rare case the orphan assignment would need manual cleanup, but it stays
+ * consistent (just unused) rather than partially-populated.
+ */
+export async function rollbackAssignment(
+  admin: AdminClient,
+  assignmentId: string,
+): Promise<void> {
+  await admin.from("assignments").delete().eq("id", assignmentId);
+}
+
+/**
+ * Compensation for a partially-created manual question set. Used when the
+ * parent `generated_question_sets` insert succeeds but the subsequent
+ * `generated_questions` insert fails. There is no FK cascade here so we
+ * delete both tables explicitly (children first).
+ */
+export async function rollbackQuestionSet(
+  admin: AdminClient,
+  setId: string,
+): Promise<void> {
+  await admin.from("generated_questions").delete().eq("set_id", setId);
+  await admin.from("generated_question_sets").delete().eq("id", setId);
+}
+
 export function asOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();

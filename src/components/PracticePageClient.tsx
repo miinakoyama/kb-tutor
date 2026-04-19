@@ -21,6 +21,21 @@ export type AnsweredMap = Record<
   string,
   { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
 >;
+
+/**
+ * Tolerantly decode a %-encoded string. Next.js already decodes searchParams
+ * once, so for correctly-sent (raw) values this is effectively a no-op. We
+ * keep it for backwards compatibility with legacy URLs that were built with
+ * the old double-encode pattern. Invalid sequences (e.g. a literal "%" in a
+ * topic name) are returned as-is instead of throwing URIError.
+ */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
 const MODULE_CATEGORY_TOPIC_PATTERN =
   /^\s*(?:\[?\s*Module\s+([AB])\s*\]?\s*[-:]\s*)?(.+?)\s*$/i;
 
@@ -82,7 +97,7 @@ function validateTopicParam(
   error?: string;
 } {
   if (!topicParam) return { isValid: true };
-  const decodedTopic = decodeURIComponent(topicParam);
+  const decodedTopic = safeDecode(topicParam);
   if (moduleNum !== undefined) {
     const targetModule = MODULES.find((m) => m.id === moduleNum);
     const topics = targetModule?.topics as readonly string[] | undefined;
@@ -202,7 +217,7 @@ export function PracticePageClient({
   if (!hasAssignmentSnapshot && topicsParam) {
     const decodedTopics = topicsParam
       .split(",")
-      .map((topic) => decodeURIComponent(topic).trim())
+      .map((topic) => safeDecode(topic).trim())
       .filter(Boolean);
     selectedTopics = Array.from(new Set(decodedTopics));
     if (selectedTopics.length > 0) {

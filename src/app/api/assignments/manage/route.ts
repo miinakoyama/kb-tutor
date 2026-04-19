@@ -8,6 +8,8 @@ import {
   getRequester,
   getScopedSchoolIds,
   resolveSnapshotQuestions,
+  rollbackAssignment,
+  rollbackQuestionSet,
   sanitizeMode,
   sanitizeStringArray,
 } from "@/lib/assignments/manage-helpers";
@@ -356,11 +358,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: assignmentError.message }, { status: 400 });
   }
 
+  // From here on, if any child insert fails we best-effort delete the
+  // parent assignment (cascades to targets/snapshots) to avoid leaving a
+  // half-created assignment that students would see as broken.
   const { data: schoolMembers, error: schoolMemberError } = await admin
     .from("school_members")
     .select("student_user_id")
     .eq("school_id", schoolId);
   if (schoolMemberError) {
+    await rollbackAssignment(admin, assignmentId);
     return NextResponse.json({ error: schoolMemberError.message }, { status: 400 });
   }
 
@@ -375,6 +381,7 @@ export async function POST(request: Request) {
       })),
     );
     if (targetInsertError) {
+      await rollbackAssignment(admin, assignmentId);
       return NextResponse.json({ error: targetInsertError.message }, { status: 400 });
     }
   }
@@ -392,6 +399,7 @@ export async function POST(request: Request) {
         })),
       );
     if (snapshotInsertError) {
+      await rollbackAssignment(admin, assignmentId);
       return NextResponse.json({ error: snapshotInsertError.message }, { status: 400 });
     }
   }
@@ -416,6 +424,8 @@ export async function POST(request: Request) {
         generation_model_label: "Manual",
       });
     if (setInsertError) {
+      // Keep the assignment (it is valid on its own) but report the set
+      // failure clearly. Nothing to roll back yet — the set row never landed.
       return NextResponse.json(
         {
           error: `Assignment created but failed to save question set: ${setInsertError.message}`,
@@ -436,6 +446,9 @@ export async function POST(request: Request) {
         })),
       );
     if (setQuestionsInsertError) {
+      // The set header landed but its questions did not. Compensating delete
+      // so the user doesn't see an empty ghost set in their library.
+      await rollbackQuestionSet(admin, newSetId);
       return NextResponse.json(
         {
           error: `Assignment created but failed to save question set rows: ${setQuestionsInsertError.message}`,

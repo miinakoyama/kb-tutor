@@ -263,11 +263,14 @@ function selectTodoAssignments(
 function buildPracticeHref(a: StudentAssignmentListItem): string {
   const questionCount =
     a.max_questions ?? Math.max(6, Math.min(40, Math.round(a.target_minutes / 1.8)));
+  // URLSearchParams handles the %-encoding of each value on toString(). Do NOT
+  // pre-encode topics here (would double-encode, e.g. " " -> "%20" -> "%2520"
+  // and break PracticePageClient's decodeURIComponent on the receiving side).
   const params = new URLSearchParams({
     mode: a.mode,
     assignmentId: a.id,
     questions: String(questionCount),
-    topics: a.topics.map((topic) => encodeURIComponent(topic)).join(","),
+    topics: a.topics.join(","),
   });
   return `/practice?${params.toString()}`;
 }

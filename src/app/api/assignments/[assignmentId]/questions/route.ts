@@ -6,6 +6,11 @@ import {
   deterministicShuffle,
   resolveReviewQuestionsForAssignment,
 } from "@/lib/student-assignments";
+import {
+  buildAnsweredMap,
+  collectQuestionIds,
+  type AnsweredMap,
+} from "@/lib/assignments/answered-map";
 import type { Question } from "@/types/question";
 
 async function getRequester() {
@@ -108,10 +113,7 @@ export async function GET(
   // answered: question_id -> { selectedOptionId, isCorrect, answeredAt }
   // Used by practice/exam to pre-fill progress and resume from the first
   // unanswered question. Review is dynamic and always starts fresh.
-  const answered: Record<
-    string,
-    { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
-  > = {};
+  let answered: AnsweredMap = {};
 
   if (assignmentMode === "review") {
     const result = await resolveReviewQuestionsForAssignment(
@@ -143,9 +145,7 @@ export async function GET(
       );
     }
 
-    const questionIds = questions
-      .map((q) => q.id)
-      .filter((id): id is string => typeof id === "string" && id.length > 0);
+    const questionIds = collectQuestionIds(questions);
     if (questionIds.length > 0) {
       const { data: attemptRows } = await admin
         .from("attempts")
@@ -154,29 +154,7 @@ export async function GET(
         .eq("assignment_id", normalizedAssignmentId)
         .in("question_id", questionIds)
         .order("answered_at", { ascending: true });
-      const lastCompletedMs = lastCompletedAt
-        ? new Date(lastCompletedAt).getTime()
-        : null;
-      for (const row of attemptRows ?? []) {
-        const answeredAt = String(row.answered_at ?? "");
-        if (!answeredAt) continue;
-        if (
-          lastCompletedMs !== null &&
-          new Date(answeredAt).getTime() <= lastCompletedMs
-        ) {
-          continue;
-        }
-        const qid = String(row.question_id);
-        // Latest wins: iterating in ascending order means later rows overwrite.
-        answered[qid] = {
-          selectedOptionId:
-            typeof row.selected_option_id === "string"
-              ? row.selected_option_id
-              : null,
-          isCorrect: Boolean(row.is_correct),
-          answeredAt,
-        };
-      }
+      answered = buildAnsweredMap(attemptRows ?? [], { lastCompletedAt });
     }
   }
 

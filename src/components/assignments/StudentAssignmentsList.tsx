@@ -29,13 +29,14 @@ function estimateQuestionCount(targetMinutes: number): number {
 function buildPracticeHref(assignment: StudentAssignmentListItem): string {
   const questionCount =
     assignment.max_questions ?? estimateQuestionCount(assignment.target_minutes);
+  // URLSearchParams handles the %-encoding of each value on toString(). Do NOT
+  // pre-encode topics here (would double-encode and break decoding on the
+  // receiving side in PracticePageClient).
   const params = new URLSearchParams({
     mode: assignment.mode,
     assignmentId: assignment.id,
     questions: String(questionCount),
-    topics: assignment.topics
-      .map((topic) => encodeURIComponent(topic))
-      .join(","),
+    topics: assignment.topics.join(","),
   });
   return `/practice?${params.toString()}`;
 }
