@@ -16,6 +16,7 @@ import type {
   StudentAssignmentStatus,
 } from "@/lib/student-assignments";
 import { formatDueDateTime } from "@/lib/due-date";
+import { AssignmentModeBadge } from "@/components/assignments/AssignmentModeBadge";
 
 interface HomePageContentProps {
   assignments: StudentAssignmentListItem[];
@@ -157,6 +158,7 @@ function TodoRow({ assignment }: { assignment: StudentAssignmentListItem }) {
           <p className="text-sm font-medium text-slate-gray truncate">
             {assignment.title}
           </p>
+          <AssignmentModeBadge mode={assignment.mode} size="xs" />
           {overdue && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">
               <Clock className="w-3 h-3" />

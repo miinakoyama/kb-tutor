@@ -331,7 +331,12 @@ export function PracticePageClient({
     }
     case "review":
       return (
-        <ReviewMode questions={filteredQuestions} topicName={topicName} />
+        <ReviewMode
+          questions={filteredQuestions}
+          topicName={topicName}
+          assignmentId={assignmentIdParam}
+          questionCount={requestedQuestionCount}
+        />
       );
     default:
       return (

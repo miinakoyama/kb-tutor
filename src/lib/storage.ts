@@ -58,8 +58,24 @@ function canUseRemoteDb(): boolean {
   return typeof window !== "undefined" && hasSupabaseEnv();
 }
 
+/**
+ * Synchronous read of the localStorage cache. Suitable for hot paths that
+ * can't await (e.g. a 1Hz polling indicator). If you need a guaranteed
+ * fresh read that reflects changes from other devices, use
+ * `fetchAnswerHistory()` instead.
+ */
 export function getAnswerHistory(): StoredAnswer[] {
   return safeGetItem<StoredAnswer[]>(STORAGE_KEYS.ANSWER_HISTORY, []);
+}
+
+/**
+ * DB-primary read of the current user's answer history. Falls back to the
+ * localStorage cache when Supabase is unreachable (offline, throttled, etc).
+ * This is the preferred read for rendering paths that can await.
+ */
+export async function fetchAnswerHistory(): Promise<StoredAnswer[]> {
+  if (!canUseRemoteDb()) return getAnswerHistory();
+  return syncAnswerHistoryFromDb();
 }
 
 export function saveAnswer(answer: StoredAnswer): void {
@@ -76,12 +92,31 @@ export function saveAnswerBatch(answers: StoredAnswer[]): void {
   void Promise.all(answers.map((answer) => upsertAttempt(answer)));
 }
 
+/**
+ * Synchronous read of the localStorage bookmark cache. Prefer
+ * `fetchBookmarkIds()` for rendering paths that can await.
+ */
 export function getBookmarkedIds(): string[] {
   return safeGetItem<string[]>(STORAGE_KEYS.BOOKMARKS, []);
 }
 
+/**
+ * Synchronous cache read. Prefer `fetchIsBookmarked(id)` when possible.
+ */
 export function isBookmarked(questionId: string): boolean {
   return getBookmarkedIds().includes(questionId);
+}
+
+/** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
+export async function fetchBookmarkIds(): Promise<string[]> {
+  if (!canUseRemoteDb()) return getBookmarkedIds();
+  return syncBookmarksFromDb();
+}
+
+/** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
+export async function fetchIsBookmarked(questionId: string): Promise<boolean> {
+  const ids = await fetchBookmarkIds();
+  return ids.includes(questionId);
 }
 
 export function addBookmark(questionId: string): void {
@@ -123,8 +158,7 @@ export function getTopicAccuracy(topic: string): TopicAccuracy {
   };
 }
 
-export function getIncorrectQuestionIds(): string[] {
-  const history = getAnswerHistory();
+function computeIncorrectIds(history: StoredAnswer[]): string[] {
   const lastAnswerByQuestion = new Map<string, StoredAnswer>();
   for (const answer of history) {
     lastAnswerByQuestion.set(answer.questionId, answer);
@@ -132,6 +166,18 @@ export function getIncorrectQuestionIds(): string[] {
   return Array.from(lastAnswerByQuestion.entries())
     .filter(([, answer]) => !answer.isCorrect)
     .map(([id]) => id);
+}
+
+/**
+ * Synchronous cache read. Prefer `fetchIncorrectQuestionIds()` when possible.
+ */
+export function getIncorrectQuestionIds(): string[] {
+  return computeIncorrectIds(getAnswerHistory());
+}
+
+/** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
+export async function fetchIncorrectQuestionIds(): Promise<string[]> {
+  return computeIncorrectIds(await fetchAnswerHistory());
 }
 
 export function clearHistory(): void {

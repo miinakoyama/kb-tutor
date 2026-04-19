@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import {
   CalendarDays,
   CheckCircle2,
-  ClipboardList,
   Play,
   RotateCcw,
   Clock,
@@ -15,6 +14,7 @@ import type {
   StudentAssignmentStatus,
 } from "@/lib/student-assignments";
 import { formatDueDateTime } from "@/lib/due-date";
+import { AssignmentModeBadge } from "@/components/assignments/AssignmentModeBadge";
 
 interface StudentAssignmentsListProps {
   assignments: StudentAssignmentListItem[];
@@ -199,10 +199,7 @@ function AssignmentCard({
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#16a34a] bg-[#16a34a]/10 px-2 py-1 rounded-full">
-              <ClipboardList className="w-3.5 h-3.5" />
-              Assignment
-            </span>
+            <AssignmentModeBadge mode={assignment.mode} />
             <StatusBadge status={assignment.status} />
             {overdue && (
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded-full">

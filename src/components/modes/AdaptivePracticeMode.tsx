@@ -22,7 +22,7 @@ import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
-import { isBookmarked, saveAnswer, toggleBookmark } from "@/lib/storage";
+import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
@@ -92,7 +92,15 @@ export function AdaptivePracticeMode({
       ? questions.slice(0, questionCount)
       : shuffleArray(questions).slice(0, questionCount);
     setSessionQuestions(selected);
-    setBookmarkedQuestions(new Set(selected.map((q) => q.id).filter((id) => isBookmarked(id))));
+    // Seed bookmark state from Supabase so it stays correct across devices.
+    // toggleBookmark updates the localStorage cache synchronously after this
+    // point, so the UI stays responsive without more DB round-trips.
+    void fetchBookmarkIds().then((ids) => {
+      const bookmarked = new Set(ids);
+      setBookmarkedQuestions(
+        new Set(selected.map((q) => q.id).filter((id) => bookmarked.has(id))),
+      );
+    });
 
     if (isAssignmentRun && answered) {
       const prefilledFinals: Record<number, AnswerRecord> = {};
