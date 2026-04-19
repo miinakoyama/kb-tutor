@@ -82,7 +82,9 @@ export function SelfPracticePlanner() {
     const params = new URLSearchParams();
     params.set("mode", selectedMode);
     params.set("questions", String(questionCount));
-    params.set("topics", selectedTopics.map((topic) => encodeURIComponent(topic)).join(","));
+    // Pass raw topic strings. URLSearchParams handles %-encoding on toString;
+    // pre-encoding here would double-encode (e.g. space -> %20 -> %2520).
+    params.set("topics", selectedTopics.join(","));
     return `/practice?${params.toString()}`;
   }, [questionCount, selectedMode, selectedTopics]);
 

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { HomePageContent } from "@/components/HomePageContent";
 import { getStudentNotifications } from "@/lib/notifications";
+import { getStudentAssignmentList } from "@/lib/student-assignments";
 import { DEFAULT_APP_TIME_ZONE, normalizeTimeZone } from "@/lib/timezone";
 
 export default async function Home() {
@@ -23,13 +24,14 @@ export default async function Home() {
     DEFAULT_APP_TIME_ZONE,
   );
 
-  const notificationResult = await getStudentNotifications(supabase, user.id, {
-    timeZone,
-  });
+  const [notificationResult, assignmentResult] = await Promise.all([
+    getStudentNotifications(supabase, user.id, { timeZone }),
+    getStudentAssignmentList(supabase, user.id),
+  ]);
 
   return (
     <HomePageContent
-      assignmentCount={notificationResult.assignmentTargetCount}
+      assignments={assignmentResult.assignments}
       notifications={notificationResult.notifications}
     />
   );

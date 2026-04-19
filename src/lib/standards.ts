@@ -251,3 +251,15 @@ export function getDefaultStandardForTopic(topic: string): StandardInfo {
 export function getStandardForTopic(topic: string): StandardInfo {
   return getDefaultStandardForTopic(topic);
 }
+
+export function getModuleNumberForStandard(standardId: string): number {
+  const standard = STANDARD_MAP.get(standardId);
+  if (!standard) return 1;
+  return standard.module === "B" ? 2 : 1;
+}
+
+export function getTopicForStandard(standardId: string): string {
+  const standard = STANDARD_MAP.get(standardId);
+  if (!standard) return "Assignment";
+  return standard.category;
+}
