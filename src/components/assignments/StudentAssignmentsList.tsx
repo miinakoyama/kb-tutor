@@ -290,28 +290,27 @@ function ProgressRow({
 }) {
   const { progress, mode, status } = assignment;
 
-  if (mode === "review") {
-    // Review is dynamic — we don't show a fractional bar. Just a hint.
-    if (status === "completed") {
-      return (
-        <p className="text-xs text-slate-gray/60 mt-2">
-          Completed one review session. You can run it again for more practice.
-        </p>
-      );
-    }
-    return null;
-  }
+  // Completion is already communicated by the StatusBadge + "Completed <date>"
+  // footer. The stored progress intentionally resets to 0/N on completion so
+  // Restart can begin a fresh run without destroying history — rendering that
+  // 0% bar contradicts the Completed badge, so we hide the bar entirely.
+  if (status === "completed") return null;
 
   if (!progress.total) return null;
   const ratio =
     progress.total > 0 ? Math.min(1, progress.answered / progress.total) : 0;
+  // Review is dynamic: the actual session size is min(max_questions, incorrect
+  // questions in scope), but we only know the max up-front. Show `up to N` so
+  // the denominator isn't misread as a hard promise.
+  const totalLabel =
+    mode === "review" ? `up to ${progress.total}` : String(progress.total);
   return (
     <div className="mt-3 space-y-1">
       <div className="flex items-center justify-between text-xs text-slate-gray/70">
         <span>
-          {progress.answered} of {progress.total} answered
+          {progress.answered} of {totalLabel} answered
         </span>
-        {status !== "completed" && progress.answered > 0 && (
+        {progress.answered > 0 && (
           <span className="text-[#14532d] font-medium">
             {Math.round(ratio * 100)}%
           </span>

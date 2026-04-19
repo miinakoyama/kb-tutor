@@ -167,9 +167,12 @@ function TodoRow({ assignment }: { assignment: StudentAssignmentListItem }) {
         </div>
         <p className="text-xs text-slate-gray/70 mt-0.5 flex items-center gap-2 flex-wrap">
           <DueLabel dueDate={assignment.due_date} overdue={overdue} />
-          {assignment.mode !== "review" && assignment.progress.total > 0 && (
+          {assignment.progress.total > 0 && (
             <span>
-              {assignment.progress.answered}/{assignment.progress.total}{" "}
+              {assignment.progress.answered}/
+              {assignment.mode === "review"
+                ? `up to ${assignment.progress.total}`
+                : assignment.progress.total}{" "}
               answered
             </span>
           )}

@@ -44,12 +44,17 @@ function extractJsonObject(text: string): string {
 
 function parseEnrichmentResponse(raw: string): Record<string, unknown> {
   const cleaned = stripCodeFence(raw);
-  const candidates = [cleaned, extractJsonObject(cleaned)];
-  for (const candidate of candidates) {
+  const baseCandidates = [cleaned, extractJsonObject(cleaned)];
+  const candidates = [...baseCandidates];
+  // Iterate a snapshot, not `candidates` itself: pushing into an array while
+  // iterating it via for-of keeps the loop alive because Array iterators read
+  // .length on each step. jsonrepair almost always succeeds, which previously
+  // turned this into an infinite loop and hung the whole route.
+  for (const candidate of baseCandidates) {
     try {
       candidates.push(jsonrepair(candidate));
     } catch {
-      // ignore
+      // ignore jsonrepair failures for this candidate
     }
   }
   let parsed: unknown = null;
@@ -217,7 +222,24 @@ async function requireAuthorizedUser(): Promise<{ ok: true } | { ok: false; stat
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+  console.info("[enrich-question] POST received");
+
+  if (!process.env.GEMINI_API_KEY) {
+    console.error("[enrich-question] GEMINI_API_KEY is not configured");
+    return NextResponse.json(
+      {
+        error:
+          "GEMINI_API_KEY is not configured. Please add it to your environment variables.",
+      },
+      { status: 500 },
+    );
+  }
+
   const auth = await requireAuthorizedUser();
+  console.info(
+    `[enrich-question] auth resolved in ${Date.now() - startedAt}ms (ok=${auth.ok})`,
+  );
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -263,13 +285,24 @@ export async function POST(request: Request) {
   const includeStandardCatalog = missing.includes("standardId");
 
   let responseText: string;
+  const geminiStartedAt = Date.now();
+  console.info(
+    `[enrich-question] calling Gemini (missing=${missing.join(",")})`,
+  );
   try {
     const result = await generateWithGemini(
       buildPrompt(body, missing, optionsNeedingFeedback, includeStandardCatalog),
     );
     responseText = result.text;
+    console.info(
+      `[enrich-question] Gemini returned in ${Date.now() - geminiStartedAt}ms (model=${result.modelId})`,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "AI generation failed";
+    console.error(
+      `[enrich-question] Gemini failed after ${Date.now() - geminiStartedAt}ms:`,
+      message,
+    );
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
