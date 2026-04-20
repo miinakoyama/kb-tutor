@@ -25,6 +25,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { fetchBookmarkIds, getBookmarkedIds } from "@/lib/storage";
+import { FirstLoginOnboarding } from "@/components/FirstLoginOnboarding";
+import { markOnboardingCompleted, syncOnboardingCompletion } from "@/lib/onboarding-settings";
 
 type AppRole = "student" | "teacher" | "admin";
 const VALID_ROLES: AppRole[] = ["student", "teacher", "admin"];
@@ -105,6 +107,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [roleLoaded, setRoleLoaded] = useState(false);
   const [userProfile, setUserProfile] = useState<{ display_name: string | null; student_id: string | null; email: string } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const navSections = getNavSections(role);
@@ -124,12 +128,15 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         }
         const payload = (await response.json()) as {
           user?: {
+            id?: string;
             email?: string | null;
             user_metadata?: { role?: string; student_id?: string; display_name?: string };
             app_metadata?: { role?: string };
           } | null;
-          profile?: { role?: AppRole; display_name?: string | null; student_id?: string | null; email?: string } | null;
+          profile?: { id?: string; role?: AppRole; display_name?: string | null; student_id?: string | null; email?: string } | null;
         };
+
+        setUserId(payload.profile?.id ?? payload.user?.id ?? null);
 
         const inferredRole =
           payload.profile?.role ??
@@ -204,6 +211,33 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       clearInterval(interval);
     };
   }, [hasBookmarks]);
+
+  useEffect(() => {
+    if (!roleLoaded) return;
+    if (role === "admin") {
+      setShowOnboarding(false);
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      const completed = await syncOnboardingCompletion(userId ?? undefined);
+      if (!cancelled) {
+        setShowOnboarding(!completed);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roleLoaded, role, userId]);
+
+  const handleFinishOnboarding = () => {
+    setShowOnboarding(false);
+    void markOnboardingCompleted(userId ?? undefined);
+  };
 
   const activeHref = useMemo(() => {
     const items = navSections.flatMap((section) => section.items);
@@ -448,6 +482,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       >
         <div className="flex flex-col h-full w-full">{sidebarContent}</div>
       </aside>
+
+      {showOnboarding && (
+        <FirstLoginOnboarding role={role === "teacher" ? "teacher" : "student"} onFinish={handleFinishOnboarding} />
+      )}
     </>
   );
 }
