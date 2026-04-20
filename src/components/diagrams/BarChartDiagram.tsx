@@ -6,7 +6,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import type { ChartData } from "@/types/question";
@@ -56,14 +55,6 @@ export function BarChartDiagram({ data }: BarChartDiagramProps) {
               offset: 10,
               fontSize: 12,
               fill: "#000",
-            }}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "white",
-              border: "1px solid #000",
-              borderRadius: "4px",
-              fontSize: "12px",
             }}
           />
           <Bar dataKey="value" fill="#888" stroke="#000" strokeWidth={1} />
