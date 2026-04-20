@@ -246,7 +246,7 @@ export function AdaptivePracticeMode({
     const shouldFinalize = result.isCorrect || nextAttempts.length >= MAX_ATTEMPTS;
     if (shouldFinalize) {
       const finalRecord: AnswerRecord = {
-        // Keep the learner's final choice so UI can show wrong (red) + correct (green)
+        // Keep the learner's final choice so UI can show wrong (neutral) + correct (green)
         // when max attempts are reached on an incorrect answer.
         selectedOptionId: result.selectedOptionId,
         isCorrect: result.isCorrect,

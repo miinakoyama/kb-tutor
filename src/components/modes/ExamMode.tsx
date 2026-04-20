@@ -879,7 +879,7 @@ function ExamResults({
 
         <p
           className="text-5xl font-bold mb-2"
-          style={{ color: scorePercent >= 60 ? PRIMARY_COLOR : "#f87171" }}
+          style={{ color: scorePercent >= 60 ? PRIMARY_COLOR : "#475569" }}
         >
           {scorePercent}%
         </p>
@@ -890,7 +890,7 @@ function ExamResults({
             <p className="text-slate-gray/60">Correct</p>
           </div>
           <div className="text-center">
-            <p className="text-lg font-bold text-red-400">
+            <p className="text-lg font-bold text-slate-500">
               {totalQuestions - correctCount}
             </p>
             <p className="text-slate-gray/60">Incorrect</p>
@@ -924,7 +924,7 @@ function ExamResults({
                   isCorrect
                     ? "border-[#16a34a]/20"
                     : hasAnswer
-                      ? "border-red-200"
+                      ? "border-slate-300"
                       : "border-slate-gray/10"
                 }`}
               >
@@ -945,7 +945,7 @@ function ExamResults({
                         style={{ color: PRIMARY_COLOR }}
                       />
                     ) : hasAnswer ? (
-                      <XCircle className="w-4 h-4 text-red-400" />
+                      <XCircle className="w-4 h-4 text-slate-500" />
                     ) : (
                       <span className="text-xs text-slate-gray/40">—</span>
                     )}

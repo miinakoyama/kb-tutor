@@ -6,6 +6,10 @@ import type { Question, AnswerRecord } from "@/types/question";
 
 const PRIMARY_COLOR = "#16a34a";
 const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
+const NEUTRAL_ICON = "#64748b";
+const NEUTRAL_BG = "rgba(100, 116, 139, 0.12)";
+const NEUTRAL_BORDER = "rgba(100, 116, 139, 0.35)";
+const NEUTRAL_TEXT = "#334155";
 
 interface FeedbackPanelProps {
   question: Question;
@@ -47,8 +51,8 @@ export function FeedbackPanel({
       <div
         className="p-4 rounded-xl border"
         style={{
-          backgroundColor: displayIsCorrect ? PRIMARY_LIGHT : "rgba(248, 113, 113, 0.1)",
-          borderColor: displayIsCorrect ? `${PRIMARY_COLOR}40` : "rgba(248, 113, 113, 0.3)",
+          backgroundColor: displayIsCorrect ? PRIMARY_LIGHT : NEUTRAL_BG,
+          borderColor: displayIsCorrect ? `${PRIMARY_COLOR}40` : NEUTRAL_BORDER,
         }}
       >
         <div className="flex items-start gap-3">
@@ -58,18 +62,18 @@ export function FeedbackPanel({
               style={{ color: PRIMARY_COLOR }}
             />
           ) : (
-            <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: NEUTRAL_ICON }} />
           )}
           <div className="flex-1 min-w-0">
             <p
               className="text-sm font-semibold mb-1"
-              style={{ color: displayIsCorrect ? "#166534" : "#991b1b" }}
+              style={{ color: displayIsCorrect ? "#166534" : NEUTRAL_TEXT }}
             >
               {displayIsCorrect ? "Correct!" : "Incorrect"}
             </p>
             <p
               className="text-sm leading-relaxed"
-              style={{ color: displayIsCorrect ? "#166534" : "#991b1b" }}
+              style={{ color: displayIsCorrect ? "#166534" : NEUTRAL_TEXT }}
             >
               {cleanFeedback(displayOption?.feedback)}
             </p>

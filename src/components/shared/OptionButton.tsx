@@ -7,6 +7,10 @@ const PRIMARY_COLOR = "#16a34a";
 const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
 const PENDING_COLOR = "#14532d";
 const PENDING_LIGHT = "rgba(20, 83, 45, 0.1)";
+const NEUTRAL_DARK = "#334155";
+const NEUTRAL_MID = "#64748b";
+const NEUTRAL_LIGHT = "rgba(100, 116, 139, 0.14)";
+const NEUTRAL_BORDER = "rgba(100, 116, 139, 0.35)";
 
 interface OptionButtonProps {
   option: { id: string; text: string; feedback?: string };
@@ -56,7 +60,7 @@ export function OptionButton({
 
   const getBorderColor = () => {
     if (showCorrect) return PRIMARY_COLOR;
-    if (showWrong) return "#f87171";
+    if (showWrong) return NEUTRAL_BORDER;
     if (isSelected && pendingSelection) return PENDING_COLOR;
     if (isSelected) return PRIMARY_COLOR;
     return "rgba(31, 45, 31, 0.2)";
@@ -64,7 +68,7 @@ export function OptionButton({
 
   const getBackgroundColor = () => {
     if (showCorrect) return PRIMARY_LIGHT;
-    if (showWrong) return "rgba(248, 113, 113, 0.1)";
+    if (showWrong) return NEUTRAL_LIGHT;
     if (isSelected && pendingSelection) return PENDING_LIGHT;
     if (isSelected) return PRIMARY_LIGHT;
     return "white";
@@ -74,7 +78,7 @@ export function OptionButton({
     if (showCorrect || showWrong || isSelected) {
       let bgColor = PRIMARY_COLOR;
       if (showCorrect) bgColor = PRIMARY_COLOR;
-      else if (showWrong) bgColor = "#f87171";
+      else if (showWrong) bgColor = NEUTRAL_MID;
       else if (isSelected && pendingSelection) bgColor = PENDING_COLOR;
       
       return {
@@ -127,7 +131,7 @@ export function OptionButton({
               setShowTooltip(!showTooltip);
             }}
             onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={(e) => {
+            onMouseLeave={() => {
               // Only close on mouse leave for pointer devices; touch has no hover state
               if (window.matchMedia("(hover: hover)").matches) setShowTooltip(false);
             }}
@@ -153,7 +157,7 @@ export function OptionButton({
           <p className="text-xs font-semibold text-slate-gray/60 mb-1">
             Why this is incorrect
           </p>
-          <p className="text-sm text-slate-gray leading-relaxed">
+          <p className="text-sm leading-relaxed" style={{ color: NEUTRAL_DARK }}>
             {option.feedback?.replace(/^(Correct\.|Incorrect\.)\s*/i, "").trim()}
           </p>
         </div>
