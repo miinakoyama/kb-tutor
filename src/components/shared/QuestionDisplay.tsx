@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Question, AnswerRecord } from "@/types/question";
 import { OptionButton } from "./OptionButton";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "./ReadAloudButton";
@@ -122,13 +123,12 @@ export function QuestionDisplay({
         )}
 
         {question.diagram && (
-          <div
-            className={`rounded-lg overflow-auto border border-slate-gray/10 ${
-              compactLayout ? "my-3 max-h-[240px]" : "my-4 max-h-[320px]"
-            }`}
+          <AdaptiveDiagramViewport
+            className={compactLayout ? "my-3" : "my-4"}
+            maxHeightClassName={compactLayout ? "max-h-[300px]" : "max-h-[380px]"}
           >
             <DiagramRenderer diagram={question.diagram} />
-          </div>
+          </AdaptiveDiagramViewport>
         )}
 
         <div
