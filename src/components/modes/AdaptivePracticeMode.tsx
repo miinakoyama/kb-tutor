@@ -429,9 +429,12 @@ export function AdaptivePracticeMode({
             onClick={() => {
               setCurrentIndex(0);
               setAttemptsByIndex({});
+              setRetryReadyByIndex({});
               setFinalAnswers({});
+              setSelectedOptionId(null);
               setShowSummary(false);
               setCompletionReported(false);
+              setQuestionStartMs(Date.now());
             }}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
           >

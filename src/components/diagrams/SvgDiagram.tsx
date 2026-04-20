@@ -101,10 +101,78 @@ function sanitizeSvg(svg: string): string | null {
     root.removeAttribute("style");
     root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
+    trimViewBoxToContent(root);
+
     return new XMLSerializer().serializeToString(root);
   } catch {
     return null;
   }
+}
+
+/**
+ * Measures the actual rendered bounding box of the SVG and tightens its
+ * viewBox to that rectangle (plus a small padding) so the diagram is not
+ * surrounded by empty space.
+ *
+ * Requires a DOM environment and silently no-ops on failure.
+ */
+function trimViewBoxToContent(root: Element): void {
+  if (typeof document === "undefined") return;
+
+  const holder = document.createElement("div");
+  holder.setAttribute(
+    "style",
+    [
+      "position:absolute",
+      "left:-99999px",
+      "top:-99999px",
+      "width:800px",
+      "height:800px",
+      "visibility:hidden",
+      "pointer-events:none",
+    ].join(";"),
+  );
+
+  const clone = root.cloneNode(true) as SVGSVGElement;
+  // Force a stable render size so getBBox can measure text/markers reliably.
+  clone.setAttribute("width", "800");
+  clone.setAttribute("height", "800");
+
+  try {
+    holder.appendChild(clone);
+    document.body.appendChild(holder);
+
+    const bbox = (clone as unknown as SVGGraphicsElement).getBBox();
+    if (
+      Number.isFinite(bbox.width) &&
+      Number.isFinite(bbox.height) &&
+      bbox.width > 0 &&
+      bbox.height > 0
+    ) {
+      const pad = Math.max(2, Math.min(bbox.width, bbox.height) * 0.02);
+      const vbX = bbox.x - pad;
+      const vbY = bbox.y - pad;
+      const vbW = bbox.width + pad * 2;
+      const vbH = bbox.height + pad * 2;
+      root.setAttribute(
+        "viewBox",
+        `${round(vbX)} ${round(vbY)} ${round(vbW)} ${round(vbH)}`,
+      );
+      root.removeAttribute("width");
+      root.removeAttribute("height");
+      if (!root.getAttribute("preserveAspectRatio")) {
+        root.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      }
+    }
+  } catch {
+    // Ignore measurement failures; the original viewBox remains.
+  } finally {
+    if (holder.parentNode) holder.parentNode.removeChild(holder);
+  }
+}
+
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 function toSvgDataUrl(svg: string): string {
@@ -135,7 +203,7 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
           <img
             src={safeSvgDataUrl}
             alt={data.title || "Biology diagram"}
-            className="w-full sm:w-[50%] max-w-[460px] min-w-[140px] sm:min-w-[220px] h-auto block"
+            className="w-full max-w-[520px] min-w-[140px] sm:min-w-[260px] h-auto block"
           />
         ) : (
           <div className="text-sm text-red-600">Unable to render diagram safely.</div>

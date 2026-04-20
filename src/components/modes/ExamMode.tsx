@@ -25,6 +25,7 @@ import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer, saveAnswerBatch } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
@@ -527,27 +528,27 @@ export function ExamMode({
         mode="exam"
         modeLabel={modeLabel}
         backHref={backHref}
+        showBackLink={false}
         inlineProgress
         compactSpacing
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
         answeredCount={answeredCount}
+        rightSlot={
+          <>
+            <Timer
+              isRunning={phase === "exam"}
+              onElapsedChange={setElapsedMs}
+            />
+            <button
+              onClick={handleSubmit}
+              className="px-5 py-2 min-h-[44px] text-sm font-semibold rounded-2xl text-white bg-[#16a34a] hover:bg-[#15803d] shadow-sm hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/60"
+            >
+              Submit
+            </button>
+          </>
+        }
       />
-
-      <div className="flex-shrink-0 mb-1">
-        <div className="flex items-center justify-end gap-4">
-          <Timer
-            isRunning={phase === "exam"}
-            onElapsedChange={setElapsedMs}
-          />
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 min-h-[44px] text-sm font-semibold rounded-2xl border border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/10 transition-colors"
-          >
-            Submit
-          </button>
-        </div>
-      </div>
 
       <div className="flex-1 min-h-0 relative">
         <div className="h-full overflow-y-auto">
@@ -583,9 +584,9 @@ export function ExamMode({
                 {question.text}
               </p>
               {question.diagram && (
-                <div className="mb-4 rounded-lg overflow-auto border border-slate-gray/10 max-h-[240px]">
+                <AdaptiveDiagramViewport className="mb-4" maxHeightClassName="max-h-[300px]">
                   <DiagramRenderer diagram={question.diagram} />
-                </div>
+                </AdaptiveDiagramViewport>
               )}
               <div
                 className={`rounded-lg transition-colors ${
@@ -927,18 +928,18 @@ function ExamResults({
 
         <p
           className="text-5xl font-bold mb-2"
-          style={{ color: scorePercent >= 60 ? PRIMARY_COLOR : "#f87171" }}
+          style={{ color: scorePercent >= 60 ? PRIMARY_COLOR : "#475569" }}
         >
           {scorePercent}%
         </p>
 
         <div className="flex justify-center gap-6 mt-4 text-sm">
           <div className="text-center">
-            <p className="text-lg font-bold text-[#16a34a]">{correctCount}</p>
+            <p className="text-lg font-bold text-slate-gray">{correctCount}</p>
             <p className="text-slate-gray/60">Correct</p>
           </div>
           <div className="text-center">
-            <p className="text-lg font-bold text-red-400">
+            <p className="text-lg font-bold text-slate-gray">
               {totalQuestions - correctCount}
             </p>
             <p className="text-slate-gray/60">Incorrect</p>
@@ -1015,11 +1016,8 @@ function ExamResults({
         </button>
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors"
+          className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-[#16a34a] text-[#14532d] font-medium hover:bg-[#16a34a]/10 transition-colors"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
-          </span>
           Back to Home
         </Link>
       </div>
