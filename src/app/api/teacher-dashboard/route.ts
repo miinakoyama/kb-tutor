@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveRole } from "@/lib/auth/role";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     .select("id,role")
     .eq("id", user.id)
     .maybeSingle();
-  const role = resolveRole(currentProfile?.role, user);
+  const role = await resolveRoleWithServerFallback(user, currentProfile?.role);
   if (!role || !["teacher", "admin"].includes(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

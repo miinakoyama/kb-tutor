@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, School, Trash2, Users, X } from "lucide-react";
+import { CalendarDays, Plus, School, Trash2, Users, X } from "lucide-react";
+import { formatExamDate } from "@/lib/keystone-exam";
 
 interface ProfileOption {
   id: string;
@@ -15,6 +16,7 @@ interface SchoolView {
   id: string;
   name: string;
   teacher_user_id: string | null;
+  keystone_exam_date: string | null;
   teacher_label: string;
   teachers: { id: string; label: string; is_primary: boolean }[];
   students: { id: string; label: string }[];
@@ -40,6 +42,7 @@ export default function SchoolManagementPage() {
   const [createForm, setCreateForm] = useState({
     name: "",
     teacherUserIds: [] as string[],
+    keystoneExamDate: "",
   });
 
   const selectedSchool = useMemo(
@@ -49,12 +52,14 @@ export default function SchoolManagementPage() {
 
   const [editName, setEditName] = useState("");
   const [editTeacherIds, setEditTeacherIds] = useState<string[]>([]);
+  const [editKeystoneExamDate, setEditKeystoneExamDate] = useState("");
 
   useEffect(() => {
     const school = selectedSchool;
     if (!school) return;
     setEditName(school.name);
     setEditTeacherIds(school.teachers.map((t) => t.id));
+    setEditKeystoneExamDate(school.keystone_exam_date ?? "");
   }, [selectedSchoolId, selectedSchool]);
 
   const loadAll = useCallback(async () => {
@@ -86,7 +91,7 @@ export default function SchoolManagementPage() {
   }, [loadAll]);
 
   function resetCreateForm() {
-    setCreateForm({ name: "", teacherUserIds: [] });
+    setCreateForm({ name: "", teacherUserIds: [], keystoneExamDate: "" });
   }
 
   async function createSchool(event: React.FormEvent<HTMLFormElement>) {
@@ -99,6 +104,7 @@ export default function SchoolManagementPage() {
       body: JSON.stringify({
         name: createForm.name.trim(),
         teacherUserIds: createForm.teacherUserIds,
+        keystoneExamDate: createForm.keystoneExamDate.trim() || null,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -123,6 +129,7 @@ export default function SchoolManagementPage() {
         id: selectedSchool.id,
         name: editName.trim(),
         teacherUserIds: editTeacherIds,
+        keystoneExamDate: editKeystoneExamDate.trim() || null,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -222,6 +229,12 @@ export default function SchoolManagementPage() {
                       {school.teacher_label && (
                         <span>Teachers: {school.teacher_label}</span>
                       )}
+                      {school.keystone_exam_date && (
+                        <span className="inline-flex items-center gap-1 text-amber-700">
+                          <CalendarDays className="w-3.5 h-3.5" />
+                          Keystone exam: {formatExamDate(school.keystone_exam_date)}
+                        </span>
+                      )}
                       <span className="text-slate-gray/50 text-xs">ID: {school.id}</span>
                     </div>
                   </div>
@@ -258,6 +271,23 @@ export default function SchoolManagementPage() {
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
                   required
                 />
+              </label>
+              <label className="block text-sm text-slate-gray">
+                <span className="block mb-1 font-medium">Keystone Exam Date (optional)</span>
+                <input
+                  type="date"
+                  value={createForm.keystoneExamDate}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      keystoneExamDate: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
+                />
+                <span className="mt-1 block text-xs text-slate-gray/60">
+                  When set, students see a countdown on their home page.
+                </span>
               </label>
               <label className="block text-sm text-slate-gray">
                 <span className="block mb-1 font-medium">Teachers (optional)</span>
@@ -336,6 +366,29 @@ export default function SchoolManagementPage() {
                   onChange={(e) => setEditName(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
                 />
+              </label>
+              <label className="block text-sm text-slate-gray">
+                <span className="block mb-1 font-medium">Keystone Exam Date</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={editKeystoneExamDate}
+                    onChange={(e) => setEditKeystoneExamDate(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors"
+                  />
+                  {editKeystoneExamDate && (
+                    <button
+                      type="button"
+                      onClick={() => setEditKeystoneExamDate("")}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <span className="mt-1 block text-xs text-slate-gray/60">
+                  Leave empty to hide the countdown on student home pages.
+                </span>
               </label>
               <label className="block text-sm text-slate-gray">
                 <span className="block mb-1 font-medium">Teachers</span>

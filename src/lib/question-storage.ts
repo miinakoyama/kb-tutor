@@ -297,6 +297,70 @@ export async function deleteGeneratedQuestionSet(setId: string): Promise<void> {
   }
 }
 
+export async function updateGeneratedQuestionSetName(
+  setId: string,
+  nextName: string,
+): Promise<string> {
+  if (!canUseRemoteDb()) {
+    throw new Error("Supabase is not configured; cannot update question sets.");
+  }
+
+  const trimmedName = nextName.trim();
+  if (!trimmedName) {
+    throw new Error("Question set name cannot be empty.");
+  }
+
+  const supabase = getSupabaseBrowserClient();
+  const { data: linkRows, error: linkError } = await supabase
+    .from("school_question_sets")
+    .select("school_id")
+    .eq("set_id", setId);
+
+  if (linkError) {
+    throw new Error(linkError.message);
+  }
+
+  const schoolIds = Array.from(
+    new Set(
+      (linkRows ?? [])
+        .map((row) =>
+          row && typeof row === "object" && "school_id" in row
+            ? String((row as { school_id: string }).school_id)
+            : "",
+        )
+        .filter((value) => value.length > 0),
+    ),
+  );
+
+  if (schoolIds.length > 0) {
+    const unique = await assertSetNameUniqueForSchools(
+      supabase,
+      trimmedName,
+      schoolIds,
+      setId,
+    );
+    if (!unique.ok) {
+      throw new Error(unique.message);
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("generated_question_sets")
+    .update({ name: trimmedName })
+    .eq("id", setId)
+    .select("name")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) {
+    throw new Error("Question set not found or inaccessible.");
+  }
+
+  return String(data.name);
+}
+
 export async function updateGeneratedQuestionInStorage(
   setId: string,
   updated: Question,

@@ -24,7 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { getBookmarkedIds, syncBookmarksFromDb } from "@/lib/storage";
+import { fetchBookmarkIds, getBookmarkedIds } from "@/lib/storage";
 
 type AppRole = "student" | "teacher" | "admin";
 const VALID_ROLES: AppRole[] = ["student", "teacher", "admin"];
@@ -186,10 +186,15 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       setBookmarkCount(0);
       return;
     }
+    // DB is the source of truth; we seed the badge from Supabase on mount
+    // (catches changes made on other devices). After that we read the
+    // localStorage cache cheaply at 1Hz — every add/removeBookmark writes
+    // through to that cache synchronously, so same-tab updates are picked
+    // up without additional network round-trips.
     const updateCount = () => setBookmarkCount(getBookmarkedIds().length);
     const load = async () => {
-      await syncBookmarksFromDb();
-      updateCount();
+      const ids = await fetchBookmarkIds();
+      setBookmarkCount(ids.length);
     };
     void load();
     window.addEventListener("storage", updateCount);
@@ -252,8 +257,9 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       );
     });
 
-  const renderSections = (closeMobileMenu = false) =>
-    navSections.map((section, index) => (
+  const renderSections = (closeMobileMenu = false) => {
+    if (!roleLoaded) return null;
+    return navSections.map((section, index) => (
       <div key={section.title ?? `section-${index}`} className={index > 0 ? "mt-4 pt-4 border-t border-white/10" : ""}>
         {section.title && !isCollapsed && (
           <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-white/50">
@@ -263,6 +269,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         <div className="space-y-1">{renderNavItems(section.items, closeMobileMenu)}</div>
       </div>
     ));
+  };
 
   const userMenuPopup = (
     <AnimatePresence>
@@ -367,10 +374,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       {userButton}
     </>
   );
-
-  if (!roleLoaded) {
-    return null;
-  }
 
   return (
     <>

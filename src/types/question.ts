@@ -91,13 +91,6 @@ export interface GenerationConfig {
   customPrompt?: string;
 }
 
-export interface HintLevels {
-  goal: string;
-  principle: string;
-  application: string;
-  bottomOut: string;
-}
-
 export interface GlossaryTerm {
   id: string;
   term: string;
@@ -126,7 +119,6 @@ export interface Question {
   correctOptionId: string;
   explanation?: string;
   commonMisconception?: string;
-  hints?: HintLevels;
   questionType?: QuestionType;
 
   inlineTerms?: GlossaryTerm[];

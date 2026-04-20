@@ -8,13 +8,19 @@ export function parseRole(value: unknown): AppRole | null {
   return VALID_ROLES.includes(value as AppRole) ? (value as AppRole) : null;
 }
 
+export function resolveProfileRole(profileRole: unknown): AppRole | null {
+  return parseRole(profileRole);
+}
+
+export function resolveMetadataRole(
+  user: Pick<User, "app_metadata" | "user_metadata">,
+): AppRole | null {
+  return parseRole(user.user_metadata?.role) ?? parseRole(user.app_metadata?.role);
+}
+
 export function resolveRole(
   profileRole: unknown,
   user: Pick<User, "app_metadata" | "user_metadata">,
 ): AppRole | null {
-  return (
-    parseRole(profileRole) ??
-    parseRole(user.user_metadata?.role) ??
-    parseRole(user.app_metadata?.role)
-  );
+  return resolveProfileRole(profileRole) ?? resolveMetadataRole(user);
 }

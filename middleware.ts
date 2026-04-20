@@ -1,8 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { resolveRole } from "@/lib/auth/role";
-import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
+import {
+  getSupabaseAnonKey,
+  getSupabaseServiceRoleKey,
+  getSupabaseUrl,
+} from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = ["/login", "/login/staff"];
 
@@ -120,7 +125,30 @@ export async function middleware(req: NextRequest) {
       .select("role")
       .eq("id", user.id)
       .maybeSingle();
+
     resolvedRole = resolveRole(profile?.role, user);
+    if (resolvedRole) return resolvedRole;
+
+    // Fallback: if session-scoped profile read fails, resolve via service-role.
+    try {
+      const admin = createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+
+      const { data: adminProfile } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      resolvedRole = resolveRole(adminProfile?.role, user);
+    } catch {
+      // Keep null and let existing route guards handle behavior.
+    }
+
     return resolvedRole;
   };
 

@@ -22,7 +22,7 @@ import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
-import { isBookmarked, saveAnswer, toggleBookmark } from "@/lib/storage";
+import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
@@ -40,6 +40,17 @@ interface AdaptivePracticeModeProps {
   mode?: "practice" | "review";
   backHref?: string;
   showBackLink?: boolean;
+  /**
+   * Pre-answered questions for the current run, keyed by question id. When
+   * provided (assignment mode), the component:
+   *   - trusts the incoming question order (no client-side reshuffle)
+   *   - pre-fills finalAnswers and jumps to the first unanswered question
+   *   - POSTs completion when all questions are finalized
+   */
+  answered?: Record<
+    string,
+    { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
+  >;
 }
 
 interface AttemptRecord {
@@ -55,6 +66,7 @@ export function AdaptivePracticeMode({
   mode = "practice",
   backHref = "/self-practice",
   showBackLink = false,
+  answered,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -67,19 +79,77 @@ export function AdaptivePracticeMode({
   const [showSummary, setShowSummary] = useState(false);
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [completionReported, setCompletionReported] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+  const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
+
   useEffect(() => {
-    const selected = shuffleArray(questions).slice(0, questionCount);
+    // For assignments we trust the server's deterministic ordering so resume
+    // always lands on the same question. Self-practice keeps the legacy
+    // random-shuffle-and-cap behavior.
+    const selected = isAssignmentRun
+      ? questions.slice(0, questionCount)
+      : shuffleArray(questions).slice(0, questionCount);
     setSessionQuestions(selected);
-    setBookmarkedQuestions(new Set(selected.map((q) => q.id).filter((id) => isBookmarked(id))));
+    // Seed bookmark state from Supabase so it stays correct across devices.
+    // toggleBookmark updates the localStorage cache synchronously after this
+    // point, so the UI stays responsive without more DB round-trips.
+    void fetchBookmarkIds().then((ids) => {
+      const bookmarked = new Set(ids);
+      setBookmarkedQuestions(
+        new Set(selected.map((q) => q.id).filter((id) => bookmarked.has(id))),
+      );
+    });
+
+    if (isAssignmentRun && answered) {
+      const prefilledFinals: Record<number, AnswerRecord> = {};
+      const prefilledAttempts: Record<number, AttemptRecord[]> = {};
+      selected.forEach((q, index) => {
+        const prior = answered[q.id];
+        if (!prior) return;
+        prefilledFinals[index] = {
+          selectedOptionId: prior.selectedOptionId ?? "",
+          isCorrect: prior.isCorrect,
+        };
+        if (prior.selectedOptionId) {
+          prefilledAttempts[index] = [
+            {
+              selectedOptionId: prior.selectedOptionId,
+              isCorrect: prior.isCorrect,
+            },
+          ];
+        }
+      });
+      setFinalAnswers(prefilledFinals);
+      setAttemptsByIndex(prefilledAttempts);
+      const firstUnanswered = selected.findIndex((q) => !answered[q.id]);
+      setCurrentIndex(firstUnanswered === -1 ? selected.length - 1 : firstUnanswered);
+    }
+
     setIsInitialized(true);
-  }, [questions, questionCount]);
+  }, [questions, questionCount, isAssignmentRun, answered]);
 
   useEffect(() => {
     setSelectedOptionId(null);
     setQuestionStartMs(Date.now());
   }, [currentIndex]);
+
+  useEffect(() => {
+    // When the student reaches the summary screen after finishing every
+    // question in an assignment session, tell the server so the assignment is
+    // marked Completed on the student's list.
+    if (!isAssignmentRun || !assignmentId || !showSummary || completionReported) {
+      return;
+    }
+    setCompletionReported(true);
+    void fetch(
+      `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
+      { method: "POST" },
+    ).catch(() => {
+      // Best-effort; failure leaves the assignment as in_progress until next run.
+    });
+  }, [assignmentId, showSummary, isAssignmentRun, completionReported]);
 
   const question = sessionQuestions[currentIndex];
   const attempts = useMemo(
@@ -315,8 +385,12 @@ export function AdaptivePracticeMode({
             onClick={() => {
               setCurrentIndex(0);
               setAttemptsByIndex({});
+              setRetryReadyByIndex({});
               setFinalAnswers({});
+              setSelectedOptionId(null);
               setShowSummary(false);
+              setCompletionReported(false);
+              setQuestionStartMs(Date.now());
             }}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
           >
