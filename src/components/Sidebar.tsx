@@ -102,7 +102,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [bookmarkCount, setBookmarkCount] = useState(0);
   const [role, setRole] = useState<AppRole>("student");
-  const [roleLoaded, setRoleLoaded] = useState(false);
   const [userProfile, setUserProfile] = useState<{ display_name: string | null; student_id: string | null; email: string } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -163,8 +162,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           student_id: null,
           email: "",
         });
-      } finally {
-        setRoleLoaded(true);
       }
     };
     void loadRole();
@@ -367,10 +364,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       {userButton}
     </>
   );
-
-  if (!roleLoaded) {
-    return null;
-  }
 
   return (
     <>
