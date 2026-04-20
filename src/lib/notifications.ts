@@ -171,6 +171,7 @@ export async function getStudentNotifications(
     const assignment = loadResult.assignmentsById.get(row.assignment_id);
     if (!assignment) continue;
 
+    const assignedAtMs = new Date(row.created_at).getTime();
     const dueText = assignment.due_date
       ? ` Due ${formatDueDate(assignment.due_date, timeZone)}.`
       : "";
@@ -191,10 +192,14 @@ export async function getStudentNotifications(
     if (!isFutureDue || !isDueSoon) continue;
 
     const remainingHours = hoursUntil(assignment.due_date, nowMs);
-    // Anchor the "due soon" notification at the moment the assignment
-    // entered the 48-hour window so its read state behaves intuitively
-    // relative to the student's last notifications visit.
-    const dueSoonCreatedAt = new Date(dueMs - dueSoonWindowMs).toISOString();
+    // The "due soon" notification logically exists from the moment the
+    // assignment entered the 48-hour window, but it could not have been
+    // visible to the student before the assignment itself was created.
+    // Clamp to assignedAtMs so a student who last visited notifications
+    // *after* (dueMs - window) but *before* the assignment was created
+    // still sees it as unread.
+    const dueSoonCreatedAtMs = Math.max(dueMs - dueSoonWindowMs, assignedAtMs);
+    const dueSoonCreatedAt = new Date(dueSoonCreatedAtMs).toISOString();
 
     notifications.push({
       id: `due-soon-${row.assignment_id}`,
