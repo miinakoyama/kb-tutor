@@ -6,7 +6,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import type { ChartData } from "@/types/question";
@@ -28,10 +27,10 @@ export function BarChartDiagram({ data }: BarChartDiagramProps) {
           {data.title}
         </h3>
       )}
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={280}>
         <BarChart
           data={chartData}
-          margin={{ top: 5, right: 30, left: 20, bottom: 25 }}
+          margin={{ top: 12, right: 24, left: 48, bottom: 32 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#999" />
           <XAxis
@@ -41,29 +40,25 @@ export function BarChartDiagram({ data }: BarChartDiagramProps) {
             label={{
               value: data.xAxisLabel,
               position: "bottom",
-              offset: 10,
+              offset: 12,
               fontSize: 12,
               fill: "#000",
             }}
           />
           <YAxis
+            width={72}
             tick={{ fontSize: 12, fill: "#000" }}
             stroke="#000"
             label={{
               value: data.yAxisLabel,
               angle: -90,
               position: "insideLeft",
-              offset: 10,
+              offset: 0,
+              dx: -8,
+              dy: 0,
               fontSize: 12,
               fill: "#000",
-            }}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "white",
-              border: "1px solid #000",
-              borderRadius: "4px",
-              fontSize: "12px",
+              style: { textAnchor: "middle" },
             }}
           />
           <Bar dataKey="value" fill="#888" stroke="#000" strokeWidth={1} />

@@ -25,6 +25,7 @@ import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { saveAnswer, saveAnswerBatch } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
@@ -535,9 +536,9 @@ export function ExamMode({
                 {question.text}
               </p>
               {question.diagram && (
-                <div className="mb-4 rounded-lg overflow-auto border border-slate-gray/10 max-h-[240px]">
+                <AdaptiveDiagramViewport className="mb-4" maxHeightClassName="max-h-[300px]">
                   <DiagramRenderer diagram={question.diagram} />
-                </div>
+                </AdaptiveDiagramViewport>
               )}
               <div
                 className={`rounded-lg transition-colors ${
