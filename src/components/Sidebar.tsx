@@ -24,7 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { getBookmarkedIds, syncBookmarksFromDb } from "@/lib/storage";
+import { fetchBookmarkIds, getBookmarkedIds } from "@/lib/storage";
 
 type AppRole = "student" | "teacher" | "admin";
 const VALID_ROLES: AppRole[] = ["student", "teacher", "admin"];
@@ -183,10 +183,15 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       setBookmarkCount(0);
       return;
     }
+    // DB is the source of truth; we seed the badge from Supabase on mount
+    // (catches changes made on other devices). After that we read the
+    // localStorage cache cheaply at 1Hz — every add/removeBookmark writes
+    // through to that cache synchronously, so same-tab updates are picked
+    // up without additional network round-trips.
     const updateCount = () => setBookmarkCount(getBookmarkedIds().length);
     const load = async () => {
-      await syncBookmarksFromDb();
-      updateCount();
+      const ids = await fetchBookmarkIds();
+      setBookmarkCount(ids.length);
     };
     void load();
     window.addEventListener("storage", updateCount);

@@ -16,6 +16,26 @@ import { MODULES } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
 
 const VALID_MODES: PracticeModeType[] = ["practice", "exam", "review"];
+
+export type AnsweredMap = Record<
+  string,
+  { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
+>;
+
+/**
+ * Tolerantly decode a %-encoded string. Next.js already decodes searchParams
+ * once, so for correctly-sent (raw) values this is effectively a no-op. We
+ * keep it for backwards compatibility with legacy URLs that were built with
+ * the old double-encode pattern. Invalid sequences (e.g. a literal "%" in a
+ * topic name) are returned as-is instead of throwing URIError.
+ */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
 const MODULE_CATEGORY_TOPIC_PATTERN =
   /^\s*(?:\[?\s*Module\s+([AB])\s*\]?\s*[-:]\s*)?(.+?)\s*$/i;
 
@@ -77,7 +97,7 @@ function validateTopicParam(
   error?: string;
 } {
   if (!topicParam) return { isValid: true };
-  const decodedTopic = decodeURIComponent(topicParam);
+  const decodedTopic = safeDecode(topicParam);
   if (moduleNum !== undefined) {
     const targetModule = MODULES.find((m) => m.id === moduleNum);
     const topics = targetModule?.topics as readonly string[] | undefined;
@@ -105,12 +125,14 @@ export function PracticePageClient({
   const [snapshotQuestions, setSnapshotQuestions] = useState<Question[] | null>(
     null
   );
+  const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
 
   useEffect(() => {
     const assignmentId = assignmentIdParam?.trim();
     if (!assignmentId) {
       setSnapshotQuestions(null);
+      setAnsweredMap({});
       setIsSnapshotLoading(false);
       return;
     }
@@ -124,16 +146,26 @@ export function PracticePageClient({
         );
         if (!response.ok) {
           setSnapshotQuestions(null);
+          setAnsweredMap({});
           setIsSnapshotLoading(false);
           return;
         }
-        const payload = (await response.json()) as { questions?: Question[] };
+        const payload = (await response.json()) as {
+          questions?: Question[];
+          answered?: AnsweredMap;
+        };
         const questions = Array.isArray(payload.questions)
           ? payload.questions
           : [];
         setSnapshotQuestions(questions.length > 0 ? questions : null);
+        setAnsweredMap(
+          payload.answered && typeof payload.answered === "object"
+            ? payload.answered
+            : {},
+        );
       } catch {
         setSnapshotQuestions(null);
+        setAnsweredMap({});
       } finally {
         setIsSnapshotLoading(false);
       }
@@ -185,7 +217,7 @@ export function PracticePageClient({
   if (!hasAssignmentSnapshot && topicsParam) {
     const decodedTopics = topicsParam
       .split(",")
-      .map((topic) => decodeURIComponent(topic).trim())
+      .map((topic) => safeDecode(topic).trim())
       .filter(Boolean);
     selectedTopics = Array.from(new Set(decodedTopics));
     if (selectedTopics.length > 0) {
@@ -283,6 +315,7 @@ export function PracticePageClient({
           topicName={topicName}
           questionCount={requestedQuestionCount}
           assignmentId={assignmentIdParam}
+          answered={hasAssignmentSnapshot ? answeredMap : undefined}
         />
       );
     case "exam": {
@@ -291,12 +324,19 @@ export function PracticePageClient({
           questions={filteredQuestions}
           topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
           requestedQuestionCount={requestedQuestionCount ?? 10}
+          assignmentId={assignmentIdParam}
+          answered={hasAssignmentSnapshot ? answeredMap : undefined}
         />
       );
     }
     case "review":
       return (
-        <ReviewMode questions={filteredQuestions} topicName={topicName} />
+        <ReviewMode
+          questions={filteredQuestions}
+          topicName={topicName}
+          assignmentId={assignmentIdParam}
+          questionCount={requestedQuestionCount}
+        />
       );
     default:
       return (

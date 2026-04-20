@@ -44,6 +44,18 @@ describe("answer history", () => {
     saveAnswer(makeAnswer({ questionId: "q2" }));
     expect(getAnswerHistory()).toHaveLength(2);
   });
+
+  it("auto-assigns a clientAttemptId when not provided", () => {
+    saveAnswer(makeAnswer({ questionId: "q1" }));
+    const stored = getAnswerHistory()[0];
+    expect(stored.clientAttemptId).toBeTypeOf("string");
+    expect(stored.clientAttemptId!.length).toBeGreaterThan(8);
+  });
+
+  it("preserves an explicit clientAttemptId", () => {
+    saveAnswer(makeAnswer({ questionId: "q1", clientAttemptId: "fixed-id" }));
+    expect(getAnswerHistory()[0].clientAttemptId).toBe("fixed-id");
+  });
 });
 
 describe("bookmarks", () => {

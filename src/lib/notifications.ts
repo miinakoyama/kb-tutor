@@ -29,7 +29,6 @@ type AssignmentTargetRow = {
 };
 
 const DUE_SOON_WINDOW_HOURS = 48;
-const UNREAD_RECENT_HOURS = 24;
 
 function formatDueDate(dueDate: string, timeZone: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -106,17 +105,29 @@ async function loadTargetsAndAssignments(
 /**
  * Builds student-facing notifications from assignment data.
  *
+ * Read state is derived from `lastReadAt` (typically
+ * `user_settings.notifications_last_read_at`): any notification whose
+ * `createdAt` is on or before that timestamp is considered read. If
+ * `lastReadAt` is null/undefined the student has never opened the
+ * notifications page, so every notification is unread.
+ *
  * @param supabase Auth-scoped Supabase client.
  * @param studentUserId Current student's user/profile id.
- * @param options Optional runtime options such as display time zone.
+ * @param options Optional runtime options such as display time zone and the
+ *   last time the student viewed the notifications page.
  * @returns Notifications sorted by newest first plus assignment target count.
  */
 export async function getStudentNotifications(
   supabase: SupabaseClient,
   studentUserId: string,
-  options?: { timeZone?: string },
+  options?: { timeZone?: string; lastReadAt?: string | null },
 ): Promise<StudentNotificationsResult> {
   const timeZone = normalizeTimeZone(options?.timeZone, DEFAULT_APP_TIME_ZONE);
+  const lastReadAtMs = options?.lastReadAt
+    ? new Date(options.lastReadAt).getTime()
+    : null;
+  const hasValidLastReadAt =
+    lastReadAtMs !== null && Number.isFinite(lastReadAtMs);
   let loadResult = await loadTargetsAndAssignments(supabase, studentUserId);
   let errorMessage: string | null = loadResult.error;
 
@@ -148,7 +159,11 @@ export async function getStudentNotifications(
   const rows = loadResult.targetRows;
   const nowMs = Date.now();
   const dueSoonWindowMs = DUE_SOON_WINDOW_HOURS * 60 * 60 * 1000;
-  const unreadRecentWindowMs = UNREAD_RECENT_HOURS * 60 * 60 * 1000;
+
+  const isRead = (createdAtIso: string): boolean => {
+    if (!hasValidLastReadAt) return false;
+    return new Date(createdAtIso).getTime() <= (lastReadAtMs as number);
+  };
 
   const notifications: StudentNotification[] = [];
 
@@ -157,7 +172,6 @@ export async function getStudentNotifications(
     if (!assignment) continue;
 
     const assignedAtMs = new Date(row.created_at).getTime();
-    const assignedRead = nowMs - assignedAtMs > unreadRecentWindowMs;
     const dueText = assignment.due_date
       ? ` Due ${formatDueDate(assignment.due_date, timeZone)}.`
       : "";
@@ -167,7 +181,7 @@ export async function getStudentNotifications(
       kind: "assignment_assigned",
       message: `Your teacher assigned "${assignment.title}".${dueText}`,
       createdAt: row.created_at,
-      read: assignedRead,
+      read: isRead(row.created_at),
     });
 
     if (!assignment.due_date) continue;
@@ -178,9 +192,14 @@ export async function getStudentNotifications(
     if (!isFutureDue || !isDueSoon) continue;
 
     const remainingHours = hoursUntil(assignment.due_date, nowMs);
-    const dueSoonCreatedAt = new Date(
-      Math.max(nowMs - unreadRecentWindowMs, dueMs - unreadRecentWindowMs),
-    ).toISOString();
+    // The "due soon" notification logically exists from the moment the
+    // assignment entered the 48-hour window, but it could not have been
+    // visible to the student before the assignment itself was created.
+    // Clamp to assignedAtMs so a student who last visited notifications
+    // *after* (dueMs - window) but *before* the assignment was created
+    // still sees it as unread.
+    const dueSoonCreatedAtMs = Math.max(dueMs - dueSoonWindowMs, assignedAtMs);
+    const dueSoonCreatedAt = new Date(dueSoonCreatedAtMs).toISOString();
 
     notifications.push({
       id: `due-soon-${row.assignment_id}`,
@@ -189,7 +208,7 @@ export async function getStudentNotifications(
         remainingHours === 1 ? "" : "s"
       }.`,
       createdAt: dueSoonCreatedAt,
-      read: remainingHours > UNREAD_RECENT_HOURS,
+      read: isRead(dueSoonCreatedAt),
     });
   }
 

@@ -22,9 +22,10 @@ import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ExamNavigator } from "@/components/shared/ExamNavigator";
 import { Timer } from "@/components/shared/Timer";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
-import { saveAnswerBatch } from "@/lib/storage";
+import { saveAnswer, saveAnswerBatch } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
@@ -37,6 +38,17 @@ interface ExamModeProps {
   questions: Question[];
   topicName?: string;
   requestedQuestionCount?: number;
+  assignmentId?: string;
+  /**
+   * Pre-answered questions keyed by question id, for assignment-mode resume.
+   * When provided, the component trusts the server's question order, pre-fills
+   * `answers`, jumps to the first unanswered index, and POSTs completion on
+   * submit so the assignment is marked as Completed.
+   */
+  answered?: Record<
+    string,
+    { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
+  >;
 }
 
 type ExamPhase = "config" | "exam" | "confirm" | "results" | "review";
@@ -45,7 +57,10 @@ export function ExamMode({
   questions,
   topicName,
   requestedQuestionCount,
+  assignmentId,
+  answered,
 }: ExamModeProps) {
+  const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
   const [phase, setPhase] = useState<ExamPhase>(
     requestedQuestionCount ? "exam" : "config"
   );
@@ -72,14 +87,40 @@ export function ExamMode({
   const isFeedbackReading = isSpeaking && currentSection === "feedback";
 
   useEffect(() => {
-    if (requestedQuestionCount) {
-      if (questions.length > 0) {
-        const shuffled = shuffleArray(questions);
-        setSessionQuestions(shuffled.slice(0, requestedQuestionCount));
-      }
+    if (!requestedQuestionCount) return;
+    if (questions.length === 0) {
       setIsInitialized(true);
+      return;
     }
-  }, [questions, requestedQuestionCount]);
+    // For assignment runs, trust the server's deterministic ordering so
+    // resume lands on the same question. Self-practice exam keeps the legacy
+    // random-shuffle behavior.
+    const ordered = isAssignmentRun
+      ? questions.slice(0, requestedQuestionCount)
+      : shuffleArray(questions).slice(0, requestedQuestionCount);
+    setSessionQuestions(ordered);
+
+    if (isAssignmentRun && answered) {
+      const prefilled: Record<number, AnswerRecord> = {};
+      ordered.forEach((q, index) => {
+        const prior = answered[q.id];
+        if (prior && prior.selectedOptionId) {
+          prefilled[index] = {
+            selectedOptionId: prior.selectedOptionId,
+            isCorrect: prior.isCorrect,
+          };
+        }
+      });
+      setAnswers(prefilled);
+      const firstUnanswered = ordered.findIndex((q) => {
+        const prior = answered[q.id];
+        return !prior?.selectedOptionId;
+      });
+      setCurrentIndex(firstUnanswered === -1 ? 0 : firstUnanswered);
+    }
+
+    setIsInitialized(true);
+  }, [questions, requestedQuestionCount, isAssignmentRun, answered]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -133,8 +174,33 @@ export function ExamMode({
         ...prev,
         [currentIndex]: { ...prev[currentIndex], selectedOptionId: optionId, isCorrect },
       }));
+
+      // For assignment exam runs, persist per-question immediately so
+      // closing the tab mid-exam doesn't lose progress. Self-practice exam
+      // keeps the legacy batch-on-submit behavior.
+      if (isAssignmentRun && assignmentId) {
+        const resolvedStandard = q.standardId
+          ? { id: q.standardId, label: q.standardLabel }
+          : getStandardForTopic(q.topic);
+        const student = getStudentById(DEFAULT_STUDENT_ID);
+        saveAnswer({
+          questionId: q.id,
+          selectedOptionId: optionId,
+          isCorrect,
+          timestamp: Date.now(),
+          mode: "exam",
+          module: q.module,
+          topic: q.topic,
+          standardId: resolvedStandard.id,
+          standardLabel: resolvedStandard.label,
+          assignmentId,
+          studentId: student?.id,
+          classId: student?.classId,
+          teacherId: student?.teacherId,
+        });
+      }
     },
-    [currentIndex, sessionQuestions]
+    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId]
   );
 
   const toggleFlag = useCallback(() => {
@@ -158,30 +224,46 @@ export function ExamMode({
       sessionQuestions.length > 0
         ? Math.max(5, Math.round(elapsedMs / 1000 / sessionQuestions.length))
         : 0;
-    const batch = sessionQuestions.map((q, i) => {
-      const a = answers[i];
-      const resolvedStandard = q.standardId
-        ? { id: q.standardId, label: q.standardLabel }
-        : getStandardForTopic(q.topic);
-      return {
-        questionId: q.id,
-        selectedOptionId: a?.selectedOptionId ?? "",
-        isCorrect: a?.isCorrect ?? false,
-        timestamp: Date.now(),
-        mode: "exam" as const,
-        module: q.module,
-        topic: q.topic,
-        standardId: resolvedStandard.id,
-        standardLabel: resolvedStandard.label,
-        timeSpentSec: timePerQuestion,
-        studentId: student?.id,
-        classId: student?.classId,
-        teacherId: student?.teacherId,
-      };
-    });
-    saveAnswerBatch(batch.filter((b) => b.selectedOptionId));
+
+    // Assignment runs persist per-question in handleOptionClick to support
+    // mid-exam resume, so the batch save would duplicate rows. Skip it here
+    // and rely on the completion POST below instead.
+    if (!isAssignmentRun) {
+      const batch = sessionQuestions.map((q, i) => {
+        const a = answers[i];
+        const resolvedStandard = q.standardId
+          ? { id: q.standardId, label: q.standardLabel }
+          : getStandardForTopic(q.topic);
+        return {
+          questionId: q.id,
+          selectedOptionId: a?.selectedOptionId ?? "",
+          isCorrect: a?.isCorrect ?? false,
+          timestamp: Date.now(),
+          mode: "exam" as const,
+          module: q.module,
+          topic: q.topic,
+          standardId: resolvedStandard.id,
+          standardLabel: resolvedStandard.label,
+          timeSpentSec: timePerQuestion,
+          studentId: student?.id,
+          classId: student?.classId,
+          teacherId: student?.teacherId,
+        };
+      });
+      saveAnswerBatch(batch.filter((b) => b.selectedOptionId));
+    }
+
+    if (isAssignmentRun && assignmentId) {
+      void fetch(
+        `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
+        { method: "POST" },
+      ).catch(() => {
+        // Best-effort; failure leaves the assignment as in_progress.
+      });
+    }
+
     setPhase("results");
-  }, [answers, sessionQuestions, elapsedMs]);
+  }, [answers, sessionQuestions, elapsedMs, isAssignmentRun, assignmentId]);
 
   if (phase === "config") {
     return (
@@ -454,9 +536,9 @@ export function ExamMode({
                 {question.text}
               </p>
               {question.diagram && (
-                <div className="mb-4 rounded-lg overflow-auto border border-slate-gray/10 max-h-[240px]">
+                <AdaptiveDiagramViewport className="mb-4" maxHeightClassName="max-h-[300px]">
                   <DiagramRenderer diagram={question.diagram} />
-                </div>
+                </AdaptiveDiagramViewport>
               )}
               <div
                 className={`rounded-lg transition-colors ${

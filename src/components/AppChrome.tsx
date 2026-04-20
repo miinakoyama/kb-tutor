@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { MigrationBootstrap } from "@/components/MigrationBootstrap";
+import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,6 +27,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <MigrationBootstrap />
+      {!hideNavigationChrome && <SyncStatusIndicator />}
       {!hideNavigationChrome && (
         <Sidebar isCollapsed={sidebarCollapsed} onToggle={handleToggleSidebar} />
       )}

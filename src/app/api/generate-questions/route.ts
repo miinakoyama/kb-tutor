@@ -3,6 +3,7 @@ import { generateWithGemini, parseGeneratedQuestions } from "@/lib/gemini";
 import { buildGenerationPrompt } from "@/lib/prompts";
 import type { Question, DOKLevel } from "@/types/question";
 import { getAllStandards, getStandardById } from "@/lib/standards";
+import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
 
 interface GenerationSettings {
   questionSetName: string;
@@ -167,6 +168,11 @@ function validateQuestion(
     .replace(/[^a-z0-9]+/g, "-")
     .slice(0, 20);
   const moduleFromStandard = selectedStandard?.module === "B" ? 2 : 1;
+  const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
+    question.inlineTerms,
+    question.sidebarTerms,
+    `${topicSlug}-${index + 1}`,
+  );
   
   return {
     id: `generated-${topicSlug}-${timestamp}-${String(index + 1).padStart(3, "0")}`,
@@ -183,10 +189,13 @@ function validateQuestion(
     focusHint: (question.focusHint as string) || undefined,
     keyKnowledge: (question.keyKnowledge as string) || undefined,
     commonMisconception: (question.commonMisconception as string) || undefined,
+    inlineTerms,
+    sidebarTerms,
     rationaleQuestion: question.rationaleQuestion as Question["rationaleQuestion"],
     source: "generated",
     dok: (question.dok as DOKLevel) || 2,
     isVisible: true,
+    includeInSelfPractice: true,
     generatedAt: new Date().toISOString(),
     diagram: question.diagram as Question["diagram"],
   };

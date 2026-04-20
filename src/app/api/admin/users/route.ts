@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/lib/auth/types";
-import { resolveRole } from "@/lib/auth/role";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 
 async function requireAdmin() {
   const requester = await createSupabaseServerClient();
@@ -15,16 +15,7 @@ async function requireAdmin() {
     .select("id,role")
     .eq("id", user.id)
     .maybeSingle();
-  let role = resolveRole(profile?.role, user);
-  if (role !== "admin") {
-    const admin = createSupabaseAdminClient();
-    const { data: adminProfile } = await admin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    role = resolveRole(adminProfile?.role, user);
-  }
+  const role = await resolveRoleWithServerFallback(user, profile?.role);
   if (role !== "admin") {
     return { ok: false as const, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
@@ -87,6 +78,46 @@ export async function PATCH(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  if (body.role) {
+    const { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(body.id);
+    if (authUserError || !authUser.user) {
+      return NextResponse.json(
+        {
+          error:
+            authUserError?.message ??
+            "Profile role updated, but failed to load auth user for metadata sync.",
+        },
+        { status: 500 },
+      );
+    }
+
+    const currentMetadata =
+      authUser.user.user_metadata &&
+      typeof authUser.user.user_metadata === "object" &&
+      !Array.isArray(authUser.user.user_metadata)
+        ? authUser.user.user_metadata
+        : {};
+
+    const nextMetadata = {
+      ...currentMetadata,
+      role: body.role,
+    };
+
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(body.id, {
+      user_metadata: nextMetadata,
+    });
+
+    if (authUpdateError) {
+      return NextResponse.json(
+        {
+          error: `Profile role updated, but failed to sync auth metadata: ${authUpdateError.message}`,
+        },
+        { status: 500 },
+      );
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }
 
@@ -109,4 +140,3 @@ export async function DELETE(request: Request) {
   }
   return NextResponse.json({ ok: true });
 }
-

@@ -1,6 +1,12 @@
 import type { ConfidenceLevel } from "@/types/question";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import {
+  enqueueAttempt,
+  enqueueAttempts,
+  enqueueBookmark,
+  type AttemptPayload,
+} from "@/lib/sync-queue";
 
 const STORAGE_KEYS = {
   ANSWER_HISTORY: "kb-tutor-answer-history",
@@ -25,6 +31,11 @@ export interface StoredAnswer {
   classId?: string;
   timestamp: number;
   mode: string;
+  /**
+   * Client-generated idempotency key. Persisted so that retries after a silent
+   * network failure don't create duplicate rows. Auto-filled when missing.
+   */
+  clientAttemptId?: string;
 }
 
 export interface TopicAccuracy {
@@ -58,30 +69,100 @@ function canUseRemoteDb(): boolean {
   return typeof window !== "undefined" && hasSupabaseEnv();
 }
 
+/**
+ * Synchronous read of the localStorage cache. Suitable for hot paths that
+ * can't await (e.g. a 1Hz polling indicator). If you need a guaranteed
+ * fresh read that reflects changes from other devices, use
+ * `fetchAnswerHistory()` instead.
+ */
 export function getAnswerHistory(): StoredAnswer[] {
   return safeGetItem<StoredAnswer[]>(STORAGE_KEYS.ANSWER_HISTORY, []);
 }
 
+/**
+ * DB-primary read of the current user's answer history. Falls back to the
+ * localStorage cache when Supabase is unreachable (offline, throttled, etc).
+ * This is the preferred read for rendering paths that can await.
+ */
+export async function fetchAnswerHistory(): Promise<StoredAnswer[]> {
+  if (!canUseRemoteDb()) return getAnswerHistory();
+  return syncAnswerHistoryFromDb();
+}
+
+function generateAttemptId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function withAttemptId(answer: StoredAnswer): StoredAnswer {
+  if (answer.clientAttemptId) return answer;
+  return { ...answer, clientAttemptId: generateAttemptId() };
+}
+
+function toAttemptPayload(answer: StoredAnswer): AttemptPayload {
+  return {
+    clientAttemptId: answer.clientAttemptId ?? generateAttemptId(),
+    questionId: answer.questionId,
+    selectedOptionId: answer.selectedOptionId,
+    isCorrect: answer.isCorrect,
+    mode: answer.mode,
+    module: answer.module ?? null,
+    topic: answer.topic ?? null,
+    standardId: answer.standardId ?? null,
+    standardLabel: answer.standardLabel ?? null,
+    timeSpentSec: answer.timeSpentSec ?? null,
+    assignmentId: answer.assignmentId ?? null,
+    answeredAt: new Date(answer.timestamp).toISOString(),
+  };
+}
+
 export function saveAnswer(answer: StoredAnswer): void {
+  const enriched = withAttemptId(answer);
   const history = getAnswerHistory();
-  history.push(answer);
+  history.push(enriched);
   safeSetItem(STORAGE_KEYS.ANSWER_HISTORY, history);
-  void upsertAttempt(answer);
+  if (canUseRemoteDb()) {
+    enqueueAttempt(toAttemptPayload(enriched));
+  }
 }
 
 export function saveAnswerBatch(answers: StoredAnswer[]): void {
+  const enriched = answers.map(withAttemptId);
   const history = getAnswerHistory();
-  history.push(...answers);
+  history.push(...enriched);
   safeSetItem(STORAGE_KEYS.ANSWER_HISTORY, history);
-  void Promise.all(answers.map((answer) => upsertAttempt(answer)));
+  if (canUseRemoteDb()) {
+    enqueueAttempts(enriched.map(toAttemptPayload));
+  }
 }
 
+/**
+ * Synchronous read of the localStorage bookmark cache. Prefer
+ * `fetchBookmarkIds()` for rendering paths that can await.
+ */
 export function getBookmarkedIds(): string[] {
   return safeGetItem<string[]>(STORAGE_KEYS.BOOKMARKS, []);
 }
 
+/**
+ * Synchronous cache read. Prefer `fetchIsBookmarked(id)` when possible.
+ */
 export function isBookmarked(questionId: string): boolean {
   return getBookmarkedIds().includes(questionId);
+}
+
+/** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
+export async function fetchBookmarkIds(): Promise<string[]> {
+  if (!canUseRemoteDb()) return getBookmarkedIds();
+  return syncBookmarksFromDb();
+}
+
+/** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
+export async function fetchIsBookmarked(questionId: string): Promise<boolean> {
+  const ids = await fetchBookmarkIds();
+  return ids.includes(questionId);
 }
 
 export function addBookmark(questionId: string): void {
@@ -89,14 +170,14 @@ export function addBookmark(questionId: string): void {
   if (!ids.includes(questionId)) {
     ids.push(questionId);
     safeSetItem(STORAGE_KEYS.BOOKMARKS, ids);
-    void setBookmarkInDb(questionId, true);
+    if (canUseRemoteDb()) enqueueBookmark({ questionId, enabled: true });
   }
 }
 
 export function removeBookmark(questionId: string): void {
   const ids = getBookmarkedIds().filter((id) => id !== questionId);
   safeSetItem(STORAGE_KEYS.BOOKMARKS, ids);
-  void setBookmarkInDb(questionId, false);
+  if (canUseRemoteDb()) enqueueBookmark({ questionId, enabled: false });
 }
 
 export function toggleBookmark(questionId: string): boolean {
@@ -123,8 +204,7 @@ export function getTopicAccuracy(topic: string): TopicAccuracy {
   };
 }
 
-export function getIncorrectQuestionIds(): string[] {
-  const history = getAnswerHistory();
+function computeIncorrectIds(history: StoredAnswer[]): string[] {
   const lastAnswerByQuestion = new Map<string, StoredAnswer>();
   for (const answer of history) {
     lastAnswerByQuestion.set(answer.questionId, answer);
@@ -132,6 +212,18 @@ export function getIncorrectQuestionIds(): string[] {
   return Array.from(lastAnswerByQuestion.entries())
     .filter(([, answer]) => !answer.isCorrect)
     .map(([id]) => id);
+}
+
+/**
+ * Synchronous cache read. Prefer `fetchIncorrectQuestionIds()` when possible.
+ */
+export function getIncorrectQuestionIds(): string[] {
+  return computeIncorrectIds(getAnswerHistory());
+}
+
+/** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
+export async function fetchIncorrectQuestionIds(): Promise<string[]> {
+  return computeIncorrectIds(await fetchAnswerHistory());
 }
 
 export function clearHistory(): void {
@@ -143,6 +235,7 @@ export function clearHistory(): void {
 
 function toDbAttempt(answer: StoredAnswer) {
   return {
+    client_attempt_id: answer.clientAttemptId ?? null,
     question_id: answer.questionId,
     selected_option_id: answer.selectedOptionId,
     is_correct: answer.isCorrect,
@@ -155,30 +248,6 @@ function toDbAttempt(answer: StoredAnswer) {
     assignment_id: answer.assignmentId ?? null,
     answered_at: new Date(answer.timestamp).toISOString(),
   };
-}
-
-export async function upsertAttempt(answer: StoredAnswer): Promise<void> {
-  if (!canUseRemoteDb()) return;
-  try {
-    const supabase = getSupabaseBrowserClient();
-    await supabase.from("attempts").insert(toDbAttempt(answer));
-  } catch {
-    // keep local fallback
-  }
-}
-
-async function setBookmarkInDb(questionId: string, enabled: boolean) {
-  if (!canUseRemoteDb()) return;
-  try {
-    const supabase = getSupabaseBrowserClient();
-    if (enabled) {
-      await supabase.from("bookmarks").upsert({ question_id: questionId });
-      return;
-    }
-    await supabase.from("bookmarks").delete().eq("question_id", questionId);
-  } catch {
-    // keep local fallback
-  }
 }
 
 export async function syncBookmarksFromDb(): Promise<string[]> {
@@ -205,7 +274,7 @@ export async function syncAnswerHistoryFromDb(): Promise<StoredAnswer[]> {
     const { data, error } = await supabase
       .from("attempts")
       .select(
-        "question_id,selected_option_id,is_correct,mode,module,topic,standard_id,standard_label,time_spent_sec,assignment_id,answered_at",
+        "question_id,selected_option_id,is_correct,mode,module,topic,standard_id,standard_label,time_spent_sec,assignment_id,answered_at,client_attempt_id",
       )
       .order("answered_at", { ascending: true });
     if (error || !data) return getAnswerHistory();
@@ -222,6 +291,7 @@ export async function syncAnswerHistoryFromDb(): Promise<StoredAnswer[]> {
       timeSpentSec: row.time_spent_sec ? Number(row.time_spent_sec) : undefined,
       assignmentId: row.assignment_id ? String(row.assignment_id) : undefined,
       timestamp: new Date(String(row.answered_at)).getTime(),
+      clientAttemptId: row.client_attempt_id ? String(row.client_attempt_id) : undefined,
     }));
     safeSetItem(STORAGE_KEYS.ANSWER_HISTORY, answers);
     return answers;
@@ -241,7 +311,10 @@ export async function migrateStorageToDatabaseOnce(): Promise<void> {
   try {
     const supabase = getSupabaseBrowserClient();
     if (localAnswers.length > 0) {
-      await supabase.from("attempts").insert(localAnswers.map(toDbAttempt));
+      const rows = localAnswers.map((answer) => toDbAttempt(withAttemptId(answer)));
+      await supabase
+        .from("attempts")
+        .upsert(rows, { onConflict: "client_attempt_id", ignoreDuplicates: true });
     }
     if (localBookmarks.length > 0) {
       await supabase
