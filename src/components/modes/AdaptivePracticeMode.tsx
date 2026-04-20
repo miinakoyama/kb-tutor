@@ -27,6 +27,7 @@ import { shuffleArray } from "@/lib/array-utils";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import glossaryData from "@/data/glossary.json";
+import { trackAnalyticsEvent } from "@/lib/analytics/client";
 
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
@@ -168,6 +169,29 @@ export function AdaptivePracticeMode({
   const completedCount = Object.keys(finalAnswers).length;
   const allCompleted = completedCount === totalQuestions && totalQuestions > 0;
 
+  useEffect(() => {
+    if (!question) return;
+    trackAnalyticsEvent({
+      eventType: mode === "review" ? "review_item_opened" : "question_viewed",
+      mode,
+      questionId: question.id,
+      assignmentId,
+    });
+  }, [assignmentId, mode, question]);
+
+  useEffect(() => {
+    if (!question || !showScaffold) return;
+    trackAnalyticsEvent({
+      eventType: "hint_opened",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      payload: {
+        attemptCount: attempts.length,
+      },
+    });
+  }, [assignmentId, attempts.length, mode, question, showScaffold]);
+
   const glossaryTerms = useMemo(() => {
     if (!question || !showScaffold) return [];
     const allTerms = [...(question.inlineTerms ?? []), ...(question.sidebarTerms ?? [])];
@@ -274,6 +298,20 @@ export function AdaptivePracticeMode({
       classId: student?.classId,
       teacherId: student?.teacherId,
     });
+
+    trackAnalyticsEvent({
+      eventType: "attempt_submitted",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      payload: {
+        selectedOptionId,
+        isCorrect: result.isCorrect,
+        attemptIndex: nextAttempts.length,
+        elapsedSec,
+        showScaffold,
+      },
+    });
   }, [
     assignmentId,
     attempts,
@@ -284,6 +322,7 @@ export function AdaptivePracticeMode({
     questionStartMs,
     isRetryReady,
     selectedOptionId,
+    showScaffold,
   ]);
 
   const handleConfidence = useCallback(
@@ -318,9 +357,14 @@ export function AdaptivePracticeMode({
       return;
     }
     if (allCompleted) {
+      trackAnalyticsEvent({
+        eventType: mode === "review" ? "review_item_completed" : "stage_completed",
+        mode,
+        assignmentId,
+      });
       setShowSummary(true);
     }
-  }, [allCompleted, currentIndex, isCompleted, totalQuestions]);
+  }, [allCompleted, assignmentId, currentIndex, isCompleted, mode, totalQuestions]);
 
   useEffect(() => {
     if (attempts.length === 0) return;

@@ -30,6 +30,7 @@ import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
+import { trackAnalyticsEvent } from "@/lib/analytics/client";
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -130,9 +131,33 @@ export function ExamMode({
     return () => media.removeEventListener("change", update);
   }, []);
 
+  useEffect(() => {
+    if (phase !== "review" || reviewIndex === null) return;
+    const reviewQuestion = sessionQuestions[reviewIndex];
+    if (!reviewQuestion) return;
+    trackAnalyticsEvent({
+      eventType: "review_item_opened",
+      mode: "review",
+      questionId: reviewQuestion.id,
+      assignmentId,
+    });
+  }, [assignmentId, phase, reviewIndex, sessionQuestions]);
+
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.values(answers).filter((a) => a.selectedOptionId).length;
   const unansweredCount = totalQuestions - answeredCount;
+
+  useEffect(() => {
+    if (phase !== "exam") return;
+    const currentQuestion = sessionQuestions[currentIndex];
+    if (!currentQuestion) return;
+    trackAnalyticsEvent({
+      eventType: "question_viewed",
+      mode: "exam",
+      questionId: currentQuestion.id,
+      assignmentId,
+    });
+  }, [assignmentId, currentIndex, phase, sessionQuestions]);
   const startExam = useCallback(() => {
     let selectedQuestions: Question[] = [];
     
@@ -198,6 +223,18 @@ export function ExamMode({
           teacherId: student?.teacherId,
         });
       }
+
+      trackAnalyticsEvent({
+        eventType: "attempt_submitted",
+        mode: "exam",
+        questionId: q.id,
+        assignmentId,
+        payload: {
+          selectedOptionId: optionId,
+          isCorrect,
+          isAssignmentRun,
+        },
+      });
     },
     [currentIndex, sessionQuestions, isAssignmentRun, assignmentId]
   );
@@ -261,8 +298,19 @@ export function ExamMode({
       });
     }
 
+    trackAnalyticsEvent({
+      eventType: "stage_completed",
+      mode: "exam",
+      assignmentId,
+      payload: {
+        answeredCount,
+        totalQuestions: sessionQuestions.length,
+        elapsedMs,
+      },
+    });
+
     setPhase("results");
-  }, [answers, sessionQuestions, elapsedMs, isAssignmentRun, assignmentId]);
+  }, [answers, sessionQuestions, elapsedMs, isAssignmentRun, assignmentId, answeredCount]);
 
   if (phase === "config") {
     return (
