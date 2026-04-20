@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/lib/auth/types";
-import { resolveRole } from "@/lib/auth/role";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 
 interface StaffProvisionPayload {
   email: string;
@@ -25,16 +25,7 @@ export async function POST(request: Request) {
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
-  let requesterRole = resolveRole(requesterProfile?.role, user);
-  if (requesterRole !== "admin") {
-    const admin = createSupabaseAdminClient();
-    const { data: adminProfile } = await admin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    requesterRole = resolveRole(adminProfile?.role, user);
-  }
+  const requesterRole = await resolveRoleWithServerFallback(user, requesterProfile?.role);
   if (requesterRole !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

@@ -10,6 +10,10 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
+  Pencil,
+  Check,
+  X,
+  ClipboardList,
 } from "lucide-react";
 import questionsData from "@/data/questions.json";
 import questionSetsData from "@/data/question-sets.json";
@@ -23,6 +27,7 @@ import {
   deleteGeneratedQuestionFromStorage,
   toggleIncludeInSelfPractice,
   deleteGeneratedQuestionSet,
+  updateGeneratedQuestionSetName,
 } from "@/lib/question-storage";
 import { getDefaultStandardForTopic } from "@/lib/standards";
 
@@ -50,6 +55,9 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratedFromDb, setIsGeneratedFromDb] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isEditingSetName, setIsEditingSetName] = useState(false);
+  const [setNameDraft, setSetNameDraft] = useState("");
+  const [isSavingSetName, setIsSavingSetName] = useState(false);
 
   const loadData = useCallback(async () => {
     const decodedSetId = decodeURIComponent(setId);
@@ -62,6 +70,8 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
       setQuestionSet(fileSet);
       setQuestions(filteredQuestions);
       setIsGeneratedFromDb(false);
+      setIsEditingSetName(false);
+      setSetNameDraft(fileSet.name);
       setIsLoading(false);
       return;
     }
@@ -73,6 +83,8 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
       setQuestionSet(localSet);
       setQuestions(localQuestions);
       setIsGeneratedFromDb(true);
+      setIsEditingSetName(false);
+      setSetNameDraft(localSet.name);
       setIsLoading(false);
       return;
     }
@@ -215,6 +227,33 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     downloadAsText(toDownload, filename);
   };
 
+  const handleSaveSetName = async () => {
+    if (!isGeneratedFromDb || !questionSet) return;
+    setActionError(null);
+    const trimmed = setNameDraft.trim();
+    if (!trimmed) {
+      setActionError("Question set name cannot be empty.");
+      return;
+    }
+    if (trimmed === questionSet.name.trim()) {
+      setIsEditingSetName(false);
+      return;
+    }
+    setIsSavingSetName(true);
+    try {
+      const updatedName = await updateGeneratedQuestionSetName(questionSet.id, trimmed);
+      setQuestionSet((prev) => (prev ? { ...prev, name: updatedName } : prev));
+      setSetNameDraft(updatedName);
+      setIsEditingSetName(false);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Failed to update question set name.",
+      );
+    } finally {
+      setIsSavingSetName(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -267,9 +306,60 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-gray">
-            {questionSet.name}
-          </h1>
+          {isGeneratedFromDb && isEditingSetName ? (
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <input
+                type="text"
+                value={setNameDraft}
+                onChange={(event) => setSetNameDraft(event.target.value)}
+                className="min-w-[260px] max-w-xl w-full px-3 py-2 rounded-lg border border-slate-gray/20 focus:outline-none focus:ring-2 focus:ring-[#16a34a]/40 text-base font-semibold text-slate-gray"
+                placeholder="Question set name"
+                disabled={isSavingSetName}
+              />
+              <button
+                type="button"
+                onClick={() => void handleSaveSetName()}
+                disabled={isSavingSetName}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSetNameDraft(questionSet.name);
+                  setIsEditingSetName(false);
+                  setActionError(null);
+                }}
+                disabled={isSavingSetName}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-slate-gray/20 text-slate-gray hover:bg-slate-gray/5 disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h1 className="text-xl font-bold text-slate-gray">
+                {questionSet.name}
+              </h1>
+              {isGeneratedFromDb && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSetNameDraft(questionSet.name);
+                    setIsEditingSetName(true);
+                    setActionError(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-gray/20 text-slate-gray hover:bg-slate-gray/5"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Rename
+                </button>
+              )}
+            </div>
+          )}
           <p className="text-sm text-slate-gray/70">
             {questions.length} question(s)
             {isGeneratedFromDb &&
@@ -288,6 +378,15 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {isGeneratedFromDb && questionSet && (
+            <Link
+              href={`/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}`}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-[#16a34a] hover:bg-[#15803d] transition-colors"
+            >
+              <ClipboardList className="w-4 h-4" />
+              Create assignment from this set
+            </Link>
+          )}
           {isGeneratedFromDb && (
             <button
               onClick={handleDeleteAll}

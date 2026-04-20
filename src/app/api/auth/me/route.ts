@@ -2,22 +2,12 @@ import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveMetadataRole, resolveProfileRole } from "@/lib/auth/role";
 
 type AppRole = "student" | "teacher" | "admin";
 
-const VALID_ROLES: AppRole[] = ["student", "teacher", "admin"];
-
-function parseRole(value: unknown): AppRole | null {
-  if (typeof value !== "string") return null;
-  return VALID_ROLES.includes(value as AppRole) ? (value as AppRole) : null;
-}
-
 function inferRoleFromUser(user: User): AppRole {
-  return (
-    parseRole(user.user_metadata?.role) ??
-    parseRole(user.app_metadata?.role) ??
-    "student"
-  );
+  return resolveMetadataRole(user) ?? "student";
 }
 
 export async function GET() {
@@ -36,12 +26,13 @@ export async function GET() {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile) {
+  const sessionProfileRole = resolveProfileRole(profile?.role);
+  if (profile && sessionProfileRole) {
     return NextResponse.json({ user, profile }, { status: 200 });
   }
 
-  // If RLS/session query fails, re-check via service-role to avoid incorrect UI fallback.
-  if (profileError) {
+  // If session profile is missing/invalid, re-check via service-role before metadata fallback.
+  if (!sessionProfileRole || profileError) {
     const admin = createSupabaseAdminClient();
     const { data: adminProfile } = await admin
       .from("profiles")
@@ -49,7 +40,7 @@ export async function GET() {
       .eq("id", user.id)
       .maybeSingle();
 
-    if (adminProfile) {
+    if (adminProfile && resolveProfileRole(adminProfile.role)) {
       return NextResponse.json({ user, profile: adminProfile }, { status: 200 });
     }
   }
@@ -89,4 +80,3 @@ export async function GET() {
     { status: 200 },
   );
 }
-

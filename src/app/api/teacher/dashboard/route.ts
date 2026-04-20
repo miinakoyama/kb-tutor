@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveRole } from "@/lib/auth/role";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -14,7 +14,7 @@ async function requireTeacher() {
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
-  const role = resolveRole(profile?.role, user);
+  const role = await resolveRoleWithServerFallback(user, profile?.role);
   if (!role || !["teacher", "admin"].includes(role)) {
     return { ok: false as const, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
