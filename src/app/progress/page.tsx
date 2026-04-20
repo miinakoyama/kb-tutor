@@ -19,10 +19,7 @@ import {
   type AttemptRow,
   type MasteryDatum,
 } from "@/lib/progress/mastery";
-import {
-  getBrowserTimeZone,
-  DEFAULT_APP_TIME_ZONE,
-} from "@/lib/timezone";
+import { getBrowserTimeZone, DEFAULT_APP_TIME_ZONE } from "@/lib/timezone";
 import { syncTimeZoneFromDb } from "@/lib/timezone-settings";
 
 const PROGRESS_LOOKBACK_DAYS = 365;
@@ -162,7 +159,7 @@ export default function ProgressPage() {
             Topic Mastery
           </h2>
           <p className="text-sm text-slate-gray/80 mb-4">
-            Mastery by module/category topics. Low-attempt topics use a gentle estimate to avoid overly harsh early scores.
+            Mastery by module/category topics.
           </p>
           <p className="text-xs text-slate-gray/70 mb-3">
             {isLoading
@@ -203,11 +200,17 @@ export default function ProgressPage() {
                     if (!payload || payload.level === "insufficient_data") {
                       return ["Not enough data yet", "Mastery"];
                     }
-                    const suffix = payload.level === "estimated" ? " (estimated)" : "";
-                    return [`${mastery}% (${attempts} attempts)${suffix}`, "Mastery"];
+                    const suffix =
+                      payload.level === "estimated" ? " (estimated)" : "";
+                    return [
+                      `${mastery}% (${attempts} attempts)${suffix}`,
+                      "Mastery",
+                    ];
                   }}
                   labelFormatter={(label, payload) => {
-                    const row = payload?.[0]?.payload as MasteryDatum | undefined;
+                    const row = payload?.[0]?.payload as
+                      | MasteryDatum
+                      | undefined;
                     return row?.fullTopic ?? String(label ?? "");
                   }}
                 />

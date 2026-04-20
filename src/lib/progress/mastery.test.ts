@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getStandardsForModule } from "@/lib/standards";
-import { calculateMastery, PROGRESS_TOPICS } from "@/lib/progress/mastery";
+import {
+  calculateMastery,
+  PROGRESS_TOPICS,
+  type AttemptRow,
+} from "@/lib/progress/mastery";
 
 function getTopicKeyFromStandard(standardId: string): string {
   for (const { module } of PROGRESS_TOPICS) {
@@ -25,11 +29,11 @@ describe("calculateMastery", () => {
     const standard = getStandardsForModule("A")[0];
     const key = getTopicKeyFromStandard(standard.id);
 
-    const rows = [
+    const rows: AttemptRow[] = [
       {
         is_correct: false,
         answered_at: "2026-01-01T00:00:00.000Z",
-        topic: standard.topic,
+        topic: null,
         standard_id: standard.id,
       },
     ];
@@ -48,23 +52,23 @@ describe("calculateMastery", () => {
     const standard = getStandardsForModule("A")[0];
     const key = getTopicKeyFromStandard(standard.id);
 
-    const rows = [
+    const rows: AttemptRow[] = [
       {
         is_correct: true,
         answered_at: "2026-01-01T00:00:00.000Z",
-        topic: standard.topic,
+        topic: null,
         standard_id: standard.id,
       },
       {
         is_correct: false,
         answered_at: "2026-01-02T00:00:00.000Z",
-        topic: standard.topic,
+        topic: null,
         standard_id: standard.id,
       },
       {
         is_correct: true,
         answered_at: "2026-01-03T00:00:00.000Z",
-        topic: standard.topic,
+        topic: null,
         standard_id: standard.id,
       },
     ];
