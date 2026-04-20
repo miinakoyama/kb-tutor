@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import type { PracticeMode } from "@/types/question";
@@ -22,6 +23,12 @@ interface PracticeHeaderProps {
   currentQuestion?: number;
   totalQuestions?: number;
   answeredCount?: number;
+  /**
+   * Optional slot rendered on the right side of the topic/progress block.
+   * Used by exam mode to inline the timer and submit button so they share
+   * vertical space with the progress indicator.
+   */
+  rightSlot?: ReactNode;
 }
 
 export function PracticeHeader({
@@ -35,6 +42,7 @@ export function PracticeHeader({
   currentQuestion,
   totalQuestions,
   answeredCount,
+  rightSlot,
 }: PracticeHeaderProps) {
   const modeLabel = customModeLabel ?? MODE_LABELS[mode];
   const isBackToHome = backHref === "/";
@@ -62,34 +70,43 @@ export function PracticeHeader({
       )}
 
       <div className={compactSpacing ? "mb-2" : "mb-3"}>
-        {topicName && (
-          <h1 className="text-xl font-bold font-heading text-[#14532d] mb-1">
-            {topicName}
-          </h1>
-        )}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-          <span className="text-[#16a34a] font-medium">{modeLabel}</span>
-          {showProgress && (
-            <>
-              <span className="text-slate-gray/40">·</span>
-              <span className="text-slate-gray/60">
-                {useAnsweredProgress
-                  ? `${answeredCount} of ${totalQuestions} answered`
-                  : `Question ${currentQuestion} of ${totalQuestions}`}
-              </span>
-              {inlineProgress && (
-                <span className="ml-1 inline-flex items-center min-w-0 w-24 sm:w-36">
-                  <span className="h-1.5 w-full bg-slate-gray/10 rounded-full overflow-hidden">
-                    <motion.span
-                      className="block h-full rounded-full bg-[#16a34a]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progressPercent}%` }}
-                      transition={{ duration: 0.3 }}
-                    />
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            {topicName && (
+              <h1 className="text-xl font-bold font-heading text-[#14532d] mb-1">
+                {topicName}
+              </h1>
+            )}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              <span className="text-[#16a34a] font-medium">{modeLabel}</span>
+              {showProgress && (
+                <>
+                  <span className="text-slate-gray/40">·</span>
+                  <span className="text-slate-gray/60">
+                    {useAnsweredProgress
+                      ? `${answeredCount} of ${totalQuestions} answered`
+                      : `Question ${currentQuestion} of ${totalQuestions}`}
                   </span>
-                </span>
+                  {inlineProgress && (
+                    <span className="ml-1 inline-flex items-center min-w-0 w-24 sm:w-36">
+                      <span className="h-1.5 w-full bg-slate-gray/10 rounded-full overflow-hidden">
+                        <motion.span
+                          className="block h-full rounded-full bg-[#16a34a]"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progressPercent}%` }}
+                          transition={{ duration: 0.3 }}
+                        />
+                      </span>
+                    </span>
+                  )}
+                </>
               )}
-            </>
+            </div>
+          </div>
+          {rightSlot && (
+            <div className="flex-shrink-0 flex items-center gap-3">
+              {rightSlot}
+            </div>
           )}
         </div>
       </div>

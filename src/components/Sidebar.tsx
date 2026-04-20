@@ -291,8 +291,9 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       );
     });
 
-  const renderSections = (closeMobileMenu = false) =>
-    navSections.map((section, index) => (
+  const renderSections = (closeMobileMenu = false) => {
+    if (!roleLoaded) return null;
+    return navSections.map((section, index) => (
       <div key={section.title ?? `section-${index}`} className={index > 0 ? "mt-4 pt-4 border-t border-white/10" : ""}>
         {section.title && !isCollapsed && (
           <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-white/50">
@@ -302,6 +303,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         <div className="space-y-1">{renderNavItems(section.items, closeMobileMenu)}</div>
       </div>
     ));
+  };
 
   const userMenuPopup = (
     <AnimatePresence>
@@ -406,10 +408,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       {userButton}
     </>
   );
-
-  if (!roleLoaded) {
-    return null;
-  }
 
   return (
     <>

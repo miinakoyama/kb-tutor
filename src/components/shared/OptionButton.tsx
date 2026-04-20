@@ -36,7 +36,10 @@ export function OptionButton({
   const iconRef = useRef<HTMLSpanElement>(null);
 
   const shouldShowIcon =
-    showFeedbackIcon && isAnswered && !showCorrect && !isSelected && option.feedback;
+    showFeedbackIcon && isAnswered && Boolean(option.feedback);
+  const tooltipHeading = showCorrect
+    ? "Why this is correct"
+    : "Why this is incorrect";
 
   useEffect(() => {
     if (!showTooltip) return;
@@ -127,7 +130,7 @@ export function OptionButton({
               setShowTooltip(!showTooltip);
             }}
             onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={(e) => {
+            onMouseLeave={() => {
               // Only close on mouse leave for pointer devices; touch has no hover state
               if (window.matchMedia("(hover: hover)").matches) setShowTooltip(false);
             }}
@@ -138,7 +141,7 @@ export function OptionButton({
               }
             }}
             className="flex-shrink-0 p-2.5 rounded-full text-slate-gray/40 hover:text-slate-gray/70 hover:bg-slate-gray/10 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label="Why this option is incorrect"
+            aria-label={tooltipHeading}
           >
             <Info className="w-4 h-4" />
           </span>
@@ -151,7 +154,7 @@ export function OptionButton({
           className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-xl border border-slate-gray/20 bg-white shadow-lg"
         >
           <p className="text-xs font-semibold text-slate-gray/60 mb-1">
-            Why this is incorrect
+            {tooltipHeading}
           </p>
           <p className="text-sm text-slate-gray leading-relaxed">
             {option.feedback?.replace(/^(Correct\.|Incorrect\.)\s*/i, "").trim()}

@@ -11,7 +11,7 @@ const MAX_LABEL_LINES = 3;
 const MAX_CHARS_PER_LINE = 18;
 const EDGE_LABEL_BG_HEIGHT = 16;
 const VIEWBOX_WIDTH = 400;
-const VIEWBOX_HEIGHT = 420;
+const VIEWBOX_HEIGHT = 280;
 
 function getOffsetEdgeLabelPosition(
   x1: number,
@@ -73,17 +73,30 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
   );
   const nodePositions = calculateNodePositions(data, nodeHeights);
 
+  // Expand the viewBox vertically when nodes plus the minimum gap would
+  // otherwise overflow the default VIEWBOX_HEIGHT. This keeps arrows
+  // readable while ensuring the last node is never clipped.
+  const maxNodeBottom = data.nodes.reduce((max, node) => {
+    const pos = nodePositions[node.id];
+    if (!pos) return max;
+    const h = nodeHeights[node.id] ?? NODE_MIN_HEIGHT;
+    return Math.max(max, pos.y + h / 2);
+  }, 0);
+  const effectiveViewBoxHeight = Math.max(
+    VIEWBOX_HEIGHT,
+    Math.ceil(maxNodeBottom + 12),
+  );
+
   return (
-    <div className="w-full bg-white p-4 border border-gray-300 rounded">
+    <div className="mx-auto w-full max-w-[460px] bg-white p-4 border border-gray-300 rounded">
       {data.title && (
         <h3 className="text-center text-sm font-bold text-black mb-2">
           {data.title}
         </h3>
       )}
       <svg
-        viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-        className="w-full h-auto max-h-[260px] sm:max-h-[360px]"
-        style={{ minHeight: "180px" }}
+        viewBox={`0 0 ${VIEWBOX_WIDTH} ${effectiveViewBoxHeight}`}
+        className="block w-full h-auto"
       >
         <defs>
           <marker
@@ -215,8 +228,9 @@ function calculateNodePositions(
       };
     });
 
-    // If explicit y-positions are too compressed, stretch them vertically
-    // so arrow segments remain readable.
+    // If explicit y-positions are extremely compressed, nudge them apart
+    // just enough to keep arrow segments readable. Keep the target range
+    // modest so arrows don't feel overly long.
     const ys = data.nodes
       .map((node) => positions[node.id]?.y)
       .filter((y): y is number => typeof y === "number");
@@ -224,9 +238,10 @@ function calculateNodePositions(
       const minY = Math.min(...ys);
       const maxY = Math.max(...ys);
       const range = maxY - minY;
+      const minReadableRange = 140;
 
-      if (range > 0 && range < 280) {
-        const targetRange = 320;
+      if (range > 0 && range < minReadableRange) {
+        const targetRange = minReadableRange;
         const scale = targetRange / range;
         const centerY = (minY + maxY) / 2;
 
@@ -238,15 +253,17 @@ function calculateNodePositions(
       }
     }
   } else {
-    const topPadding = 18;
-    const bottomPadding = 18;
+    const topPadding = 12;
+    const bottomPadding = 12;
     const availableHeight = VIEWBOX_HEIGHT - topPadding - bottomPadding;
     const heights = data.nodes.map((node) => nodeHeights[node.id] ?? NODE_MIN_HEIGHT);
     const totalNodeHeight = heights.reduce((sum, height) => sum + height, 0);
 
     const gapCount = Math.max(nodeCount - 1, 1);
     const computedGap = Math.floor((availableHeight - totalNodeHeight) / gapCount);
-    const gap = Math.max(16, computedGap);
+    // Keep arrows compact: floor the gap at 10 and cap at 28 so nodes never
+    // spread so far apart that the arrow looks like empty space.
+    const gap = Math.max(10, Math.min(28, computedGap));
 
     let cursorY = topPadding;
     data.nodes.forEach((node, index) => {
