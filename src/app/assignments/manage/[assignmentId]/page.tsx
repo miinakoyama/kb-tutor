@@ -57,6 +57,20 @@ interface DetailPayload {
   source_type: SourceType | null;
   targets: { total: number; student_ids: string[] };
   attempts: { total: number; respondents: number; correct: number };
+  student_progress: StudentProgressEntry[];
+}
+
+type StudentProgressStatus = "not_started" | "in_progress" | "completed";
+
+interface StudentProgressEntry {
+  student_user_id: string;
+  student_id: string | null;
+  display_name: string | null;
+  answered_questions: number;
+  total_questions: number;
+  completion_rate: number;
+  status: StudentProgressStatus;
+  last_completed_at: string | null;
 }
 
 export default function AssignmentDetailPage() {
@@ -406,6 +420,8 @@ function AssignmentDetailContent({
           sourceType={initial.source_type}
         />
       )}
+
+      <StudentProgressSection students={initial.student_progress} />
     </main>
   );
 }
@@ -578,6 +594,108 @@ function ReviewScopeDisplay({ assignment }: { assignment: AssignmentDetail }) {
           <CalendarDays className="w-3.5 h-3.5" />
           Due {formatDueDateTime(assignment.due_date)}
         </p>
+      )}
+    </section>
+  );
+}
+
+function StudentProgressSection({
+  students,
+}: {
+  students: StudentProgressEntry[];
+}) {
+  const sortedStudents = useMemo(
+    () =>
+      [...students].sort((a, b) => {
+        const lhs = a.student_id ?? a.display_name ?? a.student_user_id;
+        const rhs = b.student_id ?? b.display_name ?? b.student_user_id;
+        return lhs.localeCompare(rhs);
+      }),
+    [students],
+  );
+
+  const statusStyles: Record<StudentProgressStatus, string> = {
+    not_started: "bg-slate-100 text-slate-700 border-slate-200",
+    in_progress: "bg-amber-50 text-amber-700 border-amber-200",
+    completed: "bg-green-50 text-green-700 border-green-200",
+  };
+
+  const statusLabel: Record<StudentProgressStatus, string> = {
+    not_started: "Not started",
+    in_progress: "In progress",
+    completed: "Completed",
+  };
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-base font-semibold text-slate-gray">
+          Student progress
+        </h2>
+        <p className="text-xs text-slate-gray/70">
+          {sortedStudents.length} student{sortedStudents.length === 1 ? "" : "s"}
+        </p>
+      </div>
+
+      {sortedStudents.length === 0 ? (
+        <p className="text-sm text-slate-gray/70">
+          No students are assigned to this assignment.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-gray/70">
+                <th className="px-3 py-2 font-semibold">Student ID</th>
+                <th className="px-3 py-2 font-semibold">Name</th>
+                <th className="px-3 py-2 font-semibold">Progress</th>
+                <th className="px-3 py-2 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedStudents.map((student) => {
+                const progressRatio =
+                  student.total_questions > 0
+                    ? Math.min(1, student.answered_questions / student.total_questions)
+                    : 0;
+                return (
+                  <tr
+                    key={student.student_user_id}
+                    className="border-b border-slate-100 last:border-b-0"
+                  >
+                    <td className="px-3 py-2 text-slate-gray">
+                      {student.student_id ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-gray">
+                      {student.display_name ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 min-w-[220px]">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-full max-w-[140px] overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className="h-full bg-[#16a34a]"
+                            style={{ width: `${progressRatio * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-gray/70 whitespace-nowrap">
+                          {student.answered_questions}/{student.total_questions} (
+                          {student.completion_rate}%)
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusStyles[student.status]}`}
+                      >
+                        {statusLabel[student.status]}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

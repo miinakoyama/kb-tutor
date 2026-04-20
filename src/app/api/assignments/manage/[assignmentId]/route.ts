@@ -128,11 +128,11 @@ export async function GET(
       .order("order_index", { ascending: true }),
     admin
       .from("assignment_targets")
-      .select("student_user_id")
+      .select("student_user_id,last_completed_at")
       .eq("assignment_id", assignmentId),
     admin
       .from("attempts")
-      .select("user_id,question_id,is_correct")
+      .select("user_id,question_id,is_correct,answered_at")
       .eq("assignment_id", assignmentId),
     admin
       .from("schools")
@@ -168,6 +168,99 @@ export async function GET(
     if (row.is_correct) correctAttempts += 1;
   }
 
+  const targetStudentIds = (targetRows ?? []).map((row) =>
+    String(row.student_user_id),
+  );
+  const uniqueTargetStudentIds = [...new Set(targetStudentIds)];
+  const { data: profileRows, error: profileError } =
+    uniqueTargetStudentIds.length > 0
+      ? await admin
+          .from("profiles")
+          .select("id,student_id,display_name")
+          .in("id", uniqueTargetStudentIds)
+      : { data: [], error: null };
+  if (profileError) {
+    return NextResponse.json({ error: profileError.message }, { status: 400 });
+  }
+
+  const profileById = new Map<
+    string,
+    { student_id: string | null; display_name: string | null }
+  >(
+    (profileRows ?? []).map((profile) => [
+      String(profile.id),
+      {
+        student_id:
+          typeof profile.student_id === "string" ? profile.student_id : null,
+        display_name:
+          typeof profile.display_name === "string" ? profile.display_name : null,
+      },
+    ]),
+  );
+
+  const lastCompletedByStudent = new Map<string, string | null>();
+  for (const row of targetRows ?? []) {
+    const studentUserId = String(row.student_user_id);
+    const lastCompletedAt =
+      typeof row.last_completed_at === "string" ? row.last_completed_at : null;
+    lastCompletedByStudent.set(studentUserId, lastCompletedAt);
+  }
+
+  const answeredByStudent = new Map<string, Set<string>>();
+  for (const row of attemptRows ?? []) {
+    const studentUserId = String(row.user_id);
+    const lastCompletedAt = lastCompletedByStudent.get(studentUserId) ?? null;
+    if (lastCompletedAt) {
+      const answeredAt =
+        typeof row.answered_at === "string" ? row.answered_at : null;
+      if (!answeredAt) continue;
+      if (new Date(answeredAt).getTime() <= new Date(lastCompletedAt).getTime()) {
+        continue;
+      }
+    }
+    if (!answeredByStudent.has(studentUserId)) {
+      answeredByStudent.set(studentUserId, new Set());
+    }
+    answeredByStudent.get(studentUserId)?.add(String(row.question_id));
+  }
+
+  const totalQuestions =
+    assignment.mode === "review"
+      ? Math.max(0, assignment.max_questions ?? 0)
+      : questions.length;
+  const studentProgress = uniqueTargetStudentIds.map((studentUserId) => {
+    const profile = profileById.get(studentUserId);
+    const answered = answeredByStudent.get(studentUserId)?.size ?? 0;
+    const lastCompletedAt = lastCompletedByStudent.get(studentUserId) ?? null;
+    const status = lastCompletedAt
+      ? "completed"
+      : answered > 0
+        ? "in_progress"
+        : "not_started";
+    return {
+      student_user_id: studentUserId,
+      student_id: profile?.student_id ?? null,
+      display_name: profile?.display_name ?? null,
+      answered_questions:
+        status === "completed"
+          ? totalQuestions
+          : Math.min(answered, totalQuestions),
+      total_questions: totalQuestions,
+      completion_rate:
+        totalQuestions > 0
+          ? Math.round(
+              (((status === "completed" ? totalQuestions : answered) /
+                totalQuestions) *
+                100 +
+                Number.EPSILON) *
+                10,
+            ) / 10
+          : 0,
+      status,
+      last_completed_at: lastCompletedAt,
+    };
+  });
+
   const sourceType =
     questions.length > 0 ? questions[0].sourceType : null;
 
@@ -187,6 +280,7 @@ export async function GET(
       respondents: respondents.size,
       correct: correctAttempts,
     },
+    student_progress: studentProgress,
   });
 }
 
