@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock,
+  Flame,
   NotebookPen,
   Play,
 } from "lucide-react";
@@ -16,11 +17,17 @@ import type {
   StudentAssignmentStatus,
 } from "@/lib/student-assignments";
 import { formatDueDateTime } from "@/lib/due-date";
+import {
+  daysUntilExam,
+  formatExamDate,
+  type KeystoneExamInfo,
+} from "@/lib/keystone-exam";
 import { AssignmentModeBadge } from "@/components/assignments/AssignmentModeBadge";
 
 interface HomePageContentProps {
   assignments: StudentAssignmentListItem[];
   notifications: StudentNotification[];
+  keystoneExam?: KeystoneExamInfo | null;
 }
 
 const TODO_LIMIT = 3;
@@ -28,6 +35,7 @@ const TODO_LIMIT = 3;
 export function HomePageContent({
   assignments,
   notifications,
+  keystoneExam = null,
 }: HomePageContentProps) {
   const topNotifications = notifications.slice(0, 3);
   const unreadCount = notifications.filter((item) => !item.read).length;
@@ -46,6 +54,8 @@ export function HomePageContent({
           Home
         </h1>
       </section>
+
+      {keystoneExam && <KeystoneExamCountdown exam={keystoneExam} />}
 
       <section className="grid gap-4 lg:grid-cols-3 mb-6">
         <div className="lg:col-span-3 rounded-2xl border border-[#16a34a]/25 bg-white p-5 sm:p-6 shadow-sm">
@@ -143,6 +153,124 @@ export function HomePageContent({
       </section>
     </main>
   );
+}
+
+function KeystoneExamCountdown({ exam }: { exam: KeystoneExamInfo }) {
+  const days = daysUntilExam(exam.examDate);
+  if (days === null || days < 0) return null;
+
+  const { accent, subtitle } = getCountdownTone(days);
+  const headline =
+    days === 0 ? "Today" : days === 1 ? "1 day" : `${days} days`;
+
+  return (
+    <section
+      aria-label="Keystone exam countdown"
+      className={`mb-6 rounded-2xl border ${accent.border} ${accent.bg} p-5 sm:p-6 shadow-sm`}
+    >
+      <div className="flex items-start gap-4 sm:gap-5">
+        <div
+          className={`hidden sm:flex items-center justify-center w-12 h-12 rounded-full ${accent.iconBg} ${accent.iconText}`}
+        >
+          <Flame className="w-6 h-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div
+            className={`inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${accent.label}`}
+          >
+            <Flame className="w-4 h-4 sm:hidden" />
+            Keystone Exam
+          </div>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            {days === 0 ? (
+              <span
+                className={`text-3xl sm:text-4xl font-extrabold ${accent.headline}`}
+              >
+                It&apos;s exam day
+              </span>
+            ) : (
+              <>
+                <span
+                  className={`text-4xl sm:text-5xl font-extrabold ${accent.headline}`}
+                >
+                  {headline}
+                </span>
+                <span
+                  className={`text-sm sm:text-base font-semibold ${accent.text}`}
+                >
+                  to go
+                </span>
+              </>
+            )}
+          </div>
+          <p className={`mt-1 text-sm ${accent.text}`}>{subtitle}</p>
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-slate-gray/70">
+            <CalendarDays className="w-3.5 h-3.5" />
+            Exam date: {formatExamDate(exam.examDate)}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+type CountdownTone = {
+  border: string;
+  bg: string;
+  iconBg: string;
+  iconText: string;
+  label: string;
+  headline: string;
+  text: string;
+};
+
+function getCountdownTone(days: number): {
+  accent: CountdownTone;
+  subtitle: string;
+} {
+  if (days <= 7) {
+    return {
+      accent: {
+        border: "border-red-300",
+        bg: "bg-gradient-to-r from-red-50 to-orange-50",
+        iconBg: "bg-red-100",
+        iconText: "text-red-600",
+        label: "text-red-700",
+        headline: "text-red-700",
+        text: "text-red-700/90",
+      },
+      subtitle:
+        days === 0
+          ? "Stay focused — you've got this!"
+          : "Final stretch. Every practice session counts.",
+    };
+  }
+  if (days <= 30) {
+    return {
+      accent: {
+        border: "border-amber-300",
+        bg: "bg-gradient-to-r from-amber-50 to-yellow-50",
+        iconBg: "bg-amber-100",
+        iconText: "text-amber-600",
+        label: "text-amber-700",
+        headline: "text-amber-700",
+        text: "text-amber-800/90",
+      },
+      subtitle: "The exam is coming up. Keep your streak going!",
+    };
+  }
+  return {
+    accent: {
+      border: "border-[#16a34a]/40",
+      bg: "bg-gradient-to-r from-emerald-50 to-green-50",
+      iconBg: "bg-[#16a34a]/15",
+      iconText: "text-[#16a34a]",
+      label: "text-[#15803d]",
+      headline: "text-[#14532d]",
+      text: "text-[#14532d]/80",
+    },
+    subtitle: "Plenty of time — steady practice builds confidence.",
+  };
 }
 
 function TodoRow({ assignment }: { assignment: StudentAssignmentListItem }) {
