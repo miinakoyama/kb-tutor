@@ -536,7 +536,7 @@ export function ExamMode({
                 {question.text}
               </p>
               {question.diagram && (
-                <AdaptiveDiagramViewport className="mb-4" maxHeightClassName="max-h-[240px]">
+                <AdaptiveDiagramViewport className="mb-4" maxHeightClassName="max-h-[300px]">
                   <DiagramRenderer diagram={question.diagram} />
                 </AdaptiveDiagramViewport>
               )}

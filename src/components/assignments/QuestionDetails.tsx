@@ -38,7 +38,7 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
             </div>
           )}
           {question.diagram && (
-            <AdaptiveDiagramViewport maxHeightClassName="max-h-72">
+            <AdaptiveDiagramViewport maxHeightClassName="max-h-[340px]">
               <DiagramRenderer diagram={question.diagram} />
             </AdaptiveDiagramViewport>
           )}

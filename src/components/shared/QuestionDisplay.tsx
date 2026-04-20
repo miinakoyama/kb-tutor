@@ -125,7 +125,7 @@ export function QuestionDisplay({
         {question.diagram && (
           <AdaptiveDiagramViewport
             className={compactLayout ? "my-3" : "my-4"}
-            maxHeightClassName={compactLayout ? "max-h-[240px]" : "max-h-[320px]"}
+            maxHeightClassName={compactLayout ? "max-h-[300px]" : "max-h-[380px]"}
           >
             <DiagramRenderer diagram={question.diagram} />
           </AdaptiveDiagramViewport>
