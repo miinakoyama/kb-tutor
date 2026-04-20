@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { HomePageContent } from "@/components/HomePageContent";
 import { getStudentNotifications } from "@/lib/notifications";
 import { getStudentAssignmentList } from "@/lib/student-assignments";
-import { DEFAULT_APP_TIME_ZONE, normalizeTimeZone } from "@/lib/timezone";
+import { getStudentUserSettings } from "@/lib/user-settings";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -15,17 +15,14 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const { data: settingsData } = await supabase
-    .from("user_settings")
-    .select("time_zone")
-    .maybeSingle();
-  const timeZone = normalizeTimeZone(
-    settingsData?.time_zone,
-    DEFAULT_APP_TIME_ZONE,
-  );
+  const { timeZone, notificationsLastReadAt } =
+    await getStudentUserSettings(supabase);
 
   const [notificationResult, assignmentResult] = await Promise.all([
-    getStudentNotifications(supabase, user.id, { timeZone }),
+    getStudentNotifications(supabase, user.id, {
+      timeZone,
+      lastReadAt: notificationsLastReadAt,
+    }),
     getStudentAssignmentList(supabase, user.id),
   ]);
 
