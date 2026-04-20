@@ -68,8 +68,19 @@ function normalizeKeystoneExamDate(
       error: "keystoneExamDate must be in YYYY-MM-DD format",
     };
   }
-  const parsed = new Date(`${trimmed}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) {
+  const [y, m, d] = trimmed
+    .split("-")
+    .map((part) => Number.parseInt(part, 10));
+  // `new Date(Date.UTC(y, m-1, d))` silently overflows for impossible dates
+  // like 2026-02-31 (becomes Mar 3). Round-trip the components to reject
+  // anything that did not land on the exact same calendar day.
+  const parsed = new Date(Date.UTC(y, m - 1, d));
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCFullYear() !== y ||
+    parsed.getUTCMonth() !== m - 1 ||
+    parsed.getUTCDate() !== d
+  ) {
     return { ok: false, error: "keystoneExamDate is not a valid date" };
   }
   return { ok: true, value: trimmed };

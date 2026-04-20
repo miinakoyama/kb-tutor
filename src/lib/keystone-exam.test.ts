@@ -27,6 +27,17 @@ describe("daysUntilExam", () => {
     const now = new Date(2026, 11, 25);
     expect(daysUntilExam("2027-01-05", now)).toBe(11);
   });
+
+  // JS's `new Date(y, m - 1, d)` silently normalizes out-of-range components
+  // (e.g. Feb 31 → Mar 3). We intentionally reject such inputs instead of
+  // reporting a misleading day count.
+  it("returns null for calendar-impossible dates", () => {
+    const now = new Date(2026, 0, 1);
+    expect(daysUntilExam("2026-02-31", now)).toBeNull();
+    expect(daysUntilExam("2026-13-01", now)).toBeNull();
+    expect(daysUntilExam("2026-00-10", now)).toBeNull();
+    expect(daysUntilExam("2026-04-31", now)).toBeNull();
+  });
 });
 
 describe("formatExamDate", () => {
@@ -36,5 +47,11 @@ describe("formatExamDate", () => {
 
   it("returns the input as-is for malformed strings", () => {
     expect(formatExamDate("bad")).toBe("bad");
+  });
+
+  it("returns the input as-is for calendar-impossible dates", () => {
+    expect(formatExamDate("2026-02-31")).toBe("2026-02-31");
+    expect(formatExamDate("2026-13-01")).toBe("2026-13-01");
+    expect(formatExamDate("2026-00-10")).toBe("2026-00-10");
   });
 });

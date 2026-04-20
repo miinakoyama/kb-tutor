@@ -26,7 +26,7 @@ export default async function Home() {
         lastReadAt: notificationsLastReadAt,
       }),
       getStudentAssignmentList(supabase, user.id),
-      getStudentKeystoneExam(supabase, user.id),
+      getStudentKeystoneExam(supabase, user.id, { timeZone }),
     ]);
 
   return (

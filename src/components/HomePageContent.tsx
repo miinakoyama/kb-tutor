@@ -160,7 +160,6 @@ function KeystoneExamCountdown({ exam }: { exam: KeystoneExamInfo }) {
   if (days === null || days < 0) return null;
 
   const { accent, subtitle } = getCountdownTone(days);
-  const dayLabel = days === 1 ? "day" : "days";
   const headline =
     days === 0 ? "Today" : days === 1 ? "1 day" : `${days} days`;
 
@@ -199,7 +198,7 @@ function KeystoneExamCountdown({ exam }: { exam: KeystoneExamInfo }) {
                 <span
                   className={`text-sm sm:text-base font-semibold ${accent.text}`}
                 >
-                  {days === 1 ? "to go" : `${dayLabel} to go`}
+                  to go
                 </span>
               </>
             )}

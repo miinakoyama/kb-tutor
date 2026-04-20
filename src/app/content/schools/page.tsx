@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Plus, School, Trash2, Users, X } from "lucide-react";
+import { formatExamDate } from "@/lib/keystone-exam";
 
 interface ProfileOption {
   id: string;
@@ -19,16 +20,6 @@ interface SchoolView {
   teacher_label: string;
   teachers: { id: string; label: string; is_primary: boolean }[];
   students: { id: string; label: string }[];
-}
-
-function formatExamDate(date: string): string {
-  const parsed = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return parsed.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 function normalizeAdminError(message?: string) {
