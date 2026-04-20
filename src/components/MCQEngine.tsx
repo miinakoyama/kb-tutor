@@ -18,6 +18,14 @@ import { shuffleArray } from "@/lib/array-utils";
 
 const PRIMARY_COLOR = "#16a34a";
 const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
+const PRIMARY_TEXT = "#166534";
+const ERROR_COLOR = "#f87171";
+const ERROR_LIGHT = "rgba(248, 113, 113, 0.1)";
+const ERROR_BG_STRONG = "rgba(248, 113, 113, 0.2)";
+const ERROR_BORDER = "rgba(248, 113, 113, 0.3)";
+const ERROR_TEXT = "#991b1b";
+const ERROR_TEXT_STRONG = "#dc2626";
+const LOW_SCORE_COLOR = "#475569";
 const QUESTIONS_PER_SESSION = 10;
 
 interface MCQEngineProps {
@@ -110,14 +118,14 @@ function OptionButton({
 }: OptionButtonProps) {
   const getBorderColor = () => {
     if (showCorrect) return PRIMARY_COLOR;
-    if (showWrong) return "#f87171";
+    if (showWrong) return ERROR_COLOR;
     if (isSelected) return PRIMARY_COLOR;
     return "rgba(31, 45, 31, 0.2)";
   };
 
   const getBackgroundColor = () => {
     if (showCorrect) return PRIMARY_LIGHT;
-    if (showWrong) return "rgba(248, 113, 113, 0.1)";
+    if (showWrong) return ERROR_LIGHT;
     if (isSelected) return PRIMARY_LIGHT;
     return "white";
   };
@@ -128,7 +136,7 @@ function OptionButton({
         backgroundColor: showCorrect
           ? PRIMARY_COLOR
           : showWrong
-            ? "#f87171"
+            ? ERROR_COLOR
             : PRIMARY_COLOR,
         color: "white",
       };
@@ -249,10 +257,10 @@ function QuestionDisplay({
               style={{
                 backgroundColor: currentAnswer.isCorrect
                   ? PRIMARY_LIGHT
-                  : "rgba(248, 113, 113, 0.1)",
+                  : ERROR_LIGHT,
                 borderColor: currentAnswer.isCorrect
                   ? `${PRIMARY_COLOR}40`
-                  : "rgba(248, 113, 113, 0.3)",
+                  : ERROR_BORDER,
               }}
             >
               <div className="flex items-start gap-3">
@@ -267,7 +275,7 @@ function QuestionDisplay({
                 <p
                   className="text-sm leading-relaxed"
                   style={{
-                    color: currentAnswer.isCorrect ? "#166534" : "#991b1b",
+                    color: currentAnswer.isCorrect ? PRIMARY_TEXT : ERROR_TEXT,
                   }}
                 >
                   {selectedOption.feedback}
@@ -344,7 +352,7 @@ function NavigationControls({
                     : answered
                       ? isCorrectAnswer
                         ? PRIMARY_COLOR
-                        : "#f87171"
+                        : ERROR_COLOR
                       : "white",
                   color: isCurrent || answered ? "white" : "#1f2d1f",
                   transform: isCurrent ? "scale(1.1)" : "scale(1)",
@@ -414,7 +422,7 @@ function SummaryScreen({
 
   const getScoreColor = () => {
     if (scorePercent >= 60) return PRIMARY_COLOR;
-    return "#475569";
+    return LOW_SCORE_COLOR;
   };
 
   return (
@@ -524,8 +532,8 @@ function SummaryScreen({
                       style={{
                         backgroundColor: isCorrect
                           ? PRIMARY_LIGHT
-                          : "rgba(248, 113, 113, 0.2)",
-                        color: isCorrect ? PRIMARY_COLOR : "#dc2626",
+                          : ERROR_BG_STRONG,
+                        color: isCorrect ? PRIMARY_COLOR : ERROR_TEXT_STRONG,
                       }}
                     >
                       {index + 1}
