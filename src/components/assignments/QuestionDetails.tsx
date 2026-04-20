@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Check } from "lucide-react";
 import type { Question } from "@/types/question";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 
 interface QuestionDetailsProps {
   question: Question;
@@ -37,9 +38,9 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
             </div>
           )}
           {question.diagram && (
-            <div className="rounded-lg overflow-auto border border-slate-200 bg-white max-h-72">
+            <AdaptiveDiagramViewport maxHeightClassName="max-h-72">
               <DiagramRenderer diagram={question.diagram} />
-            </div>
+            </AdaptiveDiagramViewport>
           )}
         </div>
       )}
