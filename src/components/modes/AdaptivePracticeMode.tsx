@@ -246,7 +246,7 @@ export function AdaptivePracticeMode({
     const shouldFinalize = result.isCorrect || nextAttempts.length >= MAX_ATTEMPTS;
     if (shouldFinalize) {
       const finalRecord: AnswerRecord = {
-        // Keep the learner's final choice so UI can show wrong (neutral) + correct (green)
+        // Keep the learner's final choice so UI can show wrong (red) + correct (green)
         // when max attempts are reached on an incorrect answer.
         selectedOptionId: result.selectedOptionId,
         isCorrect: result.isCorrect,
@@ -385,9 +385,12 @@ export function AdaptivePracticeMode({
             onClick={() => {
               setCurrentIndex(0);
               setAttemptsByIndex({});
+              setRetryReadyByIndex({});
               setFinalAnswers({});
+              setSelectedOptionId(null);
               setShowSummary(false);
               setCompletionReported(false);
+              setQuestionStartMs(Date.now());
             }}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
           >

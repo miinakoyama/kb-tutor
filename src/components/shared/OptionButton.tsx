@@ -7,10 +7,6 @@ const PRIMARY_COLOR = "#16a34a";
 const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
 const PENDING_COLOR = "#14532d";
 const PENDING_LIGHT = "rgba(20, 83, 45, 0.1)";
-const NEUTRAL_DARK = "#334155";
-const NEUTRAL_MID = "#64748b";
-const NEUTRAL_LIGHT = "rgba(100, 116, 139, 0.14)";
-const NEUTRAL_BORDER = "rgba(100, 116, 139, 0.35)";
 
 interface OptionButtonProps {
   option: { id: string; text: string; feedback?: string };
@@ -40,7 +36,10 @@ export function OptionButton({
   const iconRef = useRef<HTMLSpanElement>(null);
 
   const shouldShowIcon =
-    showFeedbackIcon && isAnswered && !showCorrect && !isSelected && option.feedback;
+    showFeedbackIcon && isAnswered && Boolean(option.feedback);
+  const tooltipHeading = showCorrect
+    ? "Why this is correct"
+    : "Why this is incorrect";
 
   useEffect(() => {
     if (!showTooltip) return;
@@ -60,7 +59,7 @@ export function OptionButton({
 
   const getBorderColor = () => {
     if (showCorrect) return PRIMARY_COLOR;
-    if (showWrong) return NEUTRAL_BORDER;
+    if (showWrong) return "#f87171";
     if (isSelected && pendingSelection) return PENDING_COLOR;
     if (isSelected) return PRIMARY_COLOR;
     return "rgba(31, 45, 31, 0.2)";
@@ -68,7 +67,7 @@ export function OptionButton({
 
   const getBackgroundColor = () => {
     if (showCorrect) return PRIMARY_LIGHT;
-    if (showWrong) return NEUTRAL_LIGHT;
+    if (showWrong) return "rgba(248, 113, 113, 0.1)";
     if (isSelected && pendingSelection) return PENDING_LIGHT;
     if (isSelected) return PRIMARY_LIGHT;
     return "white";
@@ -78,7 +77,7 @@ export function OptionButton({
     if (showCorrect || showWrong || isSelected) {
       let bgColor = PRIMARY_COLOR;
       if (showCorrect) bgColor = PRIMARY_COLOR;
-      else if (showWrong) bgColor = NEUTRAL_MID;
+      else if (showWrong) bgColor = "#f87171";
       else if (isSelected && pendingSelection) bgColor = PENDING_COLOR;
       
       return {
@@ -142,7 +141,7 @@ export function OptionButton({
               }
             }}
             className="flex-shrink-0 p-2.5 rounded-full text-slate-gray/40 hover:text-slate-gray/70 hover:bg-slate-gray/10 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label="Why this option is incorrect"
+            aria-label={tooltipHeading}
           >
             <Info className="w-4 h-4" />
           </span>
@@ -155,9 +154,9 @@ export function OptionButton({
           className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-xl border border-slate-gray/20 bg-white shadow-lg"
         >
           <p className="text-xs font-semibold text-slate-gray/60 mb-1">
-            Why this is incorrect
+            {tooltipHeading}
           </p>
-          <p className="text-sm leading-relaxed" style={{ color: NEUTRAL_DARK }}>
+          <p className="text-sm text-slate-gray leading-relaxed">
             {option.feedback?.replace(/^(Correct\.|Incorrect\.)\s*/i, "").trim()}
           </p>
         </div>

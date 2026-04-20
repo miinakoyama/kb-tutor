@@ -16,19 +16,19 @@ export function FeedbackDisplay({
       className={`mt-4 rounded-lg border p-4 ${
         isCorrect
           ? "border-green-500/50 bg-green-50"
-          : "border-slate-400/40 bg-slate-100/70"
+          : "border-red-400/50 bg-red-50"
       }`}
     >
       <div className="flex items-start gap-3">
         {isCorrect ? (
           <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
         ) : (
-          <XCircle className="w-6 h-6 text-slate-500 flex-shrink-0 mt-0.5" />
+          <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
         )}
         <div className="space-y-2">
           <p
             className={`font-medium ${
-              isCorrect ? "text-green-800" : "text-slate-700"
+              isCorrect ? "text-green-800" : "text-red-800"
             }`}
           >
             {isCorrect ? "Correct!" : "Incorrect"}

@@ -108,20 +108,16 @@ function OptionButton({
   isAnswered,
   onSelect,
 }: OptionButtonProps) {
-  const neutralAccent = "#64748b";
-  const neutralAccentLight = "rgba(100, 116, 139, 0.14)";
-  const neutralAccentBorder = "rgba(100, 116, 139, 0.35)";
-
   const getBorderColor = () => {
     if (showCorrect) return PRIMARY_COLOR;
-    if (showWrong) return neutralAccentBorder;
+    if (showWrong) return "#f87171";
     if (isSelected) return PRIMARY_COLOR;
     return "rgba(31, 45, 31, 0.2)";
   };
 
   const getBackgroundColor = () => {
     if (showCorrect) return PRIMARY_LIGHT;
-    if (showWrong) return neutralAccentLight;
+    if (showWrong) return "rgba(248, 113, 113, 0.1)";
     if (isSelected) return PRIMARY_LIGHT;
     return "white";
   };
@@ -132,7 +128,7 @@ function OptionButton({
         backgroundColor: showCorrect
           ? PRIMARY_COLOR
           : showWrong
-            ? neutralAccent
+            ? "#f87171"
             : PRIMARY_COLOR,
         color: "white",
       };
@@ -253,10 +249,10 @@ function QuestionDisplay({
               style={{
                 backgroundColor: currentAnswer.isCorrect
                   ? PRIMARY_LIGHT
-                  : "rgba(100, 116, 139, 0.14)",
+                  : "rgba(248, 113, 113, 0.1)",
                 borderColor: currentAnswer.isCorrect
                   ? `${PRIMARY_COLOR}40`
-                  : "rgba(100, 116, 139, 0.35)",
+                  : "rgba(248, 113, 113, 0.3)",
               }}
             >
               <div className="flex items-start gap-3">
@@ -266,12 +262,12 @@ function QuestionDisplay({
                     style={{ color: PRIMARY_COLOR }}
                   />
                 ) : (
-                  <XCircle className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
+                  <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                 )}
                 <p
                   className="text-sm leading-relaxed"
                   style={{
-                    color: currentAnswer.isCorrect ? "#166534" : "#334155",
+                    color: currentAnswer.isCorrect ? "#166534" : "#991b1b",
                   }}
                 >
                   {selectedOption.feedback}
@@ -348,7 +344,7 @@ function NavigationControls({
                     : answered
                       ? isCorrectAnswer
                         ? PRIMARY_COLOR
-                        : "#64748b"
+                        : "#f87171"
                       : "white",
                   color: isCurrent || answered ? "white" : "#1f2d1f",
                   transform: isCurrent ? "scale(1.1)" : "scale(1)",
@@ -488,7 +484,7 @@ function SummaryScreen({
               <p className="text-xs text-slate-gray/70">Correct</p>
             </div>
             <div className="text-center">
-              <div className="flex items-center justify-center gap-1.5 text-slate-500">
+              <div className="flex items-center justify-center gap-1.5 text-red-400">
                 <XCircle className="w-4 h-4" />
                 <span className="text-xl font-bold">{incorrectCount}</span>
               </div>
@@ -519,7 +515,7 @@ function SummaryScreen({
                   className={`w-full text-left p-3 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                     isCorrect
                       ? "border-[var(--primary)]/30 hover:bg-primary-light focus-visible:bg-primary-light"
-                      : "border-slate-300 hover:bg-slate-100 focus-visible:bg-slate-100"
+                      : "border-error/30 hover:bg-error-light focus-visible:bg-error-light"
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -528,8 +524,8 @@ function SummaryScreen({
                       style={{
                         backgroundColor: isCorrect
                           ? PRIMARY_LIGHT
-                          : "rgba(100, 116, 139, 0.16)",
-                        color: isCorrect ? PRIMARY_COLOR : "#475569",
+                          : "rgba(248, 113, 113, 0.2)",
+                        color: isCorrect ? PRIMARY_COLOR : "#dc2626",
                       }}
                     >
                       {index + 1}
@@ -545,7 +541,7 @@ function SummaryScreen({
                         style={{ color: PRIMARY_COLOR }}
                       />
                     ) : (
-                      <XCircle className="w-5 h-5 flex-shrink-0 text-slate-500" />
+                      <XCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
                     )}
                   </div>
                 </button>
