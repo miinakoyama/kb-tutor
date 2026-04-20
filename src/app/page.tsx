@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { HomePageContent } from "@/components/HomePageContent";
 import { getStudentNotifications } from "@/lib/notifications";
 import { getStudentAssignmentList } from "@/lib/student-assignments";
+import { getStudentKeystoneExam } from "@/lib/keystone-exam";
 import { DEFAULT_APP_TIME_ZONE, normalizeTimeZone } from "@/lib/timezone";
 
 export default async function Home() {
@@ -24,15 +25,17 @@ export default async function Home() {
     DEFAULT_APP_TIME_ZONE,
   );
 
-  const [notificationResult, assignmentResult] = await Promise.all([
+  const [notificationResult, assignmentResult, keystoneExam] = await Promise.all([
     getStudentNotifications(supabase, user.id, { timeZone }),
     getStudentAssignmentList(supabase, user.id),
+    getStudentKeystoneExam(supabase, user.id),
   ]);
 
   return (
     <HomePageContent
       assignments={assignmentResult.assignments}
       notifications={notificationResult.notifications}
+      keystoneExam={keystoneExam}
     />
   );
 }

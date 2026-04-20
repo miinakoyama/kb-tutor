@@ -47,6 +47,34 @@ function normalizeTeacherIds(body: {
   return [];
 }
 
+// Accept either a plain YYYY-MM-DD string or null/empty to clear. Returns
+// { ok: true, value } with the normalized value, or { ok: false, error }.
+function normalizeKeystoneExamDate(
+  input: unknown,
+):
+  | { ok: true; value: string | null }
+  | { ok: false; error: string } {
+  if (input === null || input === undefined || input === "") {
+    return { ok: true, value: null };
+  }
+  if (typeof input !== "string") {
+    return { ok: false, error: "keystoneExamDate must be a YYYY-MM-DD string" };
+  }
+  const trimmed = input.trim();
+  if (!trimmed) return { ok: true, value: null };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return {
+      ok: false,
+      error: "keystoneExamDate must be in YYYY-MM-DD format",
+    };
+  }
+  const parsed = new Date(`${trimmed}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return { ok: false, error: "keystoneExamDate is not a valid date" };
+  }
+  return { ok: true, value: trimmed };
+}
+
 export async function GET() {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
@@ -54,7 +82,7 @@ export async function GET() {
   const admin = createSupabaseAdminClient();
   const { data: schoolsData, error: schoolError } = await admin
     .from("schools")
-    .select("id,name,teacher_user_id,created_at")
+    .select("id,name,teacher_user_id,keystone_exam_date,created_at")
     .order("name", { ascending: true });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
@@ -155,6 +183,7 @@ export async function GET() {
       name: s.name,
       created_at: s.created_at,
       teacher_user_id: s.teacher_user_id,
+      keystone_exam_date: s.keystone_exam_date ?? null,
       teacher_label: teacherLabel,
       teachers,
       students: studentUserIds.map((id) => {
@@ -180,6 +209,7 @@ export async function POST(request: Request) {
     teacherUserId?: string;
     teacherUserIds?: string[];
     studentUserIds?: string[];
+    keystoneExamDate?: string | null;
   };
 
   const schoolName = body.name?.trim();
@@ -190,11 +220,21 @@ export async function POST(request: Request) {
   const schoolId = body.id?.trim() || buildSchoolId(schoolName);
   const primaryTeacherId = teacherIds[0] ?? null;
 
+  let keystoneExamDate: string | null = null;
+  if (body.keystoneExamDate !== undefined) {
+    const normalized = normalizeKeystoneExamDate(body.keystoneExamDate);
+    if (!normalized.ok) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 });
+    }
+    keystoneExamDate = normalized.value;
+  }
+
   const admin = createSupabaseAdminClient();
   const { error: schoolError } = await admin.from("schools").insert({
     id: schoolId,
     name: schoolName,
     teacher_user_id: primaryTeacherId,
+    keystone_exam_date: keystoneExamDate,
   });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
@@ -239,6 +279,7 @@ export async function PATCH(request: Request) {
     teacherUserId?: string;
     teacherUserIds?: string[];
     studentUserIds?: string[];
+    keystoneExamDate?: string | null;
   };
 
   if (!body.id) {
@@ -246,10 +287,21 @@ export async function PATCH(request: Request) {
   }
 
   const admin = createSupabaseAdminClient();
-  const updates: { name?: string; teacher_user_id?: string | null } = {};
+  const updates: {
+    name?: string;
+    teacher_user_id?: string | null;
+    keystone_exam_date?: string | null;
+  } = {};
   if (body.name !== undefined) updates.name = body.name;
   const teacherIds = normalizeTeacherIds(body);
   if (teacherIds.length > 0) updates.teacher_user_id = teacherIds[0];
+  if (body.keystoneExamDate !== undefined) {
+    const normalized = normalizeKeystoneExamDate(body.keystoneExamDate);
+    if (!normalized.ok) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 });
+    }
+    updates.keystone_exam_date = normalized.value;
+  }
 
   if (Object.keys(updates).length > 0) {
     const { error: updateError } = await admin
