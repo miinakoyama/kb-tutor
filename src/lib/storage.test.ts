@@ -8,6 +8,7 @@ import {
   isBookmarked,
   toggleBookmark,
   getIncorrectQuestionIds,
+  fetchIncorrectQuestionCounts,
   clearHistory,
 } from "./storage";
 import type { StoredAnswer } from "./storage";
@@ -108,15 +109,29 @@ describe("getIncorrectQuestionIds", () => {
     expect(getIncorrectQuestionIds()).toEqual([]);
   });
 
-  it("returns ids of questions where last answer was incorrect", () => {
+  it("returns ids of questions where any answer was incorrect", () => {
     saveAnswer(makeAnswer({ questionId: "q1", isCorrect: false }));
     expect(getIncorrectQuestionIds()).toContain("q1");
   });
 
-  it("excludes ids where last answer was correct", () => {
+  it("keeps ids when there is at least one incorrect answer", () => {
     saveAnswer(makeAnswer({ questionId: "q1", isCorrect: false }));
     saveAnswer(makeAnswer({ questionId: "q1", isCorrect: true }));
-    expect(getIncorrectQuestionIds()).not.toContain("q1");
+    expect(getIncorrectQuestionIds()).toContain("q1");
+  });
+});
+
+describe("fetchIncorrectQuestionCounts", () => {
+  it("returns wrong-attempt counts per question", async () => {
+    saveAnswer(makeAnswer({ questionId: "q1", isCorrect: false }));
+    saveAnswer(makeAnswer({ questionId: "q1", isCorrect: false }));
+    saveAnswer(makeAnswer({ questionId: "q1", isCorrect: true }));
+    saveAnswer(makeAnswer({ questionId: "q2", isCorrect: false }));
+
+    await expect(fetchIncorrectQuestionCounts()).resolves.toEqual({
+      q1: 2,
+      q2: 1,
+    });
   });
 });
 

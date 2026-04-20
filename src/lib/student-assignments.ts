@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Question } from "@/types/question";
+import {
+  buildWrongCountMap,
+  prioritizeQuestionsByWrongCount,
+} from "@/lib/review-priority";
 
 export type AssignmentMode = "practice" | "exam" | "review";
 
@@ -322,8 +326,6 @@ export async function resolveReviewQuestionsForAssignment(
       ? assignment.max_questions
       : 10;
 
-  // Respect the "latest attempt" semantic from storage.ts: a question is
-  // considered incorrect only when the most recent answer was wrong.
   const { data: allAttempts, error: allAttemptsError } = await admin
     .from("attempts")
     .select("question_id,topic,standard_id,is_correct,answered_at")
@@ -333,10 +335,10 @@ export async function resolveReviewQuestionsForAssignment(
     return { questions: [], error: allAttemptsError.message };
   }
 
-  const latestStatusByQuestion = new Map<string, boolean>();
   const noFilter = topics.length === 0 && standards.length === 0;
   const topicsSet = new Set(topics);
   const standardsSet = new Set(standards);
+  const scopedAttempts: { questionId: string; isCorrect: boolean }[] = [];
   for (const attempt of allAttempts ?? []) {
     const questionId = String(attempt.question_id);
     // OR semantic: a question matches the review scope when either its
@@ -351,13 +353,14 @@ export async function resolveReviewQuestionsForAssignment(
       topicsSet.size > 0 && topicsSet.has(String(attempt.topic ?? ""));
     const inScope = noFilter || standardMatch || topicMatch;
     if (!inScope) continue;
-    latestStatusByQuestion.set(questionId, Boolean(attempt.is_correct));
+    scopedAttempts.push({
+      questionId,
+      isCorrect: Boolean(attempt.is_correct),
+    });
   }
 
-  const matchedQuestionIds: string[] = [];
-  for (const [questionId, isCorrect] of latestStatusByQuestion.entries()) {
-    if (!isCorrect) matchedQuestionIds.push(questionId);
-  }
+  const wrongCountByQuestion = buildWrongCountMap(scopedAttempts);
+  const matchedQuestionIds = Array.from(wrongCountByQuestion.keys());
 
   if (matchedQuestionIds.length === 0) {
     return { questions: [], error: null };
@@ -399,10 +402,13 @@ export async function resolveReviewQuestionsForAssignment(
     return { questions: [], error: null };
   }
 
-  const shuffled = deterministicShuffle(
-    candidates,
-    `${assignmentId}::${studentUserId}::review`,
-  );
+  const shuffled = prioritizeQuestionsByWrongCount(candidates, wrongCountByQuestion, {
+    shuffleWithinSameWrongCount: (bucket, wrongCount) =>
+      deterministicShuffle(
+        bucket,
+        `${assignmentId}::${studentUserId}::review::${wrongCount}`,
+      ),
+  });
   return {
     questions: shuffled.slice(0, maxQuestions),
     error: null,
