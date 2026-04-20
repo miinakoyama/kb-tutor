@@ -51,10 +51,10 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
           {data.title}
         </h3>
       )}
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={280}>
         <LineChart
           data={multiSeriesData}
-          margin={{ top: 24, right: 24, left: 42, bottom: 42 }}
+          margin={{ top: 16, right: 24, left: 48, bottom: 32 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#999" />
           <XAxis
@@ -64,23 +64,25 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
             label={{
               value: data.xAxisLabel,
               position: "bottom",
-              offset: 18,
+              offset: 12,
               fontSize: 12,
               fill: "#000",
             }}
           />
           <YAxis
-            width={68}
+            width={72}
             tick={{ fontSize: 12, fill: "#000" }}
             stroke="#000"
             label={{
               value: data.yAxisLabel,
               angle: -90,
               position: "insideLeft",
-              offset: 4,
-              dx: -14,
+              offset: 0,
+              dx: -8,
+              dy: 0,
               fontSize: 12,
               fill: "#000",
+              style: { textAnchor: "middle" },
             }}
           />
           <Tooltip
