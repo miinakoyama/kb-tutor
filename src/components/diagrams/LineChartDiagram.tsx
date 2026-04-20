@@ -6,7 +6,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   Legend,
 } from "recharts";
@@ -83,14 +82,6 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
               fontSize: 12,
               fill: "#000",
               style: { textAnchor: "middle" },
-            }}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "white",
-              border: "1px solid #000",
-              borderRadius: "4px",
-              fontSize: "12px",
             }}
           />
           {hasMultiSeries ? (
