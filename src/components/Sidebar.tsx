@@ -102,6 +102,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [bookmarkCount, setBookmarkCount] = useState(0);
   const [role, setRole] = useState<AppRole>("student");
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [userProfile, setUserProfile] = useState<{ display_name: string | null; student_id: string | null; email: string } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -162,6 +163,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           student_id: null,
           email: "",
         });
+      } finally {
+        setRoleLoaded(true);
       }
     };
     void loadRole();
@@ -254,8 +257,9 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       );
     });
 
-  const renderSections = (closeMobileMenu = false) =>
-    navSections.map((section, index) => (
+  const renderSections = (closeMobileMenu = false) => {
+    if (!roleLoaded) return null;
+    return navSections.map((section, index) => (
       <div key={section.title ?? `section-${index}`} className={index > 0 ? "mt-4 pt-4 border-t border-white/10" : ""}>
         {section.title && !isCollapsed && (
           <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-white/50">
@@ -265,6 +269,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         <div className="space-y-1">{renderNavItems(section.items, closeMobileMenu)}</div>
       </div>
     ));
+  };
 
   const userMenuPopup = (
     <AnimatePresence>
