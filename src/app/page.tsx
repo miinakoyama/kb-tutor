@@ -16,17 +16,14 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const { data: settingsData } = await supabase
-    .from("user_settings")
-    .select("time_zone")
-    .maybeSingle();
-  const timeZone = normalizeTimeZone(
-    settingsData?.time_zone,
-    DEFAULT_APP_TIME_ZONE,
-  );
+  const { timeZone, notificationsLastReadAt } =
+    await getStudentUserSettings(supabase);
 
-  const [notificationResult, assignmentResult, keystoneExam] = await Promise.all([
-    getStudentNotifications(supabase, user.id, { timeZone }),
+  const [notificationResult, assignmentResult] = await Promise.all([
+    getStudentNotifications(supabase, user.id, {
+      timeZone,
+      lastReadAt: notificationsLastReadAt,
+    }),
     getStudentAssignmentList(supabase, user.id),
     getStudentKeystoneExam(supabase, user.id),
   ]);
