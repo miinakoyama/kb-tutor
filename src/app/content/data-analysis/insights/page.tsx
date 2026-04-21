@@ -18,10 +18,11 @@ interface InsightsResponse {
   meta: {
     from: string;
     to: string;
-    totalAttempts: number;
-    totalEvents: number;
-    totalSessions: number;
-    truncated: boolean;
+    practiceGroups: number;
+    examGroups: number;
+    reviewDwellPairs: number;
+    stageUserModes: number;
+    sessionDurations: number;
   };
   scaffolding: {
     overall: {
@@ -235,12 +236,6 @@ export default function InsightsPage() {
       {error && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
           {error}
-        </p>
-      )}
-
-      {data?.meta.truncated && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 mb-4">
-          Result set was truncated. Narrow the date range for a complete picture.
         </p>
       )}
 
