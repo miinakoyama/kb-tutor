@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 
-type Tab = "insights" | "students" | "questions" | "feature-usage";
+export type Tab =
+  | "overview"
+  | "insights"
+  | "students"
+  | "questions"
+  | "feature-usage";
 
 interface DataAnalysisTabsProps {
   active: Tab;
@@ -10,16 +15,24 @@ interface DataAnalysisTabsProps {
 
 const TABS: Array<{ id: Tab; label: string; href: string; description: string }> = [
   {
+    id: "overview",
+    label: "Overview",
+    href: "/content/data-analysis",
+    description:
+      "Pilot monitoring: headline counters, daily trend, device mix, data quality, and per-student engagement.",
+  },
+  {
     id: "insights",
     label: "Insights",
     href: "/content/data-analysis/insights",
-    description: "Research-question answers at a glance (scaffolding, practice vs exam, routing, completion).",
+    description:
+      "Research-question answers (scaffolding, practice vs exam, routing, completion, calibration).",
   },
   {
     id: "students",
     label: "Student attempts",
-    href: "/content/data-analysis",
-    description: "Row-level attempt log with school/student/mode filters.",
+    href: "/content/data-analysis/students",
+    description: "Row-level attempt log with mode filters and CSV export.",
   },
   {
     id: "questions",
