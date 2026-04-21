@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-type Tab = "students" | "questions";
+type Tab = "students" | "questions" | "feature-usage";
 
 interface DataAnalysisTabsProps {
   active: Tab;
@@ -20,6 +20,12 @@ const TABS: Array<{ id: Tab; label: string; href: string; description: string }>
     label: "Question quality",
     href: "/content/data-analysis/questions",
     description: "Per-question accuracy, distractor usage, and mode comparison.",
+  },
+  {
+    id: "feature-usage",
+    label: "Feature usage",
+    href: "/content/data-analysis/feature-usage",
+    description: "Glossary, read-aloud, confidence, and hint scaffolding usage.",
   },
 ];
 
