@@ -14,67 +14,21 @@ import {
 } from "recharts";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
-  getStandardById,
-  getStandardsForModule,
-  getDefaultStandardForTopic,
-  type ModuleCode,
-} from "@/lib/standards";
-import {
-  getBrowserTimeZone,
-  DEFAULT_APP_TIME_ZONE,
-} from "@/lib/timezone";
+  calculateMastery,
+  PROGRESS_TOPICS,
+  type AttemptRow,
+  type MasteryDatum,
+} from "@/lib/progress/mastery";
+import { getBrowserTimeZone, DEFAULT_APP_TIME_ZONE } from "@/lib/timezone";
 import { syncTimeZoneFromDb } from "@/lib/timezone-settings";
 
-type AttemptRow = {
-  is_correct: boolean;
-  answered_at: string;
-  topic: string | null;
-  standard_id: string | null;
-};
-
-type MasteryDatum = {
-  topic: string;
-  fullTopic: string;
-  mastery: number;
-  attempts: number;
-  fill: string;
-};
-
-const MODULE_ORDER: ModuleCode[] = ["A", "B"];
 const PROGRESS_LOOKBACK_DAYS = 365;
 const PROGRESS_FETCH_LIMIT = 2000;
-
-const PROGRESS_TOPICS = MODULE_ORDER.flatMap((module) => {
-  const categories = Array.from(
-    new Set(getStandardsForModule(module).map((standard) => standard.category)),
-  );
-  return categories.map((category) => ({
-    key: `Module ${module} - ${category}`,
-    module,
-    category,
-  }));
-});
 
 function toDateKey(value: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
   }).format(value);
-}
-
-/** Maps each attempt into the current module/category topic axis. */
-function resolveTopicKey(row: AttemptRow): string | null {
-  const byStandard =
-    typeof row.standard_id === "string" && row.standard_id.trim()
-      ? getStandardById(row.standard_id)
-      : undefined;
-  if (byStandard) {
-    return `Module ${byStandard.module} - ${byStandard.category}`;
-  }
-
-  const topic = typeof row.topic === "string" ? row.topic.trim() : "";
-  if (!topic) return null;
-  const fallback = getDefaultStandardForTopic(topic);
-  return `Module ${fallback.module} - ${fallback.category}`;
 }
 
 /**
@@ -100,34 +54,6 @@ function calculateStreak(rows: AttemptRow[], timeZone: string): number {
   return streak;
 }
 
-/** Aggregates mastery percentage by current module/category topic keys. */
-function calculateMastery(rows: AttemptRow[]): MasteryDatum[] {
-  const totals = new Map<string, { correct: number; total: number }>();
-
-  for (const row of rows) {
-    const key = resolveTopicKey(row);
-    if (!key) continue;
-
-    const existing = totals.get(key) ?? { correct: 0, total: 0 };
-    existing.total += 1;
-    if (row.is_correct) existing.correct += 1;
-    totals.set(key, existing);
-  }
-
-  return PROGRESS_TOPICS.map(({ key }) => {
-    const stats = totals.get(key) ?? { correct: 0, total: 0 };
-    const mastery =
-      stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
-    return {
-      topic: key,
-      fullTopic: key,
-      mastery,
-      attempts: stats.total,
-      fill: "#2d6a4f",
-    };
-  });
-}
-
 export default function ProgressPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -137,8 +63,11 @@ export default function ProgressPage() {
       topic: key,
       fullTopic: key,
       mastery: 0,
+      masteryValue: 0,
       attempts: 0,
-      fill: "#2d6a4f",
+      correct: 0,
+      level: "insufficient_data",
+      fill: "#94a3b8",
     })),
   );
 
@@ -230,12 +159,12 @@ export default function ProgressPage() {
             Topic Mastery
           </h2>
           <p className="text-sm text-slate-gray/80 mb-4">
-            Mastery by current module/category topics based on your attempts.
+            Mastery by module/category topics.
           </p>
           <p className="text-xs text-slate-gray/70 mb-3">
             {isLoading
               ? "Loading progress..."
-              : `${attemptedTopicCount}/${masteryData.length} topics have attempt data.`}
+              : `${attemptedTopicCount}/${masteryData.length} topics have attempt data (estimated until enough attempts).`}
           </p>
           <div className="h-[280px] sm:h-[360px] md:h-[400px] min-h-[200px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
@@ -252,7 +181,7 @@ export default function ProgressPage() {
                 />
                 <Radar
                   name="Mastery %"
-                  dataKey="mastery"
+                  dataKey="masteryValue"
                   stroke="#16a34a"
                   fill="#16a34a"
                   fillOpacity={0.6}
@@ -268,10 +197,20 @@ export default function ProgressPage() {
                     const payload = item?.payload as MasteryDatum | undefined;
                     const mastery = typeof value === "number" ? value : 0;
                     const attempts = payload?.attempts ?? 0;
-                    return [`${mastery}% (${attempts} attempts)`, "Mastery"];
+                    if (!payload || payload.level === "insufficient_data") {
+                      return ["Not enough data yet", "Mastery"];
+                    }
+                    const suffix =
+                      payload.level === "estimated" ? " (estimated)" : "";
+                    return [
+                      `${mastery}% (${attempts} attempts)${suffix}`,
+                      "Mastery",
+                    ];
                   }}
                   labelFormatter={(label, payload) => {
-                    const row = payload?.[0]?.payload as MasteryDatum | undefined;
+                    const row = payload?.[0]?.payload as
+                      | MasteryDatum
+                      | undefined;
                     return row?.fullTopic ?? String(label ?? "");
                   }}
                 />

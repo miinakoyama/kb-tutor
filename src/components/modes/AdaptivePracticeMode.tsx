@@ -27,6 +27,9 @@ import { shuffleArray } from "@/lib/array-utils";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import glossaryData from "@/data/glossary.json";
+import { trackAnalyticsEvent } from "@/lib/analytics/client";
+import { useAnalyticsSession } from "@/lib/analytics/session";
+import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
@@ -83,6 +86,39 @@ export function AdaptivePracticeMode({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
+
+  const { sessionId, markStageCompleted } = useAnalyticsSession({
+    mode,
+    assignmentId,
+  });
+
+  // Latest session id, read at emit-time by effects whose dependencies must
+  // exclude `sessionId` to avoid re-entry / duplicate emits.
+  const sessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  // When mode === "review", emit the mode-level entry/exit events in addition
+  // to the per-item `review_item_*` events that already fire below. Runs once
+  // on mount and once on unmount per review session.
+  useEffect(() => {
+    if (mode !== "review") return;
+    trackAnalyticsEvent({
+      eventType: "review_mode_entered",
+      mode,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+    return () => {
+      trackAnalyticsEvent({
+        eventType: "review_mode_exited",
+        mode,
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+      });
+    };
+  }, [mode, assignmentId]);
 
   useEffect(() => {
     // For assignments we trust the server's deterministic ordering so resume
@@ -168,6 +204,53 @@ export function AdaptivePracticeMode({
   const completedCount = Object.keys(finalAnswers).length;
   const allCompleted = completedCount === totalQuestions && totalQuestions > 0;
 
+  useEffect(() => {
+    if (!question) return;
+    trackAnalyticsEvent({
+      eventType: mode === "review" ? "review_item_opened" : "question_viewed",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+  }, [assignmentId, mode, question]);
+
+  // `hint_opened` fires whenever the scaffold transitions to visible; the
+  // paired `hint_closed` fires when the scaffold disappears (correct answer,
+  // max attempts reached, or the learner moves to the next question). Dwell
+  // time on the scaffold is `hint_closed.occurred_at - hint_opened.occurred_at`.
+  const hintOpenStartRef = useRef<number | null>(null);
+  const hintQuestionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!question) return;
+    if (showScaffold) {
+      hintOpenStartRef.current = Date.now();
+      hintQuestionIdRef.current = question.id;
+      trackAnalyticsEvent({
+        eventType: "hint_opened",
+        mode,
+        questionId: question.id,
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+        payload: { attemptCount: attempts.length },
+      });
+      return;
+    }
+    if (hintOpenStartRef.current !== null) {
+      const openMs = Date.now() - hintOpenStartRef.current;
+      trackAnalyticsEvent({
+        eventType: "hint_closed",
+        mode,
+        questionId: hintQuestionIdRef.current ?? question.id,
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+        payload: { openMs },
+      });
+      hintOpenStartRef.current = null;
+      hintQuestionIdRef.current = null;
+    }
+  }, [assignmentId, attempts.length, mode, question, showScaffold]);
+
   const glossaryTerms = useMemo(() => {
     if (!question || !showScaffold) return [];
     const allTerms = [...(question.inlineTerms ?? []), ...(question.sidebarTerms ?? [])];
@@ -220,13 +303,32 @@ export function AdaptivePracticeMode({
         const term = inlineTermMap.get(part.toLowerCase());
         if (!term) return part;
         return (
-          <GlossaryPopover key={`${term.id}_${index}`} term={term}>
+          <GlossaryPopover
+            key={`${term.id}_${index}`}
+            term={term}
+            onOpen={(t) => {
+              if (!question) return;
+              trackAnalyticsEvent({
+                eventType: "glossary_term_opened",
+                mode,
+                questionId: question.id,
+                assignmentId,
+                sessionId: sessionIdRef.current ?? undefined,
+                payload: {
+                  termId: t.id,
+                  termLabel: t.term,
+                  source: "inline",
+                  scaffoldShown: showScaffold,
+                },
+              });
+            }}
+          >
             {part}
           </GlossaryPopover>
         );
       });
     },
-    [inlineTermMap, showScaffold],
+    [assignmentId, inlineTermMap, mode, question, showScaffold],
   );
 
   const submitAttempt = useCallback(() => {
@@ -274,6 +376,21 @@ export function AdaptivePracticeMode({
       classId: student?.classId,
       teacherId: student?.teacherId,
     });
+
+    trackAnalyticsEvent({
+      eventType: "attempt_submitted",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      sessionId: sessionId ?? undefined,
+      payload: {
+        selectedOptionId,
+        isCorrect: result.isCorrect,
+        attemptIndex: nextAttempts.length,
+        elapsedSec,
+        showScaffold,
+      },
+    });
   }, [
     assignmentId,
     attempts,
@@ -284,6 +401,8 @@ export function AdaptivePracticeMode({
     questionStartMs,
     isRetryReady,
     selectedOptionId,
+    sessionId,
+    showScaffold,
   ]);
 
   const handleConfidence = useCallback(
@@ -293,8 +412,21 @@ export function AdaptivePracticeMode({
         ...prev,
         [currentIndex]: { ...finalAnswer, confidenceLevel: level },
       }));
+      if (question) {
+        trackAnalyticsEvent({
+          eventType: "confidence_submitted",
+          mode,
+          questionId: question.id,
+          assignmentId,
+          sessionId: sessionIdRef.current ?? undefined,
+          payload: {
+            confidenceLevel: level,
+            isCorrect: finalAnswer.isCorrect,
+          },
+        });
+      }
     },
-    [currentIndex, finalAnswer],
+    [assignmentId, currentIndex, finalAnswer, mode, question],
   );
 
   const handleBookmarkToggle = useCallback(() => {
@@ -306,7 +438,63 @@ export function AdaptivePracticeMode({
       else next.delete(question.id);
       return next;
     });
-  }, [question]);
+    trackAnalyticsEvent({
+      eventType: nextBookmarked ? "bookmark_added" : "bookmark_removed",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+  }, [assignmentId, mode, question]);
+
+  const handleGlossaryModalOpen = useCallback(() => {
+    if (!question) return;
+    trackAnalyticsEvent({
+      eventType: "glossary_term_opened",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+      payload: {
+        source: "modal",
+        scaffoldShown: showScaffold,
+        termCount: glossaryTerms.length,
+      },
+    });
+    setIsGlossaryModalOpen(true);
+  }, [assignmentId, glossaryTerms.length, mode, question, showScaffold]);
+
+  const handleReadAloud = useCallback(
+    (section: ReadSection) => {
+      if (!question) return;
+      trackAnalyticsEvent({
+        eventType: "tts_played",
+        mode,
+        questionId: question.id,
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+        payload: { target: section },
+      });
+    },
+    [assignmentId, mode, question],
+  );
+
+  const explanationEmittedRef = useRef<Set<string>>(new Set());
+  const feedbackVisible = attempts.length > 0 && (isCompleted || isAwaitingRetry);
+  useEffect(() => {
+    if (!question || !feedbackVisible) return;
+    const key = `${question.id}:${isCompleted ? "completed" : "retry"}`;
+    if (explanationEmittedRef.current.has(key)) return;
+    explanationEmittedRef.current.add(key);
+    trackAnalyticsEvent({
+      eventType: "explanation_opened",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+      payload: { phase: isCompleted ? "completed" : "retry" },
+    });
+  }, [assignmentId, feedbackVisible, isCompleted, mode, question]);
 
   const handleNext = useCallback(() => {
     if (!isCompleted) return;
@@ -318,9 +506,25 @@ export function AdaptivePracticeMode({
       return;
     }
     if (allCompleted) {
+      trackAnalyticsEvent({
+        eventType: mode === "review" ? "review_item_completed" : "stage_completed",
+        mode,
+        assignmentId,
+        sessionId: sessionId ?? undefined,
+      });
+      markStageCompleted();
       setShowSummary(true);
     }
-  }, [allCompleted, currentIndex, isCompleted, totalQuestions]);
+  }, [
+    allCompleted,
+    assignmentId,
+    currentIndex,
+    isCompleted,
+    markStageCompleted,
+    mode,
+    sessionId,
+    totalQuestions,
+  ]);
 
   useEffect(() => {
     if (attempts.length === 0) return;
@@ -452,7 +656,7 @@ export function AdaptivePracticeMode({
               headerAction={
                 glossaryTerms.length > 0 ? (
                   <button
-                    onClick={() => setIsGlossaryModalOpen(true)}
+                    onClick={handleGlossaryModalOpen}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
@@ -472,6 +676,7 @@ export function AdaptivePracticeMode({
               renderQuestionText={renderQuestionText}
               showOptionFeedbackIcons={isCompleted}
               feedbackReadText={feedbackReadText}
+              onReadAloud={handleReadAloud}
               feedbackSlot={
                 attempts.length > 0 ? (
                   <div className="space-y-4">
