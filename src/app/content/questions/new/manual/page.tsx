@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import {
   ManualQuestionEditor,
   manualDraftToQuestion,
+  validateDraft,
   type ManualQuestionDraft,
 } from "@/components/assignments/ManualQuestionEditor";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -65,6 +66,13 @@ export default function ManualQuestionSetPage() {
     if (manualDrafts.length === 0) {
       setError("Add at least one manually authored question.");
       return;
+    }
+    for (let i = 0; i < manualDrafts.length; i += 1) {
+      const draftError = validateDraft(manualDrafts[i]);
+      if (draftError) {
+        setError(`Question ${i + 1}: ${draftError}`);
+        return;
+      }
     }
 
     const supabase = getSupabaseBrowserClient();
