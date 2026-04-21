@@ -43,7 +43,71 @@ export async function GET(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-  return NextResponse.json({ users: data ?? [] });
+
+  const users = data ?? [];
+  const teacherIds = users.filter((u) => u.role === "teacher").map((u) => u.id);
+  const studentIds = users.filter((u) => u.role === "student").map((u) => u.id);
+
+  const [{ data: teacherLinks }, { data: memberLinks }] = await Promise.all([
+    teacherIds.length > 0
+      ? admin
+          .from("school_teachers")
+          .select("school_id,teacher_user_id")
+          .in("teacher_user_id", teacherIds)
+      : Promise.resolve({
+          data: [] as Array<{ school_id: string; teacher_user_id: string }>,
+        }),
+    studentIds.length > 0
+      ? admin
+          .from("school_members")
+          .select("school_id,student_user_id")
+          .in("student_user_id", studentIds)
+      : Promise.resolve({
+          data: [] as Array<{ school_id: string; student_user_id: string }>,
+        }),
+  ]);
+
+  const schoolIds = Array.from(
+    new Set(
+      (teacherLinks ?? [])
+        .map((row) => row.school_id)
+        .concat((memberLinks ?? []).map((row) => row.school_id)),
+    ),
+  );
+
+  const { data: schoolRows } =
+    schoolIds.length > 0
+      ? await admin.from("schools").select("id,name").in("id", schoolIds)
+      : { data: [] as Array<{ id: string; name: string }> };
+
+  const schoolNameById = new Map(
+    (schoolRows ?? []).map((row) => [row.id, row.name]),
+  );
+
+  const schoolsByUser = new Map<string, Array<{ id: string; name: string }>>();
+  for (const row of teacherLinks ?? []) {
+    const list = schoolsByUser.get(row.teacher_user_id) ?? [];
+    list.push({
+      id: row.school_id,
+      name: schoolNameById.get(row.school_id) ?? row.school_id,
+    });
+    schoolsByUser.set(row.teacher_user_id, list);
+  }
+  for (const row of memberLinks ?? []) {
+    const list = schoolsByUser.get(row.student_user_id) ?? [];
+    list.push({
+      id: row.school_id,
+      name: schoolNameById.get(row.school_id) ?? row.school_id,
+    });
+    schoolsByUser.set(row.student_user_id, list);
+  }
+
+  const enriched = users.map((user) => ({
+    ...user,
+    schools: schoolsByUser.get(user.id) ?? [],
+  }));
+
+  return NextResponse.json({ users: enriched });
 }
 
 export async function PATCH(request: Request) {

@@ -104,6 +104,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [role, setRole] = useState<AppRole>("student");
   const [roleLoaded, setRoleLoaded] = useState(false);
   const [userProfile, setUserProfile] = useState<{ display_name: string | null; student_id: string | null; email: string } | null>(null);
+  const [userSchools, setUserSchools] = useState<{ id: string; name: string }[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -129,6 +130,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             app_metadata?: { role?: string };
           } | null;
           profile?: { role?: AppRole; display_name?: string | null; student_id?: string | null; email?: string } | null;
+          schools?: { id: string; name: string }[] | null;
         };
 
         const inferredRole =
@@ -156,6 +158,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               : null;
 
         setUserProfile(profileForUi);
+        setUserSchools(Array.isArray(payload.schools) ? payload.schools : []);
       } catch {
         setRole("student");
         setUserProfile({
@@ -163,6 +166,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           student_id: null,
           email: "",
         });
+        setUserSchools([]);
       } finally {
         setRoleLoaded(true);
       }
@@ -293,6 +297,16 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               </p>
               {role !== "student" && (
                 <p className="text-xs text-slate-400 truncate">{userProfile.email}</p>
+              )}
+              {role !== "admin" && (
+                <div className="mt-2 flex items-start gap-1.5">
+                  <School className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-slate-500 leading-snug">
+                    {userSchools.length > 0
+                      ? userSchools.map((s) => s.name).join(", ")
+                      : "No school assigned"}
+                  </p>
+                </div>
               )}
             </div>
           )}
