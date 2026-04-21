@@ -79,12 +79,15 @@ export async function GET(
   // who joined after the assignment was created.
   let canAccess = Boolean(targetRow);
   if (!canAccess) {
-    const { data: memberRow } = await admin
+    const { data: memberRow, error: memberError } = await admin
       .from("school_members")
       .select("school_id")
       .eq("school_id", assignment.school_id)
       .eq("student_user_id", requester.id)
       .maybeSingle();
+    if (memberError) {
+      return NextResponse.json({ error: memberError.message }, { status: 400 });
+    }
     canAccess = Boolean(memberRow);
   }
   if (!canAccess && ["teacher", "admin"].includes(requester.role ?? "")) {

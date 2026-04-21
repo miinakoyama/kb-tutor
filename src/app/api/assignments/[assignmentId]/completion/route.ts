@@ -39,7 +39,7 @@ export async function POST(
   // originally targeted but joined the school afterwards.
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
-    .select("id,school_id")
+    .select("id,school_id,created_at")
     .eq("id", normalizedAssignmentId)
     .maybeSingle();
   if (assignmentError) {
@@ -59,6 +59,8 @@ export async function POST(
     return NextResponse.json({ error: targetError.message }, { status: 400 });
   }
 
+  const completedAt = new Date().toISOString();
+
   if (!targetRow) {
     // Authorize via school membership, then create the target row so we
     // have a place to record last_completed_at.
@@ -74,21 +76,39 @@ export async function POST(
     if (!memberRow) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-  }
 
-  const completedAt = new Date().toISOString();
-  const { error: upsertError } = await admin
-    .from("assignment_targets")
-    .upsert(
-      {
+    // Split from the old upsert: when backfilling a missing target row for a
+    // late-joined student, pin created_at to the assignment's own created_at
+    // instead of letting Postgres default to now(). Otherwise the
+    // notification timeline would treat the first completion as the moment
+    // the assignment was assigned, which is semantically wrong.
+    const assignmentCreatedAt = assignment.created_at as string | null;
+    if (!assignmentCreatedAt) {
+      return NextResponse.json(
+        { error: "Assignment is missing created_at" },
+        { status: 500 },
+      );
+    }
+    const { error: insertError } = await admin
+      .from("assignment_targets")
+      .insert({
         assignment_id: normalizedAssignmentId,
         student_user_id: user.id,
+        created_at: assignmentCreatedAt,
         last_completed_at: completedAt,
-      },
-      { onConflict: "assignment_id,student_user_id" },
-    );
-  if (upsertError) {
-    return NextResponse.json({ error: upsertError.message }, { status: 400 });
+      });
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 400 });
+    }
+  } else {
+    const { error: updateError } = await admin
+      .from("assignment_targets")
+      .update({ last_completed_at: completedAt })
+      .eq("assignment_id", normalizedAssignmentId)
+      .eq("student_user_id", user.id);
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 400 });
+    }
   }
 
   return NextResponse.json({ ok: true, last_completed_at: completedAt });

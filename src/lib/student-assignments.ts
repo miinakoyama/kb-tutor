@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Question } from "@/types/question";
 
 export type AssignmentMode = "practice" | "exam" | "review";
@@ -69,6 +70,22 @@ async function fetchAssignmentList(
   // assignment_targets so that a student who was added to a school *after*
   // an assignment was created still sees the assignment. assignment_targets
   // is consulted only for per-student state like last_completed_at.
+  //
+  // We authenticate via the auth-scoped client for the school_members
+  // lookup (RLS restricts students to their own memberships), and then use
+  // the admin client for the rest of the DB state. Two reasons:
+  //   1. `assignments_read_scoped` only grants SELECT via
+  //      assignment_targets / created_by / admin, so a late-joined student
+  //      would silently get 0 rows from an auth-scoped query.
+  //   2. `assignment_targets_read_scoped` and `assignments_read_scoped`
+  //      mutually reference each other via EXISTS() sub-queries, which
+  //      Postgres flags as "infinite recursion detected in policy for
+  //      relation assignment_targets" when a student-auth client queries
+  //      either table.
+  //   3. `assignment_question_snapshots` has RLS enabled but no SELECT
+  //      policy, so an auth-scoped query returns 0 rows with no error.
+  // `attempts` uses a simple `user_id = auth.uid()` policy with no cross-
+  // table recursion, so it can stay auth-scoped.
   const { data: memberRows, error: memberError } = await supabase
     .from("school_members")
     .select("school_id")
@@ -83,7 +100,8 @@ async function fetchAssignmentList(
     return { assignments: [], error: null };
   }
 
-  const { data: assignmentRows, error: assignmentsError } = await supabase
+  const admin = createSupabaseAdminClient();
+  const { data: assignmentRows, error: assignmentsError } = await admin
     .from("assignments")
     .select(
       "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,created_at",
@@ -106,12 +124,12 @@ async function fetchAssignmentList(
     { data: snapshotRows, error: snapshotError },
     { data: attemptRows, error: attemptError },
   ] = await Promise.all([
-    supabase
+    admin
       .from("assignment_targets")
       .select("assignment_id, last_completed_at")
       .eq("student_user_id", studentUserId)
       .in("assignment_id", orderedIds),
-    supabase
+    admin
       .from("assignment_question_snapshots")
       .select("assignment_id,question_id")
       .in("assignment_id", orderedIds),
@@ -230,28 +248,18 @@ function computeStatus(args: {
 }
 
 /**
- * Loads assignments targeted at the student. Mirrors getStudentNotifications:
- * if the auth-scoped client hits an RLS or PostgREST error, retries with the
- * service role so the My Assignment page stays consistent with Home/Notifications.
+ * Loads assignments targeted at the student.
+ *
+ * `fetchAssignmentList` internally uses the admin client for the
+ * `assignments` query because its RLS policy (`assignments_read_scoped`)
+ * gates SELECT on assignment_targets / created_by / admin, so late-joined
+ * students would otherwise see an empty list silently.
  */
 export async function getStudentAssignmentList(
   supabase: SupabaseClient,
   studentUserId: string,
 ): Promise<StudentAssignmentListResult> {
-  let result = await fetchAssignmentList(supabase, studentUserId);
-  if (result.error) {
-    try {
-      const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-      const adminClient = createSupabaseAdminClient();
-      const adminResult = await fetchAssignmentList(adminClient, studentUserId);
-      if (!adminResult.error) {
-        result = adminResult;
-      }
-    } catch {
-      // keep original error
-    }
-  }
-  return result;
+  return fetchAssignmentList(supabase, studentUserId);
 }
 
 /**

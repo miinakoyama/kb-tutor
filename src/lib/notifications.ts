@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_APP_TIME_ZONE, normalizeTimeZone } from "@/lib/timezone";
 
 export type StudentNotificationKind = "assignment_assigned" | "assignment_due_soon";
@@ -21,6 +22,9 @@ type AssignmentRecord = {
   id: string;
   title: string;
   due_date?: string | null;
+  // `assignments.created_at` is NOT NULL in the schema, so it is always
+  // populated when the row is returned.
+  created_at: string;
 };
 
 type AssignmentTargetRow = {
@@ -65,6 +69,14 @@ async function loadTargetsAndAssignments(
   // account-creation time. assignment_targets is only consulted for
   // per-student `created_at` overrides (the moment that specific student
   // was targeted).
+  //
+  // We *authenticate* the request through the auth-scoped client
+  // (school_members RLS already restricts the student to their own
+  // memberships), but we *read* assignments through the admin client
+  // because the `assignments_read_scoped` RLS policy only allows SELECT
+  // via assignment_targets (or created_by/admin). Without this split, a
+  // late-joined student would get 0 assignment rows with no error, and
+  // therefore no notifications.
   const { data: memberRowsData, error: memberRowsError } = await supabase
     .from("school_members")
     .select("school_id")
@@ -88,7 +100,8 @@ async function loadTargetsAndAssignments(
     };
   }
 
-  const { data: assignmentsData, error: assignmentsError } = await supabase
+  const admin = createSupabaseAdminClient();
+  const { data: assignmentsData, error: assignmentsError } = await admin
     .from("assignments")
     .select("id,title,due_date,created_at")
     .in("school_id", schoolIds);
@@ -100,21 +113,51 @@ async function loadTargetsAndAssignments(
     };
   }
 
+  const assignmentRecords: AssignmentRecord[] = [];
+  for (const row of (assignmentsData ?? []) as Array<Record<string, unknown>>) {
+    const id = typeof row.id === "string" ? row.id : null;
+    const createdAt =
+      typeof row.created_at === "string" ? row.created_at : null;
+    // `assignments.created_at` is NOT NULL in the schema, so a missing value
+    // indicates an unexpected shape/RLS problem we should not silently paper
+    // over with an epoch fallback (it would mis-order notifications as
+    // "very old"). Surface it as an error instead.
+    if (!id || !createdAt) {
+      return {
+        targetRows: [],
+        assignmentsById: new Map<string, AssignmentRecord>(),
+        error: "Unexpected assignment row shape: missing id or created_at.",
+      };
+    }
+    assignmentRecords.push({
+      id,
+      title: typeof row.title === "string" ? row.title : "",
+      due_date:
+        typeof row.due_date === "string" ? row.due_date : null,
+      created_at: createdAt,
+    });
+  }
+
   const assignmentIds = Array.from(
-    new Set(((assignmentsData ?? []) as Array<{ id: string }>).map((row) => row.id)),
+    new Set(assignmentRecords.map((row) => row.id)),
   );
 
   const assignmentsById = new Map<string, AssignmentRecord>(
-    ((assignmentsData ?? []) as AssignmentRecord[]).map((row) => [row.id, row]),
+    assignmentRecords.map((row) => [row.id, row]),
   );
 
   // If an assignment_targets row exists for this student, prefer its
   // created_at (per-student assignment time). Otherwise fall back to the
   // assignment's created_at so backfill for late-joined students still has
   // a sensible "assigned at" timestamp for the notification timeline.
+  //
+  // This must use the admin client: `assignment_targets_read_scoped` and
+  // `assignments_read_scoped` reference each other via EXISTS() sub-
+  // queries, which Postgres rejects as "infinite recursion detected in
+  // policy for relation assignment_targets" for an authenticated student.
   let targetedAtByAssignment = new Map<string, string>();
   if (assignmentIds.length > 0) {
-    const { data: targetRowsData, error: targetRowsError } = await supabase
+    const { data: targetRowsData, error: targetRowsError } = await admin
       .from("assignment_targets")
       .select("assignment_id,created_at")
       .eq("student_user_id", studentUserId)
@@ -133,13 +176,9 @@ async function loadTargetsAndAssignments(
     );
   }
 
-  const targetRows: AssignmentTargetRow[] = (
-    (assignmentsData ?? []) as Array<{ id: string; created_at?: string | null }>
-  ).map((row) => ({
+  const targetRows: AssignmentTargetRow[] = assignmentRecords.map((row) => ({
     assignment_id: row.id,
-    created_at:
-      targetedAtByAssignment.get(row.id) ??
-      (row.created_at ? String(row.created_at) : new Date(0).toISOString()),
+    created_at: targetedAtByAssignment.get(row.id) ?? row.created_at,
   }));
 
   return {
@@ -175,31 +214,12 @@ export async function getStudentNotifications(
     : null;
   const hasValidLastReadAt =
     lastReadAtMs !== null && Number.isFinite(lastReadAtMs);
-  let loadResult = await loadTargetsAndAssignments(supabase, studentUserId);
-  let errorMessage: string | null = loadResult.error;
-
-  // Fallback for environments where RLS policy migrations are not yet applied.
-  if (loadResult.error) {
-    try {
-      const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-      const adminClient = createSupabaseAdminClient();
-      const adminResult = await loadTargetsAndAssignments(adminClient, studentUserId);
-      if (!adminResult.error) {
-        loadResult = adminResult;
-        errorMessage = null;
-      } else {
-        errorMessage = adminResult.error;
-      }
-    } catch {
-      // keep original load error
-    }
-  }
-
+  const loadResult = await loadTargetsAndAssignments(supabase, studentUserId);
   if (loadResult.error) {
     return {
       notifications: [],
       assignmentTargetCount: 0,
-      error: errorMessage ?? loadResult.error,
+      error: loadResult.error,
     };
   }
 
