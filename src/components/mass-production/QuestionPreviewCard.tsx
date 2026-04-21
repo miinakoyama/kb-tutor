@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -35,9 +35,30 @@ export function QuestionPreviewCard({
   isEditable = true,
 }: QuestionPreviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
+  const [isTextOverflowing, setIsTextOverflowing] = useState(false);
+  const textRef = useRef<HTMLParagraphElement | null>(null);
   const inlineTerms = question.inlineTerms ?? [];
   const sidebarTerms = question.sidebarTerms ?? [];
   const glossaryCount = inlineTerms.length + sidebarTerms.length;
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+
+    const checkOverflow = () => {
+      if (isTextExpanded) return;
+      setIsTextOverflowing(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    checkOverflow();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(checkOverflow);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+  }, [question.text, isTextExpanded]);
 
   return (
     <div className="rounded-xl border border-slate-gray/20 bg-white shadow-sm overflow-hidden transition-colors">
@@ -72,9 +93,33 @@ export function QuestionPreviewCard({
               )}
             </div>
 
-            <p className="text-sm text-slate-gray line-clamp-2">
+            <p
+              ref={textRef}
+              className={`text-sm text-slate-gray ${
+                isTextExpanded ? "whitespace-pre-wrap break-words" : "line-clamp-2"
+              }`}
+            >
               <LatexText text={question.text} />
             </p>
+
+            {(isTextOverflowing || isTextExpanded) && (
+              <button
+                onClick={() => setIsTextExpanded((prev) => !prev)}
+                className="mt-1 text-xs text-[#16a34a] hover:text-[#15803d] flex items-center gap-1"
+              >
+                {isTextExpanded ? (
+                  <>
+                    <ChevronUp className="w-3 h-3" />
+                    Show less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3 h-3" />
+                    Show full text
+                  </>
+                )}
+              </button>
+            )}
 
             <button
               onClick={() => setIsExpanded(!isExpanded)}
