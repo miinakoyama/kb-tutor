@@ -106,7 +106,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [roleLoaded, setRoleLoaded] = useState(false);
   const [userProfile, setUserProfile] = useState<{ display_name: string | null; student_id: string | null; email: string } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement>(null);
+  // Separate refs for mobile drawer vs desktop sidebar. Both instances of the
+  // user menu may be mounted at once (the desktop aside is hidden via CSS on
+  // mobile widths but still in the DOM), so a single shared ref would point
+  // at the wrong element and the outside-click handler would misfire.
+  const desktopUserMenuRef = useRef<HTMLDivElement>(null);
+  const mobileUserMenuRef = useRef<HTMLDivElement>(null);
 
   const navSections = getNavSections(role);
   const hasBookmarks = navSections.some((section) =>
@@ -174,7 +179,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inDesktop = desktopUserMenuRef.current?.contains(target) ?? false;
+      const inMobile = mobileUserMenuRef.current?.contains(target) ?? false;
+      if (!inDesktop && !inMobile) {
         setShowUserMenu(false);
       }
     };
@@ -276,7 +284,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     ));
   };
 
-  const renderUserMenuPopup = (collapsed: boolean) => (
+  const renderUserMenuPopup = (collapsed: boolean, closeMobileMenu = false) => (
     <AnimatePresence>
       {showUserMenu && (
         <motion.div
@@ -303,7 +311,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           )}
           <Link
             href="/settings"
-            onClick={() => setShowUserMenu(false)}
+            onClick={() => {
+              setShowUserMenu(false);
+              if (closeMobileMenu) setIsOpen(false);
+            }}
             className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <Settings className="w-4 h-4 text-slate-400" />
@@ -321,9 +332,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     </AnimatePresence>
   );
 
-  const renderUserButton = (collapsed: boolean) => (
-    <div ref={userMenuRef} className="relative border-t border-white/10 p-3">
-      {renderUserMenuPopup(collapsed)}
+  const renderUserButton = (collapsed: boolean, closeMobileMenu = false) => (
+    <div
+      ref={closeMobileMenu ? mobileUserMenuRef : desktopUserMenuRef}
+      className="relative border-t border-white/10 p-3"
+    >
+      {renderUserMenuPopup(collapsed, closeMobileMenu)}
       <button
         onClick={() => setShowUserMenu((v) => !v)}
         title={collapsed && userProfile ? getDisplayName(userProfile) : undefined}
@@ -437,7 +451,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 </button>
               </div>
               <nav className="flex-1 px-3 py-4 overflow-y-auto">{renderSections(false, true)}</nav>
-              {renderUserButton(false)}
+              {renderUserButton(false, true)}
             </div>
           </motion.aside>
         )}
