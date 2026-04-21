@@ -1,4 +1,7 @@
-import type { StandardMetric, StudentMetric } from "@/lib/analytics/teacher-dashboard";
+import type {
+  StandardRow,
+  StudentRow,
+} from "@/lib/analytics/teacher-dashboard-server";
 
 function escapeCsvValue(value: string | number): string {
   const text = String(value);
@@ -25,7 +28,7 @@ function downloadCsv(content: string, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function downloadStandardMetricsCsv(rows: StandardMetric[]): void {
+export function downloadStandardMetricsCsv(rows: StandardRow[]): void {
   const header = joinCsvRow([
     "standard_id",
     "standard_label",
@@ -33,6 +36,7 @@ export function downloadStandardMetricsCsv(rows: StandardMetric[]): void {
     "correct",
     "accuracy_percent",
     "average_time_seconds",
+    "status",
   ]);
   const body = rows.map((row) =>
     joinCsvRow([
@@ -42,20 +46,34 @@ export function downloadStandardMetricsCsv(rows: StandardMetric[]): void {
       row.correct,
       row.accuracy,
       row.averageTimeSec,
+      row.status,
     ]),
   );
   downloadCsv([header, ...body].join("\n"), "teacher-dashboard-by-standard.csv");
 }
 
-export function downloadStudentMetricsCsv(rows: StudentMetric[]): void {
+export function downloadStudentMetricsCsv(rows: StudentRow[]): void {
   const header = joinCsvRow([
     "student_id",
-    "total_answered",
-    "total_correct",
+    "student_label",
+    "attempted",
+    "correct",
     "accuracy_percent",
+    "average_time_seconds",
+    "status",
+    "low_and_fast",
   ]);
   const body = rows.map((row) =>
-    joinCsvRow([row.studentId, row.totalAnswered, row.totalCorrect, row.accuracy]),
+    joinCsvRow([
+      row.studentId,
+      row.label,
+      row.attempted,
+      row.correct,
+      row.accuracy,
+      row.averageTimeSec,
+      row.status,
+      row.isLowAndFast ? "yes" : "no",
+    ]),
   );
   downloadCsv([header, ...body].join("\n"), "teacher-dashboard-by-student.csv");
 }

@@ -2,19 +2,56 @@ import { NextResponse } from "next/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  buildDashboardResponse,
+  type AttemptRecord,
+} from "@/lib/analytics/teacher-dashboard-server";
 
-interface AttemptRow {
+interface AttemptQueryRow {
   user_id: string;
   standard_id: string | null;
   standard_label: string | null;
+  topic: string | null;
+  mode: string | null;
   is_correct: boolean;
   time_spent_sec: number | null;
+  assignment_id: string | null;
+  answered_at: string;
+}
+
+type RangeKey = "7d" | "30d" | "all";
+type ModeFilter = "practice" | "exam" | "review" | "all";
+type SourceFilter = "assigned" | "self" | "all";
+
+function parseEnum<T extends string>(
+  raw: string | null,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  if (!raw) return fallback;
+  return (allowed as readonly string[]).includes(raw) ? (raw as T) : fallback;
 }
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const studentId = url.searchParams.get("studentId") || undefined;
-  const range = (url.searchParams.get("range") as "7d" | "30d" | "all" | null) ?? "30d";
+  const classId = url.searchParams.get("classId") || undefined;
+  const topic = url.searchParams.get("topic") || undefined;
+  const range = parseEnum<RangeKey>(
+    url.searchParams.get("range"),
+    ["7d", "30d", "all"] as const,
+    "30d",
+  );
+  const mode = parseEnum<ModeFilter>(
+    url.searchParams.get("mode"),
+    ["practice", "exam", "review", "all"] as const,
+    "practice",
+  );
+  const source = parseEnum<SourceFilter>(
+    url.searchParams.get("source"),
+    ["assigned", "self", "all"] as const,
+    "all",
+  );
 
   const supabase = await createSupabaseServerClient();
   const admin = createSupabaseAdminClient();
@@ -35,7 +72,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Get all schools the teacher has access to
   let schoolIds: string[] = [];
   if (role === "teacher") {
     const [{ data: schoolTeachers }, { data: legacySchools }] = await Promise.all([
@@ -59,30 +95,57 @@ export async function GET(request: Request) {
     schoolIds = (allSchools ?? []).map((row) => row.id);
   }
 
+  const { data: schoolRows } = schoolIds.length
+    ? await admin.from("schools").select("id,name").in("id", schoolIds)
+    : { data: [] as { id: string; name: string }[] };
+
+  const classes = (schoolRows ?? [])
+    .map((row) => ({ id: String(row.id), label: String(row.name ?? row.id) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const emptyResponse = {
+    classes,
+    students: [] as { id: string; label: string; classId: string | null }[],
+    topics: [] as string[],
+    summary: {
+      completionRate: 0,
+      studentsAttempted: 0,
+      studentsTotal: 0,
+      overallAccuracy: 0,
+      avgTimeSec: 0,
+      totalAnswered: 0,
+      totalCorrect: 0,
+      breakdown: { onTrack: 0, watch: 0, struggling: 0, notStarted: 0 },
+    },
+    byStandard: [] as never[],
+    byStudent: [] as never[],
+    lowAndFastCount: 0,
+    filters: { range, mode, source, classId: classId ?? null, studentId: studentId ?? null, topic: topic ?? null },
+  };
+
   if (schoolIds.length === 0) {
-    return NextResponse.json({
-      students: [],
-      summary: { totalAnswered: 0, totalCorrect: 0, overallAccuracy: 0 },
-      byStandard: [],
-      byStudent: [],
-    });
+    return NextResponse.json(emptyResponse);
   }
+
+  const effectiveClassIds =
+    classId && schoolIds.includes(classId) ? [classId] : schoolIds;
 
   const { data: memberRows } = await admin
     .from("school_members")
     .select("school_id,student_user_id")
-    .in("school_id", schoolIds);
+    .in("school_id", effectiveClassIds);
 
-  const scopedStudentIds = Array.from(
-    new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
-  );
+  const studentClassMap = new Map<string, string>();
+  for (const row of memberRows ?? []) {
+    const sid = String(row.student_user_id);
+    if (!studentClassMap.has(sid)) {
+      studentClassMap.set(sid, String(row.school_id));
+    }
+  }
+  const scopedStudentIds = Array.from(studentClassMap.keys());
+
   if (scopedStudentIds.length === 0) {
-    return NextResponse.json({
-      students: [],
-      summary: { totalAnswered: 0, totalCorrect: 0, overallAccuracy: 0 },
-      byStandard: [],
-      byStudent: [],
-    });
+    return NextResponse.json(emptyResponse);
   }
 
   const effectiveStudentIds =
@@ -105,7 +168,9 @@ export async function GET(request: Request) {
 
   let attemptsQuery = admin
     .from("attempts")
-    .select("user_id,standard_id,standard_label,is_correct,time_spent_sec,answered_at")
+    .select(
+      "user_id,standard_id,standard_label,topic,mode,is_correct,time_spent_sec,assignment_id,answered_at",
+    )
     .in("user_id", effectiveStudentIds);
   if (range !== "all") {
     const days = range === "7d" ? 7 : 30;
@@ -113,81 +178,43 @@ export async function GET(request: Request) {
     from.setDate(from.getDate() - days);
     attemptsQuery = attemptsQuery.gte("answered_at", from.toISOString());
   }
+  if (mode !== "all") {
+    attemptsQuery = attemptsQuery.eq("mode", mode);
+  }
+  if (source === "assigned") {
+    attemptsQuery = attemptsQuery.not("assignment_id", "is", null);
+  } else if (source === "self") {
+    attemptsQuery = attemptsQuery.is("assignment_id", null);
+  }
+
   const { data: attemptsData } = await attemptsQuery;
-  const attempts = (attemptsData ?? []) as AttemptRow[];
+  const attempts = ((attemptsData ?? []) as AttemptQueryRow[]).map<AttemptRecord>(
+    (row) => ({
+      userId: String(row.user_id),
+      standardId: row.standard_id,
+      standardLabel: row.standard_label,
+      topic: row.topic,
+      mode: (row.mode as AttemptRecord["mode"]) ?? "practice",
+      isCorrect: Boolean(row.is_correct),
+      timeSpentSec: row.time_spent_sec ?? 0,
+      assignmentId: row.assignment_id,
+    }),
+  );
 
-  const totalAnswered = attempts.length;
-  const totalCorrect = attempts.filter((item) => item.is_correct).length;
-  const overallAccuracy =
-    totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
-
-  const byStandardMap = new Map<
-    string,
-    { standardId: string; standardLabel: string; attempted: number; correct: number; totalTime: number }
-  >();
-  for (const row of attempts) {
-    const standardId = row.standard_id || "BIO.OTHER";
-    const standardLabel = row.standard_label || "Other";
-    const existing = byStandardMap.get(standardId) ?? {
-      standardId,
-      standardLabel,
-      attempted: 0,
-      correct: 0,
-      totalTime: 0,
-    };
-    existing.attempted += 1;
-    if (row.is_correct) existing.correct += 1;
-    existing.totalTime += row.time_spent_sec ?? 0;
-    byStandardMap.set(standardId, existing);
-  }
-
-  const byStandard = Array.from(byStandardMap.values())
-    .map((item) => ({
-      standardId: item.standardId,
-      standardLabel: item.standardLabel,
-      attempted: item.attempted,
-      correct: item.correct,
-      accuracy: item.attempted > 0 ? Math.round((item.correct / item.attempted) * 100) : 0,
-      averageTimeSec: item.attempted > 0 ? Math.round(item.totalTime / item.attempted) : 0,
-    }))
-    .sort((a, b) => a.standardId.localeCompare(b.standardId));
-
-  const byStudentMap = new Map<string, { studentId: string; label: string; totalAnswered: number; totalCorrect: number }>();
-  for (const row of attempts) {
-    const key = row.user_id;
-    const existing = byStudentMap.get(key) ?? {
-      studentId: key,
-      label: studentMap.get(key) ?? key,
-      totalAnswered: 0,
-      totalCorrect: 0,
-    };
-    existing.totalAnswered += 1;
-    if (row.is_correct) existing.totalCorrect += 1;
-    byStudentMap.set(key, existing);
-  }
-
-  const byStudent = Array.from(byStudentMap.values())
-    .map((item) => ({
-      studentId: item.studentId,
-      label: item.label,
-      totalAnswered: item.totalAnswered,
-      totalCorrect: item.totalCorrect,
-      accuracy:
-        item.totalAnswered > 0
-          ? Math.round((item.totalCorrect / item.totalAnswered) * 100)
-          : 0,
-    }))
-    .sort((a, b) => b.totalAnswered - a.totalAnswered);
-
-  const students = effectiveStudentIds.map((id) => ({
-    id,
-    label: studentMap.get(id) ?? id,
-  }));
+  const payload = buildDashboardResponse({
+    attempts,
+    topic,
+    scopedStudents: scopedStudentIds.map((id) => ({
+      id,
+      label: studentMap.get(id) ?? id,
+      classId: studentClassMap.get(id) ?? null,
+    })),
+    selectedStudentId: studentId ?? null,
+  });
 
   return NextResponse.json({
-    students,
-    summary: { totalAnswered, totalCorrect, overallAccuracy },
-    byStandard,
-    byStudent,
+    classes,
+    ...payload,
+    filters: { range, mode, source, classId: classId ?? null, studentId: studentId ?? null, topic: topic ?? null },
   });
 }
