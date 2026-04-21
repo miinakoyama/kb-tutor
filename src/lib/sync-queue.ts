@@ -325,9 +325,14 @@ async function refreshSupabaseSession(): Promise<void> {
 }
 
 /**
- * Lifecycle-wake handler: we've just received a signal that the environment
- * has changed (browser reported `online`, tab became visible). Do what a
- * full page reload would do for the sync subsystem, then flush:
+ * Full "reset and flush" path. Called when we want to recover from a
+ * possibly-wedged supabase client — currently the browser `online` event
+ * and the manual "Retry now" button. The visibility handler intentionally
+ * skips this (see `installSyncLifecycle`) because a hidden tab regaining
+ * focus doesn't imply a network transition, and rebuilding the supabase
+ * client on every tab focus would be needlessly disruptive.
+ *
+ * Steps:
  *   1. Abort any stale in-flight waits so the queue can move immediately.
  *   2. Drop the supabase-js singleton. Offline stretches can leave its
  *      internal auth state wedged (failed refresh-token attempts, half-dead
@@ -540,9 +545,20 @@ async function runQueueLoop(): Promise<void> {
     broadcast(recomputeStatus());
 
     const now = Date.now();
-    const due = queue.filter((w) => w.nextAttemptAt <= now);
+    // Items that have burned their retry budget must not be picked up by
+    // the automatic loop — they surface as "failed" in the UI and only
+    // advance when the user explicitly retries (which resets `tries` via
+    // `resetBackoff({ resetTries: true })`). Without this guard,
+    // permanent-error items with `backoff = 0` would loop tightly against
+    // the server: scheduleNextFlush keeps re-firing every ~50ms.
+    const pendingRetryable = queue.filter((w) => w.tries < MAX_TRIES);
+    if (pendingRetryable.length === 0) {
+      debugLog("processQueue: only failed items remain, not scheduling");
+      return;
+    }
+    const due = pendingRetryable.filter((w) => w.nextAttemptAt <= now);
     if (due.length === 0) {
-      const nextAt = Math.min(...queue.map((w) => w.nextAttemptAt));
+      const nextAt = Math.min(...pendingRetryable.map((w) => w.nextAttemptAt));
       debugLog("processQueue: nothing due, scheduling in", nextAt - now, "ms");
       scheduleNextFlush(nextAt - now);
       return;
@@ -578,14 +594,18 @@ async function runQueueLoop(): Promise<void> {
 
   // Post-failure cleanup. If nothing is left (everything ended up discarded
   // as permanent before it got here), emit the terminal status; otherwise
-  // schedule the next flush based on the soonest-due item.
+  // schedule the next flush based on the soonest-due *retryable* item.
+  // Exhausted items are skipped — they'll only move again when the user
+  // hits "Retry" or "Dismiss".
   const remaining = readQueue();
   if (remaining.length === 0) {
     if (completedAny) flashSaved();
     else broadcast({ kind: "idle" });
     return;
   }
-  const nextAt = Math.min(...remaining.map((w) => w.nextAttemptAt));
+  const retryable = remaining.filter((w) => w.tries < MAX_TRIES);
+  if (retryable.length === 0) return;
+  const nextAt = Math.min(...retryable.map((w) => w.nextAttemptAt));
   scheduleNextFlush(nextAt - Date.now());
 }
 
@@ -621,15 +641,22 @@ function applyBatchResults(
     // minutes.
     const permanent = isNonRetriableError(err);
     const tries = permanent ? MAX_TRIES : latest.tries + 1;
-    const backoff = permanent ? 0 : BACKOFF_MS[Math.min(tries, BACKOFF_MS.length - 1)];
     const message = err instanceof Error ? err.message : String(err);
     if (permanent) {
       debugLog("processQueue: permanent failure, not retrying", message);
     }
+    // For permanent failures we push nextAttemptAt far into the future so
+    // that even if the "tries >= MAX_TRIES" filter is ever bypassed, the
+    // item still won't silently hammer the server on every tick. A manual
+    // retry resets `tries` via `resetBackoff({ resetTries: true })`, which
+    // also flattens nextAttemptAt back to `now`.
+    const nextAttemptAt = permanent
+      ? Number.MAX_SAFE_INTEGER
+      : Date.now() + BACKOFF_MS[Math.min(tries, BACKOFF_MS.length - 1)];
     const updated: PendingWrite = {
       ...latest,
       tries,
-      nextAttemptAt: Date.now() + backoff,
+      nextAttemptAt,
       lastError: permanent ? `[non-retriable] ${message}` : message,
     };
     writeQueue(readQueue().map((w) => (w.id === entry.id ? updated : w)));

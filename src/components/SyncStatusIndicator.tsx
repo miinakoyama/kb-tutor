@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { CloudOff, RefreshCw, TriangleAlert } from "lucide-react";
 import {
   discardFailedPending,
@@ -34,7 +34,6 @@ const STUCK_THRESHOLD_MS = 8_000;
 export function SyncStatusIndicator() {
   const [status, setStatus] = useState<SyncStatus>(() => getSyncStatus());
   const [stuck, setStuck] = useState(false);
-  const stuckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return subscribeSyncStatus(setStatus);
@@ -43,25 +42,18 @@ export function SyncStatusIndicator() {
   useEffect(() => {
     const inflight = status.kind === "saving" || status.kind === "retrying";
     if (!inflight) {
-      if (stuckTimer.current) {
-        clearTimeout(stuckTimer.current);
-        stuckTimer.current = null;
-      }
-      if (stuck) setStuck(false);
+      setStuck(false);
       return;
     }
-    if (stuckTimer.current) return;
-    stuckTimer.current = setTimeout(() => {
-      setStuck(true);
-      stuckTimer.current = null;
-    }, STUCK_THRESHOLD_MS);
-    return () => {
-      if (stuckTimer.current) {
-        clearTimeout(stuckTimer.current);
-        stuckTimer.current = null;
-      }
-    };
-  }, [status.kind, stuck]);
+    // Schedule exactly one timer per in-flight transition. Leaving `stuck`
+    // out of the dependency list is intentional: once the timer fires and
+    // flips it to true, we don't want the effect to re-run and schedule a
+    // second timeout. The cleanup runs whenever `status.kind` changes (or
+    // the component unmounts), which clears any pending timer and prevents
+    // `setStuck` from firing on an unmounted component.
+    const timer = setTimeout(() => setStuck(true), STUCK_THRESHOLD_MS);
+    return () => clearTimeout(timer);
+  }, [status.kind]);
 
   const shouldShow =
     status.kind === "offline" ||
