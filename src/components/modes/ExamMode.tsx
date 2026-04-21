@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -31,6 +31,9 @@ import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
+import { trackAnalyticsEvent } from "@/lib/analytics/client";
+import { useAnalyticsSession } from "@/lib/analytics/session";
+import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -131,9 +134,114 @@ export function ExamMode({
     return () => media.removeEventListener("change", update);
   }, []);
 
+  // Session lifecycle. The session is created once the learner actually
+  // starts the exam (i.e. leaves the config phase). `markStageCompleted` is
+  // called from `confirmSubmit` below so unmount-after-submit is not logged
+  // as an abandonment.
+  const { sessionId, markStageCompleted } = useAnalyticsSession({
+    mode: "exam",
+    assignmentId,
+    enabled: phase !== "config",
+  });
+
+  // Latest session id, read at emit-time by effects whose dependencies must
+  // exclude `sessionId` to avoid duplicate emits on id transitions.
+  const sessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (phase !== "review" || reviewIndex === null) return;
+    const reviewQuestion = sessionQuestions[reviewIndex];
+    if (!reviewQuestion) return;
+    trackAnalyticsEvent({
+      eventType: "review_item_opened",
+      mode: "review",
+      questionId: reviewQuestion.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+  }, [assignmentId, phase, reviewIndex, sessionQuestions]);
+
+  // Fire `explanation_opened` once per question when its feedback panel becomes
+  // visible during the post-exam review phase. The `answer` gate mirrors the
+  // JSX condition that renders FeedbackPanel (only when the student answered).
+  const explanationEmittedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (phase !== "review" || reviewIndex === null) return;
+    const reviewQuestion = sessionQuestions[reviewIndex];
+    if (!reviewQuestion) return;
+    const answer = answers[reviewIndex];
+    if (!answer?.selectedOptionId) return;
+    if (explanationEmittedRef.current.has(reviewQuestion.id)) return;
+    explanationEmittedRef.current.add(reviewQuestion.id);
+    trackAnalyticsEvent({
+      eventType: "explanation_opened",
+      mode: "review",
+      questionId: reviewQuestion.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+      payload: { phase: "exam_review" },
+    });
+  }, [answers, assignmentId, phase, reviewIndex, sessionQuestions]);
+
+  const handleReadAloud = useCallback(
+    (section: ReadSection) => {
+      const activeQuestion =
+        phase === "review" && reviewIndex !== null
+          ? sessionQuestions[reviewIndex]
+          : sessionQuestions[currentIndex];
+      if (!activeQuestion) return;
+      trackAnalyticsEvent({
+        eventType: "tts_played",
+        mode: phase === "review" ? "review" : "exam",
+        questionId: activeQuestion.id,
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+        payload: { target: section },
+      });
+    },
+    [assignmentId, currentIndex, phase, reviewIndex, sessionQuestions],
+  );
+
+  // Fire `review_mode_entered` / `review_mode_exited` when the exam's "review"
+  // phase (post-submit review of wrong answers) is entered or left. This is
+  // separate from the per-item `review_item_opened` events above.
+  useEffect(() => {
+    if (phase !== "review") return;
+    trackAnalyticsEvent({
+      eventType: "review_mode_entered",
+      mode: "review",
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+    return () => {
+      trackAnalyticsEvent({
+        eventType: "review_mode_exited",
+        mode: "review",
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+      });
+    };
+  }, [assignmentId, phase]);
+
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.values(answers).filter((a) => a.selectedOptionId).length;
   const unansweredCount = totalQuestions - answeredCount;
+
+  useEffect(() => {
+    if (phase !== "exam") return;
+    const currentQuestion = sessionQuestions[currentIndex];
+    if (!currentQuestion) return;
+    trackAnalyticsEvent({
+      eventType: "question_viewed",
+      mode: "exam",
+      questionId: currentQuestion.id,
+      assignmentId,
+      sessionId: sessionId ?? undefined,
+    });
+  }, [assignmentId, currentIndex, phase, sessionQuestions, sessionId]);
   const startExam = useCallback(() => {
     let selectedQuestions: Question[] = [];
     
@@ -199,8 +307,21 @@ export function ExamMode({
           teacherId: student?.teacherId,
         });
       }
+
+      trackAnalyticsEvent({
+        eventType: "attempt_submitted",
+        mode: "exam",
+        questionId: q.id,
+        assignmentId,
+        sessionId: sessionId ?? undefined,
+        payload: {
+          selectedOptionId: optionId,
+          isCorrect,
+          isAssignmentRun,
+        },
+      });
     },
-    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId]
+    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId, sessionId]
   );
 
   const toggleFlag = useCallback(() => {
@@ -262,8 +383,30 @@ export function ExamMode({
       });
     }
 
+    trackAnalyticsEvent({
+      eventType: "stage_completed",
+      mode: "exam",
+      assignmentId,
+      sessionId: sessionId ?? undefined,
+      payload: {
+        answeredCount,
+        totalQuestions: sessionQuestions.length,
+        elapsedMs,
+      },
+    });
+    markStageCompleted();
+
     setPhase("results");
-  }, [answers, sessionQuestions, elapsedMs, isAssignmentRun, assignmentId]);
+  }, [
+    answers,
+    sessionQuestions,
+    elapsedMs,
+    isAssignmentRun,
+    assignmentId,
+    answeredCount,
+    markStageCompleted,
+    sessionId,
+  ]);
 
   if (phase === "config") {
     return (
@@ -339,6 +482,7 @@ export function ExamMode({
                 isSpeaking={isSpeaking}
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
+                onPlay={handleReadAloud}
               />
             </div>
           )}
@@ -387,6 +531,7 @@ export function ExamMode({
                 isSpeaking={isSpeaking}
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
+                onPlay={handleReadAloud}
               />
               </div>
             )}
@@ -406,6 +551,7 @@ export function ExamMode({
                     isSpeaking={isSpeaking}
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
+                    onPlay={handleReadAloud}
                   />
                 </div>
               )}
@@ -525,6 +671,7 @@ export function ExamMode({
                     isSpeaking={isSpeaking}
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
+                    onPlay={handleReadAloud}
                   />
                 )}
               </div>
@@ -572,6 +719,7 @@ export function ExamMode({
                     isSpeaking={isSpeaking}
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
+                    onPlay={handleReadAloud}
                   />
                   </div>
                 )}
