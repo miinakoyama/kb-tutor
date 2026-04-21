@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { DataAnalysisTabs } from "../tabs";
+import { DateRangePicker, defaultPilotRange } from "../date-range";
 
 interface Counter {
   started: number;
@@ -124,13 +125,27 @@ interface InsightsResponse {
       completionRate: number;
     }>;
   };
+  hintDependency: {
+    hintShownN: number;
+    hintRecoveryRate: number | null;
+    noHintN: number;
+    noHintAccuracy: number | null;
+    hintDependencyIndex: number | null;
+    hintShownAndRecovered: number;
+    hintShownAndFailed: number;
+    noHintCorrect: number;
+  };
+  confidenceCalibration: {
+    total: number;
+    matrix: Record<string, { correct: number; incorrect: number }>;
+    overconfidentWrong: number;
+    underconfidentRight: number;
+    calibratedRate: number | null;
+  };
 }
 
-function isoDateOnly(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
-function pct(value: number): string {
+function pct(value: number | null): string {
+  if (value === null) return "—";
   return `${Math.round(value * 100)}%`;
 }
 
@@ -146,15 +161,9 @@ function fmtMinutes(value: number | null): string {
 }
 
 export default function InsightsPage() {
-  const now = useMemo(() => new Date(), []);
-  const defaultFrom = useMemo(() => {
-    const from = new Date(now);
-    from.setDate(now.getDate() - 30);
-    return from;
-  }, [now]);
-
-  const [from, setFrom] = useState(isoDateOnly(defaultFrom));
-  const [to, setTo] = useState(isoDateOnly(now));
+  const initialRange = useMemo(() => defaultPilotRange(), []);
+  const [range, setRange] = useState(initialRange);
+  const { from, to } = range;
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<InsightsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -202,34 +211,23 @@ export default function InsightsPage() {
       <DataAnalysisTabs active="insights" />
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">From</span>
-            <input
-              type="date"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">To</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
-          </label>
-          <div className="flex items-end">
-            <button
-              onClick={() => void fetchData()}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
+        <DateRangePicker value={range} onChange={setRange} />
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => void fetchData()}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+          <button
+            onClick={() => data && downloadInsightsCsv(data, range)}
+            disabled={!data}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            Download summary CSV
+          </button>
         </div>
       </section>
 
@@ -244,7 +242,9 @@ export default function InsightsPage() {
       ) : data ? (
         <div className="space-y-8">
           <ScaffoldingSection data={data.scaffolding} />
+          <HintDependencySection data={data.hintDependency} />
           <PracticeVsExamSection data={data.practiceVsExam} />
+          <ConfidenceCalibrationSection data={data.confidenceCalibration} />
           <ReviewRoutingSection data={data.reviewRouting} />
           <CompletionSection data={data.completion} />
         </div>
@@ -695,6 +695,147 @@ function Table({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Hint Dependency Index
+// ---------------------------------------------------------------------------
+
+function HintDependencySection({
+  data,
+}: {
+  data: InsightsResponse["hintDependency"];
+}) {
+  return (
+    <QuestionSection
+      title="Is the scaffolding a useful nudge or a crutch?"
+      leadAnswer={
+        <LeadAnswer
+          metric={
+            data.hintRecoveryRate !== null
+              ? pct(data.hintRecoveryRate)
+              : "—"
+          }
+          label="of wrong-first answers recover after the hint is shown"
+          sublabel={`No-hint accuracy ${pct(data.noHintAccuracy)} (n=${data.noHintN}) · Hint shown n=${data.hintShownN} · Recovered ${data.hintShownAndRecovered} / Failed ${data.hintShownAndFailed}`}
+          tone={
+            data.hintRecoveryRate === null
+              ? "neutral"
+              : data.hintRecoveryRate > 0.8
+                ? "warn"
+                : data.hintRecoveryRate > 0.4
+                  ? "good"
+                  : "warn"
+          }
+        />
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-3 mb-4">
+        <MetricCard
+          label="Hint recovery rate"
+          value={pct(data.hintRecoveryRate)}
+          hint={`n=${data.hintShownAndRecovered + data.hintShownAndFailed}`}
+          tone="neutral"
+        />
+        <MetricCard
+          label="No-hint accuracy"
+          value={pct(data.noHintAccuracy)}
+          hint={`n=${data.noHintN}`}
+          tone="neutral"
+        />
+        <MetricCard
+          label="Dependency index"
+          value={
+            data.hintDependencyIndex !== null
+              ? data.hintDependencyIndex.toFixed(2)
+              : "—"
+          }
+          hint="recovery ÷ no-hint accuracy"
+          tone="neutral"
+        />
+      </div>
+      <p className="text-xs text-slate-gray/70 leading-relaxed">
+        Dependency index near 1 means the scaffolding lifts students to about
+        the same level as those who didn&apos;t need it — a useful nudge.
+        Significantly above 1 means the hint is doing most of the work, which
+        is a red flag for over-scaffolding. Significantly below 1 means the
+        hint isn&apos;t recovering answers as well as baseline, a sign of
+        scaffolding that is too vague or too late.
+      </p>
+    </QuestionSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Confidence × Correctness calibration
+// ---------------------------------------------------------------------------
+
+function ConfidenceCalibrationSection({
+  data,
+}: {
+  data: InsightsResponse["confidenceCalibration"];
+}) {
+  const order = ["sure", "somewhat", "not_sure"] as const;
+  const labels: Record<string, string> = {
+    sure: "Sure",
+    somewhat: "Somewhat",
+    not_sure: "Not sure",
+  };
+  const rows = order
+    .map((level) => ({
+      level,
+      row: data.matrix[level] ?? { correct: 0, incorrect: 0 },
+    }))
+    .filter(({ row }) => row.correct + row.incorrect > 0);
+
+  return (
+    <QuestionSection
+      title="Are students' self-assessments accurate?"
+      leadAnswer={
+        <LeadAnswer
+          metric={pct(data.calibratedRate)}
+          label="of confidence ratings were well-calibrated"
+          sublabel={`Overconfident-wrong ${data.overconfidentWrong} · Underconfident-right ${data.underconfidentRight} · n=${data.total}`}
+          tone={
+            data.calibratedRate === null
+              ? "neutral"
+              : data.calibratedRate > 0.7
+                ? "good"
+                : data.calibratedRate > 0.5
+                  ? "neutral"
+                  : "warn"
+          }
+        />
+      }
+    >
+      {data.total === 0 ? (
+        <EmptyHint text="No confidence ratings submitted in this window." />
+      ) : (
+        <Table
+          headers={["Confidence", "Correct", "Incorrect", "Accuracy", "n"]}
+          rows={rows.map(({ level, row }) => {
+            const n = row.correct + row.incorrect;
+            const accuracy = n > 0 ? row.correct / n : 0;
+            return [
+              <span key="l" className="font-medium text-slate-gray">
+                {labels[level] ?? level}
+              </span>,
+              <NumCell key="c" value={row.correct} />,
+              <NumCell key="i" value={row.incorrect} />,
+              <NumCell key="a" value={pct(accuracy)} />,
+              <NumCell key="n" value={n} />,
+            ];
+          })}
+        />
+      )}
+      <p className="text-xs text-slate-gray/70 leading-relaxed mt-3">
+        A calibrated learner is mostly correct when they rate themselves &quot;Sure&quot;
+        and more often wrong when &quot;Not sure&quot;. Overconfident-wrong is the
+        dangerous quadrant — it points to misconceptions the learner doesn&apos;t
+        know they have.
+      </p>
+    </QuestionSection>
+  );
+}
+
 function Scatter({
   points,
 }: {
@@ -764,4 +905,96 @@ function Scatter({
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Summary CSV export (client-side)
+// ---------------------------------------------------------------------------
+
+function csvCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadInsightsCsv(
+  data: InsightsResponse,
+  range: { from: string; to: string },
+) {
+  const lines: string[] = [];
+  lines.push(`# Insights summary export`);
+  lines.push(`# from=${range.from} to=${range.to}`);
+  lines.push("");
+  lines.push("section,metric,value,denominator,notes");
+  lines.push(
+    `scaffolding,first_attempt_accuracy,${data.scaffolding.overall.firstAttemptAccuracy},${data.scaffolding.overall.cohortSize},${csvCell("Practice first-try accuracy")}`,
+  );
+  lines.push(
+    `scaffolding,final_accuracy,${data.scaffolding.overall.finalAccuracy},${data.scaffolding.overall.cohortSize},${csvCell("Practice final-attempt accuracy")}`,
+  );
+  lines.push(
+    `scaffolding,uplift_pp,${data.scaffolding.overall.uplift},${data.scaffolding.overall.cohortSize},${csvCell("final − first")}`,
+  );
+  lines.push(
+    `practice_vs_exam,gap_pp,${data.practiceVsExam.overall.gap},${data.practiceVsExam.overall.practiceN + data.practiceVsExam.overall.examN},${csvCell("practice − exam accuracy")}`,
+  );
+  lines.push(
+    `practice_vs_exam,practice_accuracy,${data.practiceVsExam.overall.practiceAccuracy},${data.practiceVsExam.overall.practiceN},`,
+  );
+  lines.push(
+    `practice_vs_exam,exam_accuracy,${data.practiceVsExam.overall.examAccuracy},${data.practiceVsExam.overall.examN},`,
+  );
+  lines.push(
+    `review_routing,strugglers,${data.reviewRouting.overall.studentsWithErrors},,${csvCell("≥" + data.reviewRouting.overall.errorThreshold + " practice errors")}`,
+  );
+  lines.push(
+    `review_routing,strugglers_in_review,${data.reviewRouting.overall.strugglersInReview},${data.reviewRouting.overall.studentsWithErrors},`,
+  );
+  lines.push(
+    `review_routing,strugglers_missed,${data.reviewRouting.overall.strugglersNoReview},${data.reviewRouting.overall.studentsWithErrors},`,
+  );
+  lines.push(
+    `completion,rate,${data.completion.overall.completionRate},${data.completion.overall.started},${csvCell("stage completed / started")}`,
+  );
+  lines.push(
+    `completion,started,${data.completion.overall.started},,`,
+  );
+  lines.push(
+    `completion,completed,${data.completion.overall.completed},,`,
+  );
+  lines.push(
+    `completion,abandoned,${data.completion.overall.abandoned},,`,
+  );
+  lines.push(
+    `hint_dependency,hint_recovery_rate,${data.hintDependency.hintRecoveryRate ?? ""},${data.hintDependency.hintShownAndRecovered + data.hintDependency.hintShownAndFailed},${csvCell("hint shown → ended correct")}`,
+  );
+  lines.push(
+    `hint_dependency,no_hint_accuracy,${data.hintDependency.noHintAccuracy ?? ""},${data.hintDependency.noHintN},`,
+  );
+  lines.push(
+    `hint_dependency,dependency_index,${data.hintDependency.hintDependencyIndex ?? ""},,${csvCell("recovery / no-hint accuracy")}`,
+  );
+  lines.push(
+    `confidence,calibrated_rate,${data.confidenceCalibration.calibratedRate ?? ""},${data.confidenceCalibration.total},`,
+  );
+  lines.push(
+    `confidence,overconfident_wrong,${data.confidenceCalibration.overconfidentWrong},${data.confidenceCalibration.total},${csvCell("sure + incorrect")}`,
+  );
+  lines.push(
+    `confidence,underconfident_right,${data.confidenceCalibration.underconfidentRight},${data.confidenceCalibration.total},${csvCell("not_sure + correct")}`,
+  );
+
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `insights-summary_${range.from}_${range.to}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

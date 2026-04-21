@@ -188,6 +188,9 @@ export async function GET(request: Request) {
     reviewEnteredRes,
     stageCountsRes,
     sessionDurationsRes,
+    confidenceRes,
+    hintOpensRes,
+    attemptEventsRes,
   ] = await Promise.all([
     admin.rpc("insights_practice_summary", rpcArgs),
     admin.rpc("insights_exam_summary", rpcArgs),
@@ -195,6 +198,27 @@ export async function GET(request: Request) {
     admin.rpc("insights_review_entered_users", rpcArgs),
     admin.rpc("insights_stage_counts", rpcArgs),
     admin.rpc("insights_session_durations", rpcArgs),
+    admin
+      .from("analytics_events")
+      .select("payload")
+      .eq("event_type", "confidence_submitted")
+      .gte("occurred_at", fromIso)
+      .lte("occurred_at", toIso)
+      .limit(100_000),
+    admin
+      .from("analytics_events")
+      .select("user_id,question_id")
+      .eq("event_type", "hint_opened")
+      .gte("occurred_at", fromIso)
+      .lte("occurred_at", toIso)
+      .limit(100_000),
+    admin
+      .from("analytics_events")
+      .select("user_id,question_id,payload")
+      .eq("event_type", "attempt_submitted")
+      .gte("occurred_at", fromIso)
+      .lte("occurred_at", toIso)
+      .limit(200_000),
   ]);
 
   const firstError = [
@@ -204,6 +228,9 @@ export async function GET(request: Request) {
     reviewEnteredRes,
     stageCountsRes,
     sessionDurationsRes,
+    confidenceRes,
+    hintOpensRes,
+    attemptEventsRes,
   ].find((r) => r.error);
   if (firstError?.error) {
     return NextResponse.json({ error: firstError.error.message }, { status: 400 });
@@ -488,6 +515,104 @@ export async function GET(request: Request) {
     .sort((a, b) => a.completionRate - b.completionRate)
     .slice(0, 50);
 
+  // ---- Hint Dependency & Confidence Calibration (new) ------------------
+  type AttemptEvent = {
+    user_id: string;
+    question_id: string | null;
+    payload: Record<string, unknown> | null;
+  };
+  type HintOpen = { user_id: string; question_id: string | null };
+  type ConfidenceEvent = { payload: Record<string, unknown> | null };
+
+  const attemptEvents = (attemptEventsRes.data ?? []) as AttemptEvent[];
+  const hintOpens = (hintOpensRes.data ?? []) as HintOpen[];
+  const confidenceEvents = (confidenceRes.data ?? []) as ConfidenceEvent[];
+
+  const hintKeySet = new Set<string>();
+  for (const row of hintOpens) {
+    if (!row.question_id) continue;
+    hintKeySet.add(`${row.user_id}::${row.question_id}`);
+  }
+
+  const attemptGroups = new Map<
+    string,
+    {
+      userId: string;
+      first: { index: number; correct: boolean } | null;
+      final: { index: number; correct: boolean } | null;
+    }
+  >();
+  for (const row of attemptEvents) {
+    if (!row.question_id) continue;
+    const key = `${row.user_id}::${row.question_id}`;
+    const payload = row.payload ?? {};
+    const index = typeof payload.attemptIndex === "number" ? payload.attemptIndex : 1;
+    const correct = typeof payload.isCorrect === "boolean" ? payload.isCorrect : false;
+    const group = attemptGroups.get(key) ?? {
+      userId: row.user_id,
+      first: null,
+      final: null,
+    };
+    if (!group.first || index < group.first.index) group.first = { index, correct };
+    if (!group.final || index > group.final.index) group.final = { index, correct };
+    attemptGroups.set(key, group);
+  }
+
+  let hintShownN = 0;
+  let hintShownAndRecovered = 0;
+  let hintShownAndFailed = 0;
+  let noHintN = 0;
+  let noHintCorrect = 0;
+  for (const [key, group] of attemptGroups) {
+    if (!group.first || !group.final) continue;
+    const hintShown = hintKeySet.has(key);
+    if (hintShown) {
+      hintShownN += 1;
+      if (group.final.correct && !group.first.correct) hintShownAndRecovered += 1;
+      if (!group.final.correct) hintShownAndFailed += 1;
+    } else {
+      noHintN += 1;
+      if (group.final.correct) noHintCorrect += 1;
+    }
+  }
+
+  // Recovery rate = among (hint shown) events that started wrong, how many ended correct.
+  const wrongFirstWithHint = hintShownAndRecovered + hintShownAndFailed;
+  const hintRecoveryRate =
+    wrongFirstWithHint > 0 ? hintShownAndRecovered / wrongFirstWithHint : null;
+  const noHintAccuracy = noHintN > 0 ? noHintCorrect / noHintN : null;
+  const hintDependencyIndex =
+    hintRecoveryRate !== null && noHintAccuracy !== null && noHintAccuracy > 0
+      ? hintRecoveryRate / noHintAccuracy
+      : null;
+
+  const confidenceMatrix: Record<string, { correct: number; incorrect: number }> = {
+    sure: { correct: 0, incorrect: 0 },
+    somewhat: { correct: 0, incorrect: 0 },
+    not_sure: { correct: 0, incorrect: 0 },
+  };
+  let confidenceTotal = 0;
+  for (const row of confidenceEvents) {
+    const payload = row.payload ?? {};
+    const level =
+      typeof payload.confidenceLevel === "string" ? payload.confidenceLevel : null;
+    const isCorrect =
+      typeof payload.isCorrect === "boolean" ? payload.isCorrect : null;
+    if (!level || isCorrect === null) continue;
+    const slot = confidenceMatrix[level] ?? { correct: 0, incorrect: 0 };
+    if (isCorrect) slot.correct += 1;
+    else slot.incorrect += 1;
+    confidenceMatrix[level] = slot;
+    confidenceTotal += 1;
+  }
+
+  const overconfidentWrong = confidenceMatrix.sure?.incorrect ?? 0;
+  const underconfidentRight = confidenceMatrix.not_sure?.correct ?? 0;
+  const calibratedRate =
+    confidenceTotal > 0
+      ? 1 - (overconfidentWrong + underconfidentRight) / confidenceTotal
+      : null;
+
   return NextResponse.json({
     meta: {
       from: fromIso,
@@ -499,6 +624,8 @@ export async function GET(request: Request) {
       reviewDwellPairs: reviewDwellRows.length,
       stageUserModes: stageCountsRows.length,
       sessionDurations: sessionDurationRows.length,
+      attemptEvents: attemptEvents.length,
+      confidenceEvents: confidenceEvents.length,
     },
     scaffolding: {
       overall: scaffoldingOverall,
@@ -511,6 +638,23 @@ export async function GET(request: Request) {
       overall: completionOverall,
       byMode: completionByMode,
       byStudent: completionByStudent,
+    },
+    hintDependency: {
+      hintShownN,
+      hintRecoveryRate,
+      noHintN,
+      noHintAccuracy,
+      hintDependencyIndex,
+      hintShownAndRecovered,
+      hintShownAndFailed,
+      noHintCorrect,
+    },
+    confidenceCalibration: {
+      total: confidenceTotal,
+      matrix: confidenceMatrix,
+      overconfidentWrong,
+      underconfidentRight,
+      calibratedRate,
     },
   });
 }
