@@ -12,6 +12,7 @@ import {
 import {
   ManualQuestionEditor,
   manualDraftToQuestion,
+  validateDraft,
   type ManualQuestionDraft,
 } from "@/components/assignments/ManualQuestionEditor";
 import {
@@ -207,6 +208,13 @@ function CreateAssignmentContent() {
         if (manualDrafts.length === 0) {
           setFormError("Add at least one manually authored question.");
           return;
+        }
+        for (let i = 0; i < manualDrafts.length; i += 1) {
+          const draftError = validateDraft(manualDrafts[i]);
+          if (draftError) {
+            setFormError(`Question ${i + 1}: ${draftError}`);
+            return;
+          }
         }
         body.sourceType = "manual";
         body.manualQuestions = manualDrafts.map((draft, index) =>
