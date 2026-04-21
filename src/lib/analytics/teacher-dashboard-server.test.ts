@@ -128,6 +128,28 @@ describe("buildDashboardResponse", () => {
     expect(result.summary.totalAnswered).toBe(1);
   });
 
+  it("keeps attempts with null standardId separated by topic (does not merge unrelated topics)", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "", true, 60, "Cell Division", { standardId: null }),
+      attempt("s1", "", false, 60, "Cell Division", { standardId: null }),
+      attempt("s2", "", true, 60, "Genetics", { standardId: null }),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    // Two separate rows — one per topic, not a single merged bucket
+    const otherRows = result.byStandard.filter((row) =>
+      row.standardId.startsWith("BIO.OTHER"),
+    );
+    expect(otherRows).toHaveLength(2);
+    const labels = otherRows.map((row) => row.standardLabel).sort();
+    expect(labels).toEqual(["Cell Division", "Genetics"]);
+  });
+
   it("uses the canonical label from standards.ts, ignoring stale attempt labels", () => {
     const attempts: AttemptRecord[] = [
       attempt("s1", "3.1.9-12.A", true, 60, "Structure and Function", {

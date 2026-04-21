@@ -1,4 +1,13 @@
 import { getStandardById } from "@/lib/standards";
+import {
+  LOW_AND_FAST_MAX_ACCURACY,
+  LOW_AND_FAST_MAX_AVG_TIME_SEC,
+  LOW_AND_FAST_MIN_ATTEMPTS,
+  STANDARD_ON_TRACK_MIN_ACCURACY,
+  STANDARD_WATCH_MIN_ACCURACY,
+  STUDENT_ON_TRACK_MIN_ACCURACY,
+  STUDENT_WATCH_MIN_ACCURACY,
+} from "@/lib/analytics/constants";
 
 export type AttemptMode = "practice" | "exam" | "review";
 
@@ -77,13 +86,10 @@ export interface DashboardResponseBody {
   lowAndFastCount: number;
 }
 
-const LOW_AND_FAST_ACCURACY = 50;
-const LOW_AND_FAST_AVG_TIME = 30;
-
 function classifyStudent(accuracy: number, attempted: number): StudentStatus {
   if (attempted === 0) return "not_started";
-  if (accuracy >= 70) return "on_track";
-  if (accuracy >= 50) return "watch";
+  if (accuracy >= STUDENT_ON_TRACK_MIN_ACCURACY) return "on_track";
+  if (accuracy >= STUDENT_WATCH_MIN_ACCURACY) return "watch";
   return "struggling";
 }
 
@@ -92,8 +98,8 @@ function classifyStandard(
   attempted: number,
 ): StandardStatus {
   if (attempted === 0) return "not_started";
-  if (accuracy >= 70) return "on_track";
-  if (accuracy >= 55) return "watch";
+  if (accuracy >= STANDARD_ON_TRACK_MIN_ACCURACY) return "on_track";
+  if (accuracy >= STANDARD_WATCH_MIN_ACCURACY) return "watch";
   return "needs_review";
 }
 
@@ -200,13 +206,27 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     byModeTotalTime: Record<AttemptMode, number>;
   }
   const standardAgg = new Map<string, StandardAgg>();
+  // Stable id used when DB row has no standardId. We namespace by topic so
+  // attempts from unrelated topics don't get merged under a single catch-all
+  // bucket (which would mislabel them with whichever row was seen first).
+  const UNKNOWN_STANDARD_PREFIX = "BIO.OTHER";
   for (const row of scopedAttempts) {
-    const standardId = row.standardId || "BIO.OTHER";
-    const canonical = getStandardById(standardId);
-    const standardLabel =
-      canonical?.label || row.standardLabel || row.topic || "Other";
+    let aggKey: string;
+    let fallbackLabel: string;
+    if (row.standardId) {
+      aggKey = row.standardId;
+      fallbackLabel = row.standardLabel || row.topic || "Other";
+    } else {
+      const topicSlug = (row.topic ?? "").trim();
+      aggKey = topicSlug
+        ? `${UNKNOWN_STANDARD_PREFIX}::${topicSlug}`
+        : UNKNOWN_STANDARD_PREFIX;
+      fallbackLabel = row.standardLabel || topicSlug || "Other";
+    }
+    const canonical = row.standardId ? getStandardById(row.standardId) : undefined;
+    const standardLabel = canonical?.label || fallbackLabel;
     const existing =
-      standardAgg.get(standardId) ??
+      standardAgg.get(aggKey) ??
       ({
         label: standardLabel,
         attempted: 0,
@@ -226,7 +246,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     modeAgg.attempted += 1;
     if (row.isCorrect) modeAgg.correct += 1;
     existing.byModeTotalTime[row.mode] += row.timeSpentSec ?? 0;
-    standardAgg.set(standardId, existing);
+    standardAgg.set(aggKey, existing);
   }
 
   const byStandard: StandardRow[] = Array.from(standardAgg.entries())
@@ -303,10 +323,10 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         agg.attempted > 0 ? Math.round(agg.totalTime / agg.attempted) : 0;
       const status = classifyStudent(accuracy, agg.attempted);
       const isLowAndFast =
-        agg.attempted >= 10 &&
-        accuracy < LOW_AND_FAST_ACCURACY &&
+        agg.attempted >= LOW_AND_FAST_MIN_ATTEMPTS &&
+        accuracy < LOW_AND_FAST_MAX_ACCURACY &&
         averageTimeSec > 0 &&
-        averageTimeSec < LOW_AND_FAST_AVG_TIME;
+        averageTimeSec < LOW_AND_FAST_MAX_AVG_TIME_SEC;
       return {
         studentId: student.id,
         label: student.label,
