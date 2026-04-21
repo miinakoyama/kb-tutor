@@ -458,7 +458,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </AnimatePresence>
 
       <aside
-        className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-hidden transition-all duration-300 ${
+        className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-visible transition-all duration-300 ${
           isCollapsed ? "lg:w-14" : "lg:w-64"
         }`}
         style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
