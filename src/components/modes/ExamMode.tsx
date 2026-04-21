@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -32,6 +32,7 @@ import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
+import { useAnalyticsSession } from "@/lib/analytics/session";
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -132,6 +133,23 @@ export function ExamMode({
     return () => media.removeEventListener("change", update);
   }, []);
 
+  // Session lifecycle. The session is created once the learner actually
+  // starts the exam (i.e. leaves the config phase). `markStageCompleted` is
+  // called from `confirmSubmit` below so unmount-after-submit is not logged
+  // as an abandonment.
+  const { sessionId, markStageCompleted } = useAnalyticsSession({
+    mode: "exam",
+    assignmentId,
+    enabled: phase !== "config",
+  });
+
+  // Latest session id, read at emit-time by effects whose dependencies must
+  // exclude `sessionId` to avoid duplicate emits on id transitions.
+  const sessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
   useEffect(() => {
     if (phase !== "review" || reviewIndex === null) return;
     const reviewQuestion = sessionQuestions[reviewIndex];
@@ -141,8 +159,30 @@ export function ExamMode({
       mode: "review",
       questionId: reviewQuestion.id,
       assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
     });
   }, [assignmentId, phase, reviewIndex, sessionQuestions]);
+
+  // Fire `review_mode_entered` / `review_mode_exited` when the exam's "review"
+  // phase (post-submit review of wrong answers) is entered or left. This is
+  // separate from the per-item `review_item_opened` events above.
+  useEffect(() => {
+    if (phase !== "review") return;
+    trackAnalyticsEvent({
+      eventType: "review_mode_entered",
+      mode: "review",
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+    return () => {
+      trackAnalyticsEvent({
+        eventType: "review_mode_exited",
+        mode: "review",
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+      });
+    };
+  }, [assignmentId, phase]);
 
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.values(answers).filter((a) => a.selectedOptionId).length;
@@ -157,8 +197,9 @@ export function ExamMode({
       mode: "exam",
       questionId: currentQuestion.id,
       assignmentId,
+      sessionId: sessionId ?? undefined,
     });
-  }, [assignmentId, currentIndex, phase, sessionQuestions]);
+  }, [assignmentId, currentIndex, phase, sessionQuestions, sessionId]);
   const startExam = useCallback(() => {
     let selectedQuestions: Question[] = [];
     
@@ -230,6 +271,7 @@ export function ExamMode({
         mode: "exam",
         questionId: q.id,
         assignmentId,
+        sessionId: sessionId ?? undefined,
         payload: {
           selectedOptionId: optionId,
           isCorrect,
@@ -237,7 +279,7 @@ export function ExamMode({
         },
       });
     },
-    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId]
+    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId, sessionId]
   );
 
   const toggleFlag = useCallback(() => {
@@ -303,15 +345,26 @@ export function ExamMode({
       eventType: "stage_completed",
       mode: "exam",
       assignmentId,
+      sessionId: sessionId ?? undefined,
       payload: {
         answeredCount,
         totalQuestions: sessionQuestions.length,
         elapsedMs,
       },
     });
+    markStageCompleted();
 
     setPhase("results");
-  }, [answers, sessionQuestions, elapsedMs, isAssignmentRun, assignmentId, answeredCount]);
+  }, [
+    answers,
+    sessionQuestions,
+    elapsedMs,
+    isAssignmentRun,
+    assignmentId,
+    answeredCount,
+    markStageCompleted,
+    sessionId,
+  ]);
 
   if (phase === "config") {
     return (
