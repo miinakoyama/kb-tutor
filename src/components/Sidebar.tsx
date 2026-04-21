@@ -71,6 +71,7 @@ const ADMIN_SECTION: NavSection = {
   items: [
     { href: "/content/accounts", label: "Accounts", icon: Users },
     { href: "/content/schools", label: "Schools", icon: School },
+    { href: "/content/data-analysis", label: "Data Analysis", icon: BarChart3 },
     { href: "/assignments/manage", label: "Assignments", icon: ClipboardList },
     { href: "/content", label: "Contents", icon: Database },
     { href: "/teacher-dashboard", label: "Teacher Dashboard", icon: LayoutDashboard },
