@@ -235,11 +235,6 @@ function AssignmentManagementContent() {
                         {describeAssignment(assignment).map((part, index) => (
                           <span key={index}>{part}</span>
                         ))}
-                        {assignment.topics.length > 0 && (
-                          <span className="truncate max-w-[240px]">
-                            {assignment.topics.join(", ")}
-                          </span>
-                        )}
                         {assignment.due_date && (
                           <span className="inline-flex items-center gap-1">
                             <CalendarDays className="w-3.5 h-3.5" />

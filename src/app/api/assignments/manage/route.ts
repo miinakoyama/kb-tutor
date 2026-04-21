@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     admin
       .from("assignments")
       .select(
-        "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards",
+        "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards,instructions",
       )
       .in("school_id", schoolIds)
       .order("created_at", { ascending: false }),
@@ -226,6 +226,7 @@ export async function POST(request: Request) {
     targetMinutes?: number;
     mode?: AssignmentMode;
     randomizeOrder?: boolean;
+    instructions?: string | null;
     sourceType?: AssignmentSourceType;
     existingSetId?: string;
     selectedQuestions?: Array<{ setId: string; questionIds: string[] }>;
@@ -247,6 +248,12 @@ export async function POST(request: Request) {
       : 20;
   const mode = sanitizeMode(body.mode);
   const randomizeOrder = body.randomizeOrder !== false;
+  // Store trimmed instructions, and null-out when the string is empty so
+  // the column stays NULL instead of an empty string (simpler "has
+  // instructions?" checks downstream).
+  const rawInstructions =
+    typeof body.instructions === "string" ? body.instructions.trim() : "";
+  const instructions = rawInstructions.length > 0 ? rawInstructions : null;
 
   if (!title || !schoolId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -334,6 +341,7 @@ export async function POST(request: Request) {
     max_questions: maxQuestions,
     review_topics: mode === "review" ? reviewTopics : null,
     review_standards: mode === "review" ? reviewStandards : null,
+    instructions,
   });
   if (assignmentError) {
     return NextResponse.json({ error: assignmentError.message }, { status: 400 });

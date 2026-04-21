@@ -35,6 +35,7 @@ async function loadAssignmentForRequester(
         max_questions: number | null;
         review_topics: string[] | null;
         review_standards: string[] | null;
+        instructions: string | null;
       };
     }
   | { error: string; status: number }
@@ -42,7 +43,7 @@ async function loadAssignmentForRequester(
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
     .select(
-      "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards",
+      "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards,instructions",
     )
     .eq("id", assignmentId)
     .maybeSingle();
@@ -86,6 +87,10 @@ async function loadAssignmentForRequester(
         typeof assignment.max_questions === "number" ? assignment.max_questions : null,
       review_topics: (assignment.review_topics as string[] | null) ?? null,
       review_standards: (assignment.review_standards as string[] | null) ?? null,
+      instructions:
+        typeof assignment.instructions === "string"
+          ? assignment.instructions
+          : null,
     },
   };
 }
@@ -331,6 +336,7 @@ interface PatchBody {
   dueDate?: string | null;
   targetMinutes?: number;
   randomizeOrder?: boolean;
+  instructions?: string | null;
 }
 
 const DISALLOWED_CONTENT_KEYS = [
@@ -408,6 +414,15 @@ export async function PATCH(
 
   if (typeof body.randomizeOrder === "boolean") {
     updates.randomize_order = body.randomizeOrder;
+  }
+
+  if ("instructions" in body) {
+    if (body.instructions === null || body.instructions === undefined) {
+      updates.instructions = null;
+    } else if (typeof body.instructions === "string") {
+      const trimmed = body.instructions.trim();
+      updates.instructions = trimmed.length > 0 ? trimmed : null;
+    }
   }
 
   if (Object.keys(updates).length === 0) {

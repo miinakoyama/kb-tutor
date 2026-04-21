@@ -42,6 +42,7 @@ interface AssignmentDetail {
   max_questions: number | null;
   review_topics: string[] | null;
   review_standards: string[] | null;
+  instructions: string | null;
 }
 
 interface SnapshotEntry {
@@ -179,6 +180,9 @@ function AssignmentDetailContent({
   const [randomizeOrder, setRandomizeOrder] = useState(
     assignment.randomize_order !== false,
   );
+  const [instructions, setInstructions] = useState(
+    assignment.instructions ?? "",
+  );
   const [metaSaving, setMetaSaving] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
 
@@ -190,19 +194,22 @@ function AssignmentDetailContent({
     const storedIso = assignment.due_date
       ? new Date(assignment.due_date).toISOString()
       : null;
+    const storedInstructions = assignment.instructions ?? "";
     return (
       title.trim() !== assignment.title ||
       formIso !== storedIso ||
       Number(targetMinutes) !== assignment.target_minutes ||
-      randomizeOrder !== (assignment.randomize_order !== false)
+      randomizeOrder !== (assignment.randomize_order !== false) ||
+      instructions !== storedInstructions
     );
-  }, [title, dueDate, targetMinutes, randomizeOrder, assignment]);
+  }, [title, dueDate, targetMinutes, randomizeOrder, instructions, assignment]);
 
   const saveMeta = async () => {
     setMetaSaving(true);
     setMetaError(null);
     setMessage(null);
     try {
+      const trimmedInstructions = instructions.trim();
       const response = await fetch(`/api/assignments/manage/${assignmentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -211,6 +218,8 @@ function AssignmentDetailContent({
           dueDate: dateTimeLocalValueToIso(dueDate),
           targetMinutes,
           randomizeOrder,
+          instructions:
+            trimmedInstructions.length > 0 ? trimmedInstructions : null,
         }),
       });
       const payload = (await response.json()) as { error?: string };
@@ -386,6 +395,22 @@ function AssignmentDetailContent({
               <span className="text-xs text-slate-gray/70">
                 Each student sees questions in a different deterministic order.
               </span>
+            </span>
+          </label>
+
+          <label className="block text-sm text-slate-gray md:col-span-2">
+            <span className="block mb-1 font-medium">
+              Instructions (optional)
+            </span>
+            <textarea
+              value={instructions}
+              onChange={(event) => setInstructions(event.target.value)}
+              rows={3}
+              placeholder="e.g. Please complete Assignment 1 before starting this one."
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm resize-y"
+            />
+            <span className="block mt-1 text-xs text-slate-gray/70">
+              Shown to students on the assignment card.
             </span>
           </label>
         </div>
