@@ -20,7 +20,7 @@ type RoleRule = {
 const PAGE_ROLE_RULES: RoleRule[] = [
   {
     // Keep admin-only routes first because "/content" is also guarded below.
-    paths: ["/content/accounts", "/content/schools"],
+    paths: ["/content/accounts", "/content/schools", "/content/data-analysis"],
     allowedRoles: ["admin"],
   },
   {
