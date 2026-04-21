@@ -9,12 +9,15 @@ interface GlossaryPanelProps {
   terms: GlossaryTerm[];
   defaultOpen?: boolean;
   title?: string;
+  /** Fires when an individual term accordion is expanded. Intended for analytics. */
+  onTermOpen?: (term: GlossaryTerm) => void;
 }
 
 export function GlossaryPanel({
   terms,
   defaultOpen = false,
   title = "Definitions",
+  onTermOpen,
 }: GlossaryPanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(defaultOpen);
 
@@ -48,7 +51,7 @@ export function GlossaryPanel({
           >
             <div className="px-4 pb-4 space-y-3">
               {terms.map((term) => (
-                <TermAccordion key={term.id} term={term} />
+                <TermAccordion key={term.id} term={term} onOpen={onTermOpen} />
               ))}
             </div>
           </motion.div>
@@ -58,13 +61,27 @@ export function GlossaryPanel({
   );
 }
 
-function TermAccordion({ term }: { term: GlossaryTerm }) {
+function TermAccordion({
+  term,
+  onOpen,
+}: {
+  term: GlossaryTerm;
+  onOpen?: (term: GlossaryTerm) => void;
+}) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const handleToggle = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) onOpen?.(term);
+      return next;
+    });
+  };
 
   return (
     <div className="border-b border-slate-gray/10 last:border-b-0 pb-2 last:pb-0">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className="w-full flex items-center justify-between py-1.5 text-left"
       >
         <span className="text-sm font-semibold text-slate-gray">{term.term}</span>

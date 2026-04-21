@@ -33,6 +33,7 @@ import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
+import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -162,6 +163,47 @@ export function ExamMode({
       sessionId: sessionIdRef.current ?? undefined,
     });
   }, [assignmentId, phase, reviewIndex, sessionQuestions]);
+
+  // Fire `explanation_opened` once per question when its feedback panel becomes
+  // visible during the post-exam review phase. The `answer` gate mirrors the
+  // JSX condition that renders FeedbackPanel (only when the student answered).
+  const explanationEmittedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (phase !== "review" || reviewIndex === null) return;
+    const reviewQuestion = sessionQuestions[reviewIndex];
+    if (!reviewQuestion) return;
+    const answer = answers[reviewIndex];
+    if (!answer?.selectedOptionId) return;
+    if (explanationEmittedRef.current.has(reviewQuestion.id)) return;
+    explanationEmittedRef.current.add(reviewQuestion.id);
+    trackAnalyticsEvent({
+      eventType: "explanation_opened",
+      mode: "review",
+      questionId: reviewQuestion.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+      payload: { phase: "exam_review" },
+    });
+  }, [answers, assignmentId, phase, reviewIndex, sessionQuestions]);
+
+  const handleReadAloud = useCallback(
+    (section: ReadSection) => {
+      const activeQuestion =
+        phase === "review" && reviewIndex !== null
+          ? sessionQuestions[reviewIndex]
+          : sessionQuestions[currentIndex];
+      if (!activeQuestion) return;
+      trackAnalyticsEvent({
+        eventType: "tts_played",
+        mode: phase === "review" ? "review" : "exam",
+        questionId: activeQuestion.id,
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+        payload: { target: section },
+      });
+    },
+    [assignmentId, currentIndex, phase, reviewIndex, sessionQuestions],
+  );
 
   // Fire `review_mode_entered` / `review_mode_exited` when the exam's "review"
   // phase (post-submit review of wrong answers) is entered or left. This is
@@ -440,6 +482,7 @@ export function ExamMode({
                 isSpeaking={isSpeaking}
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
+                onPlay={handleReadAloud}
               />
             </div>
           )}
@@ -488,6 +531,7 @@ export function ExamMode({
                 isSpeaking={isSpeaking}
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
+                onPlay={handleReadAloud}
               />
               </div>
             )}
@@ -507,6 +551,7 @@ export function ExamMode({
                     isSpeaking={isSpeaking}
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
+                    onPlay={handleReadAloud}
                   />
                 </div>
               )}
@@ -626,6 +671,7 @@ export function ExamMode({
                     isSpeaking={isSpeaking}
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
+                    onPlay={handleReadAloud}
                   />
                 )}
               </div>
@@ -673,6 +719,7 @@ export function ExamMode({
                     isSpeaking={isSpeaking}
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
+                    onPlay={handleReadAloud}
                   />
                   </div>
                 )}

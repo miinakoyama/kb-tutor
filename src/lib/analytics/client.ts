@@ -12,7 +12,12 @@ export type AnalyticsEventType =
   | "review_item_completed"
   | "stage_started"
   | "stage_completed"
-  | "stage_abandoned";
+  | "stage_abandoned"
+  | "glossary_term_opened"
+  | "tts_played"
+  | "confidence_submitted"
+  | "bookmark_added"
+  | "bookmark_removed";
 
 export interface TrackAnalyticsEventInput {
   eventType: AnalyticsEventType;

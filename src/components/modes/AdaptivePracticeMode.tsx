@@ -29,6 +29,7 @@ import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
+import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
@@ -302,13 +303,32 @@ export function AdaptivePracticeMode({
         const term = inlineTermMap.get(part.toLowerCase());
         if (!term) return part;
         return (
-          <GlossaryPopover key={`${term.id}_${index}`} term={term}>
+          <GlossaryPopover
+            key={`${term.id}_${index}`}
+            term={term}
+            onOpen={(t) => {
+              if (!question) return;
+              trackAnalyticsEvent({
+                eventType: "glossary_term_opened",
+                mode,
+                questionId: question.id,
+                assignmentId,
+                sessionId: sessionIdRef.current ?? undefined,
+                payload: {
+                  termId: t.id,
+                  termLabel: t.term,
+                  source: "inline",
+                  scaffoldShown: showScaffold,
+                },
+              });
+            }}
+          >
             {part}
           </GlossaryPopover>
         );
       });
     },
-    [inlineTermMap, showScaffold],
+    [assignmentId, inlineTermMap, mode, question, showScaffold],
   );
 
   const submitAttempt = useCallback(() => {
@@ -392,8 +412,21 @@ export function AdaptivePracticeMode({
         ...prev,
         [currentIndex]: { ...finalAnswer, confidenceLevel: level },
       }));
+      if (question) {
+        trackAnalyticsEvent({
+          eventType: "confidence_submitted",
+          mode,
+          questionId: question.id,
+          assignmentId,
+          sessionId: sessionIdRef.current ?? undefined,
+          payload: {
+            confidenceLevel: level,
+            isCorrect: finalAnswer.isCorrect,
+          },
+        });
+      }
     },
-    [currentIndex, finalAnswer],
+    [assignmentId, currentIndex, finalAnswer, mode, question],
   );
 
   const handleBookmarkToggle = useCallback(() => {
@@ -405,7 +438,63 @@ export function AdaptivePracticeMode({
       else next.delete(question.id);
       return next;
     });
-  }, [question]);
+    trackAnalyticsEvent({
+      eventType: nextBookmarked ? "bookmark_added" : "bookmark_removed",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+  }, [assignmentId, mode, question]);
+
+  const handleGlossaryModalOpen = useCallback(() => {
+    if (!question) return;
+    trackAnalyticsEvent({
+      eventType: "glossary_term_opened",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+      payload: {
+        source: "modal",
+        scaffoldShown: showScaffold,
+        termCount: glossaryTerms.length,
+      },
+    });
+    setIsGlossaryModalOpen(true);
+  }, [assignmentId, glossaryTerms.length, mode, question, showScaffold]);
+
+  const handleReadAloud = useCallback(
+    (section: ReadSection) => {
+      if (!question) return;
+      trackAnalyticsEvent({
+        eventType: "tts_played",
+        mode,
+        questionId: question.id,
+        assignmentId,
+        sessionId: sessionIdRef.current ?? undefined,
+        payload: { target: section },
+      });
+    },
+    [assignmentId, mode, question],
+  );
+
+  const explanationEmittedRef = useRef<Set<string>>(new Set());
+  const feedbackVisible = attempts.length > 0 && (isCompleted || isAwaitingRetry);
+  useEffect(() => {
+    if (!question || !feedbackVisible) return;
+    const key = `${question.id}:${isCompleted ? "completed" : "retry"}`;
+    if (explanationEmittedRef.current.has(key)) return;
+    explanationEmittedRef.current.add(key);
+    trackAnalyticsEvent({
+      eventType: "explanation_opened",
+      mode,
+      questionId: question.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+      payload: { phase: isCompleted ? "completed" : "retry" },
+    });
+  }, [assignmentId, feedbackVisible, isCompleted, mode, question]);
 
   const handleNext = useCallback(() => {
     if (!isCompleted) return;
@@ -567,7 +656,7 @@ export function AdaptivePracticeMode({
               headerAction={
                 glossaryTerms.length > 0 ? (
                   <button
-                    onClick={() => setIsGlossaryModalOpen(true)}
+                    onClick={handleGlossaryModalOpen}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
@@ -587,6 +676,7 @@ export function AdaptivePracticeMode({
               renderQuestionText={renderQuestionText}
               showOptionFeedbackIcons={isCompleted}
               feedbackReadText={feedbackReadText}
+              onReadAloud={handleReadAloud}
               feedbackSlot={
                 attempts.length > 0 ? (
                   <div className="space-y-4">
