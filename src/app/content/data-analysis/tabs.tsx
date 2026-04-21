@@ -2,13 +2,19 @@
 
 import Link from "next/link";
 
-type Tab = "students" | "questions" | "feature-usage";
+type Tab = "insights" | "students" | "questions" | "feature-usage";
 
 interface DataAnalysisTabsProps {
   active: Tab;
 }
 
 const TABS: Array<{ id: Tab; label: string; href: string; description: string }> = [
+  {
+    id: "insights",
+    label: "Insights",
+    href: "/content/data-analysis/insights",
+    description: "Research-question answers at a glance (scaffolding, practice vs exam, routing, completion).",
+  },
   {
     id: "students",
     label: "Student attempts",
