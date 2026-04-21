@@ -25,14 +25,15 @@ function setupDownloadCapture() {
   URL.revokeObjectURL = vi.fn();
 
   const originalAppend = document.body.appendChild.bind(document.body);
-  document.body.appendChild = vi.fn(((node: Node) => {
-    const anchor = node as HTMLAnchorElement;
+  const appendSpy = <T extends Node>(node: T): T => {
+    const anchor = node as unknown as HTMLAnchorElement;
     if (anchor.tagName === "A") {
       captured.fileName = anchor.download;
       anchor.click = vi.fn();
     }
     return originalAppend(node);
-  }) as typeof document.body.appendChild);
+  };
+  document.body.appendChild = appendSpy as typeof document.body.appendChild;
 
   const originalBlob = globalThis.Blob;
   globalThis.Blob = class extends originalBlob {
