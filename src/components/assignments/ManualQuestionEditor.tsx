@@ -105,7 +105,7 @@ const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
  */
 export const MAX_OPTIONS = OPTION_LETTERS.length;
 
-function letterForIndex(index: number): string {
+export function letterForIndex(index: number): string {
   const letter = OPTION_LETTERS[index];
   if (!letter) {
     throw new Error(
