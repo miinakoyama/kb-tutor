@@ -6,6 +6,7 @@ import {
   trackAnalyticsEventBeacon,
   type AnalyticsEventType,
 } from "@/lib/analytics/client";
+import { getAnalyticsDeviceInfo } from "@/lib/analytics/device-info";
 
 /**
  * Session lifecycle for student interaction analytics.
@@ -69,6 +70,7 @@ async function requestStartSession(
   options: StartSessionOptions,
 ): Promise<StoredSession | null> {
   try {
+    const deviceInfo = getAnalyticsDeviceInfo();
     const res = await fetch("/api/analytics/sessions", {
       method: "POST",
       credentials: "include",
@@ -81,6 +83,9 @@ async function requestStartSession(
             ? Intl.DateTimeFormat().resolvedOptions().timeZone
             : undefined,
         assignmentId: options.assignmentId,
+        deviceType: deviceInfo.deviceType,
+        browser: deviceInfo.browser,
+        os: deviceInfo.os,
       }),
     });
     if (!res.ok) return null;
