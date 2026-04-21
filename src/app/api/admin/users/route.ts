@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   const admin = createSupabaseAdminClient();
   let query = admin
     .from("profiles")
-    .select("id,email,student_id,display_name,role,created_at")
+    .select("id,email,student_id,display_name,role,excluded_from_analytics,created_at")
     .order("created_at", { ascending: false });
 
   if (roleFilter && ["student", "teacher", "admin"].includes(roleFilter)) {
@@ -55,6 +55,7 @@ export async function PATCH(request: Request) {
     role?: AppRole;
     displayName?: string | null;
     studentId?: string | null;
+    excludedFromAnalytics?: boolean;
   };
 
   if (!body.id) {
@@ -69,10 +70,14 @@ export async function PATCH(request: Request) {
     role?: AppRole;
     display_name?: string | null;
     student_id?: string | null;
+    excluded_from_analytics?: boolean;
   } = {};
   if (body.role) updatePayload.role = body.role;
   if (body.displayName !== undefined) updatePayload.display_name = body.displayName;
   if (body.studentId !== undefined) updatePayload.student_id = body.studentId;
+  if (typeof body.excludedFromAnalytics === "boolean") {
+    updatePayload.excluded_from_analytics = body.excludedFromAnalytics;
+  }
 
   const { error } = await admin.from("profiles").update(updatePayload).eq("id", body.id);
   if (error) {

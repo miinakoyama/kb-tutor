@@ -138,6 +138,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: attemptError.message }, { status: 400 });
   }
 
+  const attemptUserIds = Array.from(
+    new Set((attemptRows ?? []).map((row) => String(row.user_id))),
+  );
+  const memberUserIds = Array.from(
+    new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
+  );
+  const profileIdsForExclusion = Array.from(
+    new Set([...attemptUserIds, ...memberUserIds]),
+  );
+  const excludedUserIds = new Set<string>();
+  if (profileIdsForExclusion.length > 0) {
+    const { data: excludedRows, error: excludedError } = await admin
+      .from("profiles")
+      .select("id")
+      .in("id", profileIdsForExclusion)
+      .eq("excluded_from_analytics", true);
+    if (excludedError) {
+      return NextResponse.json({ error: excludedError.message }, { status: 400 });
+    }
+    for (const row of excludedRows ?? []) {
+      excludedUserIds.add(String(row.id));
+    }
+  }
+
   let setQuery = admin
     .from("generated_question_sets")
     .select("id,name,user_id,generated_at")
@@ -167,11 +191,13 @@ export async function GET(request: NextRequest) {
 
   const schoolMemberCount = new Map<string, number>();
   for (const row of memberRows ?? []) {
+    if (excludedUserIds.has(String(row.student_user_id))) continue;
     schoolMemberCount.set(row.school_id, (schoolMemberCount.get(row.school_id) ?? 0) + 1);
   }
 
   const targetCountByAssignment = new Map<string, number>();
   for (const row of targetRows ?? []) {
+    if (excludedUserIds.has(String(row.student_user_id))) continue;
     targetCountByAssignment.set(
       row.assignment_id,
       (targetCountByAssignment.get(row.assignment_id) ?? 0) + 1,
@@ -195,6 +221,7 @@ export async function GET(request: NextRequest) {
   for (const row of attemptRows ?? []) {
     const id = row.assignment_id as string | null;
     if (!id) continue;
+    if (excludedUserIds.has(String(row.user_id))) continue;
     attemptCountByAssignment.set(id, (attemptCountByAssignment.get(id) ?? 0) + 1);
     if (!respondentsByAssignment.has(id)) {
       respondentsByAssignment.set(id, new Set());

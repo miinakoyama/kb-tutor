@@ -161,9 +161,40 @@ export async function GET(
     payload: row.payload as Question,
   }));
 
+  const attemptUserIds = Array.from(
+    new Set((attemptRows ?? []).map((row) => String(row.user_id))),
+  );
+  const targetUserIds = Array.from(
+    new Set((targetRows ?? []).map((row) => String(row.student_user_id))),
+  );
+  const profileIdsForExclusion = Array.from(
+    new Set([...attemptUserIds, ...targetUserIds]),
+  );
+  const excludedUserIds = new Set<string>();
+  if (profileIdsForExclusion.length > 0) {
+    const { data: excludedRows, error: excludedError } = await admin
+      .from("profiles")
+      .select("id")
+      .in("id", profileIdsForExclusion)
+      .eq("excluded_from_analytics", true);
+    if (excludedError) {
+      return NextResponse.json({ error: excludedError.message }, { status: 400 });
+    }
+    for (const row of excludedRows ?? []) {
+      excludedUserIds.add(String(row.id));
+    }
+  }
+
+  const filteredAttemptRows = (attemptRows ?? []).filter(
+    (row) => !excludedUserIds.has(String(row.user_id)),
+  );
+  const filteredTargetRows = (targetRows ?? []).filter(
+    (row) => !excludedUserIds.has(String(row.student_user_id)),
+  );
+
   const respondents = new Set<string>();
   let correctAttempts = 0;
-  for (const row of attemptRows ?? []) {
+  for (const row of filteredAttemptRows) {
     respondents.add(String(row.user_id));
     if (row.is_correct) correctAttempts += 1;
   }
@@ -179,11 +210,11 @@ export async function GET(
     questions,
     source_type: sourceType,
     targets: {
-      total: (targetRows ?? []).length,
-      student_ids: (targetRows ?? []).map((row) => String(row.student_user_id)),
+      total: filteredTargetRows.length,
+      student_ids: filteredTargetRows.map((row) => String(row.student_user_id)),
     },
     attempts: {
-      total: (attemptRows ?? []).length,
+      total: filteredAttemptRows.length,
       respondents: respondents.size,
       correct: correctAttempts,
     },

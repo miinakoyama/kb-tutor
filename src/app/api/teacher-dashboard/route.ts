@@ -73,8 +73,38 @@ export async function GET(request: Request) {
     .select("school_id,student_user_id")
     .in("school_id", schoolIds);
 
-  const scopedStudentIds = Array.from(
+  const candidateStudentIds = Array.from(
     new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
+  );
+  if (candidateStudentIds.length === 0) {
+    return NextResponse.json({
+      students: [],
+      summary: { totalAnswered: 0, totalCorrect: 0, overallAccuracy: 0 },
+      byStandard: [],
+      byStudent: [],
+    });
+  }
+
+  const { data: profileRows } = await admin
+    .from("profiles")
+    .select("id,display_name,student_id,excluded_from_analytics")
+    .in("id", candidateStudentIds);
+
+  const studentMap = new Map<string, string>();
+  const excludedSet = new Set<string>();
+  for (const profile of profileRows ?? []) {
+    const id = String(profile.id);
+    studentMap.set(
+      id,
+      String(profile.display_name || profile.student_id || profile.id),
+    );
+    if (profile.excluded_from_analytics === true) {
+      excludedSet.add(id);
+    }
+  }
+
+  const scopedStudentIds = candidateStudentIds.filter(
+    (id) => !excludedSet.has(id),
   );
   if (scopedStudentIds.length === 0) {
     return NextResponse.json({
@@ -89,19 +119,6 @@ export async function GET(request: Request) {
     studentId && scopedStudentIds.includes(studentId)
       ? [studentId]
       : scopedStudentIds;
-
-  const { data: profileRows } = await admin
-    .from("profiles")
-    .select("id,display_name,student_id")
-    .in("id", scopedStudentIds);
-
-  const studentMap = new Map<string, string>();
-  for (const profile of profileRows ?? []) {
-    studentMap.set(
-      String(profile.id),
-      String(profile.display_name || profile.student_id || profile.id),
-    );
-  }
 
   let attemptsQuery = admin
     .from("attempts")
