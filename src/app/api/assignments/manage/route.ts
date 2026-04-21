@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     admin
       .from("assignments")
       .select(
-        "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards",
+        "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards,instructions",
       )
       .in("school_id", schoolIds)
       .order("created_at", { ascending: false }),
@@ -104,16 +104,9 @@ export async function GET(request: NextRequest) {
 
   const assignmentIds = (assignmentsData ?? []).map((a) => a.id);
   const [
-    { data: targetRows, error: targetError },
     { data: snapshotRows, error: snapshotError },
     { data: attemptRows, error: attemptError },
   ] = await Promise.all([
-    assignmentIds.length > 0
-      ? admin
-          .from("assignment_targets")
-          .select("assignment_id,student_user_id")
-          .in("assignment_id", assignmentIds)
-      : Promise.resolve({ data: [], error: null as null | { message: string } }),
     assignmentIds.length > 0
       ? admin
           .from("assignment_question_snapshots")
@@ -128,9 +121,6 @@ export async function GET(request: NextRequest) {
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
   ]);
 
-  if (targetError) {
-    return NextResponse.json({ error: targetError.message }, { status: 400 });
-  }
   if (snapshotError) {
     return NextResponse.json({ error: snapshotError.message }, { status: 400 });
   }
@@ -170,14 +160,6 @@ export async function GET(request: NextRequest) {
     schoolMemberCount.set(row.school_id, (schoolMemberCount.get(row.school_id) ?? 0) + 1);
   }
 
-  const targetCountByAssignment = new Map<string, number>();
-  for (const row of targetRows ?? []) {
-    targetCountByAssignment.set(
-      row.assignment_id,
-      (targetCountByAssignment.get(row.assignment_id) ?? 0) + 1,
-    );
-  }
-
   const snapshotCountByAssignment = new Map<string, number>();
   const sourceTypeByAssignment = new Map<string, string>();
   for (const row of snapshotRows ?? []) {
@@ -211,7 +193,6 @@ export async function GET(request: NextRequest) {
     })),
     assignments: (assignmentsData ?? []).map((assignment) => ({
       ...assignment,
-      target_count: targetCountByAssignment.get(assignment.id) ?? 0,
       snapshot_count: snapshotCountByAssignment.get(assignment.id) ?? 0,
       source_type: sourceTypeByAssignment.get(assignment.id) ?? null,
       attempt_count: attemptCountByAssignment.get(assignment.id) ?? 0,
@@ -245,6 +226,7 @@ export async function POST(request: Request) {
     targetMinutes?: number;
     mode?: AssignmentMode;
     randomizeOrder?: boolean;
+    instructions?: string | null;
     sourceType?: AssignmentSourceType;
     existingSetId?: string;
     selectedQuestions?: Array<{ setId: string; questionIds: string[] }>;
@@ -266,6 +248,12 @@ export async function POST(request: Request) {
       : 20;
   const mode = sanitizeMode(body.mode);
   const randomizeOrder = body.randomizeOrder !== false;
+  // Store trimmed instructions, and null-out when the string is empty so
+  // the column stays NULL instead of an empty string (simpler "has
+  // instructions?" checks downstream).
+  const rawInstructions =
+    typeof body.instructions === "string" ? body.instructions.trim() : "";
+  const instructions = rawInstructions.length > 0 ? rawInstructions : null;
 
   if (!title || !schoolId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -353,6 +341,7 @@ export async function POST(request: Request) {
     max_questions: maxQuestions,
     review_topics: mode === "review" ? reviewTopics : null,
     review_standards: mode === "review" ? reviewStandards : null,
+    instructions,
   });
   if (assignmentError) {
     return NextResponse.json({ error: assignmentError.message }, { status: 400 });
