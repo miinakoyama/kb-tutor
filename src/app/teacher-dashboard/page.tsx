@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -12,6 +13,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { StudentAvatar } from "@/components/StudentAvatar";
 import {
   downloadStandardMetricsCsv,
   downloadStudentMetricsCsv,
@@ -22,7 +24,6 @@ import type {
   DashboardSummary,
   ModeMetrics,
 } from "@/lib/analytics/teacher-dashboard-server";
-
 type RangeKey = "7d" | "30d" | "all";
 type ModeKey = "compare" | "practice" | "exam" | "review";
 type AttemptModeKey = "practice" | "exam" | "review";
@@ -178,7 +179,14 @@ function TeacherDashboardContent() {
         </h1>
         <p className="text-sm text-slate-gray/70 mt-1">
           Identify which standards need re-teaching and which students need a
-          closer look.
+          closer look. Per-assignment completion is on{" "}
+          <Link
+            href="/assignments/manage?tab=progress"
+            className="font-medium text-[#16a34a] hover:underline"
+          >
+            Assignment management → Progress
+          </Link>
+          .
         </p>
       </section>
 
@@ -905,7 +913,8 @@ function StatusChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/40 focus-visible:ring-offset-1 ${
         active ? activeClass[tone] : toneClass[tone]
       }`}
     >
@@ -1042,20 +1051,6 @@ function StudentStatusBadge({ status }: { status: StudentRow["status"] }) {
       className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
     >
       {label[status]}
-    </span>
-  );
-}
-
-function StudentAvatar({ label }: { label: string }) {
-  const initials = label
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
-  return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#16a34a]/10 text-xs font-semibold text-[#166534]">
-      {initials || "?"}
     </span>
   );
 }

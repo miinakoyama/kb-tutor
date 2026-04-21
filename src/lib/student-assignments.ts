@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Question } from "@/types/question";
 
 export type AssignmentMode = "practice" | "exam" | "review";
@@ -22,6 +23,7 @@ export type StudentAssignmentListItem = {
   mode: AssignmentMode;
   randomize_order: boolean;
   max_questions: number | null;
+  instructions: string | null;
   status: StudentAssignmentStatus;
   last_completed_at: string | null;
   progress: StudentAssignmentProgress;
@@ -58,6 +60,10 @@ function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
     randomize_order: row.randomize_order !== false,
     max_questions:
       typeof row.max_questions === "number" ? row.max_questions : null,
+    instructions:
+      typeof row.instructions === "string" && row.instructions.length > 0
+        ? row.instructions
+        : null,
   };
 }
 
@@ -65,46 +71,70 @@ async function fetchAssignmentList(
   supabase: SupabaseClient,
   studentUserId: string,
 ): Promise<StudentAssignmentListResult> {
-  const { data: targetRows, error: targetsError } = await supabase
-    .from("assignment_targets")
-    .select("assignment_id, created_at, last_completed_at")
-    .eq("student_user_id", studentUserId)
+  // Resolve assignments through school membership rather than
+  // assignment_targets so that a student who was added to a school *after*
+  // an assignment was created still sees the assignment. assignment_targets
+  // is consulted only for per-student state like last_completed_at.
+  //
+  // We authenticate via the auth-scoped client for the school_members
+  // lookup (RLS restricts students to their own memberships), and then use
+  // the admin client for the rest of the DB state. Two reasons:
+  //   1. `assignments_read_scoped` only grants SELECT via
+  //      assignment_targets / created_by / admin, so a late-joined student
+  //      would silently get 0 rows from an auth-scoped query.
+  //   2. `assignment_targets_read_scoped` and `assignments_read_scoped`
+  //      mutually reference each other via EXISTS() sub-queries, which
+  //      Postgres flags as "infinite recursion detected in policy for
+  //      relation assignment_targets" when a student-auth client queries
+  //      either table.
+  //   3. `assignment_question_snapshots` has RLS enabled but no SELECT
+  //      policy, so an auth-scoped query returns 0 rows with no error.
+  // `attempts` uses a simple `user_id = auth.uid()` policy with no cross-
+  // table recursion, so it can stay auth-scoped.
+  const { data: memberRows, error: memberError } = await supabase
+    .from("school_members")
+    .select("school_id")
+    .eq("student_user_id", studentUserId);
+  if (memberError) {
+    return { assignments: [], error: memberError.message };
+  }
+  const schoolIds = Array.from(
+    new Set((memberRows ?? []).map((row) => String(row.school_id))),
+  );
+  if (schoolIds.length === 0) {
+    return { assignments: [], error: null };
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: assignmentRows, error: assignmentsError } = await admin
+    .from("assignments")
+    .select(
+      "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,instructions,created_at",
+    )
+    .in("school_id", schoolIds)
     .order("created_at", { ascending: false });
-
-  if (targetsError) {
-    return { assignments: [], error: targetsError.message };
+  if (assignmentsError) {
+    return { assignments: [], error: assignmentsError.message };
   }
 
-  const orderedIds: string[] = [];
-  const lastCompletedByAssignment = new Map<string, string | null>();
-  const seen = new Set<string>();
-  for (const row of targetRows ?? []) {
-    const id = String(row.assignment_id);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    orderedIds.push(id);
-    lastCompletedByAssignment.set(
-      id,
-      (row.last_completed_at as string | null | undefined) ?? null,
-    );
-  }
-
+  const orderedIds: string[] = (assignmentRows ?? []).map((row) =>
+    String(row.id),
+  );
   if (orderedIds.length === 0) {
     return { assignments: [], error: null };
   }
 
   const [
-    { data: assignmentRows, error: assignmentsError },
+    { data: targetRows, error: targetsError },
     { data: snapshotRows, error: snapshotError },
     { data: attemptRows, error: attemptError },
   ] = await Promise.all([
-    supabase
-      .from("assignments")
-      .select(
-        "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions",
-      )
-      .in("id", orderedIds),
-    supabase
+    admin
+      .from("assignment_targets")
+      .select("assignment_id, last_completed_at")
+      .eq("student_user_id", studentUserId)
+      .in("assignment_id", orderedIds),
+    admin
       .from("assignment_question_snapshots")
       .select("assignment_id,question_id")
       .in("assignment_id", orderedIds),
@@ -115,14 +145,22 @@ async function fetchAssignmentList(
       .in("assignment_id", orderedIds),
   ]);
 
-  if (assignmentsError) {
-    return { assignments: [], error: assignmentsError.message };
+  if (targetsError) {
+    return { assignments: [], error: targetsError.message };
   }
   if (snapshotError) {
     return { assignments: [], error: snapshotError.message };
   }
   if (attemptError) {
     return { assignments: [], error: attemptError.message };
+  }
+
+  const lastCompletedByAssignment = new Map<string, string | null>();
+  for (const row of targetRows ?? []) {
+    lastCompletedByAssignment.set(
+      String(row.assignment_id),
+      (row.last_completed_at as string | null | undefined) ?? null,
+    );
   }
 
   const snapshotCountByAssignment = new Map<string, number>();
@@ -215,28 +253,18 @@ function computeStatus(args: {
 }
 
 /**
- * Loads assignments targeted at the student. Mirrors getStudentNotifications:
- * if the auth-scoped client hits an RLS or PostgREST error, retries with the
- * service role so the My Assignment page stays consistent with Home/Notifications.
+ * Loads assignments targeted at the student.
+ *
+ * `fetchAssignmentList` internally uses the admin client for the
+ * `assignments` query because its RLS policy (`assignments_read_scoped`)
+ * gates SELECT on assignment_targets / created_by / admin, so late-joined
+ * students would otherwise see an empty list silently.
  */
 export async function getStudentAssignmentList(
   supabase: SupabaseClient,
   studentUserId: string,
 ): Promise<StudentAssignmentListResult> {
-  let result = await fetchAssignmentList(supabase, studentUserId);
-  if (result.error) {
-    try {
-      const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-      const adminClient = createSupabaseAdminClient();
-      const adminResult = await fetchAssignmentList(adminClient, studentUserId);
-      if (!adminResult.error) {
-        result = adminResult;
-      }
-    } catch {
-      // keep original error
-    }
-  }
-  return result;
+  return fetchAssignmentList(supabase, studentUserId);
 }
 
 /**
