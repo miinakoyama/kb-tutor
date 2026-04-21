@@ -325,9 +325,14 @@ async function refreshSupabaseSession(): Promise<void> {
 }
 
 /**
- * Lifecycle-wake handler: we've just received a signal that the environment
- * has changed (browser reported `online`, tab became visible). Do what a
- * full page reload would do for the sync subsystem, then flush:
+ * Full "reset and flush" path. Called when we want to recover from a
+ * possibly-wedged supabase client — currently the browser `online` event
+ * and the manual "Retry now" button. The visibility handler intentionally
+ * skips this (see `installSyncLifecycle`) because a hidden tab regaining
+ * focus doesn't imply a network transition, and rebuilding the supabase
+ * client on every tab focus would be needlessly disruptive.
+ *
+ * Steps:
  *   1. Abort any stale in-flight waits so the queue can move immediately.
  *   2. Drop the supabase-js singleton. Offline stretches can leave its
  *      internal auth state wedged (failed refresh-token attempts, half-dead
