@@ -13,15 +13,19 @@ import {
  * Returns, for every assignment that the teacher has visibility into, a
  * per-student status matrix: Completed / In progress / Not started.
  *
- * Status definitions:
+ * Status definitions (per student, for assignments in the same school as the student;
+ * the student list is school-based like the student app, not `assignment_targets`-based):
  *   - Completed: `assignment_targets.last_completed_at IS NOT NULL`
- *   - In progress: at least one row in `attempts` for this (user, assignment)
- *   - Not started: assigned but no attempts and not completed
+ *   - In progress: at least one `attempts` row for this (user, assignment)
+ *   - Not started: no completion and no attempts (including when no `assignment_targets` row)
  *
  * Scoping mirrors /api/teacher-dashboard:
  *   - teacher sees only schools they own or are rostered on
  *   - admin sees all schools
- *   - optional ?classId= and ?studentId= narrow the result further
+ *   - optional ?classId= and ?studentId= narrow the result further. If
+ *     `classId` is not in the caller's allowed schools, or `studentId`
+ *     is not in the resulting roster, returns { assignments: [], rows: [] }
+ *     (200), not a fallback to all schools/students.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -47,6 +51,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const emptyResponse = { assignments: [], rows: [] };
+
   let schoolIds: string[] = [];
   if (role === "teacher") {
     const [schoolTeachersRes, legacySchoolsRes] = await Promise.all([
@@ -61,11 +67,19 @@ export async function GET(request: Request) {
         "[teacher-dashboard/assignment-progress] school_teachers query failed",
         schoolTeachersRes.error,
       );
+      return NextResponse.json(
+        { error: "Failed to resolve teacher schools" },
+        { status: 500 },
+      );
     }
     if (legacySchoolsRes.error) {
       console.error(
         "[teacher-dashboard/assignment-progress] legacy schools query failed",
         legacySchoolsRes.error,
+      );
+      return NextResponse.json(
+        { error: "Failed to resolve teacher schools" },
+        { status: 500 },
       );
     }
     schoolIds = Array.from(
@@ -83,17 +97,24 @@ export async function GET(request: Request) {
         "[teacher-dashboard/assignment-progress] schools query failed",
         allSchoolsError,
       );
+      return NextResponse.json(
+        { error: "Failed to load schools" },
+        { status: 500 },
+      );
     }
     schoolIds = (allSchools ?? []).map((row) => row.id);
   }
 
-  const emptyResponse = { assignments: [], rows: [] };
   if (schoolIds.length === 0) {
     return NextResponse.json(emptyResponse);
   }
 
-  const effectiveSchoolIds =
-    classId && schoolIds.includes(classId) ? [classId] : schoolIds;
+  // Invalid filter: do not fall back to all schools (or all students).
+  if (classId && !schoolIds.includes(classId)) {
+    return NextResponse.json(emptyResponse);
+  }
+
+  const effectiveSchoolIds = classId ? [classId] : schoolIds;
 
   const { data: memberRows, error: memberError } = await admin
     .from("school_members")
@@ -118,10 +139,13 @@ export async function GET(request: Request) {
     }
   }
 
-  const scopedStudentIds =
-    studentId && studentClassMap.has(studentId)
-      ? [studentId]
-      : Array.from(studentClassMap.keys());
+  if (studentId && !studentClassMap.has(studentId)) {
+    return NextResponse.json(emptyResponse);
+  }
+
+  const scopedStudentIds = studentId
+    ? [studentId]
+    : Array.from(studentClassMap.keys());
 
   if (scopedStudentIds.length === 0) {
     return NextResponse.json(emptyResponse);
@@ -136,13 +160,24 @@ export async function GET(request: Request) {
       "[teacher-dashboard/assignment-progress] profiles query failed",
       profileError,
     );
+    return NextResponse.json(
+      { error: "Failed to load student profiles" },
+      { status: 500 },
+    );
   }
 
   const studentLabelMap = new Map<string, string>();
+  const studentIdCodeMap = new Map<string, string | null>();
   for (const profile of profileRows ?? []) {
+    const id = String(profile.id);
     studentLabelMap.set(
-      String(profile.id),
+      id,
       String(profile.display_name || profile.student_id || profile.id),
+    );
+    const code = profile.student_id;
+    studentIdCodeMap.set(
+      id,
+      typeof code === "string" && code.trim().length > 0 ? code.trim() : null,
     );
   }
 
@@ -169,6 +204,7 @@ export async function GET(request: Request) {
       rows: scopedStudentIds.map((id) => ({
         studentId: id,
         label: studentLabelMap.get(id) ?? id,
+        studentIdCode: studentIdCodeMap.get(id) ?? null,
         classId: studentClassMap.get(id) ?? null,
         progress: {},
         completedCount: 0,
@@ -272,6 +308,7 @@ export async function GET(request: Request) {
       id,
       label: studentLabelMap.get(id) ?? id,
       classId: studentClassMap.get(id) ?? null,
+      studentIdCode: studentIdCodeMap.get(id) ?? null,
     })),
   });
 

@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   buildAssignmentProgress,
   classifyAssignmentProgress,
+  filterAssignmentProgressRowsByQuery,
+  sortAssignmentProgressRows,
   type AssignmentInfo,
   type AssignmentTargetRow,
   type AttemptProgressRow,
+  type StudentProgressRow,
 } from "./assignment-progress";
 
 const students = [
   { id: "s1", label: "Alex L.", classId: "c1" },
   { id: "s2", label: "Jamie L.", classId: "c1" },
-  { id: "s3", label: "Maya K.", classId: "c2" },
+  { id: "s3", label: "Maya K.", classId: "c1" },
 ];
 
 const assignment1: AssignmentInfo = {
@@ -90,10 +93,10 @@ describe("buildAssignmentProgress", () => {
 
     expect(s2.progress.a1.status).toBe("in_progress");
     expect(s2.progress.a1.answeredCount).toBe(2);
-    expect(s2.progress.a2).toBeUndefined();
+    expect(s2.progress.a2?.status).toBe("not_started");
 
     expect(s3.progress.a1.status).toBe("not_started");
-    expect(s3.progress.a2).toBeUndefined();
+    expect(s3.progress.a2?.status).toBe("not_started");
 
     const a1Summary = result.assignments.find((a) => a.assignmentId === "a1")!;
     expect(a1Summary.totalTargets).toBe(3);
@@ -153,5 +156,127 @@ describe("buildAssignmentProgress", () => {
     const s1 = result.rows.find((r) => r.studentId === "s1")!;
     expect(s1.progress.a1.answeredCount).toBe(1);
     expect(s1.progress.a1.status).toBe("in_progress");
+  });
+
+  it("treats same-school students as not_started when assignment_targets row is missing", () => {
+    const result = buildAssignmentProgress({
+      assignments: [assignment1],
+      targets: [
+        { assignmentId: "a1", studentUserId: "s1", lastCompletedAt: null },
+      ],
+      attempts: [],
+      students: [
+        { id: "s1", label: "A", classId: "c1" },
+        { id: "s2", label: "B", classId: "c1" },
+      ],
+    });
+    const s2 = result.rows.find((r) => r.studentId === "s2")!;
+    expect(s2.progress.a1.status).toBe("not_started");
+    const a1 = result.assignments.find((a) => a.assignmentId === "a1")!;
+    expect(a1.totalTargets).toBe(2);
+  });
+
+  it("omits matrix cells when the student's school does not match the assignment", () => {
+    const otherSchool: AssignmentInfo = {
+      id: "a99",
+      title: "Other",
+      schoolId: "c2",
+      dueDate: null,
+      totalQuestions: 1,
+      mode: "practice",
+    };
+    const result = buildAssignmentProgress({
+      assignments: [otherSchool],
+      targets: [
+        { assignmentId: "a99", studentUserId: "s1", lastCompletedAt: "2026-01-01T00:00:00Z" },
+      ],
+      attempts: [],
+      students: [{ id: "s1", label: "A", classId: "c1" }],
+    });
+    const s1 = result.rows[0]!;
+    expect(s1.progress.a99).toBeUndefined();
+  });
+});
+
+const row = (
+  partial: Pick<
+    StudentProgressRow,
+    | "studentId"
+    | "label"
+    | "studentIdCode"
+    | "completedCount"
+    | "inProgressCount"
+    | "notStartedCount"
+  > &
+    Partial<StudentProgressRow>,
+): StudentProgressRow => ({
+  classId: "c1",
+  progress: {},
+  studentIdCode: null,
+  ...partial,
+});
+
+describe("sortAssignmentProgressRows", () => {
+  it("follow-up first: more not-started cells rank above", () => {
+    const rows = [
+      row({ studentId: "a", label: "A", notStartedCount: 1, completedCount: 0, inProgressCount: 0 }),
+      row({ studentId: "b", label: "B", notStartedCount: 3, completedCount: 0, inProgressCount: 0 }),
+    ];
+    const sorted = sortAssignmentProgressRows(rows, "needs_attention");
+    expect(sorted.map((r) => r.studentId)).toEqual(["b", "a"]);
+  });
+
+  it("needs attention: when not started ties, lower completion % ranks above", () => {
+    const rows = [
+      row({
+        studentId: "a",
+        label: "A",
+        notStartedCount: 1,
+        completedCount: 1,
+        inProgressCount: 0,
+      }),
+      row({
+        studentId: "b",
+        label: "B",
+        notStartedCount: 1,
+        completedCount: 0,
+        inProgressCount: 1,
+      }),
+    ];
+    const sorted = sortAssignmentProgressRows(rows, "needs_attention");
+    expect(sorted.map((r) => r.studentId)).toEqual(["b", "a"]);
+  });
+
+  it("highest completion first: higher completion % ranks above", () => {
+    const rows = [
+      row({
+        studentId: "a",
+        label: "A",
+        notStartedCount: 0,
+        completedCount: 1,
+        inProgressCount: 0,
+      }),
+      row({
+        studentId: "b",
+        label: "B",
+        notStartedCount: 0,
+        completedCount: 0,
+        inProgressCount: 0,
+      }),
+    ];
+    const sorted = sortAssignmentProgressRows(rows, "highest_completion_first");
+    expect(sorted.map((r) => r.studentId)).toEqual(["a", "b"]);
+  });
+});
+
+describe("filterAssignmentProgressRowsByQuery", () => {
+  it("matches label, roster id, or user id", () => {
+    const rows = [
+      row({ studentId: "uuid-1", label: "Alex", studentIdCode: "st100" }),
+      row({ studentId: "uuid-2", label: "Bo", studentIdCode: "st200" }),
+    ];
+    expect(filterAssignmentProgressRowsByQuery(rows, "st1")).toHaveLength(1);
+    expect(filterAssignmentProgressRowsByQuery(rows, "ale")).toHaveLength(1);
+    expect(filterAssignmentProgressRowsByQuery(rows, "uuid-2")).toHaveLength(1);
   });
 });

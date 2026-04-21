@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -12,6 +13,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { StudentAvatar } from "@/components/StudentAvatar";
 import {
   downloadStandardMetricsCsv,
   downloadStudentMetricsCsv,
@@ -22,13 +24,6 @@ import type {
   DashboardSummary,
   ModeMetrics,
 } from "@/lib/analytics/teacher-dashboard-server";
-import type {
-  AssignmentProgressResponse,
-  AssignmentProgressStatus,
-  AssignmentProgressSummary,
-  StudentAssignmentProgress,
-} from "@/lib/analytics/assignment-progress";
-
 type RangeKey = "7d" | "30d" | "all";
 type ModeKey = "compare" | "practice" | "exam" | "review";
 type AttemptModeKey = "practice" | "exam" | "review";
@@ -131,9 +126,6 @@ function TeacherDashboardContent() {
   const [studentFilter, setStudentFilter] = useState<StudentStatusFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
-  const [assignmentProgress, setAssignmentProgress] =
-    useState<AssignmentProgressResponse>({ assignments: [], rows: [] });
-  const [isProgressLoading, setIsProgressLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
@@ -158,28 +150,6 @@ function TeacherDashboardContent() {
     };
     void load();
   }, [topic, classId, studentId, range, mode, source]);
-
-  useEffect(() => {
-    const loadProgress = async () => {
-      setIsProgressLoading(true);
-      const params = new URLSearchParams();
-      if (classId) params.set("classId", classId);
-      if (studentId) params.set("studentId", studentId);
-      try {
-        const response = await fetch(
-          `/api/teacher-dashboard/assignment-progress?${params.toString()}`,
-          { cache: "no-store" },
-        );
-        if (response.ok) {
-          const json = (await response.json()) as AssignmentProgressResponse;
-          setAssignmentProgress(json);
-        }
-      } finally {
-        setIsProgressLoading(false);
-      }
-    };
-    void loadProgress();
-  }, [classId, studentId]);
 
   const filteredStudents = useMemo(() => {
     if (!classId) return data.students;
@@ -209,7 +179,14 @@ function TeacherDashboardContent() {
         </h1>
         <p className="text-sm text-slate-gray/70 mt-1">
           Identify which standards need re-teaching and which students need a
-          closer look.
+          closer look. Per-assignment completion is on{" "}
+          <Link
+            href="/assignments/manage?tab=progress"
+            className="font-medium text-[#16a34a] hover:underline"
+          >
+            Assignment management → Progress
+          </Link>
+          .
         </p>
       </section>
 
@@ -548,340 +525,12 @@ function TeacherDashboardContent() {
         </div>
       </section>
 
-      <AssignmentProgressSection
-        data={assignmentProgress}
-        isLoading={isProgressLoading}
-      />
-
       {isLoading && data.byStandard.length === 0 && data.byStudent.length === 0 && (
         <p className="text-sm text-slate-gray/60 mt-4">
           Loading dashboard data...
         </p>
       )}
     </main>
-  );
-}
-
-type ProgressFilter = "all" | AssignmentProgressStatus;
-
-function AssignmentProgressSection({
-  data,
-  isLoading,
-}: {
-  data: AssignmentProgressResponse;
-  isLoading: boolean;
-}) {
-  const [filter, setFilter] = useState<ProgressFilter>("all");
-  const hasAssignments = data.assignments.length > 0;
-  const hasRows = data.rows.length > 0;
-
-  const visibleRows = useMemo(() => {
-    if (filter === "all") return data.rows;
-    return data.rows.filter((row) =>
-      Object.values(row.progress).some((item) => item.status === filter),
-    );
-  }, [filter, data.rows]);
-
-  const totalTargets = data.assignments.reduce(
-    (sum, a) => sum + a.totalTargets,
-    0,
-  );
-  const totals = data.assignments.reduce(
-    (acc, a) => {
-      acc.completed += a.completedCount;
-      acc.inProgress += a.inProgressCount;
-      acc.notStarted += a.notStartedCount;
-      return acc;
-    },
-    { completed: 0, inProgress: 0, notStarted: 0 },
-  );
-
-  return (
-    <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mt-6">
-      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-gray">
-            Assignment progress
-          </h2>
-          <p className="text-xs text-slate-gray/60">
-            See which students have completed each assignment, are in progress,
-            or haven&apos;t started yet.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusChip
-            label="All"
-            active={filter === "all"}
-            onClick={() => setFilter("all")}
-          />
-          <StatusChip
-            label="Not started"
-            tone="rose"
-            active={filter === "not_started"}
-            onClick={() => setFilter("not_started")}
-            count={totals.notStarted}
-          />
-          <StatusChip
-            label="In progress"
-            tone="amber"
-            active={filter === "in_progress"}
-            onClick={() => setFilter("in_progress")}
-            count={totals.inProgress}
-          />
-          <StatusChip
-            label="Completed"
-            tone="emerald"
-            active={filter === "completed"}
-            onClick={() => setFilter("completed")}
-            count={totals.completed}
-          />
-        </div>
-      </div>
-
-      {isLoading ? (
-        <p className="px-5 py-8 text-center text-sm text-slate-gray/60">
-          Loading assignment progress...
-        </p>
-      ) : !hasAssignments ? (
-        <p className="px-5 py-8 text-center text-sm text-slate-gray/60">
-          No assignments found for the current filters.
-        </p>
-      ) : !hasRows ? (
-        <p className="px-5 py-8 text-center text-sm text-slate-gray/60">
-          No students match the current filters.
-        </p>
-      ) : (
-        <>
-          <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
-            <ProgressTotalCard
-              label="Completed"
-              value={totals.completed}
-              total={totalTargets}
-              tone="emerald"
-            />
-            <ProgressTotalCard
-              label="In progress"
-              value={totals.inProgress}
-              total={totalTargets}
-              tone="amber"
-            />
-            <ProgressTotalCard
-              label="Not started"
-              value={totals.notStarted}
-              total={totalTargets}
-              tone="rose"
-            />
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
-                  <th className="sticky left-0 z-10 bg-slate-50/90 px-5 py-3">
-                    Student
-                  </th>
-                  {data.assignments.map((a) => (
-                    <th
-                      key={a.assignmentId}
-                      className="px-3 py-3 text-center font-semibold"
-                    >
-                      <AssignmentHeaderCell assignment={a} />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={data.assignments.length + 1}
-                      className="px-5 py-8 text-center text-sm text-slate-gray/60"
-                    >
-                      No students match the current status filter.
-                    </td>
-                  </tr>
-                ) : (
-                  visibleRows.map((row) => (
-                    <tr
-                      key={row.studentId}
-                      className="border-t border-slate-100 hover:bg-slate-50/40"
-                    >
-                      <td className="sticky left-0 z-10 bg-white px-5 py-3 hover:bg-slate-50/40">
-                        <div className="flex items-center gap-3">
-                          <StudentAvatar label={row.label} />
-                          <div className="min-w-[140px]">
-                            <p className="font-medium text-slate-gray truncate">
-                              {row.label}
-                            </p>
-                            <p className="text-[11px] text-slate-gray/60">
-                              {row.completedCount}/
-                              {row.completedCount +
-                                row.inProgressCount +
-                                row.notStartedCount}{" "}
-                              completed
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      {data.assignments.map((a) => {
-                        const progress = row.progress[a.assignmentId];
-                        return (
-                          <td
-                            key={a.assignmentId}
-                            className="px-3 py-3 text-center"
-                          >
-                            <ProgressStatusCell progress={progress} />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
-function AssignmentHeaderCell({
-  assignment,
-}: {
-  assignment: AssignmentProgressSummary;
-}) {
-  const dueDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
-  const dueLabel =
-    dueDate && !Number.isNaN(dueDate.getTime())
-      ? dueDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })
-      : null;
-  const completionPct =
-    assignment.totalTargets > 0
-      ? Math.round((assignment.completedCount / assignment.totalTargets) * 100)
-      : 0;
-  return (
-    <div
-      className="flex flex-col items-center gap-1 text-slate-gray"
-      title={assignment.title}
-    >
-      <span className="max-w-[160px] truncate text-xs font-semibold normal-case">
-        {assignment.title}
-      </span>
-      <span className="text-[10px] font-normal text-slate-gray/60">
-        {dueLabel ? `Due ${dueLabel}` : "No due date"}
-      </span>
-      <span className="text-[10px] font-normal text-emerald-700">
-        {assignment.completedCount}/{assignment.totalTargets} ({completionPct}%)
-      </span>
-    </div>
-  );
-}
-
-function ProgressStatusCell({
-  progress,
-}: {
-  progress: StudentAssignmentProgress | undefined;
-}) {
-  if (!progress) {
-    return (
-      <span
-        className="inline-flex items-center gap-1 rounded-full border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-gray/50"
-        title="Not assigned to this student"
-      >
-        —
-      </span>
-    );
-  }
-  const tone: Record<AssignmentProgressStatus, string> = {
-    completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    in_progress: "bg-amber-50 text-amber-700 border-amber-200",
-    not_started: "bg-rose-50 text-rose-700 border-rose-200",
-  };
-  const icon: Record<AssignmentProgressStatus, ReactNode> = {
-    completed: <CheckCircle2 className="h-3 w-3" />,
-    in_progress: <Timer className="h-3 w-3" />,
-    not_started: <AlertCircle className="h-3 w-3" />,
-  };
-  const label: Record<AssignmentProgressStatus, string> = {
-    completed: "Completed",
-    in_progress: "In progress",
-    not_started: "Not started",
-  };
-  const title = buildProgressCellTitle(progress);
-  return (
-    <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone[progress.status]}`}
-      title={title}
-    >
-      {icon[progress.status]}
-      {label[progress.status]}
-      {progress.status === "in_progress" && progress.totalQuestions && (
-        <span className="ml-0.5 text-[10px] font-normal text-amber-700/80">
-          {progress.answeredCount}/{progress.totalQuestions}
-        </span>
-      )}
-    </span>
-  );
-}
-
-function buildProgressCellTitle(progress: StudentAssignmentProgress): string {
-  const parts: string[] = [];
-  if (progress.status === "completed" && progress.lastCompletedAt) {
-    parts.push(
-      `Completed ${new Date(progress.lastCompletedAt).toLocaleString()}`,
-    );
-  } else if (progress.status === "in_progress") {
-    if (progress.totalQuestions) {
-      parts.push(
-        `Answered ${progress.answeredCount} of ${progress.totalQuestions}`,
-      );
-    } else {
-      parts.push(`Answered ${progress.answeredCount}`);
-    }
-  } else {
-    parts.push("Not started yet");
-  }
-  return parts.join(" · ");
-}
-
-function ProgressTotalCard({
-  label,
-  value,
-  total,
-  tone,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  tone: "emerald" | "amber" | "rose";
-}) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  const barTone: Record<"emerald" | "amber" | "rose", string> = {
-    emerald: "bg-emerald-500",
-    amber: "bg-amber-500",
-    rose: "bg-rose-500",
-  };
-  const textTone: Record<"emerald" | "amber" | "rose", string> = {
-    emerald: "text-emerald-700",
-    amber: "text-amber-700",
-    rose: "text-rose-700",
-  };
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-gray/60">
-        {label}
-      </p>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className={`text-2xl font-bold ${textTone[tone]}`}>{value}</span>
-        <span className="text-xs text-slate-gray/60">of {total}</span>
-      </div>
-      <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200">
-        <div
-          className={`h-full rounded-full ${barTone[tone]}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
   );
 }
 
@@ -1264,7 +913,8 @@ function StatusChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/40 focus-visible:ring-offset-1 ${
         active ? activeClass[tone] : toneClass[tone]
       }`}
     >
@@ -1401,20 +1051,6 @@ function StudentStatusBadge({ status }: { status: StudentRow["status"] }) {
       className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
     >
       {label[status]}
-    </span>
-  );
-}
-
-function StudentAvatar({ label }: { label: string }) {
-  const initials = label
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
-  return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#16a34a]/10 text-xs font-semibold text-[#166534]">
-      {initials || "?"}
     </span>
   );
 }
