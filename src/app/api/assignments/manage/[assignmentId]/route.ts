@@ -120,6 +120,7 @@ export async function GET(
     { data: targetRows, error: targetError },
     { data: attemptRows, error: attemptError },
     { data: schoolRow, error: schoolError },
+    { data: memberRows, error: memberError },
   ] = await Promise.all([
     admin
       .from("assignment_question_snapshots")
@@ -139,6 +140,10 @@ export async function GET(
       .select("id,name")
       .eq("id", assignment.school_id)
       .maybeSingle(),
+    admin
+      .from("school_members")
+      .select("student_user_id")
+      .eq("school_id", assignment.school_id),
   ]);
 
   if (snapshotError) {
@@ -152,6 +157,9 @@ export async function GET(
   }
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
+  }
+  if (memberError) {
+    return NextResponse.json({ error: memberError.message }, { status: 400 });
   }
 
   const questions = (snapshotRows ?? []).map((row) => ({
@@ -168,16 +176,37 @@ export async function GET(
     if (row.is_correct) correctAttempts += 1;
   }
 
+  // The student roster shown in the management view is the union of:
+  //   - current school members (source of truth for who currently sees the
+  //     assignment — school-membership drives visibility on the student side,
+  //     so we want all of them to appear here even if they joined after
+  //     creation and have no assignment_targets row yet)
+  //   - any user_id that has an assignment_target row (historical targets)
+  //   - any user_id that has submitted attempts for this assignment
+  // The latter two keep former-member history visible when they have work
+  // attached to this assignment.
+  const currentMemberIds = new Set(
+    (memberRows ?? []).map((row) => String(row.student_user_id)),
+  );
   const targetStudentIds = (targetRows ?? []).map((row) =>
     String(row.student_user_id),
   );
-  const uniqueTargetStudentIds = [...new Set(targetStudentIds)];
+  const attemptStudentIds = (attemptRows ?? []).map((row) =>
+    String(row.user_id),
+  );
+  const allStudentIds = [
+    ...new Set([
+      ...currentMemberIds,
+      ...targetStudentIds,
+      ...attemptStudentIds,
+    ]),
+  ];
   const { data: profileRows, error: profileError } =
-    uniqueTargetStudentIds.length > 0
+    allStudentIds.length > 0
       ? await admin
           .from("profiles")
           .select("id,student_id,display_name")
-          .in("id", uniqueTargetStudentIds)
+          .in("id", allStudentIds)
       : { data: [], error: null };
   if (profileError) {
     return NextResponse.json({ error: profileError.message }, { status: 400 });
@@ -228,7 +257,7 @@ export async function GET(
     assignment.mode === "review"
       ? Math.max(0, assignment.max_questions ?? 0)
       : questions.length;
-  const studentProgress = uniqueTargetStudentIds.map((studentUserId) => {
+  const studentProgress = allStudentIds.map((studentUserId) => {
     const profile = profileById.get(studentUserId);
     const answered = answeredByStudent.get(studentUserId)?.size ?? 0;
     const lastCompletedAt = lastCompletedByStudent.get(studentUserId) ?? null;
@@ -241,6 +270,7 @@ export async function GET(
       student_user_id: studentUserId,
       student_id: profile?.student_id ?? null,
       display_name: profile?.display_name ?? null,
+      is_current_member: currentMemberIds.has(studentUserId),
       answered_questions:
         status === "completed"
           ? totalQuestions
@@ -272,8 +302,11 @@ export async function GET(
     questions,
     source_type: sourceType,
     targets: {
-      total: (targetRows ?? []).length,
-      student_ids: (targetRows ?? []).map((row) => String(row.student_user_id)),
+      // Reflect the current school roster rather than the creation-time
+      // snapshot: school membership is what determines who currently sees
+      // the assignment on the student side.
+      total: currentMemberIds.size,
+      student_ids: [...currentMemberIds],
     },
     attempts: {
       total: (attemptRows ?? []).length,

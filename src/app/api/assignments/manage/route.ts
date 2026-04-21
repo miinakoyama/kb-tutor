@@ -104,16 +104,9 @@ export async function GET(request: NextRequest) {
 
   const assignmentIds = (assignmentsData ?? []).map((a) => a.id);
   const [
-    { data: targetRows, error: targetError },
     { data: snapshotRows, error: snapshotError },
     { data: attemptRows, error: attemptError },
   ] = await Promise.all([
-    assignmentIds.length > 0
-      ? admin
-          .from("assignment_targets")
-          .select("assignment_id,student_user_id")
-          .in("assignment_id", assignmentIds)
-      : Promise.resolve({ data: [], error: null as null | { message: string } }),
     assignmentIds.length > 0
       ? admin
           .from("assignment_question_snapshots")
@@ -128,9 +121,6 @@ export async function GET(request: NextRequest) {
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
   ]);
 
-  if (targetError) {
-    return NextResponse.json({ error: targetError.message }, { status: 400 });
-  }
   if (snapshotError) {
     return NextResponse.json({ error: snapshotError.message }, { status: 400 });
   }
@@ -170,14 +160,6 @@ export async function GET(request: NextRequest) {
     schoolMemberCount.set(row.school_id, (schoolMemberCount.get(row.school_id) ?? 0) + 1);
   }
 
-  const targetCountByAssignment = new Map<string, number>();
-  for (const row of targetRows ?? []) {
-    targetCountByAssignment.set(
-      row.assignment_id,
-      (targetCountByAssignment.get(row.assignment_id) ?? 0) + 1,
-    );
-  }
-
   const snapshotCountByAssignment = new Map<string, number>();
   const sourceTypeByAssignment = new Map<string, string>();
   for (const row of snapshotRows ?? []) {
@@ -211,7 +193,6 @@ export async function GET(request: NextRequest) {
     })),
     assignments: (assignmentsData ?? []).map((assignment) => ({
       ...assignment,
-      target_count: targetCountByAssignment.get(assignment.id) ?? 0,
       snapshot_count: snapshotCountByAssignment.get(assignment.id) ?? 0,
       source_type: sourceTypeByAssignment.get(assignment.id) ?? null,
       attempt_count: attemptCountByAssignment.get(assignment.id) ?? 0,

@@ -66,6 +66,7 @@ interface StudentProgressEntry {
   student_user_id: string;
   student_id: string | null;
   display_name: string | null;
+  is_current_member: boolean;
   answered_questions: number;
   total_questions: number;
   completion_rate: number;
@@ -607,12 +608,23 @@ function StudentProgressSection({
   const sortedStudents = useMemo(
     () =>
       [...students].sort((a, b) => {
+        // Current members first; former members (who may still have
+        // historical work attached) sink to the bottom of the list.
+        if (a.is_current_member !== b.is_current_member) {
+          return a.is_current_member ? -1 : 1;
+        }
         const lhs = a.student_id ?? a.display_name ?? a.student_user_id;
         const rhs = b.student_id ?? b.display_name ?? b.student_user_id;
         return lhs.localeCompare(rhs);
       }),
     [students],
   );
+
+  const currentCount = useMemo(
+    () => sortedStudents.filter((s) => s.is_current_member).length,
+    [sortedStudents],
+  );
+  const formerCount = sortedStudents.length - currentCount;
 
   const statusStyles: Record<StudentProgressStatus, string> = {
     not_started: "bg-slate-100 text-slate-700 border-slate-200",
@@ -633,7 +645,10 @@ function StudentProgressSection({
           Student progress
         </h2>
         <p className="text-xs text-slate-gray/70">
-          {sortedStudents.length} student{sortedStudents.length === 1 ? "" : "s"}
+          {currentCount} current student{currentCount === 1 ? "" : "s"}
+          {formerCount > 0
+            ? ` • ${formerCount} former member${formerCount === 1 ? "" : "s"}`
+            : ""}
         </p>
       </div>
 
@@ -661,13 +676,25 @@ function StudentProgressSection({
                 return (
                   <tr
                     key={student.student_user_id}
-                    className="border-b border-slate-100 last:border-b-0"
+                    className={`border-b border-slate-100 last:border-b-0 ${
+                      student.is_current_member ? "" : "bg-slate-50/60"
+                    }`}
                   >
                     <td className="px-3 py-2 text-slate-gray">
                       {student.student_id ?? "—"}
                     </td>
                     <td className="px-3 py-2 text-slate-gray">
-                      {student.display_name ?? "—"}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>{student.display_name ?? "—"}</span>
+                        {!student.is_current_member && (
+                          <span
+                            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-gray/80"
+                            title="This student is no longer in the school but has historical work on this assignment."
+                          >
+                            Former member
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 min-w-[220px]">
                       <div className="flex items-center gap-2">

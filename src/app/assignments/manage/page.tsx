@@ -23,7 +23,6 @@ interface AssignmentRow {
   topics: string[];
   target_minutes: number;
   created_at: string;
-  target_count: number;
   snapshot_count?: number;
   source_type?: "existing_set" | "generated_now" | "manual" | null;
   mode?: AssignmentMode | null;
@@ -120,8 +119,11 @@ function AssignmentManagementContent() {
   }
 
   function describeAssignment(assignment: AssignmentRow): string[] {
+    // Intentionally no student count here: every school member is
+    // automatically assigned, so the count is just the school's roster size
+    // (already implied by the school badge). Showing it in the list only
+    // invited confusion after students joined the school later.
     const parts: string[] = [];
-    parts.push(`${assignment.target_count} students`);
     parts.push(`${assignment.target_minutes} min`);
     const modeLabel = (assignment.mode ?? "practice").toString();
     parts.push(`Mode: ${modeLabel}`);
