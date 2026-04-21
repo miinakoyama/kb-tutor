@@ -23,6 +23,7 @@ export type StudentAssignmentListItem = {
   mode: AssignmentMode;
   randomize_order: boolean;
   max_questions: number | null;
+  instructions: string | null;
   status: StudentAssignmentStatus;
   last_completed_at: string | null;
   progress: StudentAssignmentProgress;
@@ -59,6 +60,10 @@ function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
     randomize_order: row.randomize_order !== false,
     max_questions:
       typeof row.max_questions === "number" ? row.max_questions : null,
+    instructions:
+      typeof row.instructions === "string" && row.instructions.length > 0
+        ? row.instructions
+        : null,
   };
 }
 
@@ -104,7 +109,7 @@ async function fetchAssignmentList(
   const { data: assignmentRows, error: assignmentsError } = await admin
     .from("assignments")
     .select(
-      "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,created_at",
+      "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,instructions,created_at",
     )
     .in("school_id", schoolIds)
     .order("created_at", { ascending: false });
