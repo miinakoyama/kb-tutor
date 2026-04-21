@@ -198,23 +198,19 @@ describe("buildAssignmentProgress", () => {
   });
 });
 
-const row = (
-  partial: Pick<
-    StudentProgressRow,
-    | "studentId"
-    | "label"
-    | "studentIdCode"
-    | "completedCount"
-    | "inProgressCount"
-    | "notStartedCount"
-  > &
-    Partial<StudentProgressRow>,
-): StudentProgressRow => ({
+const defaultProgressRow: Omit<StudentProgressRow, "studentId" | "label"> = {
   classId: "c1",
   progress: {},
   studentIdCode: null,
-  ...partial,
-});
+  completedCount: 0,
+  inProgressCount: 0,
+  notStartedCount: 0,
+};
+
+const row = (
+  partial: Pick<StudentProgressRow, "studentId" | "label"> &
+    Partial<Omit<StudentProgressRow, "studentId" | "label">>,
+): StudentProgressRow => ({ ...defaultProgressRow, ...partial });
 
 describe("sortAssignmentProgressRows", () => {
   it("follow-up first: more not-started cells rank above", () => {
