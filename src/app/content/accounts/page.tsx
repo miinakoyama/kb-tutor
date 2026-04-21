@@ -5,6 +5,11 @@ import { Plus, X } from "lucide-react";
 
 type Role = "student" | "teacher" | "admin";
 
+interface SchoolRef {
+  id: string;
+  name: string;
+}
+
 interface UserRow {
   id: string;
   email: string;
@@ -12,6 +17,7 @@ interface UserRow {
   display_name: string | null;
   role: Role;
   created_at: string;
+  schools?: SchoolRef[];
 }
 
 function normalizeAdminError(message?: string) {
@@ -196,6 +202,7 @@ export default function AccountManagementPage() {
                   <th className="px-2 py-2 font-medium">Student ID</th>
                   <th className="px-2 py-2 font-medium">Display Name</th>
                   <th className="px-2 py-2 font-medium">Role</th>
+                  <th className="px-2 py-2 font-medium">School</th>
                   <th className="px-2 py-2 font-medium">Email</th>
                   <th className="px-2 py-2 font-medium">Created</th>
                   <th className="px-2 py-2 font-medium">Actions</th>
@@ -234,6 +241,25 @@ export default function AccountManagementPage() {
                         <option value="teacher">teacher</option>
                         <option value="admin">admin</option>
                       </select>
+                    </td>
+                    <td className="px-2 py-3 min-w-[180px] text-slate-gray">
+                      {user.role === "admin" ? (
+                        <span className="text-slate-gray/50">—</span>
+                      ) : user.schools && user.schools.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {user.schools.map((school) => (
+                            <span
+                              key={school.id}
+                              className="inline-flex items-center rounded-full bg-[#16a34a]/10 px-2 py-0.5 text-xs font-medium text-[#14532d]"
+                              title={school.id}
+                            >
+                              {school.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-gray/50">Unassigned</span>
+                      )}
                     </td>
                     <td className="px-2 py-3 min-w-[220px] break-all text-slate-gray">
                       {user.email}
