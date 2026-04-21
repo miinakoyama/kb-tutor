@@ -13,7 +13,7 @@
  *
  * This module is browser-only. It no-ops on the server.
  */
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient, resetSupabaseBrowserClient } from "@/lib/supabase/client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 
 const QUEUE_STORAGE_KEY = "kb-tutor-sync-queue-v1";
@@ -24,7 +24,6 @@ function debugLog(...args: unknown[]): void {
   if (typeof window === "undefined") return;
   try {
     if (window.localStorage.getItem("kb-tutor-sync-debug") === "1") {
-      // eslint-disable-next-line no-console
       console.log("[sync]", ...args);
     }
   } catch {
@@ -95,6 +94,12 @@ const listeners = new Set<Listener>();
 let lastBroadcast: SyncStatus = { kind: "idle" };
 let savedFlashTimer: ReturnType<typeof setTimeout> | null = null;
 let processingPromise: Promise<void> | null = null;
+// When we started the currently-running processQueue. Used as a watchdog so
+// a previous call that somehow never reaches its `finally` (e.g. a deep
+// supabase-js promise chain that stops settling after an offline period)
+// can't block all future flushes forever.
+let processingStartedAt = 0;
+const PROCESSING_STUCK_MS = 30_000;
 let scheduledFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Active in-flight operations. We don't rely on Supabase's `.abortSignal()`
@@ -205,55 +210,53 @@ function dedupeBookmarks(queue: PendingWrite[], op: BookmarkOp): PendingWrite[] 
   return queue.filter((w) => !(w.kind === "bookmark" && w.payload.questionId === op.questionId));
 }
 
+/**
+ * Build a fresh pending entry. Centralized so every enqueue path stamps the
+ * same defaults (tries=0, immediately due, fresh UUID) — diverging on those
+ * has caused sneaky bugs before (e.g. an entry enqueued with a future
+ * `nextAttemptAt` that never fired).
+ */
+function makeEntry<K extends PendingWrite["kind"]>(
+  kind: K,
+  payload: Extract<PendingWrite, { kind: K }>["payload"],
+): Extract<PendingWrite, { kind: K }> {
+  const now = Date.now();
+  return {
+    id: generateId(),
+    kind,
+    payload,
+    tries: 0,
+    createdAt: now,
+    nextAttemptAt: now,
+  } as Extract<PendingWrite, { kind: K }>;
+}
+
 function enqueue(entry: PendingWrite) {
   const existing = readQueue();
-  let next: PendingWrite[];
-  if (entry.kind === "bookmark") {
-    next = [...dedupeBookmarks(existing, entry.payload), entry];
-  } else {
-    next = [...existing, entry];
-  }
+  const next: PendingWrite[] =
+    entry.kind === "bookmark"
+      ? [...dedupeBookmarks(existing, entry.payload), entry]
+      : [...existing, entry];
   writeQueue(next);
   broadcast(recomputeStatus());
 }
 
 export function enqueueAttempt(payload: AttemptPayload): void {
-  enqueue({
-    id: generateId(),
-    kind: "attempt",
-    payload,
-    tries: 0,
-    createdAt: Date.now(),
-    nextAttemptAt: Date.now(),
-  });
+  enqueue(makeEntry("attempt", payload));
   void processQueue();
 }
 
 export function enqueueAttempts(payloads: AttemptPayload[]): void {
   if (payloads.length === 0) return;
-  const existing = readQueue();
-  const additions: PendingWrite[] = payloads.map((payload) => ({
-    id: generateId(),
-    kind: "attempt",
-    payload,
-    tries: 0,
-    createdAt: Date.now(),
-    nextAttemptAt: Date.now(),
-  }));
-  writeQueue([...existing, ...additions]);
+  // Batched write so we don't pay N broadcasts + N localStorage writes.
+  const additions = payloads.map((p) => makeEntry("attempt", p));
+  writeQueue([...readQueue(), ...additions]);
   broadcast(recomputeStatus());
   void processQueue();
 }
 
 export function enqueueBookmark(op: BookmarkOp): void {
-  enqueue({
-    id: generateId(),
-    kind: "bookmark",
-    payload: op,
-    tries: 0,
-    createdAt: Date.now(),
-    nextAttemptAt: Date.now(),
-  });
+  enqueue(makeEntry("bookmark", op));
   void processQueue();
 }
 
@@ -300,12 +303,18 @@ async function withTimeout<T>(work: () => Promise<T>, timeoutMs: number): Promis
   });
 }
 
+/**
+ * Hit the server to reconcile supabase-js's cached auth state. `getUser()`
+ * (as opposed to `getSession()`) actually validates the token over the wire
+ * and, if needed, triggers a refresh. Running it here prevents the queue
+ * from racing the first post-reconnect fetch against a silent 401.
+ */
 async function refreshSupabaseSession(): Promise<void> {
   try {
     const supabase = getSupabaseBrowserClient();
     await withTimeout(
       async () => {
-        await supabase.auth.getSession();
+        await supabase.auth.getUser();
       },
       REQUEST_TIMEOUT_MS,
     );
@@ -313,6 +322,123 @@ async function refreshSupabaseSession(): Promise<void> {
     // ignore: if refresh fails we'll still attempt the queue; upsert failures
     // will be surfaced through the normal retry path.
   }
+}
+
+/**
+ * Full "reset and flush" path. Called when we want to recover from a
+ * possibly-wedged supabase client — currently the browser `online` event
+ * and the manual "Retry now" button. The visibility handler intentionally
+ * skips this (see `installSyncLifecycle`) because a hidden tab regaining
+ * focus doesn't imply a network transition, and rebuilding the supabase
+ * client on every tab focus would be needlessly disruptive.
+ *
+ * Steps:
+ *   1. Abort any stale in-flight waits so the queue can move immediately.
+ *   2. Drop the supabase-js singleton. Offline stretches can leave its
+ *      internal auth state wedged (failed refresh-token attempts, half-dead
+ *      sockets), and rebuilding the client is the only thing short of a
+ *      page reload that reliably resets it.
+ *   3. Flatten backoff so every queued write is immediately due.
+ *   4. Await a session check so subsequent upserts don't race a 401.
+ *   5. Process the queue.
+ */
+async function wakeAndFlush(): Promise<void> {
+  abortInFlightRequest();
+  resetSupabaseBrowserClient();
+  // Forcibly release the processing lock. Without this, if a previous run
+  // got wedged inside supabase-js (e.g. a promise chain that never settles
+  // after a flaky offline period), `await processQueue()` below would just
+  // return that stuck promise and do nothing — exactly the "stuck on Still
+  // saving, Retry button does nothing" scenario.
+  processingPromise = null;
+  processingStartedAt = 0;
+  resetBackoff({ resetTries: true });
+  if (scheduledFlushTimer) {
+    clearTimeout(scheduledFlushTimer);
+    scheduledFlushTimer = null;
+  }
+  broadcast(recomputeStatus());
+  await refreshSupabaseSession();
+  await processQueue();
+}
+
+/**
+ * Structured Postgres error thrown by `runAttempt`/`runBookmark` so the
+ * outer retry loop can distinguish "transient" (timeout, 5xx, network) from
+ * "permanent" (constraint violation) failures. We preserve `code` so callers
+ * can branch on it, and `message` stays human-readable for the diagnostic
+ * console.
+ */
+class SyncWriteError extends Error {
+  code: string | null;
+  details: string | null;
+  constraint: string | null;
+  constructor(params: {
+    message: string;
+    code: string | null;
+    details: string | null;
+    constraint: string | null;
+  }) {
+    super(params.message);
+    this.name = "SyncWriteError";
+    this.code = params.code;
+    this.details = params.details;
+    this.constraint = params.constraint;
+  }
+}
+
+// Supabase's PostgrestError has `{ code, message, details, hint }`. We widen
+// the type to avoid importing the type just for this one shape.
+function toSyncError(err: unknown): SyncWriteError {
+  if (err && typeof err === "object") {
+    const o = err as Record<string, unknown>;
+    const code = typeof o.code === "string" ? o.code : null;
+    const message = typeof o.message === "string" ? o.message : String(err);
+    const details = typeof o.details === "string" ? o.details : null;
+    // Postgres FK errors put the constraint name in the message, e.g.
+    // `violates foreign key constraint "attempts_assignment_id_fkey"`.
+    const m = /constraint\s+"([^"]+)"/i.exec(message);
+    const constraint = m ? m[1] : null;
+    return new SyncWriteError({ message, code, details, constraint });
+  }
+  return new SyncWriteError({
+    message: err instanceof Error ? err.message : String(err),
+    code: null,
+    details: null,
+    constraint: null,
+  });
+}
+
+/**
+ * Error codes where no amount of retrying will help: the request is shaped
+ * wrong or references something that doesn't exist. Keep these rare so we
+ * don't silently swallow server regressions; everything else stays in the
+ * retry loop.
+ *
+ * - 23503: foreign_key_violation (e.g. stale assignment_id)
+ * - 23514: check_violation
+ * - 23502: not_null_violation
+ * - 22P02: invalid_text_representation (malformed input)
+ * - 42P10: on-conflict column mismatch (schema/drift)
+ * - 42703: undefined_column
+ * - PGRST116/PGRST204/etc are PostgREST shape errors; also hopeless on retry
+ */
+const NON_RETRIABLE_CODES = new Set<string>([
+  "23503",
+  "23514",
+  "23502",
+  "22P02",
+  "42P10",
+  "42703",
+  "42P01",
+]);
+
+function isNonRetriableError(err: unknown): boolean {
+  if (err instanceof SyncWriteError && err.code) {
+    if (NON_RETRIABLE_CODES.has(err.code)) return true;
+    if (err.code.startsWith("PGRST")) return true;
+  }
+  return false;
 }
 
 async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Promise<void> {
@@ -338,7 +464,33 @@ async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Pr
         .upsert(row, { onConflict: "client_attempt_id", ignoreDuplicates: true }),
     REQUEST_TIMEOUT_MS,
   );
-  if (error) throw new Error(error.message);
+  if (!error) return;
+  const syncErr = toSyncError(error);
+  // Self-heal for stale assignment references: the FK is ON DELETE SET NULL
+  // at the DB level for existing rows, but the client queue keeps submitting
+  // with the original id. If the assignment has been deleted (or never
+  // reached this environment, e.g. data copied from another project), we
+  // drop the assignment_id so the answer itself still lands.
+  if (
+    syncErr.code === "23503" &&
+    syncErr.constraint === "attempts_assignment_id_fkey" &&
+    row.assignment_id != null
+  ) {
+    debugLog("runAttempt: nulling stale assignment_id and retrying", row.assignment_id);
+    const { error: retryErr } = await withTimeout(
+      async () =>
+        await supabase
+          .from("attempts")
+          .upsert(
+            { ...row, assignment_id: null },
+            { onConflict: "client_attempt_id", ignoreDuplicates: true },
+          ),
+      REQUEST_TIMEOUT_MS,
+    );
+    if (!retryErr) return;
+    throw toSyncError(retryErr);
+  }
+  throw syncErr;
 }
 
 async function runBookmark(entry: Extract<PendingWrite, { kind: "bookmark" }>): Promise<void> {
@@ -349,7 +501,7 @@ async function runBookmark(entry: Extract<PendingWrite, { kind: "bookmark" }>): 
         await supabase.from("bookmarks").upsert({ question_id: entry.payload.questionId }),
       REQUEST_TIMEOUT_MS,
     );
-    if (error) throw new Error(error.message);
+    if (error) throw toSyncError(error);
     return;
   }
   const { error } = await withTimeout(
@@ -357,7 +509,7 @@ async function runBookmark(entry: Extract<PendingWrite, { kind: "bookmark" }>): 
       await supabase.from("bookmarks").delete().eq("question_id", entry.payload.questionId),
     REQUEST_TIMEOUT_MS,
   );
-  if (error) throw new Error(error.message);
+  if (error) throw toSyncError(error);
 }
 
 function scheduleNextFlush(delayMs: number) {
@@ -369,120 +521,178 @@ function scheduleNextFlush(delayMs: number) {
   }, Math.max(50, delayMs));
 }
 
+async function runQueueLoop(): Promise<void> {
+  if (!canUseRemoteDb()) {
+    debugLog("processQueue: canUseRemoteDb=false, exiting");
+    return;
+  }
+
+  // Loop: after each batch we re-read LS so items enqueued *during*
+  // processing (e.g. the user answered another question while we were
+  // awaiting a fetch) are picked up in the same run. Without this, the
+  // `processingPromise` lock would swallow those calls and nothing would
+  // ever process them until the next lifecycle event.
+  let completedAny = false;
+  for (;;) {
+    const queue = readQueue();
+    if (queue.length === 0) {
+      debugLog("processQueue: queue drained");
+      if (completedAny) flashSaved();
+      else broadcast({ kind: "idle" });
+      return;
+    }
+
+    broadcast(recomputeStatus());
+
+    const now = Date.now();
+    // Items that have burned their retry budget must not be picked up by
+    // the automatic loop — they surface as "failed" in the UI and only
+    // advance when the user explicitly retries (which resets `tries` via
+    // `resetBackoff({ resetTries: true })`). Without this guard,
+    // permanent-error items with `backoff = 0` would loop tightly against
+    // the server: scheduleNextFlush keeps re-firing every ~50ms.
+    const pendingRetryable = queue.filter((w) => w.tries < MAX_TRIES);
+    if (pendingRetryable.length === 0) {
+      debugLog("processQueue: only failed items remain, not scheduling");
+      return;
+    }
+    const due = pendingRetryable.filter((w) => w.nextAttemptAt <= now);
+    if (due.length === 0) {
+      const nextAt = Math.min(...pendingRetryable.map((w) => w.nextAttemptAt));
+      debugLog("processQueue: nothing due, scheduling in", nextAt - now, "ms");
+      scheduleNextFlush(nextAt - now);
+      return;
+    }
+    debugLog("processQueue: firing", due.length, "items in parallel");
+
+    // Fire all due writes in parallel. If the browser comes back from an
+    // offline stretch and the first socket is stale, sequential processing
+    // would stall on that one request (up to REQUEST_TIMEOUT_MS) and block
+    // every item behind it. Running in parallel lets the other sockets make
+    // progress — and the queue is idempotent, so there's no correctness
+    // cost to firing them concurrently.
+    const startedAt = Date.now();
+    const results = await Promise.allSettled(
+      due.map(async (entry) => {
+        if (entry.kind === "attempt") await runAttempt(entry);
+        else await runBookmark(entry);
+      }),
+    );
+    debugLog(
+      "processQueue: allSettled done in",
+      Date.now() - startedAt,
+      "ms",
+      results.map((r) => r.status),
+    );
+
+    const anyFailure = applyBatchResults(due, results);
+    broadcast(recomputeStatus());
+    if (anyFailure) break;
+    // Success path: loop back and drain anything added while we waited.
+    completedAny = true;
+  }
+
+  // Post-failure cleanup. If nothing is left (everything ended up discarded
+  // as permanent before it got here), emit the terminal status; otherwise
+  // schedule the next flush based on the soonest-due *retryable* item.
+  // Exhausted items are skipped — they'll only move again when the user
+  // hits "Retry" or "Dismiss".
+  const remaining = readQueue();
+  if (remaining.length === 0) {
+    if (completedAny) flashSaved();
+    else broadcast({ kind: "idle" });
+    return;
+  }
+  const retryable = remaining.filter((w) => w.tries < MAX_TRIES);
+  if (retryable.length === 0) return;
+  const nextAt = Math.min(...retryable.map((w) => w.nextAttemptAt));
+  scheduleNextFlush(nextAt - Date.now());
+}
+
+/**
+ * Reconcile a batch's results back into the persisted queue. Returns
+ * whether any item failed so the caller can decide whether to keep
+ * looping or break out to a backoff-scheduled retry.
+ *
+ * We re-read LS inside each branch rather than mutating the snapshot
+ * `due` because a concurrent `online`/retry handler may have reset
+ * `tries` while we were in flight, and we don't want to clobber that.
+ */
+function applyBatchResults(
+  due: PendingWrite[],
+  results: PromiseSettledResult<void>[],
+): boolean {
+  let anyFailure = false;
+  for (let i = 0; i < due.length; i++) {
+    const entry = due[i];
+    const result = results[i];
+    if (result.status === "fulfilled") {
+      writeQueue(readQueue().filter((w) => w.id !== entry.id));
+      continue;
+    }
+    anyFailure = true;
+    const err = result.reason;
+    const latest = readQueue().find((w) => w.id === entry.id);
+    if (!latest) continue;
+    // Permanent errors (FK violation, check constraint, schema drift) never
+    // recover with more attempts. Burn the retry budget so the UI promotes
+    // them to "failed" immediately and the user can see that something
+    // actually needs attention — instead of spinning "Retrying…" for ~8
+    // minutes.
+    const permanent = isNonRetriableError(err);
+    const tries = permanent ? MAX_TRIES : latest.tries + 1;
+    const message = err instanceof Error ? err.message : String(err);
+    if (permanent) {
+      debugLog("processQueue: permanent failure, not retrying", message);
+    }
+    // For permanent failures we push nextAttemptAt far into the future so
+    // that even if the "tries >= MAX_TRIES" filter is ever bypassed, the
+    // item still won't silently hammer the server on every tick. A manual
+    // retry resets `tries` via `resetBackoff({ resetTries: true })`, which
+    // also flattens nextAttemptAt back to `now`.
+    const nextAttemptAt = permanent
+      ? Number.MAX_SAFE_INTEGER
+      : Date.now() + BACKOFF_MS[Math.min(tries, BACKOFF_MS.length - 1)];
+    const updated: PendingWrite = {
+      ...latest,
+      tries,
+      nextAttemptAt,
+      lastError: permanent ? `[non-retriable] ${message}` : message,
+    };
+    writeQueue(readQueue().map((w) => (w.id === entry.id ? updated : w)));
+  }
+  return anyFailure;
+}
+
 export function processQueue(): Promise<void> {
   if (processingPromise) {
-    debugLog("processQueue: already processing, returning existing promise");
-    return processingPromise;
+    const age = Date.now() - processingStartedAt;
+    if (age < PROCESSING_STUCK_MS) {
+      debugLog("processQueue: already processing, returning existing promise");
+      return processingPromise;
+    }
+    // Watchdog: the previous run has been in flight longer than any
+    // legitimate batch should take. Assume the lock is wedged (we've seen
+    // this when supabase-js's internal refresh pipeline stops settling
+    // after the browser has been offline) and force-release it. The
+    // orphaned promise, if it ever resolves, can't interfere because the
+    // `finally` below identity-checks against the current lock holder.
+    debugLog("processQueue: stuck lock detected, forcing release", age, "ms");
+    processingPromise = null;
   }
   debugLog("processQueue: starting");
-  processingPromise = (async () => {
-    try {
-      if (!canUseRemoteDb()) {
-        debugLog("processQueue: canUseRemoteDb=false, exiting");
-        return;
-      }
-
-      // Loop: after each batch we re-read LS so items enqueued *during*
-      // processing (e.g. the user answered another question while we were
-      // awaiting a fetch) are picked up in the same run. Without this, the
-      // `processingPromise` lock would swallow those calls and nothing would
-      // ever process them until the next lifecycle event.
-      let completedAny = false;
-      for (;;) {
-        const queue = readQueue();
-        if (queue.length === 0) {
-          debugLog("processQueue: queue drained");
-          if (completedAny) flashSaved();
-          else broadcast({ kind: "idle" });
-          return;
-        }
-
-        broadcast(recomputeStatus());
-
-        const now = Date.now();
-        const due = queue.filter((w) => w.nextAttemptAt <= now);
-        if (due.length === 0) {
-          const nextAt = Math.min(...queue.map((w) => w.nextAttemptAt));
-          debugLog("processQueue: nothing due, scheduling in", nextAt - now, "ms");
-          scheduleNextFlush(nextAt - now);
-          return;
-        }
-        debugLog("processQueue: firing", due.length, "items in parallel");
-
-        // Fire all due writes in parallel. If the browser comes back from
-        // an offline stretch and the first socket is stale, sequential
-        // processing would stall on that one request (up to
-        // REQUEST_TIMEOUT_MS) and block every item behind it. Running in
-        // parallel lets the other sockets make progress — and the queue is
-        // idempotent, so there's no correctness cost to firing them
-        // concurrently.
-        const startedAt = Date.now();
-        const results = await Promise.allSettled(
-          due.map(async (entry) => {
-            if (entry.kind === "attempt") await runAttempt(entry);
-            else await runBookmark(entry);
-          }),
-        );
-        debugLog(
-          "processQueue: allSettled done in",
-          Date.now() - startedAt,
-          "ms",
-          results.map((r) => r.status),
-        );
-
-        let anyFailure = false;
-        for (let i = 0; i < due.length; i++) {
-          const entry = due[i];
-          const result = results[i];
-          if (result.status === "fulfilled") {
-            const current = readQueue().filter((w) => w.id !== entry.id);
-            writeQueue(current);
-            completedAny = true;
-            continue;
-          }
-          anyFailure = true;
-          // Failure path. Base the retry count on whatever is in LS right
-          // now, not on the in-memory snapshot — the `online` handler may
-          // have reset tries to zero while we were in flight, and we don't
-          // want to clobber that.
-          const err = result.reason;
-          const latest = readQueue().find((w) => w.id === entry.id);
-          if (!latest) continue;
-          const tries = latest.tries + 1;
-          const backoff = BACKOFF_MS[Math.min(tries, BACKOFF_MS.length - 1)];
-          const updated: PendingWrite = {
-            ...latest,
-            tries,
-            nextAttemptAt: Date.now() + backoff,
-            lastError: err instanceof Error ? err.message : String(err),
-          };
-          const current = readQueue().map((w) => (w.id === entry.id ? updated : w));
-          writeQueue(current);
-        }
-        broadcast(recomputeStatus());
-
-        // If any item failed, don't tight-loop — wait for backoff. Otherwise
-        // re-check for newly-due items right away, because we may have
-        // picked up additional enqueues while awaiting the last batch.
-        if (anyFailure) {
-          const remaining = readQueue();
-          if (remaining.length === 0) {
-            if (completedAny) flashSaved();
-            else broadcast({ kind: "idle" });
-            return;
-          }
-          const nextAt = Math.min(...remaining.map((w) => w.nextAttemptAt));
-          scheduleNextFlush(nextAt - Date.now());
-          return;
-        }
-        // Success path: loop back and drain anything added while we waited.
-      }
-    } finally {
+  processingStartedAt = Date.now();
+  const p: Promise<void> = runQueueLoop().finally(() => {
+    // Identity check: a watchdog may have stolen the lock and started a
+    // fresh run. Don't null out their promise with our stale reference.
+    if (processingPromise === p) {
       processingPromise = null;
-      debugLog("processQueue: done, processingPromise cleared");
+      processingStartedAt = 0;
     }
-  })();
-  return processingPromise;
+    debugLog("processQueue: done, processingPromise cleared");
+  });
+  processingPromise = p;
+  return p;
 }
 
 /**
@@ -504,15 +714,107 @@ function resetBackoff({ resetTries }: { resetTries: boolean }): void {
   writeQueue(queue);
 }
 
-/** Manual retry (user clicks "Retry" button). */
+/**
+ * Manual retry (user clicks "Retry" button). We do the full reconnect dance
+ * — rebuild the supabase client, re-validate auth, then flush — because the
+ * usual reason a user clicks this is that the queue got wedged on something
+ * only a fresh client can resolve.
+ */
 export function retryAllPending(): Promise<void> {
-  resetBackoff({ resetTries: false });
+  return wakeAndFlush();
+}
+
+/**
+ * Drop writes that have exhausted their retry budget. Used by the "Dismiss"
+ * affordance on the failed pill — the local answer history is already in
+ * localStorage, so losing the queued server-side copy is an acceptable
+ * tradeoff to stop the indicator from being stuck forever on a permanent
+ * error (e.g. references to data that doesn't exist on this server).
+ *
+ * Returns the number of entries actually discarded so callers (e.g. the
+ * diagnostic console API) can report it without re-reading the queue.
+ */
+export function discardFailedPending(): number {
+  const before = readQueue();
+  const remaining = before.filter((w) => w.tries < MAX_TRIES);
+  writeQueue(remaining);
   broadcast(recomputeStatus());
-  return processQueue();
+  return before.length - remaining.length;
 }
 
 export function getPendingCount(): number {
   return readQueue().length;
+}
+
+/**
+ * Console diagnostic for verifying whether writes are actually reaching the
+ * server. Users occasionally worry the "saving…" indicator means data is
+ * being lost; this surfaces ground truth without shipping additional UI.
+ *
+ * Usage (in browser DevTools Console):
+ *   await window.__kbTutorSyncInfo()
+ *
+ * Returns the current queue state plus server-side attempt counts so the
+ * user can compare "things I just answered" against "rows actually in the
+ * database". Intentionally untyped at the window level — this is a debug
+ * affordance, not a product API.
+ */
+type SyncDiagnostic = {
+  online: boolean;
+  status: SyncStatus;
+  pendingInQueue: number;
+  pendingSample: Array<{
+    kind: string;
+    tries: number;
+    nextAttemptAt: string;
+    lastError?: string;
+  }>;
+  serverAttemptsTotal: number | null;
+  serverAttemptsLastHour: number | null;
+  serverError: string | null;
+};
+
+async function getSyncDiagnostic(): Promise<SyncDiagnostic> {
+  const queue = readQueue();
+  const pendingSample = queue.slice(0, 5).map((w) => ({
+    kind: w.kind,
+    tries: w.tries,
+    nextAttemptAt: new Date(w.nextAttemptAt).toISOString(),
+    lastError: w.lastError,
+  }));
+
+  const base: SyncDiagnostic = {
+    online: isBrowser() ? navigator.onLine : true,
+    status: lastBroadcast,
+    pendingInQueue: queue.length,
+    pendingSample,
+    serverAttemptsTotal: null,
+    serverAttemptsLastHour: null,
+    serverError: null,
+  };
+
+  if (!canUseRemoteDb()) return base;
+
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const totalRes = await supabase
+      .from("attempts")
+      .select("*", { count: "exact", head: true });
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const recentRes = await supabase
+      .from("attempts")
+      .select("*", { count: "exact", head: true })
+      .gte("answered_at", oneHourAgo);
+
+    base.serverAttemptsTotal = totalRes.count ?? null;
+    base.serverAttemptsLastHour = recentRes.count ?? null;
+    if (totalRes.error) base.serverError = totalRes.error.message;
+    else if (recentRes.error) base.serverError = recentRes.error.message;
+  } catch (err) {
+    base.serverError = err instanceof Error ? err.message : String(err);
+  }
+
+  return base;
 }
 
 let lifecycleInstalled = false;
@@ -521,26 +823,27 @@ export function installSyncLifecycle(): void {
   if (!isBrowser() || lifecycleInstalled) return;
   lifecycleInstalled = true;
   broadcast(recomputeStatus());
+  // Expose both the diagnostic (`__kbTutorSyncInfo()`) and escape-hatch
+  // helpers (`.retry()` / `.discard()` / `.queue()`) on `window` so the
+  // queue can be inspected or unwedged from DevTools when the UI button
+  // itself isn't responding. Attached here instead of at module scope so
+  // SSR bundles don't touch `window`.
+  const globalApi = getSyncDiagnostic as typeof getSyncDiagnostic & {
+    retry: () => Promise<void>;
+    discard: () => number;
+    queue: () => PendingWrite[];
+  };
+  globalApi.retry = () => retryAllPending();
+  globalApi.discard = () => discardFailedPending();
+  globalApi.queue = () => readQueue();
+  (
+    window as unknown as {
+      __kbTutorSyncInfo?: typeof globalApi;
+    }
+  ).__kbTutorSyncInfo = globalApi;
   window.addEventListener("online", () => {
     debugLog("event: online fired, navigator.onLine=", navigator.onLine);
-    // A stale TCP connection often keeps a prior fetch hung even after the OS
-    // reports "online". Abort it so the queue can move forward immediately.
-    abortInFlightRequest();
-    // Failures that happened while offline pushed `nextAttemptAt` tens of
-    // seconds into the future. Flatten everything so the UI doesn't sit on
-    // "Retrying…" waiting for a stale backoff to expire.
-    resetBackoff({ resetTries: true });
-    if (scheduledFlushTimer) {
-      clearTimeout(scheduledFlushTimer);
-      scheduledFlushTimer = null;
-    }
-    broadcast(recomputeStatus());
-    // Auth tokens can expire silently while the tab was offline. Proactively
-    // refresh the Supabase session so the first flush doesn't get 401'd
-    // and end up in the retry loop. We don't await — the queue should start
-    // moving immediately either way, since refresh is idempotent.
-    void refreshSupabaseSession();
-    void processQueue();
+    void wakeAndFlush();
   });
   window.addEventListener("offline", () => {
     debugLog("event: offline fired");
@@ -549,6 +852,9 @@ export function installSyncLifecycle(): void {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       debugLog("event: visibility=visible");
+      // A hidden tab coming back doesn't necessarily mean the network state
+      // changed, so we skip the full supabase-client rebuild that `online`
+      // does; just flatten backoff and try to flush.
       resetBackoff({ resetTries: false });
       if (scheduledFlushTimer) {
         clearTimeout(scheduledFlushTimer);
@@ -565,6 +871,18 @@ export function installSyncLifecycle(): void {
 export const __testing = {
   readQueue,
   writeQueue,
+  isNonRetriableError,
+  SyncWriteError,
+  PROCESSING_STUCK_MS,
+  /** Rig the processingPromise lock to a specific state for watchdog tests. */
+  setLock(promise: Promise<void> | null, startedAt: number): void {
+    processingPromise = promise;
+    processingStartedAt = startedAt;
+  },
+  /** Read the lock state so tests can assert the watchdog actually replaced it. */
+  getLock(): { promise: Promise<void> | null; startedAt: number } {
+    return { promise: processingPromise, startedAt: processingStartedAt };
+  },
   resetListeners: () => {
     listeners.clear();
     lastBroadcast = { kind: "idle" };
@@ -576,5 +894,7 @@ export const __testing = {
       clearTimeout(scheduledFlushTimer);
       scheduledFlushTimer = null;
     }
+    processingPromise = null;
+    processingStartedAt = 0;
   },
 };
