@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
+import { DataAnalysisTabs } from "./tabs";
 
 interface Summary {
   schools: number;
@@ -100,6 +101,8 @@ export default function DataAnalysisPage() {
           Explore student-level interaction and attempt data, then export filtered CSV for analysis.
         </p>
       </header>
+
+      <DataAnalysisTabs active="students" />
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">

@@ -9,8 +9,9 @@ import {
 } from "./session";
 
 type FetchCall = { url: string; init?: RequestInit };
+type StubResponse = { status?: number; body?: string };
 
-function mockFetchSequence(responses: Array<Partial<Response> | Error>) {
+function mockFetchSequence(responses: Array<StubResponse | Error>) {
   const calls: FetchCall[] = [];
   const fn = vi.fn(async (url: unknown, init?: unknown) => {
     calls.push({ url: String(url), init: init as RequestInit | undefined });
@@ -20,7 +21,7 @@ function mockFetchSequence(responses: Array<Partial<Response> | Error>) {
     }
     if (next instanceof Error) throw next;
     return new Response(
-      next.body ? String(next.body) : JSON.stringify({ ok: true }),
+      next.body ?? JSON.stringify({ ok: true }),
       { status: next.status ?? 200 },
     );
   });
