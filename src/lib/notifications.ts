@@ -25,6 +25,9 @@ type AssignmentRecord = {
 
 type AssignmentTargetRow = {
   assignment_id: string;
+  // For assignments created *before* the student joined the school there is
+  // no assignment_targets row, so we fall back to the assignment's own
+  // created_at. `created_at` is therefore always populated here.
   created_at: string;
 };
 
@@ -57,23 +60,29 @@ async function loadTargetsAndAssignments(
   supabase: SupabaseClient,
   studentUserId: string,
 ): Promise<TargetLoadResult> {
-  const { data: targetRowsData, error: targetRowsError } = await supabase
-    .from("assignment_targets")
-    .select("assignment_id,created_at")
+  // Resolve assignments by school membership so students see every
+  // assignment for their school, not just the ones that existed at
+  // account-creation time. assignment_targets is only consulted for
+  // per-student `created_at` overrides (the moment that specific student
+  // was targeted).
+  const { data: memberRowsData, error: memberRowsError } = await supabase
+    .from("school_members")
+    .select("school_id")
     .eq("student_user_id", studentUserId);
-  if (targetRowsError) {
+  if (memberRowsError) {
     return {
       targetRows: [],
       assignmentsById: new Map<string, AssignmentRecord>(),
-      error: `Failed to load assignment targets for notifications: ${targetRowsError.message}`,
+      error: `Failed to load school memberships for notifications: ${memberRowsError.message}`,
     };
   }
 
-  const targetRows = (targetRowsData ?? []) as AssignmentTargetRow[];
-  const assignmentIds = Array.from(new Set(targetRows.map((row) => row.assignment_id)));
-  if (assignmentIds.length === 0) {
+  const schoolIds = Array.from(
+    new Set((memberRowsData ?? []).map((row) => String(row.school_id))),
+  );
+  if (schoolIds.length === 0) {
     return {
-      targetRows,
+      targetRows: [],
       assignmentsById: new Map<string, AssignmentRecord>(),
       error: null,
     };
@@ -81,8 +90,8 @@ async function loadTargetsAndAssignments(
 
   const { data: assignmentsData, error: assignmentsError } = await supabase
     .from("assignments")
-    .select("id,title,due_date")
-    .in("id", assignmentIds);
+    .select("id,title,due_date,created_at")
+    .in("school_id", schoolIds);
   if (assignmentsError) {
     return {
       targetRows: [],
@@ -91,9 +100,47 @@ async function loadTargetsAndAssignments(
     };
   }
 
+  const assignmentIds = Array.from(
+    new Set(((assignmentsData ?? []) as Array<{ id: string }>).map((row) => row.id)),
+  );
+
   const assignmentsById = new Map<string, AssignmentRecord>(
     ((assignmentsData ?? []) as AssignmentRecord[]).map((row) => [row.id, row]),
   );
+
+  // If an assignment_targets row exists for this student, prefer its
+  // created_at (per-student assignment time). Otherwise fall back to the
+  // assignment's created_at so backfill for late-joined students still has
+  // a sensible "assigned at" timestamp for the notification timeline.
+  let targetedAtByAssignment = new Map<string, string>();
+  if (assignmentIds.length > 0) {
+    const { data: targetRowsData, error: targetRowsError } = await supabase
+      .from("assignment_targets")
+      .select("assignment_id,created_at")
+      .eq("student_user_id", studentUserId)
+      .in("assignment_id", assignmentIds);
+    if (targetRowsError) {
+      return {
+        targetRows: [],
+        assignmentsById: new Map<string, AssignmentRecord>(),
+        error: `Failed to load assignment targets for notifications: ${targetRowsError.message}`,
+      };
+    }
+    targetedAtByAssignment = new Map(
+      ((targetRowsData ?? []) as Array<{ assignment_id: string; created_at: string }>).map(
+        (row) => [String(row.assignment_id), String(row.created_at)],
+      ),
+    );
+  }
+
+  const targetRows: AssignmentTargetRow[] = (
+    (assignmentsData ?? []) as Array<{ id: string; created_at?: string | null }>
+  ).map((row) => ({
+    assignment_id: row.id,
+    created_at:
+      targetedAtByAssignment.get(row.id) ??
+      (row.created_at ? String(row.created_at) : new Date(0).toISOString()),
+  }));
 
   return {
     targetRows,

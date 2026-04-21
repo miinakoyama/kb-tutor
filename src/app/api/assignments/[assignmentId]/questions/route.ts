@@ -74,7 +74,19 @@ export async function GET(
   const lastCompletedAt =
     (targetRow?.last_completed_at as string | null | undefined) ?? null;
 
+  // A student gets access if they were explicitly targeted *or* they are a
+  // current member of the assignment's school. The latter covers students
+  // who joined after the assignment was created.
   let canAccess = Boolean(targetRow);
+  if (!canAccess) {
+    const { data: memberRow } = await admin
+      .from("school_members")
+      .select("school_id")
+      .eq("school_id", assignment.school_id)
+      .eq("student_user_id", requester.id)
+      .maybeSingle();
+    canAccess = Boolean(memberRow);
+  }
   if (!canAccess && ["teacher", "admin"].includes(requester.role ?? "")) {
     if (requester.role === "admin") {
       canAccess = true;

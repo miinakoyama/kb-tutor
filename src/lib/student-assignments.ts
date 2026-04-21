@@ -65,45 +65,52 @@ async function fetchAssignmentList(
   supabase: SupabaseClient,
   studentUserId: string,
 ): Promise<StudentAssignmentListResult> {
-  const { data: targetRows, error: targetsError } = await supabase
-    .from("assignment_targets")
-    .select("assignment_id, created_at, last_completed_at")
-    .eq("student_user_id", studentUserId)
+  // Resolve assignments through school membership rather than
+  // assignment_targets so that a student who was added to a school *after*
+  // an assignment was created still sees the assignment. assignment_targets
+  // is consulted only for per-student state like last_completed_at.
+  const { data: memberRows, error: memberError } = await supabase
+    .from("school_members")
+    .select("school_id")
+    .eq("student_user_id", studentUserId);
+  if (memberError) {
+    return { assignments: [], error: memberError.message };
+  }
+  const schoolIds = Array.from(
+    new Set((memberRows ?? []).map((row) => String(row.school_id))),
+  );
+  if (schoolIds.length === 0) {
+    return { assignments: [], error: null };
+  }
+
+  const { data: assignmentRows, error: assignmentsError } = await supabase
+    .from("assignments")
+    .select(
+      "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,created_at",
+    )
+    .in("school_id", schoolIds)
     .order("created_at", { ascending: false });
-
-  if (targetsError) {
-    return { assignments: [], error: targetsError.message };
+  if (assignmentsError) {
+    return { assignments: [], error: assignmentsError.message };
   }
 
-  const orderedIds: string[] = [];
-  const lastCompletedByAssignment = new Map<string, string | null>();
-  const seen = new Set<string>();
-  for (const row of targetRows ?? []) {
-    const id = String(row.assignment_id);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    orderedIds.push(id);
-    lastCompletedByAssignment.set(
-      id,
-      (row.last_completed_at as string | null | undefined) ?? null,
-    );
-  }
-
+  const orderedIds: string[] = (assignmentRows ?? []).map((row) =>
+    String(row.id),
+  );
   if (orderedIds.length === 0) {
     return { assignments: [], error: null };
   }
 
   const [
-    { data: assignmentRows, error: assignmentsError },
+    { data: targetRows, error: targetsError },
     { data: snapshotRows, error: snapshotError },
     { data: attemptRows, error: attemptError },
   ] = await Promise.all([
     supabase
-      .from("assignments")
-      .select(
-        "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions",
-      )
-      .in("id", orderedIds),
+      .from("assignment_targets")
+      .select("assignment_id, last_completed_at")
+      .eq("student_user_id", studentUserId)
+      .in("assignment_id", orderedIds),
     supabase
       .from("assignment_question_snapshots")
       .select("assignment_id,question_id")
@@ -115,14 +122,22 @@ async function fetchAssignmentList(
       .in("assignment_id", orderedIds),
   ]);
 
-  if (assignmentsError) {
-    return { assignments: [], error: assignmentsError.message };
+  if (targetsError) {
+    return { assignments: [], error: targetsError.message };
   }
   if (snapshotError) {
     return { assignments: [], error: snapshotError.message };
   }
   if (attemptError) {
     return { assignments: [], error: attemptError.message };
+  }
+
+  const lastCompletedByAssignment = new Map<string, string | null>();
+  for (const row of targetRows ?? []) {
+    lastCompletedByAssignment.set(
+      String(row.assignment_id),
+      (row.last_completed_at as string | null | undefined) ?? null,
+    );
   }
 
   const snapshotCountByAssignment = new Map<string, number>();

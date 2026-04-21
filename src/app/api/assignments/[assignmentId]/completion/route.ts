@@ -34,6 +34,21 @@ export async function POST(
   }
 
   const admin = createSupabaseAdminClient();
+
+  // Resolve the assignment so we can authorize students who weren't
+  // originally targeted but joined the school afterwards.
+  const { data: assignment, error: assignmentError } = await admin
+    .from("assignments")
+    .select("id,school_id")
+    .eq("id", normalizedAssignmentId)
+    .maybeSingle();
+  if (assignmentError) {
+    return NextResponse.json({ error: assignmentError.message }, { status: 400 });
+  }
+  if (!assignment) {
+    return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
+  }
+
   const { data: targetRow, error: targetError } = await admin
     .from("assignment_targets")
     .select("assignment_id")
@@ -43,18 +58,37 @@ export async function POST(
   if (targetError) {
     return NextResponse.json({ error: targetError.message }, { status: 400 });
   }
+
   if (!targetRow) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Authorize via school membership, then create the target row so we
+    // have a place to record last_completed_at.
+    const { data: memberRow, error: memberError } = await admin
+      .from("school_members")
+      .select("school_id")
+      .eq("school_id", assignment.school_id)
+      .eq("student_user_id", user.id)
+      .maybeSingle();
+    if (memberError) {
+      return NextResponse.json({ error: memberError.message }, { status: 400 });
+    }
+    if (!memberRow) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const completedAt = new Date().toISOString();
-  const { error: updateError } = await admin
+  const { error: upsertError } = await admin
     .from("assignment_targets")
-    .update({ last_completed_at: completedAt })
-    .eq("assignment_id", normalizedAssignmentId)
-    .eq("student_user_id", user.id);
-  if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 400 });
+    .upsert(
+      {
+        assignment_id: normalizedAssignmentId,
+        student_user_id: user.id,
+        last_completed_at: completedAt,
+      },
+      { onConflict: "assignment_id,student_user_id" },
+    );
+  if (upsertError) {
+    return NextResponse.json({ error: upsertError.message }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true, last_completed_at: completedAt });
