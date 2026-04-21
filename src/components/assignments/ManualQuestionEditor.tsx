@@ -95,27 +95,37 @@ function mapGlossaryDrafts(draftId: string, terms: ManualGlossaryTermDraft[]) {
     .filter((term): term is NonNullable<typeof term> => term !== null);
 }
 
+const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
+
+function letterForIndex(index: number): string {
+  return OPTION_LETTERS[index] ?? `Option${index + 1}`;
+}
+
 export function manualDraftToQuestion(
   draft: ManualQuestionDraft,
   index: number,
 ): Question {
-  const options = draft.options
-    .map((option, optionIndex) => {
-      const text = option.text.trim();
-      const feedback = option.feedback.trim();
-      return {
-        id: option.id || `opt_${optionIndex + 1}`,
-        text,
-        feedback: feedback || undefined,
-      };
-    })
-    .filter((option) => option.text.length > 0);
+  const validDraftOptions = draft.options.filter(
+    (option) => option.text.trim().length > 0,
+  );
 
-  const correctOptionId = options.some(
+  const options = validDraftOptions.map((option, optionIndex) => {
+    const text = option.text.trim();
+    const feedback = option.feedback.trim();
+    return {
+      id: letterForIndex(optionIndex),
+      text,
+      feedback: feedback || undefined,
+    };
+  });
+
+  const correctDraftIndex = validDraftOptions.findIndex(
     (option) => option.id === draft.correctOptionId,
-  )
-    ? draft.correctOptionId
-    : (options[0]?.id ?? "opt_1");
+  );
+  const correctOptionId =
+    correctDraftIndex >= 0
+      ? letterForIndex(correctDraftIndex)
+      : (options[0]?.id ?? "A");
 
   const inlineTerms = mapGlossaryDrafts(draft.id, draft.inlineTerms);
   const sidebarTerms = mapGlossaryDrafts(draft.id, draft.sidebarTerms);
