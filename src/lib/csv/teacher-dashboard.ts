@@ -29,7 +29,8 @@ function downloadCsv(content: string, fileName: string): void {
 }
 
 export function downloadStandardMetricsCsv(rows: StandardRow[]): void {
-  const header = joinCsvRow([
+  const includeModeBreakdown = rows.some((row) => row.byMode !== undefined);
+  const baseHeader = [
     "standard_id",
     "standard_label",
     "attempted",
@@ -37,9 +38,23 @@ export function downloadStandardMetricsCsv(rows: StandardRow[]): void {
     "accuracy_percent",
     "average_time_seconds",
     "status",
-  ]);
-  const body = rows.map((row) =>
-    joinCsvRow([
+  ];
+  const modeHeader = includeModeBreakdown
+    ? [
+        "practice_attempted",
+        "practice_correct",
+        "practice_accuracy_percent",
+        "exam_attempted",
+        "exam_correct",
+        "exam_accuracy_percent",
+        "review_attempted",
+        "review_correct",
+        "review_accuracy_percent",
+      ]
+    : [];
+  const header = joinCsvRow([...baseHeader, ...modeHeader]);
+  const body = rows.map((row) => {
+    const base: Array<string | number> = [
       row.standardId,
       row.standardLabel,
       row.attempted,
@@ -47,8 +62,23 @@ export function downloadStandardMetricsCsv(rows: StandardRow[]): void {
       row.accuracy,
       row.averageTimeSec,
       row.status,
-    ]),
-  );
+    ];
+    if (includeModeBreakdown) {
+      const bm = row.byMode;
+      base.push(
+        bm?.practice.attempted ?? 0,
+        bm?.practice.correct ?? 0,
+        bm?.practice.accuracy ?? 0,
+        bm?.exam.attempted ?? 0,
+        bm?.exam.correct ?? 0,
+        bm?.exam.accuracy ?? 0,
+        bm?.review.attempted ?? 0,
+        bm?.review.correct ?? 0,
+        bm?.review.accuracy ?? 0,
+      );
+    }
+    return joinCsvRow(base);
+  });
   downloadCsv([header, ...body].join("\n"), "teacher-dashboard-by-standard.csv");
 }
 

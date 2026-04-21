@@ -20,10 +20,12 @@ import type {
   StandardRow,
   StudentRow,
   DashboardSummary,
+  ModeMetrics,
 } from "@/lib/analytics/teacher-dashboard-server";
 
 type RangeKey = "7d" | "30d" | "all";
-type ModeKey = "practice" | "exam" | "review";
+type ModeKey = "compare" | "practice" | "exam" | "review";
+type AttemptModeKey = "practice" | "exam" | "review";
 type SourceKey = "assigned" | "self" | "all";
 type StudentStatusFilter = "all" | "struggling" | "watch" | "on_track" | "low_and_fast";
 type StandardStatusFilter = "all" | "needs_review" | "watch" | "on_track";
@@ -57,6 +59,12 @@ const RANGE_OPTIONS: { value: RangeKey; label: string }[] = [
 
 const MODE_TABS: { value: ModeKey; label: string; helper: string }[] = [
   {
+    value: "compare",
+    label: "Compare",
+    helper:
+      "Compare all modes side by side. Practice has scaffolding; exam does not — the gap highlights where re-teaching is needed.",
+  },
+  {
     value: "practice",
     label: "Practice",
     helper:
@@ -75,6 +83,13 @@ const MODE_TABS: { value: ModeKey; label: string; helper: string }[] = [
       "Review mode — students revisit previously answered questions. Ideal for closing recurring gaps.",
   },
 ];
+
+const ATTEMPT_MODES: AttemptModeKey[] = ["practice", "exam", "review"];
+const MODE_LABELS: Record<AttemptModeKey, string> = {
+  practice: "Practice",
+  exam: "Exam",
+  review: "Review",
+};
 
 const EMPTY_PAYLOAD: DashboardPayload = {
   classes: [],
@@ -104,7 +119,7 @@ function TeacherDashboardContent() {
   const [classId, setClassId] = useState<string>("");
   const [studentId, setStudentId] = useState<string>("");
   const [range, setRange] = useState<RangeKey>("30d");
-  const [mode, setMode] = useState<ModeKey>("practice");
+  const [mode, setMode] = useState<ModeKey>("compare");
   const [source, setSource] = useState<SourceKey>("all");
   const [standardFilter, setStandardFilter] = useState<StandardStatusFilter>("all");
   const [studentFilter, setStudentFilter] = useState<StudentStatusFilter>("all");
@@ -202,18 +217,22 @@ function TeacherDashboardContent() {
           accentClass="text-[#16a34a]"
           bgClass="bg-[#16a34a]/10"
         />
-        <KpiCard
-          label="Overall Accuracy"
-          value={`${data.summary.overallAccuracy}%`}
-          helper={
-            data.summary.totalAnswered > 0
-              ? `across ${data.summary.totalAnswered.toLocaleString()} answers`
-              : "no attempts yet"
-          }
-          icon={TrendingUp}
-          accentClass="text-[#1d4ed8]"
-          bgClass="bg-[#2563eb]/10"
-        />
+        {mode === "compare" ? (
+          <ModeAccuracyCard summary={data.summary} />
+        ) : (
+          <KpiCard
+            label="Overall Accuracy"
+            value={`${data.summary.overallAccuracy}%`}
+            helper={
+              data.summary.totalAnswered > 0
+                ? `${data.summary.totalCorrect.toLocaleString()} correct of ${data.summary.totalAnswered.toLocaleString()} answered`
+                : "no attempts yet"
+            }
+            icon={TrendingUp}
+            accentClass="text-[#1d4ed8]"
+            bgClass="bg-[#2563eb]/10"
+          />
+        )}
         <KpiCard
           label="Avg Time / Question"
           value={formatDuration(data.summary.avgTimeSec)}
@@ -286,7 +305,15 @@ function TeacherDashboardContent() {
                 <th className="px-5 py-3">Standard</th>
                 <th className="px-3 py-3 text-right">Attempted</th>
                 <th className="px-3 py-3 text-right">Correct</th>
-                <th className="px-3 py-3">Accuracy</th>
+                {mode === "compare" ? (
+                  <>
+                    <th className="px-3 py-3 text-center">Practice</th>
+                    <th className="px-3 py-3 text-center">Exam</th>
+                    <th className="px-3 py-3 text-center">Review</th>
+                  </>
+                ) : (
+                  <th className="px-3 py-3">Accuracy</th>
+                )}
                 <th className="px-3 py-3">Avg time</th>
                 <th className="px-5 py-3">Status</th>
               </tr>
@@ -295,7 +322,7 @@ function TeacherDashboardContent() {
               {filteredStandards.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={mode === "compare" ? 8 : 6}
                     className="px-5 py-8 text-center text-sm text-slate-gray/60"
                   >
                     {isLoading
@@ -323,9 +350,23 @@ function TeacherDashboardContent() {
                     <td className="px-3 py-3 text-right text-slate-gray">
                       {row.correct}
                     </td>
-                    <td className="px-3 py-3">
-                      <AccuracyBar value={row.accuracy} status={row.status} />
-                    </td>
+                    {mode === "compare" ? (
+                      <>
+                        <td className="px-3 py-3">
+                          <ModeAccuracyCell metrics={row.byMode?.practice} />
+                        </td>
+                        <td className="px-3 py-3">
+                          <ModeAccuracyCell metrics={row.byMode?.exam} />
+                        </td>
+                        <td className="px-3 py-3">
+                          <ModeAccuracyCell metrics={row.byMode?.review} />
+                        </td>
+                      </>
+                    ) : (
+                      <td className="px-3 py-3">
+                        <AccuracyBar value={row.accuracy} status={row.status} />
+                      </td>
+                    )}
                     <td className="px-3 py-3">
                       <span className="inline-flex items-center gap-1.5 text-slate-gray/70">
                         <Timer className="w-3.5 h-3.5 text-slate-gray/50" />
@@ -511,10 +552,10 @@ function FiltersBar(props: {
           options={props.topics.map((topic) => ({ value: topic, label: topic }))}
         />
         <FilterSelect
-          label="Class"
+          label="School"
           value={props.classId}
           onChange={props.onClassChange}
-          placeholder="All classes"
+          placeholder="All schools"
           options={props.classes.map((item) => ({
             value: item.id,
             label: item.label,
@@ -543,7 +584,7 @@ function FiltersBar(props: {
           <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
             Source
           </span>
-          <div className="inline-flex w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          <div className="flex h-[38px] w-full items-stretch overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5">
             <SourceToggle
               active={props.source === "all"}
               onClick={() => props.onSourceChange("all")}
@@ -560,7 +601,7 @@ function FiltersBar(props: {
               active={props.source === "self"}
               onClick={() => props.onSourceChange("self")}
             >
-              Self-practice
+              Self
             </SourceToggle>
           </div>
         </div>
@@ -616,7 +657,7 @@ function SourceToggle({
     <button
       type="button"
       onClick={onClick}
-      className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+      className={`flex flex-1 items-center justify-center whitespace-nowrap rounded-md px-2 text-xs font-semibold transition-colors ${
         active
           ? "bg-white text-[#166534] shadow"
           : "text-slate-gray/70 hover:text-slate-gray"
@@ -686,6 +727,53 @@ function KpiCard({
       </div>
       <p className={`text-3xl font-bold ${accentClass}`}>{value}</p>
       <p className="mt-1 text-xs text-slate-gray/60">{helper}</p>
+    </article>
+  );
+}
+
+function ModeAccuracyCard({ summary }: { summary: DashboardSummary }) {
+  const byMode = summary.byMode;
+  const toneClass = (accuracy: number, hasAttempts: boolean) => {
+    if (!hasAttempts) return "text-slate-gray/40";
+    if (accuracy >= 70) return "text-emerald-700";
+    if (accuracy >= 55) return "text-amber-700";
+    return "text-rose-700";
+  };
+  return (
+    <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+          Accuracy by Mode
+        </p>
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb]/10">
+          <TrendingUp className="h-4 w-4 text-[#1d4ed8]" />
+        </span>
+      </div>
+      <ul className="space-y-2">
+        {ATTEMPT_MODES.map((m) => {
+          const metrics = byMode?.[m];
+          const hasAttempts = (metrics?.attempted ?? 0) > 0;
+          return (
+            <li key={m} className="flex items-center justify-between gap-3">
+              <span className="text-xs font-medium text-slate-gray/80">
+                {MODE_LABELS[m]}
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`text-base font-bold ${toneClass(metrics?.accuracy ?? 0, hasAttempts)}`}
+                >
+                  {hasAttempts ? `${metrics?.accuracy ?? 0}%` : "—"}
+                </span>
+                <span className="text-[10px] text-slate-gray/60">
+                  {hasAttempts
+                    ? `${metrics?.correct ?? 0}/${metrics?.attempted ?? 0}`
+                    : "no attempts"}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </article>
   );
 }
@@ -886,6 +974,33 @@ function AccuracyValue({
   return <span className={`font-semibold ${tone}`}>{value}%</span>;
 }
 
+function ModeAccuracyCell({ metrics }: { metrics: ModeMetrics | undefined }) {
+  if (!metrics || metrics.attempted === 0) {
+    return (
+      <div className="flex flex-col items-center text-slate-gray/40">
+        <span className="text-sm">—</span>
+        <span className="text-[10px]">no attempts</span>
+      </div>
+    );
+  }
+  const tone =
+    metrics.accuracy >= 70
+      ? "text-emerald-700"
+      : metrics.accuracy >= 55
+        ? "text-amber-700"
+        : "text-rose-700";
+  return (
+    <div className="flex flex-col items-center">
+      <span className={`text-sm font-semibold ${tone}`}>
+        {metrics.accuracy}%
+      </span>
+      <span className="text-[10px] text-slate-gray/60">
+        {metrics.correct}/{metrics.attempted}
+      </span>
+    </div>
+  );
+}
+
 function StandardStatusBadge({ status }: { status: StandardRow["status"] }) {
   const label: Record<StandardRow["status"], string> = {
     on_track: "On track",
@@ -901,9 +1016,9 @@ function StandardStatusBadge({ status }: { status: StandardRow["status"] }) {
   };
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
     >
-      {status === "needs_review" && <BookOpen className="w-3 h-3" />}
+      {status === "needs_review" && <BookOpen className="w-3 h-3 flex-shrink-0" />}
       {label[status]}
     </span>
   );

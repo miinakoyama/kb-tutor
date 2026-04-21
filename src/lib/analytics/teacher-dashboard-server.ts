@@ -1,3 +1,5 @@
+import { getStandardById } from "@/lib/standards";
+
 export type AttemptMode = "practice" | "exam" | "review";
 
 export interface AttemptRecord {
@@ -19,6 +21,13 @@ export type StudentStatus =
 
 export type StandardStatus = "on_track" | "watch" | "needs_review" | "not_started";
 
+export interface ModeMetrics {
+  attempted: number;
+  correct: number;
+  accuracy: number;
+  averageTimeSec: number;
+}
+
 export interface StandardRow {
   standardId: string;
   standardLabel: string;
@@ -27,6 +36,7 @@ export interface StandardRow {
   accuracy: number;
   averageTimeSec: number;
   status: StandardStatus;
+  byMode?: Record<AttemptMode, ModeMetrics>;
 }
 
 export interface StudentRow {
@@ -55,6 +65,7 @@ export interface DashboardSummary {
     struggling: number;
     notStarted: number;
   };
+  byMode?: Record<AttemptMode, ModeMetrics>;
 }
 
 export interface DashboardResponseBody {
@@ -96,10 +107,31 @@ interface BuildArgs {
   topic?: string;
   scopedStudents: { id: string; label: string; classId: string | null }[];
   selectedStudentId: string | null;
+  includeModeBreakdown?: boolean;
+}
+
+const MODES: AttemptMode[] = ["practice", "exam", "review"];
+
+function emptyModeMetrics(): ModeMetrics {
+  return { attempted: 0, correct: 0, accuracy: 0, averageTimeSec: 0 };
+}
+
+function emptyModeBreakdown(): Record<AttemptMode, ModeMetrics> {
+  return {
+    practice: emptyModeMetrics(),
+    exam: emptyModeMetrics(),
+    review: emptyModeMetrics(),
+  };
 }
 
 export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
-  const { attempts, topic, scopedStudents, selectedStudentId } = args;
+  const {
+    attempts,
+    topic,
+    scopedStudents,
+    selectedStudentId,
+    includeModeBreakdown = false,
+  } = args;
 
   const topics = Array.from(
     new Set(
@@ -135,23 +167,65 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
   const avgTimeSec =
     totalAnswered > 0 ? Math.round(totalTime / totalAnswered) : 0;
 
-  // Standards aggregation
-  const standardAgg = new Map<
-    string,
-    { label: string; attempted: number; correct: number; totalTime: number }
-  >();
+  // Per-mode totals for the summary
+  const summaryModeAgg = emptyModeBreakdown();
+  const summaryModeTotalTime: Record<AttemptMode, number> = {
+    practice: 0,
+    exam: 0,
+    review: 0,
+  };
+  for (const row of scopedAttempts) {
+    const mode = row.mode;
+    summaryModeAgg[mode].attempted += 1;
+    if (row.isCorrect) summaryModeAgg[mode].correct += 1;
+    summaryModeTotalTime[mode] += row.timeSpentSec ?? 0;
+  }
+  for (const mode of MODES) {
+    const agg = summaryModeAgg[mode];
+    agg.accuracy =
+      agg.attempted > 0 ? roundPercent((agg.correct / agg.attempted) * 100) : 0;
+    agg.averageTimeSec =
+      agg.attempted > 0
+        ? Math.round(summaryModeTotalTime[mode] / agg.attempted)
+        : 0;
+  }
+
+  // Standards aggregation (overall + per-mode)
+  interface StandardAgg {
+    label: string;
+    attempted: number;
+    correct: number;
+    totalTime: number;
+    byMode: Record<AttemptMode, ModeMetrics>;
+    byModeTotalTime: Record<AttemptMode, number>;
+  }
+  const standardAgg = new Map<string, StandardAgg>();
   for (const row of scopedAttempts) {
     const standardId = row.standardId || "BIO.OTHER";
-    const standardLabel = row.standardLabel || row.topic || "Other";
-    const existing = standardAgg.get(standardId) ?? {
-      label: standardLabel,
-      attempted: 0,
-      correct: 0,
-      totalTime: 0,
-    };
+    const canonical = getStandardById(standardId);
+    const standardLabel =
+      canonical?.label || row.standardLabel || row.topic || "Other";
+    const existing =
+      standardAgg.get(standardId) ??
+      ({
+        label: standardLabel,
+        attempted: 0,
+        correct: 0,
+        totalTime: 0,
+        byMode: emptyModeBreakdown(),
+        byModeTotalTime: { practice: 0, exam: 0, review: 0 },
+      } satisfies StandardAgg);
+    // Ensure canonical label wins even if the first seen row had a stale value
+    if (canonical?.label) {
+      existing.label = canonical.label;
+    }
     existing.attempted += 1;
     if (row.isCorrect) existing.correct += 1;
     existing.totalTime += row.timeSpentSec ?? 0;
+    const modeAgg = existing.byMode[row.mode];
+    modeAgg.attempted += 1;
+    if (row.isCorrect) modeAgg.correct += 1;
+    existing.byModeTotalTime[row.mode] += row.timeSpentSec ?? 0;
     standardAgg.set(standardId, existing);
   }
 
@@ -163,7 +237,25 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
           : 0;
       const averageTimeSec =
         item.attempted > 0 ? Math.round(item.totalTime / item.attempted) : 0;
-      return {
+
+      const byMode: Record<AttemptMode, ModeMetrics> = emptyModeBreakdown();
+      for (const mode of MODES) {
+        const m = item.byMode[mode];
+        byMode[mode] = {
+          attempted: m.attempted,
+          correct: m.correct,
+          accuracy:
+            m.attempted > 0
+              ? roundPercent((m.correct / m.attempted) * 100)
+              : 0,
+          averageTimeSec:
+            m.attempted > 0
+              ? Math.round(item.byModeTotalTime[mode] / m.attempted)
+              : 0,
+        };
+      }
+
+      const row: StandardRow = {
         standardId,
         standardLabel: item.label,
         attempted: item.attempted,
@@ -171,7 +263,11 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         accuracy,
         averageTimeSec,
         status: classifyStandard(accuracy, item.attempted),
-      } satisfies StandardRow;
+      };
+      if (includeModeBreakdown) {
+        row.byMode = byMode;
+      }
+      return row;
     })
     .sort((a, b) => a.standardId.localeCompare(b.standardId));
 
@@ -256,19 +352,24 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
 
   const lowAndFastCount = byStudent.filter((row) => row.isLowAndFast).length;
 
+  const summary: DashboardSummary = {
+    completionRate,
+    studentsAttempted,
+    studentsTotal,
+    overallAccuracy,
+    avgTimeSec,
+    totalAnswered,
+    totalCorrect,
+    breakdown,
+  };
+  if (includeModeBreakdown) {
+    summary.byMode = summaryModeAgg;
+  }
+
   return {
     students: scopedStudents,
     topics,
-    summary: {
-      completionRate,
-      studentsAttempted,
-      studentsTotal,
-      overallAccuracy,
-      avgTimeSec,
-      totalAnswered,
-      totalCorrect,
-      breakdown,
-    },
+    summary,
     byStandard,
     byStudent,
     lowAndFastCount,

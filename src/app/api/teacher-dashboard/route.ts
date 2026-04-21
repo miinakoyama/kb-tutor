@@ -20,7 +20,7 @@ interface AttemptQueryRow {
 }
 
 type RangeKey = "7d" | "30d" | "all";
-type ModeFilter = "practice" | "exam" | "review" | "all";
+type ModeFilter = "practice" | "exam" | "review" | "compare" | "all";
 type SourceFilter = "assigned" | "self" | "all";
 
 function parseEnum<T extends string>(
@@ -44,8 +44,8 @@ export async function GET(request: Request) {
   );
   const mode = parseEnum<ModeFilter>(
     url.searchParams.get("mode"),
-    ["practice", "exam", "review", "all"] as const,
-    "practice",
+    ["practice", "exam", "review", "compare", "all"] as const,
+    "compare",
   );
   const source = parseEnum<SourceFilter>(
     url.searchParams.get("source"),
@@ -178,7 +178,7 @@ export async function GET(request: Request) {
     from.setDate(from.getDate() - days);
     attemptsQuery = attemptsQuery.gte("answered_at", from.toISOString());
   }
-  if (mode !== "all") {
+  if (mode !== "all" && mode !== "compare") {
     attemptsQuery = attemptsQuery.eq("mode", mode);
   }
   if (source === "assigned") {
@@ -210,6 +210,7 @@ export async function GET(request: Request) {
       classId: studentClassMap.get(id) ?? null,
     })),
     selectedStudentId: studentId ?? null,
+    includeModeBreakdown: mode === "compare",
   });
 
   return NextResponse.json({
