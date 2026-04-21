@@ -97,17 +97,31 @@ function mapGlossaryDrafts(draftId: string, terms: ManualGlossaryTermDraft[]) {
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 
+/**
+ * Maximum number of answer options per manual question. Bound by
+ * {@link OPTION_LETTERS} because the rest of the app displays the option id
+ * directly as the choice label (A/B/C/...). Extend OPTION_LETTERS (and verify
+ * downstream UI fits) if more options are ever needed.
+ */
+export const MAX_OPTIONS = OPTION_LETTERS.length;
+
 function letterForIndex(index: number): string {
-  return OPTION_LETTERS[index] ?? `Option${index + 1}`;
+  const letter = OPTION_LETTERS[index];
+  if (!letter) {
+    throw new Error(
+      `Option index ${index} exceeds MAX_OPTIONS (${MAX_OPTIONS}). Extend OPTION_LETTERS to support more options.`,
+    );
+  }
+  return letter;
 }
 
 export function manualDraftToQuestion(
   draft: ManualQuestionDraft,
   index: number,
 ): Question {
-  const validDraftOptions = draft.options.filter(
-    (option) => option.text.trim().length > 0,
-  );
+  const validDraftOptions = draft.options
+    .filter((option) => option.text.trim().length > 0)
+    .slice(0, MAX_OPTIONS);
 
   const options = validDraftOptions.map((option, optionIndex) => {
     const text = option.text.trim();
@@ -349,7 +363,7 @@ function ManualQuestionCard({
 
   const handleAddOption = () => {
     onUpdate((prev) => {
-      if (prev.options.length >= 6) return prev;
+      if (prev.options.length >= MAX_OPTIONS) return prev;
       const nextId = `opt_${prev.options.length + 1}`;
       return {
         ...prev,
@@ -632,7 +646,7 @@ function ManualQuestionCard({
               Answer options
               <RequiredMark title="Each option needs text and feedback. Mark the correct one." />
               <span className="text-slate-gray/60 font-normal ml-1">
-                ({draft.options.length}/6)
+                ({draft.options.length}/{MAX_OPTIONS})
               </span>
             </p>
             <div className="space-y-3">
@@ -716,7 +730,7 @@ function ManualQuestionCard({
                 );
               })}
             </div>
-            {draft.options.length < 6 && (
+            {draft.options.length < MAX_OPTIONS && (
               <button
                 type="button"
                 onClick={handleAddOption}
