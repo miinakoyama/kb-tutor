@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { DataAnalysisTabs } from "../tabs";
+import { DateRangePicker, defaultPilotRange } from "../date-range";
 
 interface Counter {
   n: number;
@@ -43,10 +44,6 @@ interface FeatureUsageResponse {
   };
 }
 
-function isoDateOnly(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
 const CONFIDENCE_LEVELS = ["sure", "somewhat", "not_sure"] as const;
 const TTS_TARGETS = ["question", "choices", "feedback"] as const;
 const GLOSSARY_SOURCES = ["inline", "modal", "sidebar"] as const;
@@ -59,15 +56,9 @@ const CONFIDENCE_LABELS: Record<string, string> = {
 };
 
 export default function FeatureUsagePage() {
-  const now = useMemo(() => new Date(), []);
-  const defaultFrom = useMemo(() => {
-    const from = new Date(now);
-    from.setDate(now.getDate() - 30);
-    return from;
-  }, [now]);
-
-  const [from, setFrom] = useState(isoDateOnly(defaultFrom));
-  const [to, setTo] = useState(isoDateOnly(now));
+  const initialRange = useMemo(() => defaultPilotRange(), []);
+  const [range, setRange] = useState(initialRange);
+  const { from, to } = range;
   const [mode, setMode] = useState("all");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<FeatureUsageResponse | null>(null);
@@ -118,25 +109,8 @@ export default function FeatureUsagePage() {
       <DataAnalysisTabs active="feature-usage" />
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">From</span>
-            <input
-              type="date"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">To</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
-          </label>
+        <DateRangePicker value={range} onChange={setRange} />
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="text-sm text-slate-gray">
             <span className="block mb-1 font-medium">Mode</span>
             <select
@@ -150,13 +124,21 @@ export default function FeatureUsagePage() {
               <option value="review">Review</option>
             </select>
           </label>
-          <div className="flex items-end">
+          <div className="flex items-end flex-wrap gap-2">
             <button
               onClick={() => void fetchData()}
               className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
+            </button>
+            <button
+              onClick={() => data && downloadFeatureUsageCsv(data, range)}
+              disabled={!data}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              Download CSV
             </button>
           </div>
         </div>
@@ -497,4 +479,68 @@ function BarRow({
       </div>
     </div>
   );
+}
+
+function csvCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadFeatureUsageCsv(
+  data: FeatureUsageResponse,
+  range: { from: string; to: string },
+) {
+  const lines: string[] = [];
+  lines.push(`# Feature usage export`);
+  lines.push(`# from=${range.from} to=${range.to} mode=${data.meta.mode}`);
+  lines.push("");
+  lines.push("section,key,n,unique_users");
+  for (const [source, counter] of Object.entries(data.glossary.bySource)) {
+    lines.push(`glossary,${csvCell(source)},${counter.n},${counter.uniqueUsers}`);
+  }
+  for (const term of data.glossary.topTerms) {
+    lines.push(
+      `glossary_term,${csvCell(term.label)},${term.n},${term.uniqueUsers}`,
+    );
+  }
+  for (const [target, counter] of Object.entries(data.tts.byTarget)) {
+    lines.push(`tts,${csvCell(target)},${counter.n},${counter.uniqueUsers}`);
+  }
+  for (const [phase, counter] of Object.entries(data.explanation.byPhase)) {
+    lines.push(
+      `explanation,${csvCell(phase)},${counter.n},${counter.uniqueUsers}`,
+    );
+  }
+  for (const [level, inner] of Object.entries(data.confidence.matrix)) {
+    for (const [correctness, counter] of Object.entries(inner)) {
+      lines.push(
+        `confidence,${csvCell(`${level}__${correctness}`)},${counter.n},${counter.uniqueUsers}`,
+      );
+    }
+  }
+  lines.push(
+    `bookmarks,added,${data.bookmarks.added.n},${data.bookmarks.added.uniqueUsers}`,
+  );
+  lines.push(
+    `bookmarks,removed,${data.bookmarks.removed.n},${data.bookmarks.removed.uniqueUsers}`,
+  );
+  lines.push(`hints,opens,${data.hints.opens},`);
+  lines.push(`hints,closes,${data.hints.closes},`);
+  lines.push(`hints,dwell_avg_ms,${data.hints.dwellAvgMs ?? ""},`);
+  lines.push(`hints,dwell_median_ms,${data.hints.dwellMedianMs ?? ""},`);
+
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `feature-usage_${range.from}_${range.to}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

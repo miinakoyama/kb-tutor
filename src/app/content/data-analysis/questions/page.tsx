@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, RefreshCw } from "lucide-react";
 import { DataAnalysisTabs } from "../tabs";
 
 type ModeSlice = {
@@ -265,6 +265,14 @@ export default function QuestionQualityPage() {
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
+          <button
+            onClick={() => downloadQuestionsCsv(sortedRows)}
+            disabled={sortedRows.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            Download CSV
+          </button>
           <span className="text-xs text-slate-gray/60">
             {sortedRows.length} question{sortedRows.length === 1 ? "" : "s"} shown
           </span>
@@ -523,4 +531,74 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
       </div>
     </div>
   );
+}
+
+function csvCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadQuestionsCsv(rows: QuestionSummary[]) {
+  const header = [
+    "question_id",
+    "standard_id",
+    "standard_label",
+    "total_attempts",
+    "unique_users",
+    "overall_accuracy",
+    "first_attempt_accuracy",
+    "first_attempt_n",
+    "practice_attempts",
+    "practice_accuracy",
+    "exam_attempts",
+    "exam_accuracy",
+    "review_attempts",
+    "review_accuracy",
+    "time_p50_sec",
+    "time_p90_sec",
+    "first_answered_at",
+    "last_answered_at",
+  ].map(csvCell).join(",");
+
+  const lines = rows.map((row) => {
+    const p = row.modes.practice;
+    const e = row.modes.exam;
+    const r = row.modes.review;
+    return [
+      row.questionId,
+      row.standardId,
+      row.standardLabel,
+      row.totalAttempts,
+      row.totalUniqueUsers,
+      row.overall.accuracy,
+      row.practiceFirstAttempt?.accuracy ?? "",
+      row.practiceFirstAttempt?.n ?? "",
+      p?.attempts ?? "",
+      p?.accuracy ?? "",
+      e?.attempts ?? "",
+      e?.accuracy ?? "",
+      r?.attempts ?? "",
+      r?.accuracy ?? "",
+      row.overall.timeP50 ?? "",
+      row.overall.timeP90 ?? "",
+      row.firstAnsweredAt ?? "",
+      row.lastAnsweredAt ?? "",
+    ].map(csvCell).join(",");
+  });
+
+  const csv = [header, ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const today = new Date().toISOString().slice(0, 10);
+  a.download = `question-quality_${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
