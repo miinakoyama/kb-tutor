@@ -74,7 +74,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   }, [value.from, value.to]);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-wrap items-end gap-3">
       <div className="flex flex-wrap items-center gap-1">
         {PRESETS.map((preset) => {
           const isActive = preset.key === activeKey;
@@ -94,14 +94,14 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
           );
         })}
       </div>
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end gap-3 sm:ml-auto">
         <label className="text-xs text-slate-gray">
           <span className="block mb-1 font-medium">From</span>
           <input
             type="date"
             value={value.from}
             onChange={(event) => onChange({ ...value, from: event.target.value })}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm min-w-[10rem]"
           />
         </label>
         <label className="text-xs text-slate-gray">
@@ -110,7 +110,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
             type="date"
             value={value.to}
             onChange={(event) => onChange({ ...value, to: event.target.value })}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm min-w-[10rem]"
           />
         </label>
       </div>

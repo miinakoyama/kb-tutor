@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { DataAnalysisTabs } from "./tabs";
 import { DateRangePicker, defaultPilotRange, todayRange } from "./date-range";
+import { SchoolFilter } from "./school-filter";
 
 interface OverviewResponse {
   meta: {
@@ -105,6 +106,7 @@ function formatDateTime(value: string | null): string {
 export default function OverviewPage() {
   const initialRange = useMemo(() => defaultPilotRange(), []);
   const [range, setRange] = useState(initialRange);
+  const [schoolIds, setSchoolIds] = useState<string[]>([]);
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +122,7 @@ export default function OverviewPage() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ from: range.from, to: range.to });
+    if (schoolIds.length > 0) params.set("schoolIds", schoolIds.join(","));
     try {
       const res = await fetch(
         `/api/admin/analytics/overview?${params.toString()}`,
@@ -140,7 +143,7 @@ export default function OverviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [range.from, range.to]);
+  }, [range.from, range.to, schoolIds]);
 
   useEffect(() => {
     void fetchData();
@@ -152,8 +155,9 @@ export default function OverviewPage() {
       to: range.to,
       format: "csv",
     });
+    if (schoolIds.length > 0) params.set("schoolIds", schoolIds.join(","));
     return `/api/admin/analytics/overview?${params.toString()}`;
-  }, [range.from, range.to]);
+  }, [range.from, range.to, schoolIds]);
 
   const expandedUser = useMemo(
     () =>
@@ -167,19 +171,17 @@ export default function OverviewPage() {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <header className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
-          Data Analysis — Overview
+          Data Analysis
         </h1>
-        <p className="text-slate-gray/70 max-w-3xl">
-          Pilot monitoring: headline counters, daily trend, device mix, data
-          quality, and per-student engagement. Pick a preset to switch between
-          today, yesterday, or a rolling window.
-        </p>
       </header>
 
       <DataAnalysisTabs active="overview" />
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
         <DateRangePicker value={range} onChange={setRange} />
+        <div className="mt-4 max-w-xl">
+          <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
+        </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
@@ -222,34 +224,25 @@ export default function OverviewPage() {
         <div className="space-y-6">
           <HeadlineCards data={data} />
           <DataQualityPanel data={data.dataQuality} />
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid items-start gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2 space-y-4">
               <DailyTrendChart daily={data.daily} />
               <HourlyChart hourly={data.hourly} />
             </div>
             <div className="space-y-4">
               <ModeMixCard modeMix={data.modeMix} />
-              <ReachMixCard
-                title="Device mix"
-                subtitle="Auto-detected from user agent"
-                rows={data.deviceMix.map((d) => ({
+              <ReachSummaryCard
+                deviceRows={data.deviceMix.map((d) => ({
                   key: d.deviceType,
                   sessions: d.sessions,
                   users: d.users,
                 }))}
-              />
-              <ReachMixCard
-                title="Browser mix"
-                subtitle="Auto-detected from user agent"
-                rows={data.browserMix.map((d) => ({
+                browserRows={data.browserMix.map((d) => ({
                   key: d.browser,
                   sessions: d.sessions,
                   users: d.users,
                 }))}
-              />
-              <ReachMixCard
-                title="OS mix"
-                rows={data.osMix.map((d) => ({
+                osRows={data.osMix.map((d) => ({
                   key: d.os,
                   sessions: d.sessions,
                   users: d.users,
@@ -604,32 +597,59 @@ function ModeMixCard({
   );
 }
 
-function ReachMixCard({
-  title,
-  subtitle,
-  rows,
+function ReachSummaryCard({
+  deviceRows,
+  browserRows,
+  osRows,
 }: {
-  title: string;
-  subtitle?: string;
-  rows: Array<{ key: string; sessions: number; users: number }>;
+  deviceRows: Array<{ key: string; sessions: number; users: number }>;
+  browserRows: Array<{ key: string; sessions: number; users: number }>;
+  osRows: Array<{ key: string; sessions: number; users: number }>;
 }) {
-  const total = rows.reduce((sum, row) => sum + row.sessions, 0);
+  const hasAnyRows =
+    deviceRows.length > 0 || browserRows.length > 0 || osRows.length > 0;
+
   return (
     <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d]">{title}</h2>
-      {subtitle && (
-        <p className="text-[11px] text-slate-gray/60 mb-2">{subtitle}</p>
-      )}
-      {rows.length === 0 ? (
+      <h2 className="text-lg font-semibold text-[#14532d]">Reach mix</h2>
+      <p className="text-[11px] text-slate-gray/60 mb-3">
+        Auto-detected from user agent
+      </p>
+      {!hasAnyRows ? (
         <p className="text-sm text-slate-gray/60">
           No session metadata yet. New sessions will populate this.
         </p>
       ) : (
+        <div className="space-y-4">
+          <ReachMixList title="Device" rows={deviceRows} />
+          <ReachMixList title="Browser" rows={browserRows} />
+          <ReachMixList title="OS" rows={osRows} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ReachMixList({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{ key: string; sessions: number; users: number }>;
+}) {
+  const total = rows.reduce((sum, row) => sum + row.sessions, 0);
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-gray/70 mb-1">{title}</p>
+      {rows.length === 0 ? (
+        <p className="text-xs text-slate-gray/60">No session metadata yet.</p>
+      ) : (
         <ul className="space-y-1.5 text-sm">
-          {rows.map((row) => {
+          {rows.slice(0, 4).map((row) => {
             const share = total > 0 ? row.sessions / total : 0;
             return (
-              <li key={row.key}>
+              <li key={`${title}-${row.key}`}>
                 <div className="flex justify-between">
                   <span className="text-slate-gray">{row.key}</span>
                   <span className="text-slate-gray/70 tabular-nums">
@@ -650,7 +670,7 @@ function ReachMixCard({
           })}
         </ul>
       )}
-    </section>
+    </div>
   );
 }
 

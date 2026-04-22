@@ -5,6 +5,7 @@ import { Download, RefreshCw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { DataAnalysisTabs } from "../tabs";
 import { DateRangePicker, defaultPilotRange } from "../date-range";
+import { SchoolFilter } from "../school-filter";
 
 interface Summary {
   schools: number;
@@ -45,6 +46,7 @@ function StudentsInner() {
   const initialRange = useMemo(() => defaultPilotRange(), []);
   const [range, setRange] = useState(initialRange);
   const { from, to } = range;
+  const [schoolIds, setSchoolIds] = useState<string[]>([]);
   const [mode, setMode] = useState("all");
   const [student, setStudent] = useState(searchParams.get("student") ?? "");
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,7 @@ function StudentsInner() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ from, to });
+    if (schoolIds.length > 0) params.set("schoolIds", schoolIds.join(","));
     if (mode !== "all") params.set("mode", mode);
     if (student.trim()) params.set("student", student.trim());
 
@@ -79,7 +82,7 @@ function StudentsInner() {
     setSummary(payload.summary ?? null);
     setRows(payload.rows ?? []);
     setLoading(false);
-  }, [from, mode, student, to]);
+  }, [from, mode, schoolIds, student, to]);
 
   useEffect(() => {
     void fetchData();
@@ -87,10 +90,11 @@ function StudentsInner() {
 
   const csvHref = useMemo(() => {
     const params = new URLSearchParams({ from, to, format: "csv" });
+    if (schoolIds.length > 0) params.set("schoolIds", schoolIds.join(","));
     if (mode !== "all") params.set("mode", mode);
     if (student.trim()) params.set("student", student.trim());
     return `/api/admin/analytics?${params.toString()}`;
-  }, [from, mode, student, to]);
+  }, [from, mode, schoolIds, student, to]);
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -98,9 +102,6 @@ function StudentsInner() {
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
           Data Analysis
         </h1>
-        <p className="text-slate-gray/70 max-w-3xl">
-          Explore student-level interaction and attempt data, then export filtered CSV for analysis.
-        </p>
       </header>
 
       <DataAnalysisTabs active="students" />
@@ -109,6 +110,7 @@ function StudentsInner() {
         <DateRangePicker value={range} onChange={setRange} />
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
           <label className="text-sm text-slate-gray">
             <span className="block mb-1 font-medium">Mode</span>
             <select

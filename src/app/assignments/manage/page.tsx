@@ -263,7 +263,7 @@ function AssignmentManagementContent() {
       )}
 
       <div
-        className="mb-6 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-1"
+        className="mb-6 flex items-center gap-4 overflow-x-auto border-b border-slate-200"
         role="tablist"
         aria-label="Assignment management sections"
       >
@@ -272,10 +272,10 @@ function AssignmentManagementContent() {
           role="tab"
           aria-selected={tab === "list"}
           onClick={() => setTab("list")}
-          className={`inline-flex flex-1 min-w-[10rem] items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors sm:flex-none ${
+          className={`-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
             tab === "list"
-              ? "bg-white text-[#14532d] shadow-sm"
-              : "text-slate-gray/70 hover:text-slate-gray"
+              ? "border-[#16a34a] text-[#14532d]"
+              : "border-transparent text-slate-gray/60 hover:text-slate-gray"
           }`}
         >
           <List className="h-4 w-4" />
@@ -286,10 +286,10 @@ function AssignmentManagementContent() {
           role="tab"
           aria-selected={tab === "progress"}
           onClick={() => setTab("progress")}
-          className={`inline-flex flex-1 min-w-[10rem] items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors sm:flex-none ${
+          className={`-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
             tab === "progress"
-              ? "bg-white text-[#14532d] shadow-sm"
-              : "text-slate-gray/70 hover:text-slate-gray"
+              ? "border-[#16a34a] text-[#14532d]"
+              : "border-transparent text-slate-gray/60 hover:text-slate-gray"
           }`}
         >
           <BarChart3 className="h-4 w-4" />

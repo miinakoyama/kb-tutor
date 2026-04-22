@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import {
+  parseAnalyticsWindow,
+  parseSchoolIds,
+} from "@/lib/analytics/admin-filters";
 
 // Overview endpoint for the pilot-monitoring dashboard.
 //
@@ -117,23 +121,6 @@ export interface OverviewResponse {
   }>;
 }
 
-function parseWindow(url: URL) {
-  const now = new Date();
-  const defaultFrom = new Date(now);
-  defaultFrom.setDate(now.getDate() - 14);
-  const fromRaw = url.searchParams.get("from");
-  const toRaw = url.searchParams.get("to");
-  const from = fromRaw ? new Date(fromRaw) : defaultFrom;
-  const to = toRaw ? new Date(toRaw) : now;
-  if (toRaw && /^\d{4}-\d{2}-\d{2}$/.test(toRaw)) {
-    to.setHours(23, 59, 59, 999);
-  }
-  if (fromRaw && /^\d{4}-\d{2}-\d{2}$/.test(fromRaw)) {
-    from.setHours(0, 0, 0, 0);
-  }
-  return { from, to };
-}
-
 async function requireAdmin() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -203,9 +190,9 @@ export async function GET(request: Request) {
   if (!guard.ok) return guard.response;
 
   const url = new URL(request.url);
-  const { from, to } = parseWindow(url);
+  const { from, to } = parseAnalyticsWindow(url, { defaultDays: 14 });
   const format = url.searchParams.get("format");
-  const schoolIdFilter = url.searchParams.get("schoolId");
+  const schoolIdFilters = parseSchoolIds(url);
 
   const admin = createSupabaseAdminClient();
 
@@ -213,7 +200,9 @@ export async function GET(request: Request) {
   let memberQuery = admin
     .from("school_members")
     .select("school_id,student_user_id");
-  if (schoolIdFilter) memberQuery = memberQuery.eq("school_id", schoolIdFilter);
+  if (schoolIdFilters.length > 0) {
+    memberQuery = memberQuery.in("school_id", schoolIdFilters);
+  }
   const { data: memberRows, error: memberErr } = await memberQuery;
   if (memberErr) {
     return NextResponse.json({ error: memberErr.message }, { status: 400 });

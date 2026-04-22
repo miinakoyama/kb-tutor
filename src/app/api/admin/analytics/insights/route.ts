@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import {
+  parseAnalyticsWindow,
+  parseSchoolIds,
+} from "@/lib/analytics/admin-filters";
 
 // Insights API — answers the four product research questions at a glance:
 //   Q2: Does scaffolding actually correct errors? (practice first vs final)
@@ -48,6 +52,13 @@ type StageCountsRow = {
   abandoned_n: number;
 };
 
+type SessionDurationSourceRow = {
+  user_id: string;
+  started_at: string;
+  ended_at: string | null;
+  mode: string;
+};
+
 type SessionDurationRow = {
   mode: string;
   duration_ms: number;
@@ -87,21 +98,6 @@ async function requireAdmin() {
     };
   }
   return { ok: true as const, userId: user.id };
-}
-
-function parseWindow(url: URL) {
-  const now = new Date();
-  const defaultFrom = new Date(now);
-  defaultFrom.setDate(now.getDate() - 30);
-
-  const fromRaw = url.searchParams.get("from");
-  const toRaw = url.searchParams.get("to");
-  const from = fromRaw ? new Date(fromRaw) : defaultFrom;
-  const to = toRaw ? new Date(toRaw) : now;
-  if (toRaw && /^\d{4}-\d{2}-\d{2}$/.test(toRaw)) {
-    to.setHours(23, 59, 59, 999);
-  }
-  return { from, to };
 }
 
 function median(sorted: number[]): number | null {
@@ -174,12 +170,62 @@ export async function GET(request: Request) {
   if (!guard.ok) return guard.response;
 
   const url = new URL(request.url);
-  const { from, to } = parseWindow(url);
+  const { from, to } = parseAnalyticsWindow(url, { defaultDays: 30 });
+  const schoolIds = parseSchoolIds(url);
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
   const admin = createSupabaseAdminClient();
   const rpcArgs = { p_from: fromIso, p_to: toIso };
+
+  let scopedUserSet: Set<string> | null = null;
+  if (schoolIds.length > 0) {
+    const { data: memberRows, error: memberError } = await admin
+      .from("school_members")
+      .select("student_user_id")
+      .in("school_id", schoolIds);
+    if (memberError) {
+      return NextResponse.json({ error: memberError.message }, { status: 400 });
+    }
+    scopedUserSet = new Set(
+      (memberRows ?? []).map((row) => String(row.student_user_id)),
+    );
+  }
+
+  let confidenceQuery = admin
+    .from("analytics_events")
+    .select("payload")
+    .eq("event_type", "confidence_submitted")
+    .gte("occurred_at", fromIso)
+    .lte("occurred_at", toIso)
+    .limit(100_000);
+  let hintOpensQuery = admin
+    .from("analytics_events")
+    .select("user_id,question_id")
+    .eq("event_type", "hint_opened")
+    .gte("occurred_at", fromIso)
+    .lte("occurred_at", toIso)
+    .limit(100_000);
+  let attemptEventsQuery = admin
+    .from("analytics_events")
+    .select("user_id,question_id,payload")
+    .eq("event_type", "attempt_submitted")
+    .gte("occurred_at", fromIso)
+    .lte("occurred_at", toIso)
+    .limit(200_000);
+  let sessionDurationQuery = admin
+    .from("analytics_sessions")
+    .select("user_id,started_at,ended_at,mode")
+    .gte("started_at", fromIso)
+    .lte("started_at", toIso)
+    .not("ended_at", "is", null)
+    .limit(100_000);
+  if (schoolIds.length > 0) {
+    confidenceQuery = confidenceQuery.in("school_id", schoolIds);
+    hintOpensQuery = hintOpensQuery.in("school_id", schoolIds);
+    attemptEventsQuery = attemptEventsQuery.in("school_id", schoolIds);
+    sessionDurationQuery = sessionDurationQuery.in("school_id", schoolIds);
+  }
 
   const [
     practiceRes,
@@ -187,7 +233,7 @@ export async function GET(request: Request) {
     reviewDwellRes,
     reviewEnteredRes,
     stageCountsRes,
-    sessionDurationsRes,
+    sessionDurationsRawRes,
     confidenceRes,
     hintOpensRes,
     attemptEventsRes,
@@ -197,28 +243,10 @@ export async function GET(request: Request) {
     admin.rpc("insights_review_dwell", rpcArgs),
     admin.rpc("insights_review_entered_users", rpcArgs),
     admin.rpc("insights_stage_counts", rpcArgs),
-    admin.rpc("insights_session_durations", rpcArgs),
-    admin
-      .from("analytics_events")
-      .select("payload")
-      .eq("event_type", "confidence_submitted")
-      .gte("occurred_at", fromIso)
-      .lte("occurred_at", toIso)
-      .limit(100_000),
-    admin
-      .from("analytics_events")
-      .select("user_id,question_id")
-      .eq("event_type", "hint_opened")
-      .gte("occurred_at", fromIso)
-      .lte("occurred_at", toIso)
-      .limit(100_000),
-    admin
-      .from("analytics_events")
-      .select("user_id,question_id,payload")
-      .eq("event_type", "attempt_submitted")
-      .gte("occurred_at", fromIso)
-      .lte("occurred_at", toIso)
-      .limit(200_000),
+    sessionDurationQuery,
+    confidenceQuery,
+    hintOpensQuery,
+    attemptEventsQuery,
   ]);
 
   const firstError = [
@@ -227,7 +255,7 @@ export async function GET(request: Request) {
     reviewDwellRes,
     reviewEnteredRes,
     stageCountsRes,
-    sessionDurationsRes,
+    sessionDurationsRawRes,
     confidenceRes,
     hintOpensRes,
     attemptEventsRes,
@@ -236,12 +264,45 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: firstError.error.message }, { status: 400 });
   }
 
-  const practiceRows = (practiceRes.data ?? []) as PracticeSummaryRow[];
-  const examRows = (examRes.data ?? []) as ExamSummaryRow[];
-  const reviewDwellRows = (reviewDwellRes.data ?? []) as ReviewDwellRow[];
-  const reviewEnteredRows = (reviewEnteredRes.data ?? []) as ReviewEnteredRow[];
-  const stageCountsRows = (stageCountsRes.data ?? []) as StageCountsRow[];
-  const sessionDurationRows = (sessionDurationsRes.data ?? []) as SessionDurationRow[];
+  const practiceRowsAll = (practiceRes.data ?? []) as PracticeSummaryRow[];
+  const examRowsAll = (examRes.data ?? []) as ExamSummaryRow[];
+  const reviewDwellRowsAll = (reviewDwellRes.data ?? []) as ReviewDwellRow[];
+  const reviewEnteredRowsAll = (reviewEnteredRes.data ?? []) as ReviewEnteredRow[];
+  const stageCountsRowsAll = (stageCountsRes.data ?? []) as StageCountsRow[];
+  const sessionDurationSourceRows =
+    (sessionDurationsRawRes.data ?? []) as SessionDurationSourceRow[];
+
+  const isInScope = (userId: string) =>
+    scopedUserSet ? scopedUserSet.has(userId) : true;
+
+  const practiceRows = practiceRowsAll.filter((row) => isInScope(row.user_id));
+  const examRows = examRowsAll.filter((row) => isInScope(row.user_id));
+  const reviewDwellRows = reviewDwellRowsAll.filter((row) =>
+    isInScope(row.user_id),
+  );
+  const reviewEnteredRows = reviewEnteredRowsAll.filter((row) =>
+    isInScope(row.user_id),
+  );
+  const stageCountsRows = stageCountsRowsAll.filter((row) =>
+    isInScope(row.user_id),
+  );
+  const sessionDurationRows: SessionDurationRow[] = sessionDurationSourceRows
+    .filter((row) => isInScope(row.user_id))
+    .map((row) => {
+      const startedMs = new Date(row.started_at).getTime();
+      const endedMs = row.ended_at ? new Date(row.ended_at).getTime() : Number.NaN;
+      const valid =
+        Number.isFinite(startedMs) &&
+        Number.isFinite(endedMs) &&
+        endedMs > startedMs &&
+        endedMs - startedMs < 6 * 60 * 60 * 1000;
+      if (!valid) return null;
+      return {
+        mode: row.mode,
+        duration_ms: endedMs - startedMs,
+      };
+    })
+    .filter((row): row is SessionDurationRow => row !== null);
 
   // ---- Q2 / Q3 rollups ---------------------------------------------------
   const overall = emptyBucket();
@@ -524,8 +585,12 @@ export async function GET(request: Request) {
   type HintOpen = { user_id: string; question_id: string | null };
   type ConfidenceEvent = { payload: Record<string, unknown> | null };
 
-  const attemptEvents = (attemptEventsRes.data ?? []) as AttemptEvent[];
-  const hintOpens = (hintOpensRes.data ?? []) as HintOpen[];
+  const attemptEvents = ((attemptEventsRes.data ?? []) as AttemptEvent[]).filter(
+    (row) => isInScope(row.user_id),
+  );
+  const hintOpens = ((hintOpensRes.data ?? []) as HintOpen[]).filter((row) =>
+    isInScope(row.user_id),
+  );
   const confidenceEvents = (confidenceRes.data ?? []) as ConfidenceEvent[];
 
   const hintKeySet = new Set<string>();

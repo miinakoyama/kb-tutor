@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import {
+  parseAnalyticsWindow,
+  parseSchoolIds,
+} from "@/lib/analytics/admin-filters";
 
 // Event types we surface in the Feature Usage dashboard. All rows outside this
 // set are ignored at the SQL layer so we do not pay to transfer attempt /
@@ -10,11 +14,8 @@ const FEATURE_EVENT_TYPES = [
   "glossary_term_opened",
   "tts_played",
   "confidence_submitted",
-  "explanation_opened",
   "bookmark_added",
   "bookmark_removed",
-  "hint_opened",
-  "hint_closed",
 ] as const;
 
 type FeatureEventType = (typeof FEATURE_EVENT_TYPES)[number];
@@ -56,11 +57,6 @@ function getBoolean(payload: Record<string, unknown> | null, key: string): boole
   return typeof value === "boolean" ? value : null;
 }
 
-function getNumber(payload: Record<string, unknown> | null, key: string): number | null {
-  const value = payload?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
 async function requireAdmin() {
   const requester = await createSupabaseServerClient();
   const {
@@ -92,23 +88,11 @@ export async function GET(request: Request) {
   if (!guard.ok) return guard.response;
 
   const url = new URL(request.url);
-  const fromRaw = url.searchParams.get("from");
-  const toRaw = url.searchParams.get("to");
+  const { from, to } = parseAnalyticsWindow(url, { defaultDays: 30 });
+  const schoolIds = parseSchoolIds(url);
   const modeFilter = url.searchParams.get("mode");
-
-  // Default to last 30 days if the caller omits the window.
-  const to = toRaw ? new Date(toRaw) : new Date();
-  const from = fromRaw
-    ? new Date(fromRaw)
-    : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
   const fromIso = from.toISOString();
-  // `to` is treated as inclusive end-of-day when only a date was passed, so
-  // we push it to the end of the day to match the "Student attempts" UX.
-  const toDate = new Date(to);
-  if (toRaw && /^\d{4}-\d{2}-\d{2}$/.test(toRaw)) {
-    toDate.setHours(23, 59, 59, 999);
-  }
-  const toIso = toDate.toISOString();
+  const toIso = to.toISOString();
 
   const admin = createSupabaseAdminClient();
 
@@ -124,6 +108,9 @@ export async function GET(request: Request) {
     .lte("occurred_at", toIso)
     .order("occurred_at", { ascending: false })
     .limit(MAX_ROWS);
+  if (schoolIds.length > 0) {
+    query = query.in("school_id", schoolIds);
+  }
   if (modeFilter && modeFilter !== "all") {
     query = query.eq("mode", modeFilter);
   }
@@ -148,19 +135,11 @@ export async function GET(request: Request) {
   // Confidence × correctness matrix
   const confidenceMatrix: Record<string, Record<string, Counter>> = {};
 
-  // Explanation opened by phase
-  const explanationByPhase: Record<string, Counter> = {};
-
   // Bookmark add vs remove
   const bookmarks = {
     added: emptyCounter(),
     removed: emptyCounter(),
   };
-
-  // Hint dwell-time summary from `hint_closed` events
-  let hintOpens = 0;
-  let hintCloses = 0;
-  const hintDwellMs: number[] = [];
 
   for (const event of events) {
     const { event_type, user_id, payload } = event;
@@ -197,41 +176,14 @@ export async function GET(request: Request) {
         bump(confidenceMatrix[level][correctKey], user_id);
         break;
       }
-      case "explanation_opened": {
-        const phase = getString(payload, "phase") ?? "unknown";
-        explanationByPhase[phase] ??= emptyCounter();
-        bump(explanationByPhase[phase], user_id);
-        break;
-      }
       case "bookmark_added":
         bump(bookmarks.added, user_id);
         break;
       case "bookmark_removed":
         bump(bookmarks.removed, user_id);
         break;
-      case "hint_opened":
-        hintOpens += 1;
-        break;
-      case "hint_closed": {
-        hintCloses += 1;
-        const openMs = getNumber(payload, "openMs");
-        if (openMs !== null && openMs >= 0 && openMs < 60 * 60 * 1000) {
-          hintDwellMs.push(openMs);
-        }
-        break;
-      }
     }
   }
-
-  hintDwellMs.sort((a, b) => a - b);
-  const dwellMedianMs =
-    hintDwellMs.length > 0 ? hintDwellMs[Math.floor(hintDwellMs.length / 2)] : null;
-  const dwellAvgMs =
-    hintDwellMs.length > 0
-      ? Math.round(
-          hintDwellMs.reduce((sum, value) => sum + value, 0) / hintDwellMs.length,
-        )
-      : null;
 
   // Top N glossary terms
   const glossaryTopTerms = Array.from(glossaryByTerm.entries())
@@ -271,19 +223,9 @@ export async function GET(request: Request) {
     confidence: {
       matrix: serializeMatrix(confidenceMatrix),
     },
-    explanation: {
-      byPhase: serializeRecord(explanationByPhase),
-    },
     bookmarks: {
       added: serializeCounter(bookmarks.added),
       removed: serializeCounter(bookmarks.removed),
-    },
-    hints: {
-      opens: hintOpens,
-      closes: hintCloses,
-      dwellAvgMs,
-      dwellMedianMs,
-      sampleSize: hintDwellMs.length,
     },
   });
 }

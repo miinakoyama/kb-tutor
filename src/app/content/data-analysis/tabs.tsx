@@ -50,24 +50,27 @@ const TABS: Array<{ id: Tab; label: string; href: string; description: string }>
 
 export function DataAnalysisTabs({ active }: DataAnalysisTabsProps) {
   return (
-    <nav className="mb-6 flex flex-wrap items-center gap-1 rounded-lg border border-[#16a34a]/20 bg-white p-1 shadow-sm">
-      {TABS.map((tab) => {
-        const isActive = tab.id === active;
-        return (
-          <Link
-            key={tab.id}
-            href={tab.href}
-            title={tab.description}
-            className={
-              isActive
-                ? "rounded-md bg-[#16a34a] px-4 py-2 text-sm font-medium text-white"
-                : "rounded-md px-4 py-2 text-sm font-medium text-slate-gray hover:bg-green-50 hover:text-[#166534]"
-            }
-          >
-            {tab.label}
-          </Link>
-        );
-      })}
+    <nav className="mb-6 border-b border-slate-200" aria-label="Data analysis tabs">
+      <div className="flex items-center gap-4 overflow-x-auto">
+        {TABS.map((tab) => {
+          const isActive = tab.id === active;
+          return (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              title={tab.description}
+              aria-current={isActive ? "page" : undefined}
+              className={
+                isActive
+                  ? "-mb-px whitespace-nowrap border-b-2 border-[#16a34a] px-1.5 pb-2.5 pt-1 text-sm font-semibold text-[#14532d] transition-colors"
+                  : "-mb-px whitespace-nowrap border-b-2 border-transparent px-1.5 pb-2.5 pt-1 text-sm font-semibold text-slate-gray/60 transition-colors hover:text-slate-gray"
+              }
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

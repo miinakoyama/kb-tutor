@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { DataAnalysisTabs } from "../tabs";
 import { DateRangePicker, defaultPilotRange } from "../date-range";
+import { SchoolFilter } from "../school-filter";
 
 interface Counter {
   started: number;
@@ -164,6 +165,7 @@ export default function InsightsPage() {
   const initialRange = useMemo(() => defaultPilotRange(), []);
   const [range, setRange] = useState(initialRange);
   const { from, to } = range;
+  const [schoolIds, setSchoolIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<InsightsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +174,7 @@ export default function InsightsPage() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ from, to });
+    if (schoolIds.length > 0) params.set("schoolIds", schoolIds.join(","));
 
     try {
       const response = await fetch(
@@ -190,7 +193,7 @@ export default function InsightsPage() {
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, schoolIds]);
 
   useEffect(() => {
     void fetchData();
@@ -202,16 +205,15 @@ export default function InsightsPage() {
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
           Data Analysis — Insights
         </h1>
-        <p className="text-slate-gray/70 max-w-3xl">
-          Headline metrics for scaffolding effectiveness, practice vs exam understanding, review
-          routing, and completion. Drill down via the Questions or Student attempts tab for row-level data.
-        </p>
       </header>
 
       <DataAnalysisTabs active="insights" />
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
         <DateRangePicker value={range} onChange={setRange} />
+        <div className="mt-4 max-w-xl">
+          <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
+        </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
