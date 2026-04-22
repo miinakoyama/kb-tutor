@@ -17,9 +17,13 @@ import {
   DEFAULT_APP_TIME_ZONE,
   getBrowserTimeZone,
 } from "@/lib/timezone";
+import { requestOnboardingReplay } from "@/lib/onboarding-settings";
+
+type AppRole = "student" | "teacher" | "admin";
 
 export default function SettingsPage() {
   const [ttsRate, setTtsRate] = useState(DEFAULT_TTS_RATE);
+  const [role, setRole] = useState<AppRole>("student");
   const browserTimeZone = getBrowserTimeZone(DEFAULT_APP_TIME_ZONE);
   const [timeZone, setTimeZone] = useState(
     getStoredTimeZone(browserTimeZone),
@@ -31,6 +35,35 @@ export default function SettingsPage() {
       setTtsRate(value);
       const syncedZone = await syncTimeZoneFromDb(browserTimeZone);
       setTimeZone(syncedZone);
+
+      try {
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to load role");
+        }
+        const payload = (await response.json()) as {
+          profile?: { role?: AppRole } | null;
+          user?: {
+            user_metadata?: { role?: string };
+            app_metadata?: { role?: string };
+          } | null;
+        };
+        const inferredRole =
+          payload.profile?.role ??
+          (payload.user?.user_metadata?.role === "teacher" ||
+          payload.user?.user_metadata?.role === "admin"
+            ? payload.user.user_metadata.role
+            : payload.user?.app_metadata?.role === "teacher" ||
+                payload.user?.app_metadata?.role === "admin"
+              ? payload.user.app_metadata.role
+              : "student");
+        setRole(inferredRole);
+      } catch {
+        setRole("student");
+      }
     };
     void load();
   }, [browserTimeZone]);
@@ -119,6 +152,28 @@ export default function SettingsPage() {
             ))}
           </select>
         </div>
+      </section>
+
+      <section className="rounded-xl border border-[#16a34a]/30 bg-white p-5 sm:p-6 shadow-sm mt-6">
+        <h2 className="text-lg font-semibold text-slate-gray mb-2">
+          Onboarding Tour
+        </h2>
+        <p className="text-sm text-slate-gray/70 mb-4">
+          Replay the guided product tour anytime.
+        </p>
+        {role === "admin" ? (
+          <p className="text-sm text-slate-gray/70">
+            Onboarding tour is available for student and teacher accounts.
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={requestOnboardingReplay}
+            className="inline-flex items-center rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d]"
+          >
+            Replay tour
+          </button>
+        )}
       </section>
     </main>
   );

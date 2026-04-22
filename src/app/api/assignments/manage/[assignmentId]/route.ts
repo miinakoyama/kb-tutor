@@ -35,6 +35,7 @@ async function loadAssignmentForRequester(
         max_questions: number | null;
         review_topics: string[] | null;
         review_standards: string[] | null;
+        instructions: string | null;
       };
     }
   | { error: string; status: number }
@@ -42,7 +43,7 @@ async function loadAssignmentForRequester(
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
     .select(
-      "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards",
+      "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards,instructions",
     )
     .eq("id", assignmentId)
     .maybeSingle();
@@ -86,6 +87,10 @@ async function loadAssignmentForRequester(
         typeof assignment.max_questions === "number" ? assignment.max_questions : null,
       review_topics: (assignment.review_topics as string[] | null) ?? null,
       review_standards: (assignment.review_standards as string[] | null) ?? null,
+      instructions:
+        typeof assignment.instructions === "string"
+          ? assignment.instructions
+          : null,
     },
   };
 }
@@ -120,6 +125,7 @@ export async function GET(
     { data: targetRows, error: targetError },
     { data: attemptRows, error: attemptError },
     { data: schoolRow, error: schoolError },
+    { data: memberRows, error: memberError },
   ] = await Promise.all([
     admin
       .from("assignment_question_snapshots")
@@ -128,17 +134,21 @@ export async function GET(
       .order("order_index", { ascending: true }),
     admin
       .from("assignment_targets")
-      .select("student_user_id")
+      .select("student_user_id,last_completed_at")
       .eq("assignment_id", assignmentId),
     admin
       .from("attempts")
-      .select("user_id,question_id,is_correct")
+      .select("user_id,question_id,is_correct,answered_at")
       .eq("assignment_id", assignmentId),
     admin
       .from("schools")
       .select("id,name")
       .eq("id", assignment.school_id)
       .maybeSingle(),
+    admin
+      .from("school_members")
+      .select("student_user_id")
+      .eq("school_id", assignment.school_id),
   ]);
 
   if (snapshotError) {
@@ -152,6 +162,9 @@ export async function GET(
   }
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
+  }
+  if (memberError) {
+    return NextResponse.json({ error: memberError.message }, { status: 400 });
   }
 
   const questions = (snapshotRows ?? []).map((row) => ({
@@ -167,8 +180,11 @@ export async function GET(
   const targetUserIds = Array.from(
     new Set((targetRows ?? []).map((row) => String(row.student_user_id))),
   );
+  const memberUserIds = Array.from(
+    new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
+  );
   const profileIdsForExclusion = Array.from(
-    new Set([...attemptUserIds, ...targetUserIds]),
+    new Set([...attemptUserIds, ...targetUserIds, ...memberUserIds]),
   );
   const excludedUserIds = new Set<string>();
   if (profileIdsForExclusion.length > 0) {
@@ -199,6 +215,121 @@ export async function GET(
     if (row.is_correct) correctAttempts += 1;
   }
 
+  // The student roster shown in the management view is the union of:
+  //   - current school members (source of truth for who currently sees the
+  //     assignment — school-membership drives visibility on the student side,
+  //     so we want all of them to appear here even if they joined after
+  //     creation and have no assignment_targets row yet)
+  //   - any user_id that has an assignment_target row (historical targets)
+  //   - any user_id that has submitted attempts for this assignment
+  // The latter two keep former-member history visible when they have work
+  // attached to this assignment.
+  const currentMemberIds = new Set(
+    (memberRows ?? []).map((row) => String(row.student_user_id)),
+  );
+  const targetStudentIds = (targetRows ?? []).map((row) =>
+    String(row.student_user_id),
+  );
+  const attemptStudentIds = (attemptRows ?? []).map((row) =>
+    String(row.user_id),
+  );
+  const allStudentIds = [
+    ...new Set([
+      ...currentMemberIds,
+      ...targetStudentIds,
+      ...attemptStudentIds,
+    ]),
+  ].filter((id) => !excludedUserIds.has(id));
+  const { data: profileRows, error: profileError } =
+    allStudentIds.length > 0
+      ? await admin
+          .from("profiles")
+          .select("id,student_id,display_name")
+          .in("id", allStudentIds)
+      : { data: [], error: null };
+  if (profileError) {
+    return NextResponse.json({ error: profileError.message }, { status: 400 });
+  }
+
+  const profileById = new Map<
+    string,
+    { student_id: string | null; display_name: string | null }
+  >(
+    (profileRows ?? []).map((profile) => [
+      String(profile.id),
+      {
+        student_id:
+          typeof profile.student_id === "string" ? profile.student_id : null,
+        display_name:
+          typeof profile.display_name === "string" ? profile.display_name : null,
+      },
+    ]),
+  );
+
+  const lastCompletedByStudent = new Map<string, string | null>();
+  for (const row of targetRows ?? []) {
+    const studentUserId = String(row.student_user_id);
+    const lastCompletedAt =
+      typeof row.last_completed_at === "string" ? row.last_completed_at : null;
+    lastCompletedByStudent.set(studentUserId, lastCompletedAt);
+  }
+
+  const answeredByStudent = new Map<string, Set<string>>();
+  for (const row of attemptRows ?? []) {
+    const studentUserId = String(row.user_id);
+    const lastCompletedAt = lastCompletedByStudent.get(studentUserId) ?? null;
+    if (lastCompletedAt) {
+      const answeredAt =
+        typeof row.answered_at === "string" ? row.answered_at : null;
+      if (!answeredAt) continue;
+      if (new Date(answeredAt).getTime() <= new Date(lastCompletedAt).getTime()) {
+        continue;
+      }
+    }
+    if (!answeredByStudent.has(studentUserId)) {
+      answeredByStudent.set(studentUserId, new Set());
+    }
+    answeredByStudent.get(studentUserId)?.add(String(row.question_id));
+  }
+
+  const totalQuestions =
+    assignment.mode === "review"
+      ? Math.max(0, assignment.max_questions ?? 0)
+      : questions.length;
+  const studentProgress = allStudentIds.map((studentUserId) => {
+    const profile = profileById.get(studentUserId);
+    const answered = answeredByStudent.get(studentUserId)?.size ?? 0;
+    const lastCompletedAt = lastCompletedByStudent.get(studentUserId) ?? null;
+    const status = lastCompletedAt
+      ? "completed"
+      : answered > 0
+        ? "in_progress"
+        : "not_started";
+    return {
+      student_user_id: studentUserId,
+      student_id: profile?.student_id ?? null,
+      display_name: profile?.display_name ?? null,
+      is_current_member: currentMemberIds.has(studentUserId),
+      answered_questions:
+        status === "completed"
+          ? totalQuestions
+          : Math.min(answered, totalQuestions),
+      total_questions: totalQuestions,
+      completion_rate:
+        totalQuestions > 0
+          ? Math.round(
+              (((status === "completed" ? totalQuestions : answered) /
+                totalQuestions) *
+                100 +
+                Number.EPSILON) *
+                10,
+            ) / 10
+          : 0,
+      status,
+      last_completed_at: lastCompletedAt,
+    };
+  });
+
   const sourceType =
     questions.length > 0 ? questions[0].sourceType : null;
 
@@ -210,14 +341,18 @@ export async function GET(
     questions,
     source_type: sourceType,
     targets: {
-      total: filteredTargetRows.length,
-      student_ids: filteredTargetRows.map((row) => String(row.student_user_id)),
+      // Reflect the current school roster rather than the creation-time
+      // snapshot: school membership is what determines who currently sees
+      // the assignment on the student side.
+      total: [...currentMemberIds].filter((id) => !excludedUserIds.has(id)).length,
+      student_ids: [...currentMemberIds].filter((id) => !excludedUserIds.has(id)),
     },
     attempts: {
       total: filteredAttemptRows.length,
       respondents: respondents.size,
       correct: correctAttempts,
     },
+    student_progress: studentProgress,
   });
 }
 
@@ -235,6 +370,7 @@ interface PatchBody {
   dueDate?: string | null;
   targetMinutes?: number;
   randomizeOrder?: boolean;
+  instructions?: string | null;
 }
 
 const DISALLOWED_CONTENT_KEYS = [
@@ -312,6 +448,15 @@ export async function PATCH(
 
   if (typeof body.randomizeOrder === "boolean") {
     updates.randomize_order = body.randomizeOrder;
+  }
+
+  if ("instructions" in body) {
+    if (body.instructions === null || body.instructions === undefined) {
+      updates.instructions = null;
+    } else if (typeof body.instructions === "string") {
+      const trimmed = body.instructions.trim();
+      updates.instructions = trimmed.length > 0 ? trimmed : null;
+    }
   }
 
   if (Object.keys(updates).length === 0) {

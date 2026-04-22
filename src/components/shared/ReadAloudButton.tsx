@@ -10,6 +10,8 @@ interface ReadAloudButtonProps {
   isSpeaking: boolean;
   currentSection: ReadSection | null;
   onToggle: (section: ReadSection, text: string) => void;
+  /** Fires only when a play starts (not when stopping). Intended for analytics. */
+  onPlay?: (section: ReadSection) => void;
   disabled?: boolean;
 }
 
@@ -24,15 +26,21 @@ export function ReadAloudButton({
   isSpeaking,
   currentSection,
   onToggle,
+  onPlay,
   disabled = false,
 }: ReadAloudButtonProps) {
   const isCurrent = isSpeaking && currentSection === section;
   const idleAriaLabel = buildIdleAriaLabel(label);
 
+  const handleClick = () => {
+    if (!isCurrent) onPlay?.(section);
+    onToggle(section, text);
+  };
+
   return (
     <button
       type="button"
-      onClick={() => onToggle(section, text)}
+      onClick={handleClick}
       disabled={disabled}
       className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border text-[#166534] hover:bg-[#16a34a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
         isCurrent

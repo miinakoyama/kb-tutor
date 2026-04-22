@@ -42,6 +42,7 @@ interface AssignmentDetail {
   max_questions: number | null;
   review_topics: string[] | null;
   review_standards: string[] | null;
+  instructions: string | null;
 }
 
 interface SnapshotEntry {
@@ -57,6 +58,21 @@ interface DetailPayload {
   source_type: SourceType | null;
   targets: { total: number; student_ids: string[] };
   attempts: { total: number; respondents: number; correct: number };
+  student_progress: StudentProgressEntry[];
+}
+
+type StudentProgressStatus = "not_started" | "in_progress" | "completed";
+
+interface StudentProgressEntry {
+  student_user_id: string;
+  student_id: string | null;
+  display_name: string | null;
+  is_current_member: boolean;
+  answered_questions: number;
+  total_questions: number;
+  completion_rate: number;
+  status: StudentProgressStatus;
+  last_completed_at: string | null;
 }
 
 export default function AssignmentDetailPage() {
@@ -164,6 +180,9 @@ function AssignmentDetailContent({
   const [randomizeOrder, setRandomizeOrder] = useState(
     assignment.randomize_order !== false,
   );
+  const [instructions, setInstructions] = useState(
+    assignment.instructions ?? "",
+  );
   const [metaSaving, setMetaSaving] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
 
@@ -175,19 +194,22 @@ function AssignmentDetailContent({
     const storedIso = assignment.due_date
       ? new Date(assignment.due_date).toISOString()
       : null;
+    const storedInstructions = assignment.instructions ?? "";
     return (
       title.trim() !== assignment.title ||
       formIso !== storedIso ||
       Number(targetMinutes) !== assignment.target_minutes ||
-      randomizeOrder !== (assignment.randomize_order !== false)
+      randomizeOrder !== (assignment.randomize_order !== false) ||
+      instructions !== storedInstructions
     );
-  }, [title, dueDate, targetMinutes, randomizeOrder, assignment]);
+  }, [title, dueDate, targetMinutes, randomizeOrder, instructions, assignment]);
 
   const saveMeta = async () => {
     setMetaSaving(true);
     setMetaError(null);
     setMessage(null);
     try {
+      const trimmedInstructions = instructions.trim();
       const response = await fetch(`/api/assignments/manage/${assignmentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -196,6 +218,8 @@ function AssignmentDetailContent({
           dueDate: dateTimeLocalValueToIso(dueDate),
           targetMinutes,
           randomizeOrder,
+          instructions:
+            trimmedInstructions.length > 0 ? trimmedInstructions : null,
         }),
       });
       const payload = (await response.json()) as { error?: string };
@@ -373,6 +397,22 @@ function AssignmentDetailContent({
               </span>
             </span>
           </label>
+
+          <label className="block text-sm text-slate-gray md:col-span-2">
+            <span className="block mb-1 font-medium">
+              Instructions (optional)
+            </span>
+            <textarea
+              value={instructions}
+              onChange={(event) => setInstructions(event.target.value)}
+              rows={3}
+              placeholder="e.g. Please complete Assignment 1 before starting this one."
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm resize-y"
+            />
+            <span className="block mt-1 text-xs text-slate-gray/70">
+              Shown to students on the assignment card.
+            </span>
+          </label>
         </div>
 
         {metaError && (
@@ -406,6 +446,8 @@ function AssignmentDetailContent({
           sourceType={initial.source_type}
         />
       )}
+
+      <StudentProgressSection students={initial.student_progress} />
     </main>
   );
 }
@@ -578,6 +620,134 @@ function ReviewScopeDisplay({ assignment }: { assignment: AssignmentDetail }) {
           <CalendarDays className="w-3.5 h-3.5" />
           Due {formatDueDateTime(assignment.due_date)}
         </p>
+      )}
+    </section>
+  );
+}
+
+function StudentProgressSection({
+  students,
+}: {
+  students: StudentProgressEntry[];
+}) {
+  const sortedStudents = useMemo(
+    () =>
+      [...students].sort((a, b) => {
+        // Current members first; former members (who may still have
+        // historical work attached) sink to the bottom of the list.
+        if (a.is_current_member !== b.is_current_member) {
+          return a.is_current_member ? -1 : 1;
+        }
+        const lhs = a.student_id ?? a.display_name ?? a.student_user_id;
+        const rhs = b.student_id ?? b.display_name ?? b.student_user_id;
+        return lhs.localeCompare(rhs);
+      }),
+    [students],
+  );
+
+  const currentCount = useMemo(
+    () => sortedStudents.filter((s) => s.is_current_member).length,
+    [sortedStudents],
+  );
+  const formerCount = sortedStudents.length - currentCount;
+
+  const statusStyles: Record<StudentProgressStatus, string> = {
+    not_started: "bg-slate-100 text-slate-700 border-slate-200",
+    in_progress: "bg-amber-50 text-amber-700 border-amber-200",
+    completed: "bg-green-50 text-green-700 border-green-200",
+  };
+
+  const statusLabel: Record<StudentProgressStatus, string> = {
+    not_started: "Not started",
+    in_progress: "In progress",
+    completed: "Completed",
+  };
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-base font-semibold text-slate-gray">
+          Student progress
+        </h2>
+        <p className="text-xs text-slate-gray/70">
+          {currentCount} current student{currentCount === 1 ? "" : "s"}
+          {formerCount > 0
+            ? ` • ${formerCount} former member${formerCount === 1 ? "" : "s"}`
+            : ""}
+        </p>
+      </div>
+
+      {sortedStudents.length === 0 ? (
+        <p className="text-sm text-slate-gray/70">
+          No students are assigned to this assignment.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-gray/70">
+                <th className="px-3 py-2 font-semibold">Student ID</th>
+                <th className="px-3 py-2 font-semibold">Name</th>
+                <th className="px-3 py-2 font-semibold">Progress</th>
+                <th className="px-3 py-2 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedStudents.map((student) => {
+                const progressRatio =
+                  student.total_questions > 0
+                    ? Math.min(1, student.answered_questions / student.total_questions)
+                    : 0;
+                return (
+                  <tr
+                    key={student.student_user_id}
+                    className={`border-b border-slate-100 last:border-b-0 ${
+                      student.is_current_member ? "" : "bg-slate-50/60"
+                    }`}
+                  >
+                    <td className="px-3 py-2 text-slate-gray">
+                      {student.student_id ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-gray">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>{student.display_name ?? "—"}</span>
+                        {!student.is_current_member && (
+                          <span
+                            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-gray/80"
+                            title="This student is no longer in the school but has historical work on this assignment."
+                          >
+                            Former member
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 min-w-[220px]">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-full max-w-[140px] overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className="h-full bg-[#16a34a]"
+                            style={{ width: `${progressRatio * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-gray/70 whitespace-nowrap">
+                          {student.answered_questions}/{student.total_questions} (
+                          {student.completion_rate}%)
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusStyles[student.status]}`}
+                      >
+                        {statusLabel[student.status]}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

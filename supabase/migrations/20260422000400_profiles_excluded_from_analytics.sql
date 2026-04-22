@@ -29,7 +29,7 @@ CREATE OR REPLACE VIEW "public"."teacher_dashboard_standard_metrics" AS
    FROM ((("public"."attempts" "a"
      JOIN "public"."school_members" "sm" ON (("sm"."student_user_id" = "a"."user_id")))
      JOIN "public"."schools" "s" ON (("s"."id" = "sm"."school_id")))
-     JOIN "public"."profiles" "p" ON (("p"."id" = "a"."user_id")))
+     LEFT JOIN "public"."profiles" "p" ON (("p"."id" = "a"."user_id")))
   WHERE (COALESCE("p"."excluded_from_analytics", false) = false)
   GROUP BY "s"."teacher_user_id", "a"."user_id", "a"."standard_id";
 
@@ -47,6 +47,6 @@ CREATE OR REPLACE VIEW "public"."teacher_dashboard_student_metrics" AS
    FROM ((("public"."attempts" "a"
      JOIN "public"."school_members" "sm" ON (("sm"."student_user_id" = "a"."user_id")))
      JOIN "public"."schools" "s" ON (("s"."id" = "sm"."school_id")))
-     JOIN "public"."profiles" "p" ON (("p"."id" = "a"."user_id")))
+     LEFT JOIN "public"."profiles" "p" ON (("p"."id" = "a"."user_id")))
   WHERE (COALESCE("p"."excluded_from_analytics", false) = false)
   GROUP BY "s"."teacher_user_id", "a"."user_id";

@@ -79,6 +79,10 @@ export async function PATCH(request: Request) {
     updatePayload.excluded_from_analytics = body.excludedFromAnalytics;
   }
 
+  if (Object.keys(updatePayload).length === 0) {
+    return NextResponse.json({ ok: true });
+  }
+
   const { error } = await admin.from("profiles").update(updatePayload).eq("id", body.id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
