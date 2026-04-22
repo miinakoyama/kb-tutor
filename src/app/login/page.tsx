@@ -12,6 +12,7 @@ interface School {
 export default function LoginPage() {
   const router = useRouter();
   const [schools, setSchools] = useState<School[]>([]);
+  const [schoolsLoaded, setSchoolsLoaded] = useState(false);
   const [schoolId, setSchoolId] = useState("");
   const [studentId, setStudentId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,6 +31,8 @@ export default function LoginPage() {
         }
       } catch {
         // Non-critical — school list stays empty, user can still try
+      } finally {
+        setSchoolsLoaded(true);
       }
     })();
   }, []);
@@ -68,8 +71,12 @@ export default function LoginPage() {
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
             <span className="text-sm font-medium text-slate-gray">School</span>
-            {schools.length === 0 ? (
+            {!schoolsLoaded ? (
               <p className="mt-1 text-sm text-slate-gray/60">Loading schools...</p>
+            ) : schools.length === 0 ? (
+              <p className="mt-1 text-sm text-slate-gray/60">
+                No schools are available for student login.
+              </p>
             ) : (
               <select
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"

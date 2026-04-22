@@ -8,6 +8,7 @@ export async function GET() {
     const { data, error } = await admin
       .from("schools")
       .select("id,name")
+      .eq("is_hidden", false)
       .order("name", { ascending: true });
 
     if (error) {
