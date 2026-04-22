@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStudentNotifications } from "@/lib/notifications";
 import { getStudentUserSettings } from "@/lib/user-settings";
 import { NotificationsMarkRead } from "@/components/NotificationsMarkRead";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import { getStudentViewContext } from "@/lib/student-view";
 
 const FALLBACK_MESSAGES = [
   "You're all caught up. Check Self Practice to keep momentum.",
@@ -18,6 +20,17 @@ export default async function NotificationsPage() {
   if (!user) {
     redirect("/login");
   }
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const role = await resolveRoleWithServerFallback(user, profile?.role);
+  const studentView = await getStudentViewContext();
+  const previewSchoolId =
+    (role === "teacher" || role === "admin") && studentView.isActive
+      ? studentView.schoolId
+      : null;
 
   const { timeZone, notificationsLastReadAt } =
     await getStudentUserSettings(supabase);
@@ -25,6 +38,7 @@ export default async function NotificationsPage() {
   const notificationResult = await getStudentNotifications(supabase, user.id, {
     timeZone,
     lastReadAt: notificationsLastReadAt,
+    previewSchoolId,
   });
   const notifications = notificationResult.notifications;
   const notificationsError = notificationResult.error;

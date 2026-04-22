@@ -74,6 +74,7 @@ function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
 async function fetchAssignmentList(
   supabase: SupabaseClient,
   studentUserId: string,
+  options?: { previewSchoolId?: string | null },
 ): Promise<StudentAssignmentListResult> {
   // Resolve assignments through school membership rather than
   // assignment_targets so that a student who was added to a school *after*
@@ -95,16 +96,19 @@ async function fetchAssignmentList(
   //      policy, so an auth-scoped query returns 0 rows with no error.
   // `attempts` uses a simple `user_id = auth.uid()` policy with no cross-
   // table recursion, so it can stay auth-scoped.
-  const { data: memberRows, error: memberError } = await supabase
-    .from("school_members")
-    .select("school_id")
-    .eq("student_user_id", studentUserId);
-  if (memberError) {
-    return { assignments: [], error: memberError.message };
+  const schoolIds = options?.previewSchoolId ? [options.previewSchoolId] : [];
+  if (schoolIds.length === 0) {
+    const { data: memberRows, error: memberError } = await supabase
+      .from("school_members")
+      .select("school_id")
+      .eq("student_user_id", studentUserId);
+    if (memberError) {
+      return { assignments: [], error: memberError.message };
+    }
+    schoolIds.push(
+      ...Array.from(new Set((memberRows ?? []).map((row) => String(row.school_id)))),
+    );
   }
-  const schoolIds = Array.from(
-    new Set((memberRows ?? []).map((row) => String(row.school_id))),
-  );
   if (schoolIds.length === 0) {
     return { assignments: [], error: null };
   }
@@ -267,8 +271,9 @@ function computeStatus(args: {
 export async function getStudentAssignmentList(
   supabase: SupabaseClient,
   studentUserId: string,
+  options?: { previewSchoolId?: string | null },
 ): Promise<StudentAssignmentListResult> {
-  return fetchAssignmentList(supabase, studentUserId);
+  return fetchAssignmentList(supabase, studentUserId, options);
 }
 
 /**
