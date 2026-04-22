@@ -4,9 +4,9 @@ import {
   downloadStudentMetricsCsv,
 } from "@/lib/csv/teacher-dashboard";
 import type {
-  StandardMetric,
-  StudentMetric,
-} from "@/lib/analytics/teacher-dashboard";
+  StandardRow,
+  StudentRow,
+} from "@/lib/analytics/teacher-dashboard-server";
 
 /**
  * Captures downloaded CSV content by stubbing `Blob`, `URL.createObjectURL`,
@@ -66,7 +66,7 @@ afterEach(() => {
 
 describe("downloadStandardMetricsCsv", () => {
   it("includes a header row and one row per metric", () => {
-    const rows: StandardMetric[] = [
+    const rows: StandardRow[] = [
       {
         standardId: "3.1.9-12.A",
         standardLabel: "Label A",
@@ -74,6 +74,7 @@ describe("downloadStandardMetricsCsv", () => {
         correct: 7,
         accuracy: 70,
         averageTimeSec: 45,
+        status: "watch",
       },
     ];
     downloadStandardMetricsCsv(rows);
@@ -87,7 +88,7 @@ describe("downloadStandardMetricsCsv", () => {
   });
 
   it("escapes values that contain commas or quotes", () => {
-    const rows: StandardMetric[] = [
+    const rows: StandardRow[] = [
       {
         standardId: "S1",
         standardLabel: 'Label, with "quotes"',
@@ -95,6 +96,7 @@ describe("downloadStandardMetricsCsv", () => {
         correct: 1,
         accuracy: 100,
         averageTimeSec: 0,
+        status: "on_track",
       },
     ];
     downloadStandardMetricsCsv(rows);
@@ -105,20 +107,25 @@ describe("downloadStandardMetricsCsv", () => {
 
 describe("downloadStudentMetricsCsv", () => {
   it("writes student metrics with the expected header", () => {
-    const rows: StudentMetric[] = [
+    const rows: StudentRow[] = [
       {
         studentId: "s1",
-        totalAnswered: 8,
-        totalCorrect: 6,
+        label: "Student One",
+        classId: "class-a",
+        attempted: 8,
+        correct: 6,
         accuracy: 75,
+        averageTimeSec: 52,
+        status: "watch",
+        isLowAndFast: false,
       },
     ];
     downloadStudentMetricsCsv(rows);
     expect(harness.captured.fileName).toBe("teacher-dashboard-by-student.csv");
     const text = harness.captured.text ?? "";
     expect(text.split("\n")[0]).toBe(
-      "student_id,total_answered,total_correct,accuracy_percent",
+      "student_id,student_label,attempted,correct,accuracy_percent,average_time_seconds,status,low_and_fast",
     );
-    expect(text).toContain("s1,8,6,75");
+    expect(text).toContain("s1,Student One,8,6,75,52,watch,no");
   });
 });
