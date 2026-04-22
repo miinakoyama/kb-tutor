@@ -13,6 +13,8 @@ interface ReadAloudButtonProps {
   /** Fires only when a play starts (not when stopping). Intended for analytics. */
   onPlay?: (section: ReadSection) => void;
   disabled?: boolean;
+  /** When set, the button is a target for `PracticeFeatureSpotlight`. */
+  practiceSpotlightId?: string;
 }
 
 function buildIdleAriaLabel(label: string): string {
@@ -28,6 +30,7 @@ export function ReadAloudButton({
   onToggle,
   onPlay,
   disabled = false,
+  practiceSpotlightId,
 }: ReadAloudButtonProps) {
   const isCurrent = isSpeaking && currentSection === section;
   const idleAriaLabel = buildIdleAriaLabel(label);
@@ -42,6 +45,9 @@ export function ReadAloudButton({
       type="button"
       onClick={handleClick}
       disabled={disabled}
+      {...(practiceSpotlightId
+        ? ({ "data-practice-spotlight": practiceSpotlightId } as const)
+        : {})}
       className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border text-[#166534] hover:bg-[#16a34a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
         isCurrent
           ? "border-[#16a34a]/60 bg-[#16a34a]/15"

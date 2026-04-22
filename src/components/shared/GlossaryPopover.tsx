@@ -10,9 +10,11 @@ interface GlossaryPopoverProps {
   children: ReactNode;
   /** Fires the first time this term is opened (once per mount / close-reopen cycle). */
   onOpen?: (term: GlossaryTerm) => void;
+  /** When set, the trigger is a target for `PracticeFeatureSpotlight`. */
+  practiceSpotlightId?: string;
 }
 
-export function GlossaryPopover({ term, children, onOpen }: GlossaryPopoverProps) {
+export function GlossaryPopover({ term, children, onOpen, practiceSpotlightId }: GlossaryPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -46,6 +48,9 @@ export function GlossaryPopover({ term, children, onOpen }: GlossaryPopoverProps
       <button
         ref={triggerRef}
         onClick={handleToggle}
+        {...(practiceSpotlightId
+          ? ({ "data-practice-spotlight": practiceSpotlightId } as const)
+          : {})}
         className="inline text-[#16a34a] font-medium underline decoration-[#16a34a]/40 decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 rounded"
       >
         {children}

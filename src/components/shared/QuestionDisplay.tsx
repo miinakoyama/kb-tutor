@@ -28,6 +28,8 @@ interface QuestionDisplayProps {
   belowOptionsSlot?: ReactNode;
   showOptionFeedbackIcons?: boolean;
   onReadAloud?: (section: ReadSection) => void;
+  /** Marks read-aloud controls for the first-time practice spotlight (question + choices + feedback). */
+  spotlightReadAloud?: boolean;
 }
 
 export function QuestionDisplay({
@@ -47,6 +49,7 @@ export function QuestionDisplay({
   belowOptionsSlot,
   showOptionFeedbackIcons = false,
   onReadAloud,
+  spotlightReadAloud = false,
 }: QuestionDisplayProps) {
   const isAnswered = currentAnswer !== undefined;
   const choicesReadText = buildChoicesReadText(question);
@@ -91,6 +94,7 @@ export function QuestionDisplay({
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
                 onPlay={onReadAloud}
+                practiceSpotlightId={spotlightReadAloud ? "read-aloud-question" : undefined}
               />
             )}
             {headerAction}
@@ -152,6 +156,7 @@ export function QuestionDisplay({
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
                 onPlay={onReadAloud}
+                practiceSpotlightId={spotlightReadAloud ? "read-aloud-choices" : undefined}
               />
             )}
           </div>
@@ -197,6 +202,7 @@ export function QuestionDisplay({
               currentSection={currentSection}
               onToggle={toggleSpeak}
               onPlay={onReadAloud}
+              practiceSpotlightId={spotlightReadAloud ? "read-aloud-feedback" : undefined}
             />
           </div>
         )}

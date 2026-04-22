@@ -30,10 +30,23 @@ import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import {
+  isPracticeFeatureSpotlightDone,
+  markPracticeFeatureSpotlightDone,
+  type PracticeFeatureSpotlightKind,
+} from "@/lib/practice-feature-spotlights";
+import { getFirstVisibleInlineTermId } from "@/lib/glossary-inline-visible";
+import { isSpeechSynthesisSupported } from "@/lib/tts-support";
+import { PracticeFeatureSpotlight } from "@/components/PracticeFeatureSpotlight";
 
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
 const GLOSSARY_FALLBACK_LIMIT = 6;
+
+const READ_ALOUD_SPOTLIGHT_IDS = ["read-aloud-question", "read-aloud-choices", "read-aloud-feedback"] as const;
+const GLOSSARY_SIDE_SPOTLIGHT_ID = "glossary-side-button";
+const GLOSSARY_INLINE_SPOTLIGHT_ID = "glossary-inline-first";
 
 interface AdaptivePracticeModeProps {
   questions: Question[];
@@ -84,6 +97,9 @@ export function AdaptivePracticeMode({
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [activePracticeSpotlight, setActivePracticeSpotlight] =
+    useState<PracticeFeatureSpotlightKind | null>(null);
+  const { userId: authUserId, resolved: authUserResolved } = useAuthUserId();
 
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
 
@@ -282,6 +298,65 @@ export function AdaptivePracticeMode({
     return map;
   }, [question, showScaffold]);
 
+  const firstVisibleInlineTermId = useMemo(() => {
+    if (!question || !showScaffold) return null;
+    return getFirstVisibleInlineTermId(question.text, question.inlineTerms);
+  }, [question, showScaffold]);
+
+  const practiceSpotlightUserKey = authUserResolved ? authUserId : null;
+
+  const inlineGlossarySpotlightTargetId = useMemo(() => {
+    if (!authUserResolved || !firstVisibleInlineTermId) return null;
+    if (isPracticeFeatureSpotlightDone(practiceSpotlightUserKey, "glossaryInline")) return null;
+    return firstVisibleInlineTermId;
+  }, [authUserResolved, firstVisibleInlineTermId, practiceSpotlightUserKey]);
+
+  const showReadAloudSpotlightMarkers = useMemo(() => {
+    if (!authUserResolved || !question || showSummary) return false;
+    if (!isSpeechSynthesisSupported()) return false;
+    return !isPracticeFeatureSpotlightDone(practiceSpotlightUserKey, "readAloud");
+  }, [authUserResolved, practiceSpotlightUserKey, question, showSummary]);
+
+  useEffect(() => {
+    if (!authUserResolved || !question || showSummary) return;
+    if (activePracticeSpotlight !== null) return;
+
+    if (!isPracticeFeatureSpotlightDone(practiceSpotlightUserKey, "readAloud") && isSpeechSynthesisSupported()) {
+      setActivePracticeSpotlight("readAloud");
+      return;
+    }
+    if (
+      showScaffold &&
+      glossaryTerms.length > 0 &&
+      !isPracticeFeatureSpotlightDone(practiceSpotlightUserKey, "glossarySide")
+    ) {
+      setActivePracticeSpotlight("glossarySide");
+      return;
+    }
+    if (
+      showScaffold &&
+      firstVisibleInlineTermId &&
+      !isPracticeFeatureSpotlightDone(practiceSpotlightUserKey, "glossaryInline")
+    ) {
+      setActivePracticeSpotlight("glossaryInline");
+    }
+  }, [
+    activePracticeSpotlight,
+    authUserResolved,
+    firstVisibleInlineTermId,
+    glossaryTerms,
+    practiceSpotlightUserKey,
+    question,
+    showScaffold,
+    showSummary,
+  ]);
+
+  const dismissPracticeSpotlight = useCallback(() => {
+    if (!activePracticeSpotlight) return;
+    markPracticeFeatureSpotlightDone(practiceSpotlightUserKey, activePracticeSpotlight);
+    setActivePracticeSpotlight(null);
+  }, [activePracticeSpotlight, practiceSpotlightUserKey]);
+
   const feedbackReadText = useMemo(() => {
     if (!question || !finalAnswer) return "";
     return buildFeedbackReadText(question, finalAnswer, {
@@ -306,6 +381,9 @@ export function AdaptivePracticeMode({
           <GlossaryPopover
             key={`${term.id}_${index}`}
             term={term}
+            practiceSpotlightId={
+              inlineGlossarySpotlightTargetId === term.id ? GLOSSARY_INLINE_SPOTLIGHT_ID : undefined
+            }
             onOpen={(t) => {
               if (!question) return;
               trackAnalyticsEvent({
@@ -328,7 +406,7 @@ export function AdaptivePracticeMode({
         );
       });
     },
-    [assignmentId, inlineTermMap, mode, question, showScaffold],
+    [assignmentId, inlineGlossarySpotlightTargetId, inlineTermMap, mode, question, showScaffold],
   );
 
   const submitAttempt = useCallback(() => {
@@ -656,7 +734,12 @@ export function AdaptivePracticeMode({
               headerAction={
                 glossaryTerms.length > 0 ? (
                   <button
+                    type="button"
                     onClick={handleGlossaryModalOpen}
+                    {...(!isPracticeFeatureSpotlightDone(practiceSpotlightUserKey, "glossarySide") &&
+                    authUserResolved
+                      ? ({ "data-practice-spotlight": GLOSSARY_SIDE_SPOTLIGHT_ID } as const)
+                      : {})}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
@@ -677,6 +760,7 @@ export function AdaptivePracticeMode({
               showOptionFeedbackIcons={isCompleted}
               feedbackReadText={feedbackReadText}
               onReadAloud={handleReadAloud}
+              spotlightReadAloud={showReadAloudSpotlightMarkers}
               feedbackSlot={
                 attempts.length > 0 ? (
                   <div className="space-y-4">
@@ -787,6 +871,34 @@ export function AdaptivePracticeMode({
           </div>
         </div>
       </div>
+
+      {activePracticeSpotlight === "readAloud" && (
+        <PracticeFeatureSpotlight
+          open
+          spotlightIds={[...READ_ALOUD_SPOTLIGHT_IDS]}
+          title="Read aloud"
+          description="Use these buttons to hear the question, answer choices, or feedback read aloud."
+          onDismiss={dismissPracticeSpotlight}
+        />
+      )}
+      {activePracticeSpotlight === "glossarySide" && (
+        <PracticeFeatureSpotlight
+          open
+          spotlightIds={[GLOSSARY_SIDE_SPOTLIGHT_ID]}
+          title="Glossary"
+          description="Open this menu for definitions of key terms for this question."
+          onDismiss={dismissPracticeSpotlight}
+        />
+      )}
+      {activePracticeSpotlight === "glossaryInline" && (
+        <PracticeFeatureSpotlight
+          open
+          spotlightIds={[GLOSSARY_INLINE_SPOTLIGHT_ID]}
+          title="Inline glossary"
+          description="Green underlined words are glossary terms. Tap a word to see its definition."
+          onDismiss={dismissPracticeSpotlight}
+        />
+      )}
 
       {isGlossaryModalOpen && glossaryTerms.length > 0 && (
         <div

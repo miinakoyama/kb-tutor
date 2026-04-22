@@ -34,6 +34,14 @@ import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import {
+  isPracticeFeatureSpotlightDone,
+  markPracticeFeatureSpotlightDone,
+} from "@/lib/practice-feature-spotlights";
+import { PracticeFeatureSpotlight } from "@/components/PracticeFeatureSpotlight";
+
+const EXAM_READ_ALOUD_SPOTLIGHT_IDS = ["read-aloud-question", "read-aloud-choices", "read-aloud-feedback"] as const;
 
 const PRIMARY_COLOR = "#16a34a";
 
@@ -85,6 +93,26 @@ export function ExamMode({
     currentSection,
     toggleSpeak,
   } = useTextToSpeech();
+  const { userId: authUserId, resolved: authUserResolved } = useAuthUserId();
+  const [readAloudSpotlightOpen, setReadAloudSpotlightOpen] = useState(false);
+  const practiceSpotlightUserKey = authUserResolved ? authUserId : null;
+
+  useEffect(() => {
+    if (phase !== "exam" || !isSupported || !authUserResolved) {
+      setReadAloudSpotlightOpen(false);
+      return;
+    }
+    if (isPracticeFeatureSpotlightDone(practiceSpotlightUserKey, "readAloud")) {
+      setReadAloudSpotlightOpen(false);
+      return;
+    }
+    setReadAloudSpotlightOpen(true);
+  }, [authUserResolved, isSupported, phase, practiceSpotlightUserKey]);
+
+  const dismissReadAloudSpotlight = useCallback(() => {
+    markPracticeFeatureSpotlightDone(practiceSpotlightUserKey, "readAloud");
+    setReadAloudSpotlightOpen(false);
+  }, [practiceSpotlightUserKey]);
   const isQuestionReading = isSpeaking && currentSection === "question";
   const isChoicesReading = isSpeaking && currentSection === "choices";
   const isFeedbackReading = isSpeaking && currentSection === "feedback";
@@ -672,6 +700,7 @@ export function ExamMode({
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
                     onPlay={handleReadAloud}
+                    practiceSpotlightId={readAloudSpotlightOpen ? "read-aloud-question" : undefined}
                   />
                 )}
               </div>
@@ -720,6 +749,7 @@ export function ExamMode({
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
                     onPlay={handleReadAloud}
+                    practiceSpotlightId={readAloudSpotlightOpen ? "read-aloud-choices" : undefined}
                   />
                   </div>
                 )}
@@ -841,6 +871,16 @@ export function ExamMode({
           </button>
         </div>
       </div>
+
+      {readAloudSpotlightOpen && (
+        <PracticeFeatureSpotlight
+          open
+          spotlightIds={[...EXAM_READ_ALOUD_SPOTLIGHT_IDS]}
+          title="Read aloud"
+          description="Use these buttons to hear the question, answer choices, or feedback read aloud."
+          onDismiss={dismissReadAloudSpotlight}
+        />
+      )}
     </div>
   );
 }
