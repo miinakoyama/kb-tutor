@@ -8,13 +8,21 @@ const mockState = vi.hoisted(() => ({
   serverClient: null as SupabaseClient | null,
   adminClient: null as SupabaseClient | null,
   role: "student" as "student" | "teacher" | "admin" | null,
-  deterministicShuffle: vi.fn((items: Question[], _seed: string) => [...items].reverse()),
+  deterministicShuffle: vi.fn((items: Question[], seed: string) => {
+    void seed;
+    return [...items].reverse();
+  }),
   resolveReviewQuestionsForAssignment: vi.fn(
     async (
-      _admin: SupabaseClient,
-      _studentUserId: string,
-      _assignmentId: string,
-    ) => ({ questions: [] as Question[], error: null as string | null }),
+      admin: SupabaseClient,
+      studentUserId: string,
+      assignmentId: string,
+    ) => {
+      void admin;
+      void studentUserId;
+      void assignmentId;
+      return { questions: [] as Question[], error: null as string | null };
+    },
   ),
 }));
 

@@ -78,48 +78,37 @@ function parseE2ERole(value: string | undefined): AppRole | null {
 
 function applySupabaseCookies(target: NextResponse, source: NextResponse) {
   for (const cookie of source.cookies.getAll()) {
-    target.cookies.set(cookie.name, cookie.value, cookie);
+    target.cookies.set(cookie);
   }
   return target;
 }
 
-async function hasHiddenSchoolMembership(userId: string): Promise<boolean> {
+async function hasHiddenSchoolMembership(
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string,
+): Promise<boolean> {
   try {
-    const admin = createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
-    const { data: memberRows, error: memberError } = await admin
+    const { data: hiddenMembershipRows, error: hiddenMembershipError } = await supabase
       .from("school_members")
-      .select("school_id")
-      .eq("student_user_id", userId);
+      .select("school_id,schools!inner(id)")
+      .eq("student_user_id", userId)
+      .eq("schools.is_hidden", true)
+      .limit(1);
 
-    if (memberError) return false;
+    if (hiddenMembershipError) {
+      console.error(
+        "[middleware] hidden-school membership check failed:",
+        hiddenMembershipError.message,
+      );
+      // Fail closed: when we cannot verify eligibility, treat as blocked.
+      return true;
+    }
 
-    const schoolIds = Array.from(
-      new Set((memberRows ?? []).map((row) => row.school_id)),
-    ).filter(
-      (schoolId): schoolId is string =>
-        typeof schoolId === "string" && schoolId.length > 0,
-    );
-
-    if (schoolIds.length === 0) return false;
-
-    const { data: hiddenSchool } = await admin
-      .from("schools")
-      .select("id")
-      .in("id", schoolIds)
-      .eq("is_hidden", true)
-      .limit(1)
-      .maybeSingle();
-
-    return Boolean(hiddenSchool);
-  } catch {
-    // Fail open: keep availability if this guard check cannot run.
-    return false;
+    return (hiddenMembershipRows ?? []).length > 0;
+  } catch (error) {
+    console.error("[middleware] hidden-school membership check threw unexpectedly", error);
+    // Fail closed: when we cannot verify eligibility, treat as blocked.
+    return true;
   }
 }
 
@@ -243,14 +232,10 @@ export async function middleware(req: NextRequest) {
   };
 
   const role = await getResolvedRole();
-  if (role === "student") {
-    const blocked = await hasHiddenSchoolMembership(user.id);
+  if (role === "student" && !isApiAuthPath && !isApiPublic) {
+    const blocked = await hasHiddenSchoolMembership(supabase, user.id);
     if (blocked) {
       await supabase.auth.signOut();
-
-      if (isApiAuthPath || isApiPublic) {
-        return supabaseResponse;
-      }
 
       if (pathname.startsWith("/api/")) {
         return applySupabaseCookies(
@@ -276,7 +261,6 @@ export async function middleware(req: NextRequest) {
   }
 
   if (requiredRoles) {
-    const role = await getResolvedRole();
     if (!role) {
       // Let admin API routes perform definitive checks in route handlers,
       // because profile reads in middleware can fail under RLS/policy setups.
