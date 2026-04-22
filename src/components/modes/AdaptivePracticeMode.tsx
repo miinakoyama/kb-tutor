@@ -34,6 +34,8 @@ import type { ReadSection } from "@/hooks/useTextToSpeech";
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
 const GLOSSARY_FALLBACK_LIMIT = 6;
+const READ_ALOUD_HINT_DISMISSED_KEY = "kb-tutor-hint-read-aloud-dismissed";
+const GLOSSARY_HINT_DISMISSED_KEY = "kb-tutor-hint-glossary-dismissed";
 
 interface AdaptivePracticeModeProps {
   questions: Question[];
@@ -83,6 +85,8 @@ export function AdaptivePracticeMode({
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
+  const [showReadAloudHint, setShowReadAloudHint] = useState(false);
+  const [showGlossaryHint, setShowGlossaryHint] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
@@ -281,6 +285,47 @@ export function AdaptivePracticeMode({
     }
     return map;
   }, [question, showScaffold]);
+
+  const hasInlineGlossaryHighlights = useMemo(() => {
+    if (!question || !showScaffold || inlineTermMap.size === 0) return false;
+    const searchableText = `${question.text} ${question.options
+      .map((option) => option.text)
+      .join(" ")}`;
+
+    for (const termLabel of inlineTermMap.keys()) {
+      const escaped = termLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`\\b${escaped}\\b`, "i");
+      if (regex.test(searchableText)) return true;
+    }
+
+    return false;
+  }, [inlineTermMap, question, showScaffold]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || showReadAloudHint) return;
+    if (!window.speechSynthesis) return;
+    if (window.localStorage.getItem(READ_ALOUD_HINT_DISMISSED_KEY) === "1") return;
+    setShowReadAloudHint(true);
+  }, [showReadAloudHint]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || showGlossaryHint) return;
+    if (glossaryTerms.length === 0) return;
+    if (window.localStorage.getItem(GLOSSARY_HINT_DISMISSED_KEY) === "1") return;
+    setShowGlossaryHint(true);
+  }, [glossaryTerms.length, showGlossaryHint]);
+
+  const dismissReadAloudHint = useCallback(() => {
+    setShowReadAloudHint(false);
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(READ_ALOUD_HINT_DISMISSED_KEY, "1");
+  }, []);
+
+  const dismissGlossaryHint = useCallback(() => {
+    setShowGlossaryHint(false);
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(GLOSSARY_HINT_DISMISSED_KEY, "1");
+  }, []);
 
   const feedbackReadText = useMemo(() => {
     if (!question || !finalAnswer) return "";
@@ -655,13 +700,39 @@ export function AdaptivePracticeMode({
               )}/${MAX_ATTEMPTS}`}
               headerAction={
                 glossaryTerms.length > 0 ? (
-                  <button
-                    onClick={handleGlossaryModalOpen}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    Glossary
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={handleGlossaryModalOpen}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Glossary
+                    </button>
+                    {showGlossaryHint && (
+                      <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-[#16a34a]/30 bg-white p-3 text-left shadow-lg">
+                        <button
+                          type="button"
+                          onClick={dismissGlossaryHint}
+                          className="absolute right-2 top-2 rounded p-1 text-slate-gray/40 hover:bg-slate-100 hover:text-slate-gray/70"
+                          aria-label="Dismiss glossary hint"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                        <p className="pr-5 text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
+                          Quick tip
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-gray/80">
+                          Open this glossary for extra term support when hints unlock.
+                        </p>
+                        {hasInlineGlossaryHighlights && (
+                          <p className="mt-1.5 text-xs leading-relaxed text-slate-gray/80">
+                            Green underlined words in the question are inline glossary terms. Tap
+                            them for a quick definition.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ) : undefined
               }
               currentAnswer={displayAnswer}
@@ -677,6 +748,8 @@ export function AdaptivePracticeMode({
               showOptionFeedbackIcons={isCompleted}
               feedbackReadText={feedbackReadText}
               onReadAloud={handleReadAloud}
+              showReadAloudHint={showReadAloudHint}
+              onDismissReadAloudHint={dismissReadAloudHint}
               feedbackSlot={
                 attempts.length > 0 ? (
                   <div className="space-y-4">
