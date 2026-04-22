@@ -7,11 +7,50 @@ import {
   resolveReviewQuestionsForAssignment,
 } from "@/lib/student-assignments";
 
+const adminClientState = vi.hoisted(() => ({
+  client: null as SupabaseClient | null,
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createSupabaseAdminClient: () => {
+    if (!adminClientState.client) {
+      throw new Error("Test admin client is not configured.");
+    }
+    return adminClientState.client;
+  },
+}));
+
 type Rows = Record<string, unknown[]>;
 
 interface TableBehavior {
   rows: unknown[];
   error?: { message: string } | null;
+}
+
+interface OrderClause {
+  column: string;
+  ascending: boolean;
+}
+
+function compareOrderValues(left: unknown, right: unknown): number {
+  if (left == null && right == null) return 0;
+  if (left == null) return 1;
+  if (right == null) return -1;
+
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+  if (typeof left === "boolean" && typeof right === "boolean") {
+    return Number(left) - Number(right);
+  }
+
+  const leftDate = typeof left === "string" ? Date.parse(left) : Number.NaN;
+  const rightDate = typeof right === "string" ? Date.parse(right) : Number.NaN;
+  if (Number.isFinite(leftDate) && Number.isFinite(rightDate)) {
+    return leftDate - rightDate;
+  }
+
+  return String(left).localeCompare(String(right));
 }
 
 /**
@@ -24,11 +63,26 @@ function makeSupabaseMock(tables: Rows): SupabaseClient {
   const builderFor = (table: string) => {
     const behavior: TableBehavior = { rows: tables[table] ?? [] };
     const filters: Array<(row: Record<string, unknown>) => boolean> = [];
+    const orderClauses: OrderClause[] = [];
 
-    const applyFilters = () =>
-      (behavior.rows as Record<string, unknown>[]).filter((row) =>
+    const applyFilters = () => {
+      const filtered = (behavior.rows as Record<string, unknown>[]).filter((row) =>
         filters.every((f) => f(row)),
       );
+      if (orderClauses.length === 0) return filtered;
+      return [...filtered].sort((left, right) => {
+        for (const clause of orderClauses) {
+          const compared = compareOrderValues(
+            left[clause.column],
+            right[clause.column],
+          );
+          if (compared !== 0) {
+            return clause.ascending ? compared : -compared;
+          }
+        }
+        return 0;
+      });
+    };
 
     const builder: Record<string, unknown> = {
       select: vi.fn(() => builder),
@@ -42,7 +96,13 @@ function makeSupabaseMock(tables: Rows): SupabaseClient {
         return builder;
       }),
       ilike: vi.fn(() => builder),
-      order: vi.fn(() => builder),
+      order: vi.fn((column: string, options?: { ascending?: boolean }) => {
+        orderClauses.push({
+          column,
+          ascending: options?.ascending !== false,
+        });
+        return builder;
+      }),
       gte: vi.fn(() => builder),
       lte: vi.fn(() => builder),
       maybeSingle: vi.fn(async () => {
@@ -70,9 +130,11 @@ function makeSupabaseMock(tables: Rows): SupabaseClient {
     return builder;
   };
 
-  return {
+  const client = {
     from: vi.fn((table: string) => builderFor(table)),
   } as unknown as SupabaseClient;
+  adminClientState.client = client;
+  return client;
 }
 
 describe("deterministicShuffle", () => {
@@ -165,7 +227,7 @@ describe("resolveReviewQuestionsForAssignment", () => {
     expect(result.questions).toEqual([]);
   });
 
-  it("keeps only questions whose latest attempt was incorrect", async () => {
+  it("keeps questions that have at least one incorrect attempt in scope", async () => {
     const supabase = makeSupabaseMock({
       assignments: [baseAssignment],
       attempts: [
@@ -182,7 +244,7 @@ describe("resolveReviewQuestionsForAssignment", () => {
           question_id: "q1",
           topic: "Genetics",
           standard_id: "3.1.9-12.P",
-          is_correct: true, // later correction should exclude q1
+          is_correct: true,
           answered_at: "2026-04-02T10:00:00.000Z",
         },
         {
@@ -212,7 +274,7 @@ describe("resolveReviewQuestionsForAssignment", () => {
       "as_1",
     );
     expect(result.error).toBeNull();
-    expect(result.questions.map((q) => q.id)).toEqual(["q2"]);
+    expect(result.questions.map((q) => q.id).sort()).toEqual(["q1", "q2"]);
   });
 
   it("caps results at max_questions", async () => {
@@ -254,6 +316,12 @@ describe("getStudentAssignmentList", () => {
 
   it("computes progress, status, and preserves assignment metadata", async () => {
     const supabase = makeSupabaseMock({
+      school_members: [
+        {
+          school_id: "school-1",
+          student_user_id: "student-1",
+        },
+      ],
       assignment_targets: [
         {
           assignment_id: "as_1",
@@ -265,6 +333,8 @@ describe("getStudentAssignmentList", () => {
       assignments: [
         {
           id: "as_1",
+          school_id: "school-1",
+          created_at: "2026-04-01T09:00:00.000Z",
           title: "Quiz",
           due_date: null,
           module_ids: [1],
@@ -301,6 +371,12 @@ describe("getStudentAssignmentList", () => {
 
   it("marks the assignment completed when last_completed_at is set and ignores prior attempts", async () => {
     const supabase = makeSupabaseMock({
+      school_members: [
+        {
+          school_id: "school-1",
+          student_user_id: "student-1",
+        },
+      ],
       assignment_targets: [
         {
           assignment_id: "as_1",
@@ -312,6 +388,8 @@ describe("getStudentAssignmentList", () => {
       assignments: [
         {
           id: "as_1",
+          school_id: "school-1",
+          created_at: "2026-04-01T09:00:00.000Z",
           title: "Quiz",
           due_date: null,
           module_ids: [1],

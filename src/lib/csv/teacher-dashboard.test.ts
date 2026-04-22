@@ -24,16 +24,18 @@ function setupDownloadCapture() {
   URL.createObjectURL = vi.fn(() => "blob:mocked") as unknown as typeof URL.createObjectURL;
   URL.revokeObjectURL = vi.fn();
 
-  const originalAppend = document.body.appendChild.bind(document.body);
-  const appendSpy = <T extends Node>(node: T): T => {
-    const anchor = node as unknown as HTMLAnchorElement;
-    if (anchor.tagName === "A") {
-      captured.fileName = anchor.download;
-      anchor.click = vi.fn();
-    }
-    return originalAppend(node);
-  };
-  document.body.appendChild = appendSpy as typeof document.body.appendChild;
+  const originalAppend = document.body.appendChild;
+  const appendChildSpy = vi.spyOn(document.body, "appendChild");
+  appendChildSpy.mockImplementation(
+    ((node: Node): Node => {
+      const anchor = node as HTMLAnchorElement;
+      if (anchor.tagName === "A") {
+        captured.fileName = anchor.download;
+        anchor.click = vi.fn();
+      }
+      return originalAppend.call(document.body, node);
+    }) as typeof document.body.appendChild,
+  );
 
   const originalBlob = globalThis.Blob;
   globalThis.Blob = class extends originalBlob {
@@ -49,7 +51,7 @@ function setupDownloadCapture() {
       URL.createObjectURL = originalCreate;
       URL.revokeObjectURL = originalRevoke;
       globalThis.Blob = originalBlob;
-      document.body.appendChild = originalAppend as typeof document.body.appendChild;
+      appendChildSpy.mockRestore();
     },
   };
 }
