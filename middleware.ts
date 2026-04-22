@@ -76,6 +76,53 @@ function parseE2ERole(value: string | undefined): AppRole | null {
   return null;
 }
 
+function applySupabaseCookies(target: NextResponse, source: NextResponse) {
+  for (const cookie of source.cookies.getAll()) {
+    target.cookies.set(cookie.name, cookie.value, cookie);
+  }
+  return target;
+}
+
+async function hasHiddenSchoolMembership(userId: string): Promise<boolean> {
+  try {
+    const admin = createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const { data: memberRows, error: memberError } = await admin
+      .from("school_members")
+      .select("school_id")
+      .eq("student_user_id", userId);
+
+    if (memberError) return false;
+
+    const schoolIds = Array.from(
+      new Set((memberRows ?? []).map((row) => row.school_id)),
+    ).filter(
+      (schoolId): schoolId is string =>
+        typeof schoolId === "string" && schoolId.length > 0,
+    );
+
+    if (schoolIds.length === 0) return false;
+
+    const { data: hiddenSchool } = await admin
+      .from("schools")
+      .select("id")
+      .in("id", schoolIds)
+      .eq("is_hidden", true)
+      .limit(1)
+      .maybeSingle();
+
+    return Boolean(hiddenSchool);
+  } catch {
+    // Fail open: keep availability if this guard check cannot run.
+    return false;
+  }
+}
+
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const e2eRole = parseE2ERole(req.cookies.get(E2E_ROLE_COOKIE)?.value);
@@ -195,10 +242,35 @@ export async function middleware(req: NextRequest) {
     return resolvedRole;
   };
 
+  const role = await getResolvedRole();
+  if (role === "student") {
+    const blocked = await hasHiddenSchoolMembership(user.id);
+    if (blocked) {
+      await supabase.auth.signOut();
+
+      if (isApiAuthPath || isApiPublic) {
+        return supabaseResponse;
+      }
+
+      if (pathname.startsWith("/api/")) {
+        return applySupabaseCookies(
+          NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+          supabaseResponse,
+        );
+      }
+
+      const loginUrl = req.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      if (!isPublicPath(pathname)) {
+        loginUrl.searchParams.set("next", pathname);
+      }
+      return applySupabaseCookies(NextResponse.redirect(loginUrl), supabaseResponse);
+    }
+  }
+
   // Authenticated users visiting a login page → redirect to their dashboard
   if (pathname === "/login" || pathname === "/login/staff") {
     const nextUrl = req.nextUrl.clone();
-    const role = await getResolvedRole();
     nextUrl.pathname = getPostLoginPath(role);
     return NextResponse.redirect(nextUrl);
   }
