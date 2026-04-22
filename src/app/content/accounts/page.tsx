@@ -61,26 +61,12 @@ export default function AccountManagementPage() {
     role: "teacher" as "teacher" | "admin",
   });
 
-  const filteredUsers = useMemo(
-    () =>
-      users.filter((user) => {
-        if (roleFilter !== "all" && user.role !== roleFilter) return false;
-        if (analyticsFilter === "excluded" && !user.excluded_from_analytics) {
-          return false;
-        }
-        if (analyticsFilter === "included" && user.excluded_from_analytics) {
-          return false;
-        }
-        return true;
-      }),
-    [users, roleFilter, analyticsFilter],
-  );
-
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
     if (roleFilter !== "all") params.set("role", roleFilter);
+    if (analyticsFilter !== "all") params.set("analytics", analyticsFilter);
     if (schoolFilter !== "all") params.set("schoolId", schoolFilter);
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
@@ -100,7 +86,7 @@ export default function AccountManagementPage() {
     setTotalUsers(payload.pagination?.total ?? payload.users?.length ?? 0);
     setTotalPages(payload.pagination?.totalPages ?? 1);
     setLoading(false);
-  }, [page, pageSize, roleFilter, schoolFilter]);
+  }, [analyticsFilter, page, pageSize, roleFilter, schoolFilter]);
 
   const loadSchools = useCallback(async () => {
     const response = await fetch("/api/admin/schools", { cache: "no-store" });
@@ -125,7 +111,7 @@ export default function AccountManagementPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [roleFilter, schoolFilter, pageSize]);
+  }, [analyticsFilter, roleFilter, schoolFilter, pageSize]);
 
   async function saveUser(user: UserRow) {
     setMessage(null);

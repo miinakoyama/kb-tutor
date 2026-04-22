@@ -61,6 +61,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const roleFilter = url.searchParams.get("role");
+  const analyticsFilter = url.searchParams.get("analytics");
   const schoolFilterParam = url.searchParams.get("schoolId");
   const schoolFilter = schoolFilterParam && schoolFilterParam !== "all" ? schoolFilterParam : null;
   const page = parsePositiveInteger(url.searchParams.get("page"), 1);
@@ -133,6 +134,11 @@ export async function GET(request: Request) {
 
   if (roleFilter && ["student", "teacher", "admin"].includes(roleFilter)) {
     query = query.eq("role", roleFilter as AppRole);
+  }
+  if (analyticsFilter === "included") {
+    query = query.eq("excluded_from_analytics", false);
+  } else if (analyticsFilter === "excluded") {
+    query = query.eq("excluded_from_analytics", true);
   }
   if (userIdsForSchoolFilter) {
     query = query.in("id", userIdsForSchoolFilter);
