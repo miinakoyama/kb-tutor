@@ -12,6 +12,7 @@ interface UserRow {
   display_name: string | null;
   role: Role;
   created_at: string;
+  last_sign_in_at: string | null;
   school_names?: string[];
 }
 
@@ -20,8 +21,15 @@ interface SchoolOption {
   name: string;
 }
 
-function normalizeAdminError(message?: string) {
-  if (!message) return "Failed to load users.";
+interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+function normalizeAdminError(message: string | undefined, defaultMessage: string) {
+  if (!message) return defaultMessage;
   if (message === "Forbidden") {
     return "Forbidden: Could not verify admin privileges. Check whether profiles.role or metadata.role is set to admin.";
   }
@@ -33,6 +41,10 @@ export default function AccountManagementPage() {
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [schoolFilter, setSchoolFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<25 | 50 | 100>(25);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,17 +63,25 @@ export default function AccountManagementPage() {
     const params = new URLSearchParams();
     if (roleFilter !== "all") params.set("role", roleFilter);
     if (schoolFilter !== "all") params.set("schoolId", schoolFilter);
+    params.set("page", String(page));
+    params.set("pageSize", String(pageSize));
     const query = params.toString() ? `?${params.toString()}` : "";
     const response = await fetch(`/api/admin/users${query}`, { cache: "no-store" });
-    const payload = (await response.json()) as { users?: UserRow[]; error?: string };
+    const payload = (await response.json()) as {
+      users?: UserRow[];
+      error?: string;
+      pagination?: PaginationMeta;
+    };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error));
+      setError(normalizeAdminError(payload.error, "Failed to load users."));
       setLoading(false);
       return;
     }
     setUsers(payload.users ?? []);
+    setTotalUsers(payload.pagination?.total ?? payload.users?.length ?? 0);
+    setTotalPages(payload.pagination?.totalPages ?? 1);
     setLoading(false);
-  }, [roleFilter, schoolFilter]);
+  }, [page, pageSize, roleFilter, schoolFilter]);
 
   const loadSchools = useCallback(async () => {
     const response = await fetch("/api/admin/schools", { cache: "no-store" });
@@ -70,7 +90,7 @@ export default function AccountManagementPage() {
       error?: string;
     };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to load schools.");
+      setError(normalizeAdminError(payload.error, "Failed to load schools."));
       return;
     }
     setSchools((payload.schools ?? []).map((school) => ({ id: school.id, name: school.name })));
@@ -83,6 +103,10 @@ export default function AccountManagementPage() {
   useEffect(() => {
     void loadSchools();
   }, [loadSchools]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [roleFilter, schoolFilter, pageSize]);
 
   async function saveUser(user: UserRow) {
     setMessage(null);
@@ -99,7 +123,7 @@ export default function AccountManagementPage() {
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to update user.");
+      setError(normalizeAdminError(payload.error, "Failed to update user."));
       return;
     }
     setMessage("User updated.");
@@ -116,7 +140,7 @@ export default function AccountManagementPage() {
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to delete user.");
+      setError(normalizeAdminError(payload.error, "Failed to delete user."));
       return;
     }
     setUsers((prev) => prev.filter((user) => user.id !== userId));
@@ -142,7 +166,7 @@ export default function AccountManagementPage() {
       });
       const payload = (await response.json()) as { error?: string; email?: string };
       if (!response.ok) {
-        setError(normalizeAdminError(payload.error) || "Failed to create user.");
+        setError(normalizeAdminError(payload.error, "Failed to create user."));
         return;
       }
 
@@ -157,6 +181,19 @@ export default function AccountManagementPage() {
 
   function updateLocalUser(id: string, updates: Partial<UserRow>) {
     setUsers((prev) => prev.map((user) => (user.id === id ? { ...user, ...updates } : user)));
+  }
+
+  function formatDate(value: string) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "—";
+    return parsed.toLocaleDateString();
+  }
+
+  function formatDateTime(value: string | null) {
+    if (!value) return "Never";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "—";
+    return parsed.toLocaleString();
   }
 
   return (
@@ -236,7 +273,7 @@ export default function AccountManagementPage() {
                   <th className="px-2 py-2 font-medium">Role</th>
                   <th className="px-2 py-2 font-medium">Email</th>
                   <th className="px-2 py-2 font-medium">Schools</th>
-                  <th className="px-2 py-2 font-medium">Created</th>
+                  <th className="px-2 py-2 font-medium">Dates</th>
                   <th className="px-2 py-2 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -277,13 +314,20 @@ export default function AccountManagementPage() {
                     <td className="px-2 py-3 min-w-[220px] break-all text-slate-gray">
                       {user.email}
                     </td>
-                    <td className="px-2 py-3 min-w-[220px] text-slate-gray">
+                    <td className="px-2 py-3 min-w-[140px] max-w-[180px] whitespace-normal break-words text-slate-gray">
                       {user.school_names && user.school_names.length > 0
                         ? user.school_names.join(", ")
                         : "—"}
                     </td>
-                    <td className="px-2 py-3 min-w-[120px] text-slate-gray/70">
-                      {new Date(user.created_at).toLocaleDateString()}
+                    <td className="px-2 py-3 min-w-[220px] text-xs text-slate-gray/80">
+                      <p>
+                        <span className="font-medium text-slate-gray">Created:</span>{" "}
+                        {formatDate(user.created_at)}
+                      </p>
+                      <p className="mt-1">
+                        <span className="font-medium text-slate-gray">Last login:</span>{" "}
+                        {formatDateTime(user.last_sign_in_at)}
+                      </p>
                     </td>
                     <td className="px-2 py-3 min-w-[150px]">
                       <div className="flex items-center gap-2">
@@ -305,6 +349,46 @@ export default function AccountManagementPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {!loading && totalUsers > 0 && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm">
+            <p className="text-slate-gray/70">
+              Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalUsers)} of{" "}
+              {totalUsers}
+            </p>
+            <div className="flex items-center gap-2">
+              <label className="text-slate-gray/70" htmlFor="account-page-size">
+                Rows
+              </label>
+              <select
+                id="account-page-size"
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value) as 25 | 50 | 100)}
+                className="rounded-lg border border-slate-200 px-2 py-1.5"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <button
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page <= 1}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="text-slate-gray/70">
+                Page {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                disabled={page >= totalPages}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </section>
