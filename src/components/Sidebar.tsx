@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FlaskConical,
@@ -26,7 +26,12 @@ import {
 } from "lucide-react";
 import { fetchBookmarkIds, getBookmarkedIds } from "@/lib/storage";
 import { FirstLoginOnboarding } from "@/components/FirstLoginOnboarding";
-import { markOnboardingCompleted, syncOnboardingCompletion } from "@/lib/onboarding-settings";
+import {
+  markOnboardingCompleted,
+  ONBOARDING_REPLAY_EVENT,
+  syncOnboardingCompletion,
+} from "@/lib/onboarding-settings";
+import { getTourTargetIdForHref, TOUR_TARGET_IDS } from "@/lib/onboarding-tour";
 
 type AppRole = "student" | "teacher" | "admin";
 const VALID_ROLES: AppRole[] = ["student", "teacher", "admin"];
@@ -101,6 +106,7 @@ function getDisplayName(profile: { display_name: string | null; student_id: stri
 }
 
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [bookmarkCount, setBookmarkCount] = useState(0);
@@ -110,6 +116,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingRunId, setOnboardingRunId] = useState(0);
   // Separate refs for mobile drawer vs desktop sidebar. Both instances of the
   // user menu may be mounted at once (the desktop aside is hidden via CSS on
   // mobile widths but still in the DOM), so a single shared ref would point
@@ -243,7 +250,29 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     };
   }, [roleLoaded, role, userId]);
 
-  const handleFinishOnboarding = () => {
+  useEffect(() => {
+    const handleReplay = () => {
+      if (!roleLoaded || role === "admin") return;
+      setShowOnboarding(true);
+      setOnboardingRunId((prev) => prev + 1);
+    };
+
+    window.addEventListener(ONBOARDING_REPLAY_EVENT, handleReplay);
+    return () => window.removeEventListener(ONBOARDING_REPLAY_EVENT, handleReplay);
+  }, [roleLoaded, role]);
+
+  const handleCompleteOnboarding = () => {
+    setShowOnboarding(false);
+    void markOnboardingCompleted(userId ?? undefined);
+
+    if (role === "teacher") {
+      router.push("/teacher-dashboard");
+      return;
+    }
+    router.push("/");
+  };
+
+  const handleSkipOnboarding = () => {
     setShowOnboarding(false);
     void markOnboardingCompleted(userId ?? undefined);
   };
@@ -279,10 +308,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     items.map(({ href, label, icon: Icon }) => {
       const active = isActive(href);
       const isBookmarksLink = href === "/bookmarks";
+      const tourTargetId = getTourTargetIdForHref(href, role);
       return (
         <Link
           key={href}
           href={href}
+          data-tour-id={tourTargetId}
           title={collapsed ? label : undefined}
           onClick={closeMobileMenu ? () => setIsOpen(false) : undefined}
           className={`flex items-center rounded-lg font-medium transition-all ${
@@ -407,6 +438,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         {!isCollapsed && <FlaskConical className="w-7 h-7 text-bright flex-shrink-0" />}
         {!isCollapsed && <span className="font-bold text-white text-lg">CTAG KB Tutor</span>}
         <button
+          data-tour-id={TOUR_TARGET_IDS.SIDEBAR_TOGGLE}
           onClick={onToggle}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={`p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 ${
@@ -461,6 +493,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       <AnimatePresence>
         {isOpen && (
           <motion.aside
+            data-tour-id={TOUR_TARGET_IDS.SIDEBAR_ROOT}
             initial={{ x: -280 }}
             animate={{ x: 0 }}
             exit={{ x: -280 }}
@@ -492,6 +525,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </AnimatePresence>
 
       <aside
+        data-tour-id={TOUR_TARGET_IDS.SIDEBAR_ROOT}
         className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-hidden transition-all duration-300 ${
           isCollapsed ? "lg:w-14" : "lg:w-64"
         }`}
@@ -501,7 +535,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </aside>
 
       {showOnboarding && (
-        <FirstLoginOnboarding role={role === "teacher" ? "teacher" : "student"} onFinish={handleFinishOnboarding} />
+        <FirstLoginOnboarding
+          key={onboardingRunId}
+          role={role === "teacher" ? "teacher" : "student"}
+          onComplete={handleCompleteOnboarding}
+          onSkip={handleSkipOnboarding}
+        />
       )}
     </>
   );

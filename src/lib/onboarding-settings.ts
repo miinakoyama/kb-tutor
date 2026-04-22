@@ -2,6 +2,7 @@ import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const ONBOARDING_STORAGE_PREFIX = "kb-tutor-onboarding-complete";
+export const ONBOARDING_REPLAY_EVENT = "kb-tutor:onboarding-replay";
 
 function canUseRemoteDb(): boolean {
   return typeof window !== "undefined" && hasSupabaseEnv();
@@ -72,4 +73,9 @@ export async function markOnboardingCompleted(userId?: string): Promise<void> {
   } catch {
     // keep local fallback
   }
+}
+
+export function requestOnboardingReplay(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(ONBOARDING_REPLAY_EVENT));
 }
