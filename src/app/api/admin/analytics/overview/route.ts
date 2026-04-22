@@ -60,6 +60,7 @@ type ProfileRow = {
   display_name: string | null;
   student_id: string | null;
   email: string | null;
+  excluded_from_analytics?: boolean;
 };
 
 export interface OverviewResponse {
@@ -209,7 +210,6 @@ export async function GET(request: Request) {
   }
   const members = (memberRows ?? []) as SchoolMemberRow[];
   const memberUserIds = Array.from(new Set(members.map((m) => m.student_user_id)));
-  const schoolByUser = new Map(members.map((m) => [m.student_user_id, m.school_id]));
   const schoolIds = Array.from(new Set(members.map((m) => m.school_id)));
 
   if (memberUserIds.length === 0) {
@@ -250,42 +250,98 @@ export async function GET(request: Request) {
     return NextResponse.json(empty);
   }
 
+  const { data: profileRows, error: profileErr } = await admin
+    .from("profiles")
+    .select("id,display_name,student_id,email,excluded_from_analytics")
+    .in("id", memberUserIds);
+  if (profileErr) {
+    return NextResponse.json({ error: profileErr.message }, { status: 400 });
+  }
+  const includedMemberIds = (profileRows ?? [])
+    .filter((row) => row.excluded_from_analytics !== true)
+    .map((row) => String(row.id));
+  const includedMemberIdSet = new Set(includedMemberIds);
+  const profileMap = new Map(
+    (profileRows ?? [])
+      .filter((row) => row.excluded_from_analytics !== true)
+      .map((row) => [String(row.id), row as ProfileRow]),
+  );
+  const schoolByUser = new Map(
+    members
+      .filter((m) => includedMemberIdSet.has(String(m.student_user_id)))
+      .map((m) => [m.student_user_id, m.school_id]),
+  );
+
+  if (includedMemberIds.length === 0) {
+    const empty: OverviewResponse = {
+      meta: {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        totalStudentsEnrolled: 0,
+        schools: schoolIds.length,
+        generatedAt: new Date().toISOString(),
+      },
+      headline: {
+        activeStudents: 0,
+        attempts: 0,
+        sessions: 0,
+        totalSessionMinutes: 0,
+        medianSessionMinutes: null,
+        stageCompletionRate: null,
+        scaffoldingUpliftPp: null,
+        correctRate: null,
+        medianTimePerQuestionSec: null,
+      },
+      daily: [],
+      hourly: [],
+      modeMix: [],
+      deviceMix: [],
+      browserMix: [],
+      osMix: [],
+      dataQuality: {
+        zeroDurationAttempts: 0,
+        attemptsWithoutClientId: 0,
+        unclosedSessions: 0,
+        shortSessions: 0,
+        duplicateClientAttemptIds: 0,
+      },
+      engagement: [],
+    };
+    return NextResponse.json(empty);
+  }
+
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
-  // 2. Parallel fetch of attempts / sessions / stage events / profiles.
-  const [attemptsRes, sessionsRes, stageRes, profilesRes] = await Promise.all([
+  // 2. Parallel fetch of attempts / sessions / stage events.
+  const [attemptsRes, sessionsRes, stageRes] = await Promise.all([
     admin
       .from("attempts")
       .select(
         "user_id,question_id,mode,is_correct,time_spent_sec,answered_at,client_attempt_id,assignment_id",
       )
-      .in("user_id", memberUserIds)
+      .in("user_id", includedMemberIds)
       .gte("answered_at", fromIso)
       .lte("answered_at", toIso)
       .limit(200_000),
     admin
       .from("analytics_sessions")
       .select("id,user_id,mode,started_at,ended_at,device_type,browser,os")
-      .in("user_id", memberUserIds)
+      .in("user_id", includedMemberIds)
       .gte("started_at", fromIso)
       .lte("started_at", toIso)
       .limit(50_000),
     admin
       .from("analytics_events")
       .select("user_id,event_type,mode,occurred_at")
-      .in("user_id", memberUserIds)
+      .in("user_id", includedMemberIds)
       .in("event_type", ["stage_started", "stage_completed", "stage_abandoned"])
       .gte("occurred_at", fromIso)
       .lte("occurred_at", toIso)
       .limit(100_000),
-    admin
-      .from("profiles")
-      .select("id,display_name,student_id,email")
-      .in("id", memberUserIds),
   ]);
 
-  for (const res of [attemptsRes, sessionsRes, stageRes, profilesRes]) {
+  for (const res of [attemptsRes, sessionsRes, stageRes]) {
     if (res.error) {
       return NextResponse.json({ error: res.error.message }, { status: 400 });
     }
@@ -294,9 +350,6 @@ export async function GET(request: Request) {
   const attempts = (attemptsRes.data ?? []) as AttemptRow[];
   const sessions = (sessionsRes.data ?? []) as SessionRow[];
   const stageEvents = (stageRes.data ?? []) as StageEventRow[];
-  const profileMap = new Map(
-    ((profilesRes.data ?? []) as ProfileRow[]).map((row) => [row.id, row]),
-  );
 
   // ---------- Aggregation primitives ---------------------------------------
   const daySet = dateSpanDays(from, to);
@@ -559,7 +612,7 @@ export async function GET(request: Request) {
   // who had activity in the window (so visiting/guest rows aren't silently
   // dropped).
   const engagementUserIds = new Set<string>([
-    ...memberUserIds,
+    ...includedMemberIds,
     ...userTotals.keys(),
   ]);
   const engagement = Array.from(engagementUserIds).map((userId) => {
@@ -586,7 +639,7 @@ export async function GET(request: Request) {
     meta: {
       from: fromIso,
       to: toIso,
-      totalStudentsEnrolled: memberUserIds.length,
+      totalStudentsEnrolled: includedMemberIds.length,
       schools: schoolIds.length,
       generatedAt: new Date().toISOString(),
     },

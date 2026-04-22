@@ -69,6 +69,7 @@ type ProfileRow = {
   display_name: string | null;
   student_id: string | null;
 };
+type ExcludedProfileRow = { id: string };
 
 // Minimum practice errors a student must accumulate before we count them as
 // "should have ended up in review mode".
@@ -179,6 +180,7 @@ export async function GET(request: Request) {
   const rpcArgs = { p_from: fromIso, p_to: toIso };
 
   let scopedUserSet: Set<string> | null = null;
+  const excludedUserSet = new Set<string>();
   if (schoolIds.length > 0) {
     const { data: memberRows, error: memberError } = await admin
       .from("school_members")
@@ -187,14 +189,39 @@ export async function GET(request: Request) {
     if (memberError) {
       return NextResponse.json({ error: memberError.message }, { status: 400 });
     }
-    scopedUserSet = new Set(
+    const scopedUserIds = Array.from(
       (memberRows ?? []).map((row) => String(row.student_user_id)),
     );
+    if (scopedUserIds.length > 0) {
+      const { data: excludedRows, error: excludedError } = await admin
+        .from("profiles")
+        .select("id")
+        .in("id", scopedUserIds)
+        .eq("excluded_from_analytics", true);
+      if (excludedError) {
+        return NextResponse.json({ error: excludedError.message }, { status: 400 });
+      }
+      for (const row of (excludedRows ?? []) as ExcludedProfileRow[]) {
+        excludedUserSet.add(row.id);
+      }
+    }
+    scopedUserSet = new Set(scopedUserIds.filter((userId) => !excludedUserSet.has(userId)));
+  } else {
+    const { data: excludedRows, error: excludedError } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("excluded_from_analytics", true);
+    if (excludedError) {
+      return NextResponse.json({ error: excludedError.message }, { status: 400 });
+    }
+    for (const row of (excludedRows ?? []) as ExcludedProfileRow[]) {
+      excludedUserSet.add(row.id);
+    }
   }
 
   let confidenceQuery = admin
     .from("analytics_events")
-    .select("payload")
+    .select("user_id,payload")
     .eq("event_type", "confidence_submitted")
     .gte("occurred_at", fromIso)
     .lte("occurred_at", toIso)
@@ -273,7 +300,7 @@ export async function GET(request: Request) {
     (sessionDurationsRawRes.data ?? []) as SessionDurationSourceRow[];
 
   const isInScope = (userId: string) =>
-    scopedUserSet ? scopedUserSet.has(userId) : true;
+    !excludedUserSet.has(userId) && (scopedUserSet ? scopedUserSet.has(userId) : true);
 
   const practiceRows = practiceRowsAll.filter((row) => isInScope(row.user_id));
   const examRows = examRowsAll.filter((row) => isInScope(row.user_id));
@@ -583,7 +610,10 @@ export async function GET(request: Request) {
     payload: Record<string, unknown> | null;
   };
   type HintOpen = { user_id: string; question_id: string | null };
-  type ConfidenceEvent = { payload: Record<string, unknown> | null };
+  type ConfidenceEvent = {
+    user_id: string;
+    payload: Record<string, unknown> | null;
+  };
 
   const attemptEvents = ((attemptEventsRes.data ?? []) as AttemptEvent[]).filter(
     (row) => isInScope(row.user_id),
@@ -591,7 +621,9 @@ export async function GET(request: Request) {
   const hintOpens = ((hintOpensRes.data ?? []) as HintOpen[]).filter((row) =>
     isInScope(row.user_id),
   );
-  const confidenceEvents = (confidenceRes.data ?? []) as ConfidenceEvent[];
+  const confidenceEvents = ((confidenceRes.data ?? []) as ConfidenceEvent[]).filter(
+    (row) => isInScope(String(row.user_id)),
+  );
 
   const hintKeySet = new Set<string>();
   for (const row of hintOpens) {

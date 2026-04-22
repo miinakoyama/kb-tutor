@@ -195,35 +195,42 @@ export async function GET(request: Request) {
     return NextResponse.json(emptyResponse);
   }
 
-  const effectiveStudentIds =
-    studentId && scopedStudentIds.includes(studentId)
-      ? [studentId]
-      : scopedStudentIds;
-
   const { data: profileRows, error: profileError } = await admin
     .from("profiles")
-    .select("id,display_name,student_id")
+    .select("id,display_name,student_id,excluded_from_analytics")
     .in("id", scopedStudentIds);
   if (profileError) {
     console.error("[teacher-dashboard] profiles query failed", profileError);
   }
 
   const studentMap = new Map<string, string>();
+  const excludedSet = new Set<string>();
   for (const profile of profileRows ?? []) {
+    const id = String(profile.id);
+    if (profile.excluded_from_analytics === true) {
+      excludedSet.add(id);
+      continue;
+    }
     studentMap.set(
-      String(profile.id),
+      id,
       String(profile.display_name || profile.student_id || profile.id),
     );
   }
 
   // Note: `answered_at` is used only for server-side date filtering (`.gte` below)
   // and is intentionally NOT included in the SELECT list to reduce payload size.
+  const filteredStudentIds = scopedStudentIds.filter((id) => !excludedSet.has(id));
+  const filteredEffectiveStudentIds =
+    studentId && filteredStudentIds.includes(studentId)
+      ? [studentId]
+      : filteredStudentIds;
+
   let attemptsQuery = admin
     .from("attempts")
     .select(
       "user_id,standard_id,standard_label,topic,mode,is_correct,time_spent_sec,assignment_id",
     )
-    .in("user_id", effectiveStudentIds);
+    .in("user_id", filteredEffectiveStudentIds);
   if (range !== "all") {
     const days = range === "7d" ? 7 : 30;
     const from = new Date();
@@ -263,7 +270,7 @@ export async function GET(request: Request) {
   const payload = buildDashboardResponse({
     attempts,
     topic,
-    scopedStudents: scopedStudentIds.map((id) => ({
+    scopedStudents: filteredStudentIds.map((id) => ({
       id,
       label: studentMap.get(id) ?? id,
       classId: studentClassMap.get(id) ?? null,

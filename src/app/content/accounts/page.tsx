@@ -11,6 +11,7 @@ interface UserRow {
   student_id: string | null;
   display_name: string | null;
   role: Role;
+  excluded_from_analytics: boolean;
   created_at: string;
   last_sign_in_at: string | null;
   school_names?: string[];
@@ -40,6 +41,9 @@ export default function AccountManagementPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
+  const [analyticsFilter, setAnalyticsFilter] = useState<
+    "all" | "included" | "excluded"
+  >("all");
   const [schoolFilter, setSchoolFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<25 | 50 | 100>(25);
@@ -62,6 +66,7 @@ export default function AccountManagementPage() {
     setError(null);
     const params = new URLSearchParams();
     if (roleFilter !== "all") params.set("role", roleFilter);
+    if (analyticsFilter !== "all") params.set("analytics", analyticsFilter);
     if (schoolFilter !== "all") params.set("schoolId", schoolFilter);
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
@@ -81,7 +86,7 @@ export default function AccountManagementPage() {
     setTotalUsers(payload.pagination?.total ?? payload.users?.length ?? 0);
     setTotalPages(payload.pagination?.totalPages ?? 1);
     setLoading(false);
-  }, [page, pageSize, roleFilter, schoolFilter]);
+  }, [analyticsFilter, page, pageSize, roleFilter, schoolFilter]);
 
   const loadSchools = useCallback(async () => {
     const response = await fetch("/api/admin/schools", { cache: "no-store" });
@@ -106,7 +111,7 @@ export default function AccountManagementPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [roleFilter, schoolFilter, pageSize]);
+  }, [analyticsFilter, roleFilter, schoolFilter, pageSize]);
 
   async function saveUser(user: UserRow) {
     setMessage(null);
@@ -119,6 +124,7 @@ export default function AccountManagementPage() {
         role: user.role,
         displayName: user.display_name,
         studentId: user.student_id,
+        excludedFromAnalytics: user.role === "student" ? user.excluded_from_analytics : false,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -216,36 +222,61 @@ export default function AccountManagementPage() {
         </button>
       </header>
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6 flex flex-wrap items-end gap-4">
-        <label className="text-sm text-slate-gray">
-          <span className="block mb-1 font-medium">Role filter</span>
-          <select
-            value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}
-            className="rounded-lg border border-slate-200 px-3 py-2"
-          >
-            <option value="all">All roles</option>
-            <option value="student">student</option>
-            <option value="teacher">teacher</option>
-            <option value="admin">admin</option>
-          </select>
-        </label>
-        <label className="text-sm text-slate-gray">
-          <span className="block mb-1 font-medium">School filter</span>
-          <select
-            value={schoolFilter}
-            onChange={(event) => setSchoolFilter(event.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2"
-          >
-            <option value="all">All schools</option>
-            {schools.map((school) => (
-              <option key={school.id} value={school.id}>
-                {school.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
+      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
+  <div className="flex flex-wrap items-end gap-4">
+    <label className="text-sm text-slate-gray">
+      <span className="block mb-1 font-medium">Role filter</span>
+      <select
+        value={roleFilter}
+        onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}
+        className="rounded-lg border border-slate-200 px-3 py-2"
+      >
+        <option value="all">All roles</option>
+        <option value="student">student</option>
+        <option value="teacher">teacher</option>
+        <option value="admin">admin</option>
+      </select>
+    </label>
+
+    <label className="text-sm text-slate-gray">
+      <span className="block mb-1 font-medium">Analytics filter</span>
+      <select
+        value={analyticsFilter}
+        onChange={(event) =>
+          setAnalyticsFilter(event.target.value as "all" | "included" | "excluded")
+        }
+        className="rounded-lg border border-slate-200 px-3 py-2"
+      >
+        <option value="all">All users</option>
+        <option value="included">Included in analytics</option>
+        <option value="excluded">Excluded from analytics</option>
+      </select>
+    </label>
+
+    <label className="text-sm text-slate-gray">
+      <span className="block mb-1 font-medium">School filter</span>
+      <select
+        value={schoolFilter}
+        onChange={(event) => setSchoolFilter(event.target.value)}
+        className="rounded-lg border border-slate-200 px-3 py-2"
+      >
+        <option value="all">All schools</option>
+        {schools.map((school) => (
+          <option key={school.id} value={school.id}>
+            {school.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  </div>
+
+  <p className="mt-3 text-xs text-slate-gray/70">
+    Users marked as &quot;Excluded from analytics&quot; are skipped when computing teacher dashboard
+    metrics and assignment response counts. This setting applies to student accounts only. Use this
+    for developer or test accounts whose data should not affect reporting.
+  </p>
+</section>
+
 
       {message && (
         <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 mb-4">
@@ -273,6 +304,7 @@ export default function AccountManagementPage() {
                   <th className="px-2 py-2 font-medium">Role</th>
                   <th className="px-2 py-2 font-medium">Email</th>
                   <th className="px-2 py-2 font-medium">Schools</th>
+                  <th className="px-2 py-2 font-medium">Exclude from analytics</th>
                   <th className="px-2 py-2 font-medium">Dates</th>
                   <th className="px-2 py-2 font-medium">Actions</th>
                 </tr>
@@ -314,10 +346,30 @@ export default function AccountManagementPage() {
                     <td className="px-2 py-3 min-w-[220px] break-all text-slate-gray">
                       {user.email}
                     </td>
+                    
                     <td className="px-2 py-3 min-w-[140px] max-w-[180px] whitespace-normal break-words text-slate-gray">
-                      {user.school_names && user.school_names.length > 0
-                        ? user.school_names.join(", ")
-                        : "—"}
+                      {user.school_names && user.school_names.length > 0 ? user.school_names.join(", ") : "—"}
+                    </td>
+                    <td className="px-2 py-3 min-w-[170px]">
+                      {user.role === "student" ? (
+                        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={user.excluded_from_analytics}
+                            onChange={(e) =>
+                              updateLocalUser(user.id, {
+                                excluded_from_analytics: e.target.checked,
+                              })
+                            }
+                            className="h-4 w-4 rounded border-slate-300 text-[#16a34a] focus:ring-[#16a34a]"
+                          />
+                          <span className="text-xs text-slate-gray/80">
+                            {user.excluded_from_analytics ? "Excluded" : "Included"}
+                          </span>
+                        </label>
+                      ) : (
+                        <span className="text-xs text-slate-gray/60">Student only</span>
+                      )}
                     </td>
                     <td className="px-2 py-3 min-w-[220px] text-xs text-slate-gray/80">
                       <p>
@@ -329,6 +381,8 @@ export default function AccountManagementPage() {
                         {formatDateTime(user.last_sign_in_at)}
                       </p>
                     </td>
+
+                    
                     <td className="px-2 py-3 min-w-[150px]">
                       <div className="flex items-center gap-2">
                         <button

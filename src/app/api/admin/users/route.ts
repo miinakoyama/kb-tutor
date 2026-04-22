@@ -61,6 +61,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const roleFilter = url.searchParams.get("role");
+  const analyticsFilter = url.searchParams.get("analytics");
   const schoolFilterParam = url.searchParams.get("schoolId");
   const schoolFilter = schoolFilterParam && schoolFilterParam !== "all" ? schoolFilterParam : null;
   const page = parsePositiveInteger(url.searchParams.get("page"), 1);
@@ -128,11 +129,16 @@ export async function GET(request: Request) {
 
   let query = admin
     .from("profiles")
-    .select("id,email,student_id,display_name,role,created_at", { count: "exact" })
+    .select("id,email,student_id,display_name,role,excluded_from_analytics,created_at", { count: "exact" })
     .order("created_at", { ascending: false });
 
   if (roleFilter && ["student", "teacher", "admin"].includes(roleFilter)) {
     query = query.eq("role", roleFilter as AppRole);
+  }
+  if (analyticsFilter === "included") {
+    query = query.eq("excluded_from_analytics", false);
+  } else if (analyticsFilter === "excluded") {
+    query = query.eq("excluded_from_analytics", true);
   }
   if (userIdsForSchoolFilter) {
     query = query.in("id", userIdsForSchoolFilter);
@@ -230,6 +236,7 @@ export async function PATCH(request: Request) {
     role?: AppRole;
     displayName?: string | null;
     studentId?: string | null;
+    excludedFromAnalytics?: boolean;
   };
 
   if (!body.id) {
@@ -244,10 +251,18 @@ export async function PATCH(request: Request) {
     role?: AppRole;
     display_name?: string | null;
     student_id?: string | null;
+    excluded_from_analytics?: boolean;
   } = {};
   if (body.role) updatePayload.role = body.role;
   if (body.displayName !== undefined) updatePayload.display_name = body.displayName;
   if (body.studentId !== undefined) updatePayload.student_id = body.studentId;
+  if (typeof body.excludedFromAnalytics === "boolean") {
+    updatePayload.excluded_from_analytics = body.excludedFromAnalytics;
+  }
+
+  if (Object.keys(updatePayload).length === 0) {
+    return NextResponse.json({ ok: true });
+  }
 
   const { error } = await admin.from("profiles").update(updatePayload).eq("id", body.id);
   if (error) {

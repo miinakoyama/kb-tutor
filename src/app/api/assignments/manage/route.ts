@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
   const [
     { data: snapshotRows, error: snapshotError },
     { data: attemptRows, error: attemptError },
+    { data: targetRows, error: targetError },
   ] = await Promise.all([
     assignmentIds.length > 0
       ? admin
@@ -119,6 +120,12 @@ export async function GET(request: NextRequest) {
           .select("assignment_id,user_id")
           .in("assignment_id", assignmentIds)
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
+    assignmentIds.length > 0
+      ? admin
+          .from("assignment_targets")
+          .select("assignment_id,student_user_id")
+          .in("assignment_id", assignmentIds)
+      : Promise.resolve({ data: [], error: null as null | { message: string } }),
   ]);
 
   if (snapshotError) {
@@ -126,6 +133,36 @@ export async function GET(request: NextRequest) {
   }
   if (attemptError) {
     return NextResponse.json({ error: attemptError.message }, { status: 400 });
+  }
+  if (targetError) {
+    return NextResponse.json({ error: targetError.message }, { status: 400 });
+  }
+
+  const attemptUserIds = Array.from(
+    new Set((attemptRows ?? []).map((row) => String(row.user_id))),
+  );
+  const memberUserIds = Array.from(
+    new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
+  );
+  const targetUserIds = Array.from(
+    new Set((targetRows ?? []).map((row) => String(row.student_user_id))),
+  );
+  const profileIdsForExclusion = Array.from(
+    new Set([...attemptUserIds, ...memberUserIds, ...targetUserIds]),
+  );
+  const excludedUserIds = new Set<string>();
+  if (profileIdsForExclusion.length > 0) {
+    const { data: excludedRows, error: excludedError } = await admin
+      .from("profiles")
+      .select("id")
+      .in("id", profileIdsForExclusion)
+      .eq("excluded_from_analytics", true);
+    if (excludedError) {
+      return NextResponse.json({ error: excludedError.message }, { status: 400 });
+    }
+    for (const row of excludedRows ?? []) {
+      excludedUserIds.add(String(row.id));
+    }
   }
 
   let setQuery = admin
@@ -157,6 +194,7 @@ export async function GET(request: NextRequest) {
 
   const schoolMemberCount = new Map<string, number>();
   for (const row of memberRows ?? []) {
+    if (excludedUserIds.has(String(row.student_user_id))) continue;
     schoolMemberCount.set(row.school_id, (schoolMemberCount.get(row.school_id) ?? 0) + 1);
   }
 
@@ -177,6 +215,7 @@ export async function GET(request: NextRequest) {
   for (const row of attemptRows ?? []) {
     const id = row.assignment_id as string | null;
     if (!id) continue;
+    if (excludedUserIds.has(String(row.user_id))) continue;
     attemptCountByAssignment.set(id, (attemptCountByAssignment.get(id) ?? 0) + 1);
     if (!respondentsByAssignment.has(id)) {
       respondentsByAssignment.set(id, new Set());
