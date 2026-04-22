@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 
 const VIEWPORT_GUTTER = 8;
@@ -22,42 +22,61 @@ type SpotlightCardPosition = {
   width: number;
 };
 
-function toSpotlightRect(targetId: string): SpotlightRect | null {
-  if (typeof window === "undefined") return null;
+function toSpotlightRects(targetIds: string[]): SpotlightRect[] {
+  if (typeof window === "undefined") return [];
+  const rects: SpotlightRect[] = [];
 
-  const candidates = Array.from(
-    document.querySelectorAll<HTMLElement>(`[data-tour-id="${targetId}"]`),
-  );
-  const target = candidates.find((candidate) => {
-    const rect = candidate.getBoundingClientRect();
-    const style = window.getComputedStyle(candidate);
-    return (
-      rect.width > 0 &&
-      rect.height > 0 &&
-      style.display !== "none" &&
-      style.visibility !== "hidden"
+  for (const targetId of targetIds) {
+    const candidates = Array.from(
+      document.querySelectorAll<HTMLElement>(`[data-tour-id="${targetId}"]`),
     );
-  });
+    const target = candidates.find((candidate) => {
+      const rect = candidate.getBoundingClientRect();
+      const style = window.getComputedStyle(candidate);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    });
 
-  if (!target) return null;
+    if (!target) continue;
 
-  const rect = target.getBoundingClientRect();
-  const top = Math.max(VIEWPORT_GUTTER, rect.top - SPOTLIGHT_PADDING);
-  const left = Math.max(VIEWPORT_GUTTER, rect.left - SPOTLIGHT_PADDING);
-  const right = Math.min(
-    window.innerWidth - VIEWPORT_GUTTER,
-    rect.right + SPOTLIGHT_PADDING,
-  );
-  const bottom = Math.min(
-    window.innerHeight - VIEWPORT_GUTTER,
-    rect.bottom + SPOTLIGHT_PADDING,
-  );
+    const rect = target.getBoundingClientRect();
+    const top = Math.max(VIEWPORT_GUTTER, rect.top - SPOTLIGHT_PADDING);
+    const left = Math.max(VIEWPORT_GUTTER, rect.left - SPOTLIGHT_PADDING);
+    const right = Math.min(
+      window.innerWidth - VIEWPORT_GUTTER,
+      rect.right + SPOTLIGHT_PADDING,
+    );
+    const bottom = Math.min(
+      window.innerHeight - VIEWPORT_GUTTER,
+      rect.bottom + SPOTLIGHT_PADDING,
+    );
 
+    rects.push({
+      top,
+      left,
+      width: Math.max(0, right - left),
+      height: Math.max(0, bottom - top),
+    });
+  }
+
+  return rects;
+}
+
+function toBoundingRect(rects: SpotlightRect[]): SpotlightRect | null {
+  if (rects.length === 0) return null;
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const right = Math.max(...rects.map((rect) => rect.left + rect.width));
+  const bottom = Math.max(...rects.map((rect) => rect.top + rect.height));
   return {
     top,
     left,
-    width: Math.max(0, right - left),
-    height: Math.max(0, bottom - top),
+    width: right - left,
+    height: bottom - top,
   };
 }
 
@@ -97,7 +116,8 @@ function toCardPosition(
 }
 
 interface FeatureSpotlightProps {
-  targetId: string;
+  targetId?: string;
+  targetIds?: string[];
   title: string;
   description: string;
   detail?: string;
@@ -107,18 +127,31 @@ interface FeatureSpotlightProps {
 
 export function FeatureSpotlight({
   targetId,
+  targetIds,
   title,
   description,
   detail,
   ctaLabel = "Got it",
   onClose,
 }: FeatureSpotlightProps) {
-  const [spotlightRect, setSpotlightRect] = useState<SpotlightRect | null>(null);
+  const [spotlightRects, setSpotlightRects] = useState<SpotlightRect[]>([]);
   const [cardPosition, setCardPosition] = useState<SpotlightCardPosition | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const rawMaskId = useId();
+  const maskId = `feature-spotlight-mask-${rawMaskId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const targetIdsKey = (targetIds && targetIds.length > 0
+    ? targetIds
+    : targetId
+      ? [targetId]
+      : []
+  ).join("||");
+  const resolvedTargetIds = useMemo(
+    () => (targetIdsKey ? targetIdsKey.split("||") : []),
+    [targetIdsKey],
+  );
 
   useEffect(() => {
-    const update = () => setSpotlightRect(toSpotlightRect(targetId));
+    const update = () => setSpotlightRects(toSpotlightRects(resolvedTargetIds));
     update();
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
@@ -126,22 +159,23 @@ export function FeatureSpotlight({
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [targetId]);
+  }, [targetIdsKey, resolvedTargetIds]);
 
   useEffect(() => {
-    if (!spotlightRect) {
+    const boundingRect = toBoundingRect(spotlightRects);
+    if (!boundingRect) {
       setCardPosition(null);
       return;
     }
 
     const update = () => {
       const cardHeight = cardRef.current?.offsetHeight ?? 220;
-      setCardPosition(toCardPosition(spotlightRect, cardHeight));
+      setCardPosition(toCardPosition(boundingRect, cardHeight));
     };
     update();
     const rafId = window.requestAnimationFrame(update);
     return () => window.cancelAnimationFrame(rafId);
-  }, [spotlightRect]);
+  }, [spotlightRects]);
 
   const cardStyle: CSSProperties | undefined = cardPosition
     ? {
@@ -160,21 +194,54 @@ export function FeatureSpotlight({
 
   return (
     <div className="fixed inset-0 z-[75]">
-      {spotlightRect ? (
-        <div
-          className="pointer-events-none fixed border-2 border-[#4ade80] transition-all duration-200"
-          style={{
-            top: spotlightRect.top,
-            left: spotlightRect.left,
-            width: spotlightRect.width,
-            height: spotlightRect.height,
-            borderRadius: SPOTLIGHT_RING_RADIUS,
-            boxShadow: "0 0 0 9999px rgba(2, 6, 23, 0.68)",
-          }}
-        />
+      {spotlightRects.length > 0 ? (
+        <svg
+          className="fixed inset-0 h-full w-full"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <defs>
+            <mask id={maskId}>
+              <rect x="0" y="0" width="100%" height="100%" fill="white" />
+              {spotlightRects.map((rect, index) => (
+                <rect
+                  key={`mask-${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
+                  x={rect.left}
+                  y={rect.top}
+                  width={rect.width}
+                  height={rect.height}
+                  rx={SPOTLIGHT_RING_RADIUS}
+                  ry={SPOTLIGHT_RING_RADIUS}
+                  fill="black"
+                />
+              ))}
+            </mask>
+          </defs>
+          <rect
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            fill="rgba(2, 6, 23, 0.68)"
+            mask={`url(#${maskId})`}
+          />
+        </svg>
       ) : (
         <div className="fixed inset-0 bg-slate-950/70" />
       )}
+      {spotlightRects.map((rect, index) => (
+        <div
+          key={`${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
+          className="pointer-events-none fixed border-2 border-[#4ade80] transition-all duration-200"
+          style={{
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+            borderRadius: SPOTLIGHT_RING_RADIUS,
+          }}
+        />
+      ))}
 
       <div className="fixed inset-0">
         <div

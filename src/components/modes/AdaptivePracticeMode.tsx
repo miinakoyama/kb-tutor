@@ -42,7 +42,8 @@ const SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
 const INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
   "kb-tutor-spotlight-inline-glossary-dismissed-v1";
 const FEATURE_SPOTLIGHT_TARGET_IDS = {
-  READ_ALOUD: "feature-read-aloud",
+  READ_ALOUD_QUESTION: "feature-read-aloud-question",
+  READ_ALOUD_CHOICES: "feature-read-aloud-choices",
   SIDEBAR_GLOSSARY_BUTTON: "feature-sidebar-glossary-button",
   INLINE_GLOSSARY_TERM: "feature-inline-glossary-term",
 } as const;
@@ -815,7 +816,8 @@ export function AdaptivePracticeMode({
               showOptionFeedbackIcons={isCompleted}
               feedbackReadText={feedbackReadText}
               onReadAloud={handleReadAloud}
-              readAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD}
+              questionReadAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_QUESTION}
+              choicesReadAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_CHOICES}
               feedbackSlot={
                 attempts.length > 0 ? (
                   <div className="space-y-4">
@@ -929,7 +931,10 @@ export function AdaptivePracticeMode({
 
       {activeFeatureSpotlight === "read-aloud" ? (
         <FeatureSpotlight
-          targetId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD}
+          targetIds={[
+            FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_QUESTION,
+            FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_CHOICES,
+          ]}
           title="Read Aloud is available"
           description="Use Read Aloud to listen to the question and choices at any time."
           onClose={dismissReadAloudSpotlight}
