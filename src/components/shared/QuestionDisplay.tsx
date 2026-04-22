@@ -7,7 +7,7 @@ import type { Question, AnswerRecord } from "@/types/question";
 import { OptionButton } from "./OptionButton";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
-import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { useTextToSpeech, type ReadSection } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "./ReadAloudButton";
 
@@ -27,6 +27,7 @@ interface QuestionDisplayProps {
   feedbackReadText?: string;
   belowOptionsSlot?: ReactNode;
   showOptionFeedbackIcons?: boolean;
+  onReadAloud?: (section: ReadSection) => void;
 }
 
 export function QuestionDisplay({
@@ -45,6 +46,7 @@ export function QuestionDisplay({
   feedbackReadText,
   belowOptionsSlot,
   showOptionFeedbackIcons = false,
+  onReadAloud,
 }: QuestionDisplayProps) {
   const isAnswered = currentAnswer !== undefined;
   const choicesReadText = buildChoicesReadText(question);
@@ -88,6 +90,7 @@ export function QuestionDisplay({
                 isSpeaking={isSpeaking}
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
+                onPlay={onReadAloud}
               />
             )}
             {headerAction}
@@ -148,6 +151,7 @@ export function QuestionDisplay({
                 isSpeaking={isSpeaking}
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
+                onPlay={onReadAloud}
               />
             )}
           </div>
@@ -192,6 +196,7 @@ export function QuestionDisplay({
               isSpeaking={isSpeaking}
               currentSection={currentSection}
               onToggle={toggleSpeak}
+              onPlay={onReadAloud}
             />
           </div>
         )}

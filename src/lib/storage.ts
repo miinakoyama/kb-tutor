@@ -1,6 +1,7 @@
 import type { ConfidenceLevel } from "@/types/question";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { incrementWrongCount } from "@/lib/review-priority";
 import {
   enqueueAttempt,
   enqueueAttempts,
@@ -205,13 +206,20 @@ export function getTopicAccuracy(topic: string): TopicAccuracy {
 }
 
 function computeIncorrectIds(history: StoredAnswer[]): string[] {
-  const lastAnswerByQuestion = new Map<string, StoredAnswer>();
+  const wrongCountByQuestion = computeIncorrectCounts(history);
+  return Array.from(wrongCountByQuestion.keys());
+}
+
+function computeIncorrectCounts(history: StoredAnswer[]): Map<string, number> {
+  const wrongCountByQuestion = new Map<string, number>();
   for (const answer of history) {
-    lastAnswerByQuestion.set(answer.questionId, answer);
+    incrementWrongCount(
+      wrongCountByQuestion,
+      answer.questionId,
+      answer.isCorrect,
+    );
   }
-  return Array.from(lastAnswerByQuestion.entries())
-    .filter(([, answer]) => !answer.isCorrect)
-    .map(([id]) => id);
+  return wrongCountByQuestion;
 }
 
 /**
@@ -224,6 +232,17 @@ export function getIncorrectQuestionIds(): string[] {
 /** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
 export async function fetchIncorrectQuestionIds(): Promise<string[]> {
   return computeIncorrectIds(await fetchAnswerHistory());
+}
+
+/**
+ * Returns incorrect attempt counts by question id.
+ * Questions with no incorrect attempts are omitted.
+ */
+export async function fetchIncorrectQuestionCounts(): Promise<
+  Record<string, number>
+> {
+  const counts = computeIncorrectCounts(await fetchAnswerHistory());
+  return Object.fromEntries(counts.entries());
 }
 
 export function clearHistory(): void {

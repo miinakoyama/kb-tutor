@@ -73,6 +73,7 @@ const ADMIN_SECTION: NavSection = {
   items: [
     { href: "/content/accounts", label: "Accounts", icon: Users },
     { href: "/content/schools", label: "Schools", icon: School },
+    { href: "/content/data-analysis", label: "Data Analysis", icon: BarChart3 },
     { href: "/assignments/manage", label: "Assignments", icon: ClipboardList },
     { href: "/content", label: "Contents", icon: Database },
     { href: "/teacher-dashboard", label: "Teacher Dashboard", icon: LayoutDashboard },
@@ -109,7 +110,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement>(null);
+  // Separate refs for mobile drawer vs desktop sidebar. Both instances of the
+  // user menu may be mounted at once (the desktop aside is hidden via CSS on
+  // mobile widths but still in the DOM), so a single shared ref would point
+  // at the wrong element and the outside-click handler would misfire.
+  const desktopUserMenuRef = useRef<HTMLDivElement>(null);
+  const mobileUserMenuRef = useRef<HTMLDivElement>(null);
 
   const navSections = getNavSections(role);
   const hasBookmarks = navSections.some((section) =>
@@ -180,7 +186,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inDesktop = desktopUserMenuRef.current?.contains(target) ?? false;
+      const inMobile = mobileUserMenuRef.current?.contains(target) ?? false;
+      if (!inDesktop && !inMobile) {
         setShowUserMenu(false);
       }
     };
@@ -262,7 +271,11 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     window.location.href = "/login";
   }
 
-  const renderNavItems = (items: NavItem[], closeMobileMenu = false) =>
+  const renderNavItems = (
+    items: NavItem[],
+    collapsed: boolean,
+    closeMobileMenu = false,
+  ) =>
     items.map(({ href, label, icon: Icon }) => {
       const active = isActive(href);
       const isBookmarksLink = href === "/bookmarks";
@@ -270,10 +283,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         <Link
           key={href}
           href={href}
-          title={isCollapsed ? label : undefined}
+          title={collapsed ? label : undefined}
           onClick={closeMobileMenu ? () => setIsOpen(false) : undefined}
           className={`flex items-center rounded-lg font-medium transition-all ${
-            isCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+            collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
           } ${
             active
               ? "bg-white/20 text-white shadow-inner"
@@ -281,8 +294,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           }`}
         >
           <Icon className="w-5 h-5 flex-shrink-0" />
-          {!isCollapsed && label}
-          {!isCollapsed && isBookmarksLink && bookmarkCount > 0 && (
+          {!collapsed && label}
+          {!collapsed && isBookmarksLink && bookmarkCount > 0 && (
             <span className="ml-auto bg-white/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
               {bookmarkCount}
             </span>
@@ -291,21 +304,21 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       );
     });
 
-  const renderSections = (closeMobileMenu = false) => {
+  const renderSections = (collapsed: boolean, closeMobileMenu = false) => {
     if (!roleLoaded) return null;
     return navSections.map((section, index) => (
       <div key={section.title ?? `section-${index}`} className={index > 0 ? "mt-4 pt-4 border-t border-white/10" : ""}>
-        {section.title && !isCollapsed && (
+        {section.title && !collapsed && (
           <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-white/50">
             {section.title}
           </p>
         )}
-        <div className="space-y-1">{renderNavItems(section.items, closeMobileMenu)}</div>
+        <div className="space-y-1">{renderNavItems(section.items, collapsed, closeMobileMenu)}</div>
       </div>
     ));
   };
 
-  const userMenuPopup = (
+  const renderUserMenuPopup = (collapsed: boolean, closeMobileMenu = false) => (
     <AnimatePresence>
       {showUserMenu && (
         <motion.div
@@ -314,7 +327,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           exit={{ opacity: 0, y: 6 }}
           transition={{ duration: 0.15 }}
           className={`absolute bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 ${
-            isCollapsed
+            collapsed
               ? "bottom-0 left-full ml-2 w-56"
               : "bottom-full left-0 right-0 mb-2 mx-3"
           }`}
@@ -332,7 +345,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           )}
           <Link
             href="/settings"
-            onClick={() => setShowUserMenu(false)}
+            onClick={() => {
+              setShowUserMenu(false);
+              if (closeMobileMenu) setIsOpen(false);
+            }}
             className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <Settings className="w-4 h-4 text-slate-400" />
@@ -350,20 +366,23 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     </AnimatePresence>
   );
 
-  const userButton = (
-    <div ref={userMenuRef} className="relative border-t border-white/10 p-3">
-      {userMenuPopup}
+  const renderUserButton = (collapsed: boolean, closeMobileMenu = false) => (
+    <div
+      ref={closeMobileMenu ? mobileUserMenuRef : desktopUserMenuRef}
+      className="relative border-t border-white/10 p-3"
+    >
+      {renderUserMenuPopup(collapsed, closeMobileMenu)}
       <button
         onClick={() => setShowUserMenu((v) => !v)}
-        title={isCollapsed && userProfile ? getDisplayName(userProfile) : undefined}
+        title={collapsed && userProfile ? getDisplayName(userProfile) : undefined}
         className={`w-full flex items-center rounded-lg hover:bg-white/10 transition-colors group ${
-          isCollapsed ? "justify-center p-2" : "gap-3 px-3 py-2"
+          collapsed ? "justify-center p-2" : "gap-3 px-3 py-2"
         }`}
       >
         <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
           {userProfile ? getInitial(userProfile) : "?"}
         </div>
-        {!isCollapsed && (
+        {!collapsed && (
           <>
             <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium text-white truncate">
@@ -380,7 +399,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     </div>
   );
 
-  const sidebarContent = (
+  const desktopSidebarContent = (
     <>
       <div className={`flex items-center border-b border-white/10 ${
         isCollapsed ? "justify-center p-3" : "gap-2 px-4 py-4"
@@ -402,10 +421,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </div>
 
       <nav className={`flex-1 py-4 overflow-y-auto ${isCollapsed ? "px-2" : "px-3"}`}>
-        {renderSections(false)}
+        {renderSections(isCollapsed, false)}
       </nav>
 
-      {userButton}
+      {renderUserButton(isCollapsed)}
     </>
   );
 
@@ -465,8 +484,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <nav className="flex-1 px-3 py-4 overflow-y-auto">{renderSections(true)}</nav>
-              {userButton}
+              <nav className="flex-1 px-3 py-4 overflow-y-auto">{renderSections(false, true)}</nav>
+              {renderUserButton(false, true)}
             </div>
           </motion.aside>
         )}
@@ -478,7 +497,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         }`}
         style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
       >
-        <div className="flex flex-col h-full w-full">{sidebarContent}</div>
+        <div className="flex flex-col h-full w-full">{desktopSidebarContent}</div>
       </aside>
 
       {showOnboarding && (

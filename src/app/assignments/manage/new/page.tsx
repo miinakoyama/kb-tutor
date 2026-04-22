@@ -12,6 +12,7 @@ import {
 import {
   ManualQuestionEditor,
   manualDraftToQuestion,
+  validateDraft,
   type ManualQuestionDraft,
 } from "@/components/assignments/ManualQuestionEditor";
 import {
@@ -61,6 +62,7 @@ function CreateAssignmentContent() {
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [targetMinutes, setTargetMinutes] = useState("20");
+  const [instructions, setInstructions] = useState("");
   const [mode, setMode] = useState<AssignmentMode>("practice");
   const [randomizeOrder, setRandomizeOrder] = useState(true);
   const [sourceType, setSourceType] = useState<QuestionSourceType>("existing_set");
@@ -170,6 +172,7 @@ function CreateAssignmentContent() {
         return;
       }
 
+      const trimmedInstructions = instructions.trim();
       const body: Record<string, unknown> = {
         title: cleanTitle,
         schoolId: selectedSchoolId,
@@ -177,6 +180,8 @@ function CreateAssignmentContent() {
         targetMinutes: targetMinutesValue,
         mode,
         randomizeOrder,
+        instructions:
+          trimmedInstructions.length > 0 ? trimmedInstructions : null,
       };
 
       if (mode === "review") {
@@ -207,6 +212,13 @@ function CreateAssignmentContent() {
         if (manualDrafts.length === 0) {
           setFormError("Add at least one manually authored question.");
           return;
+        }
+        for (let i = 0; i < manualDrafts.length; i += 1) {
+          const draftError = validateDraft(manualDrafts[i]);
+          if (draftError) {
+            setFormError(`Question ${i + 1}: ${draftError}`);
+            return;
+          }
         }
         body.sourceType = "manual";
         body.manualQuestions = manualDrafts.map((draft, index) =>
@@ -243,6 +255,7 @@ function CreateAssignmentContent() {
       selectedSchoolId,
       dueDate,
       targetMinutes,
+      instructions,
       mode,
       randomizeOrder,
       reviewScope,
@@ -340,6 +353,22 @@ function CreateAssignmentContent() {
                 onChange={(event) => setDueDate(event.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
               />
+            </label>
+            <label className="block text-sm text-slate-gray md:col-span-2">
+              <span className="block mb-1 font-medium">
+                Instructions (optional)
+              </span>
+              <textarea
+                value={instructions}
+                onChange={(event) => setInstructions(event.target.value)}
+                rows={3}
+                placeholder="e.g. Please complete Assignment 1 before starting this one."
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none resize-y"
+              />
+              <span className="block mt-1 text-xs text-slate-gray/70">
+                Shown to students on the assignment card. Supports multiple
+                lines.
+              </span>
             </label>
           </div>
         </section>

@@ -6,7 +6,6 @@ import {
   ChevronUp,
   Info,
   Loader2,
-  Pencil,
   Plus,
   Sparkles,
   Trash2,
@@ -59,9 +58,13 @@ function createDefaultOptions(count = 4): ManualOptionDraft[] {
   }));
 }
 
+function createDraftId(): string {
+  return `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function createEmptyDraft(): ManualQuestionDraft {
   return {
-    id: `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: createDraftId(),
     text: "",
     options: createDefaultOptions(),
     correctOptionId: "opt_1",
@@ -92,27 +95,51 @@ function mapGlossaryDrafts(draftId: string, terms: ManualGlossaryTermDraft[]) {
     .filter((term): term is NonNullable<typeof term> => term !== null);
 }
 
+const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
+
+/**
+ * Maximum number of answer options per manual question. Bound by
+ * {@link OPTION_LETTERS} because the rest of the app displays the option id
+ * directly as the choice label (A/B/C/...). Extend OPTION_LETTERS (and verify
+ * downstream UI fits) if more options are ever needed.
+ */
+export const MAX_OPTIONS = OPTION_LETTERS.length;
+
+export function letterForIndex(index: number): string {
+  const letter = OPTION_LETTERS[index];
+  if (!letter) {
+    throw new Error(
+      `Option index ${index} exceeds MAX_OPTIONS (${MAX_OPTIONS}). Extend OPTION_LETTERS to support more options.`,
+    );
+  }
+  return letter;
+}
+
 export function manualDraftToQuestion(
   draft: ManualQuestionDraft,
   index: number,
 ): Question {
-  const options = draft.options
-    .map((option, optionIndex) => {
-      const text = option.text.trim();
-      const feedback = option.feedback.trim();
-      return {
-        id: option.id || `opt_${optionIndex + 1}`,
-        text,
-        feedback: feedback || undefined,
-      };
-    })
-    .filter((option) => option.text.length > 0);
+  const validDraftOptions = draft.options
+    .filter((option) => option.text.trim().length > 0)
+    .slice(0, MAX_OPTIONS);
 
-  const correctOptionId = options.some(
+  const options = validDraftOptions.map((option, optionIndex) => {
+    const text = option.text.trim();
+    const feedback = option.feedback.trim();
+    return {
+      id: letterForIndex(optionIndex),
+      text,
+      feedback: feedback || undefined,
+    };
+  });
+
+  const correctDraftIndex = validDraftOptions.findIndex(
     (option) => option.id === draft.correctOptionId,
-  )
-    ? draft.correctOptionId
-    : (options[0]?.id ?? "opt_1");
+  );
+  const correctOptionId =
+    correctDraftIndex >= 0
+      ? letterForIndex(correctDraftIndex)
+      : (options[0]?.id ?? "A");
 
   const inlineTerms = mapGlossaryDrafts(draft.id, draft.inlineTerms);
   const sidebarTerms = mapGlossaryDrafts(draft.id, draft.sidebarTerms);
@@ -143,7 +170,7 @@ export function manualDraftToQuestion(
   };
 }
 
-function validateDraft(draft: ManualQuestionDraft): string | null {
+export function validateDraft(draft: ManualQuestionDraft): string | null {
   const text = draft.text.trim();
   if (!text) return "Question text is required.";
   const validOptions = draft.options.filter(
@@ -221,10 +248,74 @@ export function ManualQuestionEditor({
   drafts,
   onChange,
 }: ManualQuestionEditorProps) {
-  const [editor, setEditor] = useState<ManualQuestionDraft>(createEmptyDraft);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const handleUpdateDraft = useCallback(
+    (id: string, updater: (draft: ManualQuestionDraft) => ManualQuestionDraft) => {
+      onChange(drafts.map((draft) => (draft.id === id ? updater(draft) : draft)));
+    },
+    [drafts, onChange],
+  );
+
+  const handleRemoveDraft = useCallback(
+    (id: string) => {
+      onChange(drafts.filter((draft) => draft.id !== id));
+    },
+    [drafts, onChange],
+  );
+
+  const handleAddDraft = useCallback(() => {
+    onChange([...drafts, createEmptyDraft()]);
+  }, [drafts, onChange]);
+
+  return (
+    <div className="space-y-4">
+      {drafts.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-gray/70">
+          No questions yet. Click &quot;Add question&quot; below to start.
+        </p>
+      ) : (
+        <ul className="space-y-4">
+          {drafts.map((draft, index) => (
+            <li key={draft.id}>
+              <ManualQuestionCard
+                draft={draft}
+                index={index}
+                onUpdate={(updater) => handleUpdateDraft(draft.id, updater)}
+                onRemove={() => handleRemoveDraft(draft.id)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex justify-start">
+        <button
+          type="button"
+          onClick={handleAddDraft}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Add question
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface ManualQuestionCardProps {
+  draft: ManualQuestionDraft;
+  index: number;
+  onUpdate: (updater: (draft: ManualQuestionDraft) => ManualQuestionDraft) => void;
+  onRemove: () => void;
+}
+
+function ManualQuestionCard({
+  draft,
+  index,
+  onUpdate,
+  onRemove,
+}: ManualQuestionCardProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [draftError, setDraftError] = useState<string | null>(null);
   const [aiStatus, setAiStatus] = useState<{
     message: string;
     isError: boolean;
@@ -234,46 +325,45 @@ export function ManualQuestionEditor({
   const standards = useMemo(() => getAllStandards(), []);
 
   const canFillWithAi = useMemo(() => {
-    const text = editor.text.trim();
-    const validOptions = editor.options.filter(
+    const text = draft.text.trim();
+    const validOptions = draft.options.filter(
       (option) => option.text.trim().length > 0,
     );
     return (
       text.length > 0 &&
       validOptions.length >= 2 &&
-      validOptions.some((option) => option.id === editor.correctOptionId)
+      validOptions.some((option) => option.id === draft.correctOptionId)
     );
-  }, [editor]);
+  }, [draft]);
 
-  const resetEditor = useCallback(() => {
-    setEditor(createEmptyDraft());
-    setEditingId(null);
-    setShowAdvanced(false);
-    setDraftError(null);
-    setAiStatus(null);
-  }, []);
+  const currentStandard = draft.standardId
+    ? getStandardById(draft.standardId)
+    : null;
+  const filledOptionalGroups = countOptionalFilled(draft);
 
-  const handleOptionTextChange = (index: number, value: string) => {
-    setEditor((prev) => ({
+  const radioGroupName = `manual-editor-correct-${draft.id}`;
+
+  const handleOptionTextChange = (optionIndex: number, value: string) => {
+    onUpdate((prev) => ({
       ...prev,
-      options: prev.options.map((option, optionIndex) =>
-        optionIndex === index ? { ...option, text: value } : option,
+      options: prev.options.map((option, i) =>
+        i === optionIndex ? { ...option, text: value } : option,
       ),
     }));
   };
 
-  const handleOptionFeedbackChange = (index: number, value: string) => {
-    setEditor((prev) => ({
+  const handleOptionFeedbackChange = (optionIndex: number, value: string) => {
+    onUpdate((prev) => ({
       ...prev,
-      options: prev.options.map((option, optionIndex) =>
-        optionIndex === index ? { ...option, feedback: value } : option,
+      options: prev.options.map((option, i) =>
+        i === optionIndex ? { ...option, feedback: value } : option,
       ),
     }));
   };
 
   const handleAddOption = () => {
-    setEditor((prev) => {
-      if (prev.options.length >= 6) return prev;
+    onUpdate((prev) => {
+      if (prev.options.length >= MAX_OPTIONS) return prev;
       const nextId = `opt_${prev.options.length + 1}`;
       return {
         ...prev,
@@ -282,17 +372,15 @@ export function ManualQuestionEditor({
     });
   };
 
-  const handleRemoveOption = (index: number) => {
-    setEditor((prev) => {
+  const handleRemoveOption = (optionIndex: number) => {
+    onUpdate((prev) => {
       if (prev.options.length <= 2) return prev;
-      const nextOptions = prev.options.filter(
-        (_, optionIndex) => optionIndex !== index,
-      );
-      const reindexed = nextOptions.map((option, optionIndex) => ({
+      const nextOptions = prev.options.filter((_, i) => i !== optionIndex);
+      const reindexed = nextOptions.map((option, i) => ({
         ...option,
-        id: `opt_${optionIndex + 1}`,
+        id: `opt_${i + 1}`,
       }));
-      const removedOption = prev.options[index];
+      const removedOption = prev.options[optionIndex];
       let nextCorrectOptionId = prev.correctOptionId;
       if (prev.correctOptionId === removedOption.id) {
         nextCorrectOptionId = reindexed[0]?.id ?? "opt_1";
@@ -301,7 +389,7 @@ export function ManualQuestionEditor({
           (option) => option.id === prev.correctOptionId,
         );
         const adjustedIndex =
-          currentIndex > index ? currentIndex - 1 : currentIndex;
+          currentIndex > optionIndex ? currentIndex - 1 : currentIndex;
         nextCorrectOptionId =
           reindexed[adjustedIndex]?.id ?? reindexed[0]?.id ?? "opt_1";
       }
@@ -313,43 +401,6 @@ export function ManualQuestionEditor({
     });
   };
 
-  const upsertDraft = () => {
-    const error = validateDraft(editor);
-    if (error) {
-      setDraftError(error);
-      return;
-    }
-    setDraftError(null);
-    if (editingId) {
-      const next = drafts.map((draft) =>
-        draft.id === editingId ? editor : draft,
-      );
-      onChange(next);
-    } else {
-      onChange([...drafts, editor]);
-    }
-    resetEditor();
-  };
-
-  const handleEdit = (draft: ManualQuestionDraft) => {
-    setEditor({
-      ...draft,
-      options: draft.options.map((option) => ({ ...option })),
-      inlineTerms: draft.inlineTerms.map((term) => ({ ...term })),
-      sidebarTerms: draft.sidebarTerms.map((term) => ({ ...term })),
-    });
-    setEditingId(draft.id);
-    setDraftError(null);
-    setAiStatus(null);
-  };
-
-  const handleDelete = (draftId: string) => {
-    onChange(drafts.filter((draft) => draft.id !== draftId));
-    if (editingId === draftId) {
-      resetEditor();
-    }
-  };
-
   const handleFillWithAi = async () => {
     if (!canFillWithAi) return;
     setIsFilling(true);
@@ -359,22 +410,22 @@ export function ManualQuestionEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: editor.text.trim(),
-          options: editor.options.map((option) => ({
+          text: draft.text.trim(),
+          options: draft.options.map((option) => ({
             id: option.id,
             text: option.text.trim(),
             feedback: option.feedback.trim(),
           })),
-          correctOptionId: editor.correctOptionId,
-          standardId: editor.standardId,
+          correctOptionId: draft.correctOptionId,
+          standardId: draft.standardId,
           existing: {
-            standardId: editor.standardId,
-            dok: editor.dok,
-            commonMisconception: editor.commonMisconception,
-            focusHint: editor.focusHint,
-            keyKnowledge: editor.keyKnowledge,
-            inlineTerms: editor.inlineTerms,
-            sidebarTerms: editor.sidebarTerms,
+            standardId: draft.standardId,
+            dok: draft.dok,
+            commonMisconception: draft.commonMisconception,
+            focusHint: draft.focusHint,
+            keyKnowledge: draft.keyKnowledge,
+            inlineTerms: draft.inlineTerms,
+            sidebarTerms: draft.sidebarTerms,
           },
         }),
       });
@@ -385,7 +436,7 @@ export function ManualQuestionEditor({
       const filled = payload.filled ?? {};
       const filledFields = payload.filledFields ?? [];
 
-      setEditor((prev) => {
+      onUpdate((prev) => {
         const nextOptions = prev.options.map((option) => {
           if (option.feedback.trim().length > 0) return option;
           const suggestion = filled.optionFeedback?.[option.id];
@@ -448,20 +499,20 @@ export function ManualQuestionEditor({
 
   const updateGlossaryEntry = (
     key: "inlineTerms" | "sidebarTerms",
-    index: number,
+    entryIndex: number,
     field: keyof ManualGlossaryTermDraft,
     value: string,
   ) => {
-    setEditor((prev) => ({
+    onUpdate((prev) => ({
       ...prev,
-      [key]: prev[key].map((term, termIndex) =>
-        termIndex === index ? { ...term, [field]: value } : term,
+      [key]: prev[key].map((term, i) =>
+        i === entryIndex ? { ...term, [field]: value } : term,
       ),
     }));
   };
 
   const addGlossaryEntry = (key: "inlineTerms" | "sidebarTerms") => {
-    setEditor((prev) => ({
+    onUpdate((prev) => ({
       ...prev,
       [key]: [...prev[key], { term: "", definition: "", example: "" }],
     }));
@@ -469,24 +520,71 @@ export function ManualQuestionEditor({
 
   const removeGlossaryEntry = (
     key: "inlineTerms" | "sidebarTerms",
-    index: number,
+    entryIndex: number,
   ) => {
-    setEditor((prev) => ({
+    onUpdate((prev) => ({
       ...prev,
-      [key]: prev[key].filter((_, termIndex) => termIndex !== index),
+      [key]: prev[key].filter((_, i) => i !== entryIndex),
     }));
   };
 
-  const draftStandardForSummary = (draft: ManualQuestionDraft) =>
-    getStandardById(draft.standardId);
-
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-slate-gray">
-            {editingId ? "Edit question" : "Write a new question"}
-          </h3>
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3 sm:px-5">
+        <button
+          type="button"
+          onClick={() => setIsCollapsed((prev) => !prev)}
+          className="flex flex-1 min-w-0 items-start gap-2 text-left"
+          aria-expanded={!isCollapsed}
+        >
+          <span className="mt-0.5 inline-flex items-center justify-center rounded-md p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+            {isCollapsed ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronUp className="w-4 h-4" />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-gray">
+              Question {index + 1}
+            </p>
+            {isCollapsed && (
+              <>
+                <p className="mt-1 text-sm text-slate-gray truncate">
+                  {draft.text.trim() || (
+                    <span className="italic text-slate-gray/60">
+                      (empty stem)
+                    </span>
+                  )}
+                </p>
+                <p className="mt-1 text-xs text-slate-gray/60">
+                  {currentStandard
+                    ? `${currentStandard.id} · ${currentStandard.category}`
+                    : "Standard not set"}
+                  {" · "}DOK {draft.dok ?? "—"}
+                  {" · "}
+                  {draft.options.filter((o) => o.text.trim()).length} options
+                  {filledOptionalGroups > 0
+                    ? ` · ${filledOptionalGroups} glossary group(s)`
+                    : ""}
+                </p>
+              </>
+            )}
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex-shrink-0 p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
+          aria-label={`Remove question ${index + 1}`}
+          title="Remove question"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {!isCollapsed && (
+        <div className="space-y-4 p-4 sm:p-5">
           <div className="flex flex-col items-end gap-1">
             <button
               type="button"
@@ -511,374 +609,300 @@ export function ManualQuestionEditor({
               Needs stem + 2+ option texts + correct answer
             </p>
           </div>
-        </div>
 
-        {aiStatus && (
-          <p
-            className={`text-sm ${
-              aiStatus.isError ? "text-red-600" : "text-[#15803d]"
-            }`}
-          >
-            {aiStatus.message}
-          </p>
-        )}
-
-        <p className="text-xs text-slate-gray/60">
-          Fields marked with <span className="text-red-600">*</span> are
-          required.
-        </p>
-
-        <label className="block text-sm text-slate-gray">
-          <span className="block mb-1 font-medium">
-            Question text
-            <RequiredMark />
-          </span>
-          <textarea
-            value={editor.text}
-            onChange={(event) =>
-              setEditor((prev) => ({ ...prev, text: event.target.value }))
-            }
-            rows={4}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
-            placeholder="Write the question stem..."
-          />
-        </label>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-gray">
-            Answer options
-            <RequiredMark title="Each option needs text and feedback. Mark the correct one." />
-            <span className="text-slate-gray/60 font-normal ml-1">
-              ({editor.options.length}/6)
-            </span>
-          </p>
-          <div className="space-y-3">
-            {editor.options.map((option, index) => {
-              const isCorrect = option.id === editor.correctOptionId;
-              return (
-                <div
-                  key={option.id}
-                  className={`rounded-lg border px-3 py-3 space-y-2 ${
-                    isCorrect
-                      ? "border-[#16a34a]/40 bg-[#16a34a]/5"
-                      : "border-slate-200 bg-white"
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <input
-                      type="radio"
-                      name="manual-editor-correct-option"
-                      checked={isCorrect}
-                      onChange={() =>
-                        setEditor((prev) => ({
-                          ...prev,
-                          correctOptionId: option.id,
-                        }))
-                      }
-                      className="mt-2 w-4 h-4 accent-[#16a34a]"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-gray/60 mb-1">
-                        Option {index + 1} {isCorrect ? "(correct)" : ""}
-                      </p>
-                      <input
-                        value={option.text}
-                        onChange={(event) =>
-                          handleOptionTextChange(index, event.target.value)
-                        }
-                        placeholder={`Answer choice ${index + 1}`}
-                        className="w-full rounded-md border border-slate-200 px-2 py-1.5 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
-                      />
-                    </div>
-                    {editor.options.length > 2 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveOption(index)}
-                        className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
-                        aria-label="Remove option"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="pl-6">
-                    <label className="block text-xs text-slate-gray/80">
-                      <span className="block mb-1">
-                        Feedback
-                        <RequiredMark title="Why is this option right or wrong? Shown after the student answers." />
-                      </span>
-                      <textarea
-                        value={option.feedback}
-                        onChange={(event) =>
-                          handleOptionFeedbackChange(index, event.target.value)
-                        }
-                        rows={2}
-                        placeholder={
-                          isCorrect
-                            ? "Why this answer is correct."
-                            : "Why this option is incorrect, and what misconception it targets."
-                        }
-                        className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
-                      />
-                    </label>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {editor.options.length < 6 && (
-            <button
-              type="button"
-              onClick={handleAddOption}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          {aiStatus && (
+            <p
+              className={`text-sm ${
+                aiStatus.isError ? "text-red-600" : "text-[#15803d]"
+              }`}
             >
-              <Plus className="w-3.5 h-3.5" />
-              Add option
-            </button>
+              {aiStatus.message}
+            </p>
           )}
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <p className="text-xs text-slate-gray/60">
+            Fields marked with <span className="text-red-600">*</span> are
+            required.
+          </p>
+
           <label className="block text-sm text-slate-gray">
             <span className="block mb-1 font-medium">
-              Standard
-              <RequiredMark title="Required. If blank, Fill with AI can suggest one." />
-            </span>
-            <select
-              value={editor.standardId}
-              onChange={(event) =>
-                setEditor((prev) => ({
-                  ...prev,
-                  standardId: event.target.value,
-                }))
-              }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            >
-              <option value="">Select standard…</option>
-              {standards.map((standard) => (
-                <option key={standard.id} value={standard.id}>
-                  {standard.id} — {standard.category} (Module {standard.module})
-                </option>
-              ))}
-            </select>
-            {editor.standardId && (
-              <p className="mt-1 text-xs text-slate-gray/70">
-                {getStandardById(editor.standardId)?.label}
-              </p>
-            )}
-          </label>
-          <label className="block text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">
-              DOK level
+              Question text
               <RequiredMark />
             </span>
-            <select
-              value={editor.dok ?? ""}
-              onChange={(event) => {
-                const value = event.target.value;
-                setEditor((prev) => ({
-                  ...prev,
-                  dok:
-                    value === "1"
-                      ? 1
-                      : value === "2"
-                        ? 2
-                        : value === "3"
-                          ? 3
-                          : undefined,
-                }));
-              }}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            >
-              <option value="">Select DOK…</option>
-              <option value="1">1 - Recall</option>
-              <option value="2">2 - Skill / Concept</option>
-              <option value="3">3 - Strategic Thinking</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <label className="block text-sm text-slate-gray md:col-span-1">
-            <span className="block mb-1 font-medium">
-              Focus hint
-              <RequiredMark title="Short nudge shown to students on retry in practice mode." />
-            </span>
-            <input
-              value={editor.focusHint}
+            <textarea
+              value={draft.text}
               onChange={(event) =>
-                setEditor((prev) => ({
-                  ...prev,
-                  focusHint: event.target.value,
-                }))
+                onUpdate((prev) => ({ ...prev, text: event.target.value }))
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-              placeholder="Short nudge shown on retry."
+              rows={4}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+              placeholder="Write the question stem..."
             />
           </label>
-          <label className="block text-sm text-slate-gray md:col-span-1">
-            <span className="block mb-1 font-medium">
-              Key knowledge
-              <RequiredMark title="One-line summary of the core idea. Shown in final feedback." />
-            </span>
-            <input
-              value={editor.keyKnowledge}
-              onChange={(event) =>
-                setEditor((prev) => ({
-                  ...prev,
-                  keyKnowledge: event.target.value,
-                }))
-              }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-              placeholder="One-line summary of the concept required."
-            />
-          </label>
-        </div>
 
-        <label className="block text-sm text-slate-gray">
-          <span className="block mb-1 font-medium">
-            Common misconception
-            <RequiredMark title="What students often get wrong here. Shown when the answer is incorrect." />
-          </span>
-          <textarea
-            value={editor.commonMisconception}
-            onChange={(event) =>
-              setEditor((prev) => ({
-                ...prev,
-                commonMisconception: event.target.value,
-              }))
-            }
-            rows={2}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            placeholder="What misconception does this question surface?"
-          />
-        </label>
-
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((prev) => !prev)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-[#15803d]"
-          >
-            {showAdvanced ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
-            Optional glossary terms
-          </button>
-        </div>
-
-        {showAdvanced && (
-          <div className="space-y-4 border-t border-slate-100 pt-4">
-            <GlossaryEditor
-              title="Inline glossary terms"
-              terms={editor.inlineTerms}
-              onUpdateField={(index, field, value) =>
-                updateGlossaryEntry("inlineTerms", index, field, value)
-              }
-              onAdd={() => addGlossaryEntry("inlineTerms")}
-              onRemove={(index) => removeGlossaryEntry("inlineTerms", index)}
-            />
-
-            <GlossaryEditor
-              title="Sidebar glossary terms"
-              terms={editor.sidebarTerms}
-              onUpdateField={(index, field, value) =>
-                updateGlossaryEntry("sidebarTerms", index, field, value)
-              }
-              onAdd={() => addGlossaryEntry("sidebarTerms")}
-              onRemove={(index) => removeGlossaryEntry("sidebarTerms", index)}
-            />
-          </div>
-        )}
-
-        {draftError && <p className="text-sm text-red-600">{draftError}</p>}
-
-        <div className="flex flex-wrap justify-end gap-2 pt-2">
-          {editingId && (
-            <button
-              type="button"
-              onClick={resetEditor}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
-            >
-              Cancel edit
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={upsertDraft}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            {editingId ? "Update question" : "Add question"}
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-semibold text-slate-gray mb-2">
-          Drafts ({drafts.length})
-        </h3>
-        {drafts.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-gray/70">
-            No manual questions added yet.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {drafts.map((draft, index) => {
-              const standard = draftStandardForSummary(draft);
-              return (
-                <li
-                  key={draft.id}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-3 sm:px-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm text-slate-gray">
-                        <span className="text-slate-gray/50 mr-1">
-                          Q{index + 1}.
-                        </span>
-                        {draft.text.trim() || "(empty stem)"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-gray/60">
-                        {standard
-                          ? `${standard.id} · ${standard.category}`
-                          : "Standard not set"}
-                        {" · "}DOK {draft.dok ?? "—"}
-                        {" · "}
-                        {draft.options.filter((o) => o.text.trim()).length}{" "}
-                        options
-                        {countOptionalFilled(draft) > 0
-                          ? ` · ${countOptionalFilled(draft)} glossary group(s)`
-                          : ""}
-                      </p>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-gray">
+              Answer options
+              <RequiredMark title="Each option needs text and feedback. Mark the correct one." />
+              <span className="text-slate-gray/60 font-normal ml-1">
+                ({draft.options.length}/{MAX_OPTIONS})
+              </span>
+            </p>
+            <div className="space-y-3">
+              {draft.options.map((option, optionIndex) => {
+                const isCorrect = option.id === draft.correctOptionId;
+                return (
+                  <div
+                    key={option.id}
+                    className={`rounded-lg border px-3 py-3 space-y-2 ${
+                      isCorrect
+                        ? "border-[#16a34a]/40 bg-[#16a34a]/5"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name={radioGroupName}
+                        checked={isCorrect}
+                        onChange={() =>
+                          onUpdate((prev) => ({
+                            ...prev,
+                            correctOptionId: option.id,
+                          }))
+                        }
+                        className="mt-2 w-4 h-4 accent-[#16a34a]"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-gray/60 mb-1">
+                          Option {optionIndex + 1}{" "}
+                          {isCorrect ? "(correct)" : ""}
+                        </p>
+                        <input
+                          value={option.text}
+                          onChange={(event) =>
+                            handleOptionTextChange(
+                              optionIndex,
+                              event.target.value,
+                            )
+                          }
+                          placeholder={`Answer choice ${optionIndex + 1}`}
+                          className="w-full rounded-md border border-slate-200 px-2 py-1.5 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+                        />
+                      </div>
+                      {draft.options.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveOption(optionIndex)}
+                          className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
+                          aria-label="Remove option"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(draft)}
-                        className="p-2 rounded-lg text-slate-500 hover:text-[#15803d] hover:bg-[#16a34a]/10"
-                        aria-label="Edit draft"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(draft.id)}
-                        className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
-                        aria-label="Delete draft"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <div className="pl-6">
+                      <label className="block text-xs text-slate-gray/80">
+                        <span className="block mb-1">
+                          Feedback
+                          <RequiredMark title="Why is this option right or wrong? Shown after the student answers." />
+                        </span>
+                        <textarea
+                          value={option.feedback}
+                          onChange={(event) =>
+                            handleOptionFeedbackChange(
+                              optionIndex,
+                              event.target.value,
+                            )
+                          }
+                          rows={2}
+                          placeholder={
+                            isCorrect
+                              ? "Why this answer is correct."
+                              : "Why this option is incorrect, and what misconception it targets."
+                          }
+                          className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+                        />
+                      </label>
                     </div>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+                );
+              })}
+            </div>
+            {draft.options.length < MAX_OPTIONS && (
+              <button
+                type="button"
+                onClick={handleAddOption}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add option
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="block text-sm text-slate-gray">
+              <span className="block mb-1 font-medium">
+                Standard
+                <RequiredMark title="Required. If blank, Fill with AI can suggest one." />
+              </span>
+              <select
+                value={draft.standardId}
+                onChange={(event) =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    standardId: event.target.value,
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              >
+                <option value="">Select standard…</option>
+                {standards.map((standard) => (
+                  <option key={standard.id} value={standard.id}>
+                    {standard.id} — {standard.category} (Module{" "}
+                    {standard.module})
+                  </option>
+                ))}
+              </select>
+              {draft.standardId && (
+                <p className="mt-1 text-xs text-slate-gray/70">
+                  {getStandardById(draft.standardId)?.label}
+                </p>
+              )}
+            </label>
+            <label className="block text-sm text-slate-gray">
+              <span className="block mb-1 font-medium">
+                DOK level
+                <RequiredMark />
+              </span>
+              <select
+                value={draft.dok ?? ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  onUpdate((prev) => ({
+                    ...prev,
+                    dok:
+                      value === "1"
+                        ? 1
+                        : value === "2"
+                          ? 2
+                          : value === "3"
+                            ? 3
+                            : undefined,
+                  }));
+                }}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              >
+                <option value="">Select DOK…</option>
+                <option value="1">1 - Recall</option>
+                <option value="2">2 - Skill / Concept</option>
+                <option value="3">3 - Strategic Thinking</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="block text-sm text-slate-gray md:col-span-1">
+              <span className="block mb-1 font-medium">
+                Focus hint
+                <RequiredMark title="Short nudge shown to students on retry in practice mode." />
+              </span>
+              <input
+                value={draft.focusHint}
+                onChange={(event) =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    focusHint: event.target.value,
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                placeholder="Short nudge shown on retry."
+              />
+            </label>
+            <label className="block text-sm text-slate-gray md:col-span-1">
+              <span className="block mb-1 font-medium">
+                Key knowledge
+                <RequiredMark title="One-line summary of the core idea. Shown in final feedback." />
+              </span>
+              <input
+                value={draft.keyKnowledge}
+                onChange={(event) =>
+                  onUpdate((prev) => ({
+                    ...prev,
+                    keyKnowledge: event.target.value,
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                placeholder="One-line summary of the concept required."
+              />
+            </label>
+          </div>
+
+          <label className="block text-sm text-slate-gray">
+            <span className="block mb-1 font-medium">
+              Common misconception
+              <RequiredMark title="What students often get wrong here. Shown when the answer is incorrect." />
+            </span>
+            <textarea
+              value={draft.commonMisconception}
+              onChange={(event) =>
+                onUpdate((prev) => ({
+                  ...prev,
+                  commonMisconception: event.target.value,
+                }))
+              }
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              placeholder="What misconception does this question surface?"
+            />
+          </label>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((prev) => !prev)}
+              className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-[#15803d]"
+            >
+              {showAdvanced ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+              Optional glossary terms
+            </button>
+          </div>
+
+          {showAdvanced && (
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <GlossaryEditor
+                title="Inline glossary terms"
+                terms={draft.inlineTerms}
+                onUpdateField={(entryIndex, field, value) =>
+                  updateGlossaryEntry("inlineTerms", entryIndex, field, value)
+                }
+                onAdd={() => addGlossaryEntry("inlineTerms")}
+                onRemove={(entryIndex) =>
+                  removeGlossaryEntry("inlineTerms", entryIndex)
+                }
+              />
+
+              <GlossaryEditor
+                title="Sidebar glossary terms"
+                terms={draft.sidebarTerms}
+                onUpdateField={(entryIndex, field, value) =>
+                  updateGlossaryEntry("sidebarTerms", entryIndex, field, value)
+                }
+                onAdd={() => addGlossaryEntry("sidebarTerms")}
+                onRemove={(entryIndex) =>
+                  removeGlossaryEntry("sidebarTerms", entryIndex)
+                }
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
