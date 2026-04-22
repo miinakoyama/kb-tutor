@@ -230,9 +230,12 @@ export async function POST(request: Request) {
   if (!schoolName) {
     return NextResponse.json({ error: "Missing required field: name" }, { status: 400 });
   }
+  if (body.isHidden !== undefined && typeof body.isHidden !== "boolean") {
+    return NextResponse.json({ error: "isHidden must be a boolean" }, { status: 400 });
+  }
   const schoolId = body.id?.trim() || buildSchoolId(schoolName);
   const primaryTeacherId = teacherIds[0] ?? null;
-  const isHidden = body.isHidden === true;
+  const isHidden = body.isHidden ?? false;
 
   let keystoneExamDate: string | null = null;
   if (body.keystoneExamDate !== undefined) {
