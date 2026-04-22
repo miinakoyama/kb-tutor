@@ -10,6 +10,9 @@ import {
 } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = ["/login", "/login/staff"];
+const E2E_ROLE_COOKIE = "kb_e2e_role";
+const E2E_AUTH_BYPASS_ENABLED = process.env.E2E_AUTH_BYPASS === "1";
+const E2E_COOKIE_BYPASS_ALLOWED = process.env.NODE_ENV !== "production";
 
 type AppRole = "student" | "teacher" | "admin";
 type RoleRule = {
@@ -66,7 +69,56 @@ function getPostLoginPath(role: AppRole | null) {
   return "/";
 }
 
+function parseE2ERole(value: string | undefined): AppRole | null {
+  if (value === "student" || value === "teacher" || value === "admin") {
+    return value;
+  }
+  return null;
+}
+
 export async function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
+  const e2eRole = parseE2ERole(req.cookies.get(E2E_ROLE_COOKIE)?.value);
+  const isApiAuthPath = pathname.startsWith("/api/auth");
+  const isApiPublic =
+    pathname.startsWith("/api/generate-questions") ||
+    pathname.startsWith("/api/public/");
+  const requiredPageRoles = getAllowedRoles(pathname, PAGE_ROLE_RULES);
+  const requiredApiRoles = getAllowedRoles(pathname, API_ROLE_RULES);
+  const requiredRoles = requiredPageRoles ?? requiredApiRoles;
+
+  if (E2E_AUTH_BYPASS_ENABLED || (E2E_COOKIE_BYPASS_ALLOWED && e2eRole)) {
+    const role = e2eRole;
+    if (!role) {
+      if (!E2E_AUTH_BYPASS_ENABLED) {
+        // Cookie-based bypass mode only applies when a valid test role is present.
+        // Without that role, continue with normal Supabase-backed auth checks.
+      } else {
+      if (isPublicPath(pathname) || isApiAuthPath || isApiPublic) {
+        return NextResponse.next({ request: req });
+      }
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const loginUrl = req.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(loginUrl);
+      }
+    }
+
+    if (role && requiredApiRoles && !requiredApiRoles.includes(role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (role && requiredPageRoles && !requiredPageRoles.includes(role)) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    if (role) {
+      return NextResponse.next({ request: req });
+    }
+  }
+
   let supabaseResponse = NextResponse.next({
     request: req,
   });
@@ -94,15 +146,6 @@ export async function middleware(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const pathname = req.nextUrl.pathname;
-  const isApiAuthPath = pathname.startsWith("/api/auth");
-  const isApiPublic =
-    pathname.startsWith("/api/generate-questions") ||
-    pathname.startsWith("/api/public/");
-  const requiredPageRoles = getAllowedRoles(pathname, PAGE_ROLE_RULES);
-  const requiredApiRoles = getAllowedRoles(pathname, API_ROLE_RULES);
-  const requiredRoles = requiredPageRoles ?? requiredApiRoles;
 
   if (!user) {
     if (isPublicPath(pathname) || isApiAuthPath || isApiPublic) {
