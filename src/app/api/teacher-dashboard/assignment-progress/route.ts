@@ -153,7 +153,7 @@ export async function GET(request: Request) {
 
   const { data: profileRows, error: profileError } = await admin
     .from("profiles")
-    .select("id,display_name,student_id")
+    .select("id,display_name,student_id,excluded_from_analytics")
     .in("id", scopedStudentIds);
   if (profileError) {
     console.error(
@@ -168,8 +168,13 @@ export async function GET(request: Request) {
 
   const studentLabelMap = new Map<string, string>();
   const studentIdCodeMap = new Map<string, string | null>();
+  const excludedStudentIds = new Set<string>();
   for (const profile of profileRows ?? []) {
     const id = String(profile.id);
+    if (profile.excluded_from_analytics === true) {
+      excludedStudentIds.add(id);
+      continue;
+    }
     studentLabelMap.set(
       id,
       String(profile.display_name || profile.student_id || profile.id),
@@ -179,6 +184,12 @@ export async function GET(request: Request) {
       id,
       typeof code === "string" && code.trim().length > 0 ? code.trim() : null,
     );
+  }
+  const includedScopedStudentIds = scopedStudentIds.filter(
+    (id) => !excludedStudentIds.has(id),
+  );
+  if (includedScopedStudentIds.length === 0) {
+    return NextResponse.json(emptyResponse);
   }
 
   const { data: assignmentRows, error: assignmentError } = await admin
@@ -201,7 +212,7 @@ export async function GET(request: Request) {
   if (assignmentIds.length === 0) {
     return NextResponse.json({
       assignments: [],
-      rows: scopedStudentIds.map((id) => ({
+      rows: includedScopedStudentIds.map((id) => ({
         studentId: id,
         label: studentLabelMap.get(id) ?? id,
         studentIdCode: studentIdCodeMap.get(id) ?? null,
@@ -223,12 +234,12 @@ export async function GET(request: Request) {
       .from("assignment_targets")
       .select("assignment_id,student_user_id,last_completed_at")
       .in("assignment_id", assignmentIds)
-      .in("student_user_id", scopedStudentIds),
+      .in("student_user_id", includedScopedStudentIds),
     admin
       .from("attempts")
       .select("user_id,assignment_id,question_id")
       .in("assignment_id", assignmentIds)
-      .in("user_id", scopedStudentIds),
+      .in("user_id", includedScopedStudentIds),
     admin
       .from("assignment_question_snapshots")
       .select("assignment_id")
@@ -304,7 +315,7 @@ export async function GET(request: Request) {
     assignments,
     targets,
     attempts,
-    students: scopedStudentIds.map((id) => ({
+    students: includedScopedStudentIds.map((id) => ({
       id,
       label: studentLabelMap.get(id) ?? id,
       classId: studentClassMap.get(id) ?? null,
