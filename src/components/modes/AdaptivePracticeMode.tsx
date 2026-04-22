@@ -21,6 +21,7 @@ import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
+import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
@@ -34,8 +35,19 @@ import type { ReadSection } from "@/hooks/useTextToSpeech";
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
 const GLOSSARY_FALLBACK_LIMIT = 6;
-const READ_ALOUD_HINT_DISMISSED_KEY = "kb-tutor-hint-read-aloud-dismissed";
-const GLOSSARY_HINT_DISMISSED_KEY = "kb-tutor-hint-glossary-dismissed";
+const READ_ALOUD_SPOTLIGHT_DISMISSED_KEY =
+  "kb-tutor-spotlight-read-aloud-dismissed-v1";
+const SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
+  "kb-tutor-spotlight-sidebar-glossary-dismissed-v1";
+const INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
+  "kb-tutor-spotlight-inline-glossary-dismissed-v1";
+const FEATURE_SPOTLIGHT_TARGET_IDS = {
+  READ_ALOUD: "feature-read-aloud",
+  SIDEBAR_GLOSSARY_BUTTON: "feature-sidebar-glossary-button",
+  INLINE_GLOSSARY_TERM: "feature-inline-glossary-term",
+} as const;
+
+type FeatureSpotlightType = "read-aloud" | "sidebar-glossary" | "inline-glossary";
 
 interface AdaptivePracticeModeProps {
   questions: Question[];
@@ -85,8 +97,8 @@ export function AdaptivePracticeMode({
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
-  const [showReadAloudHint, setShowReadAloudHint] = useState(false);
-  const [showGlossaryHint, setShowGlossaryHint] = useState(false);
+  const [activeFeatureSpotlight, setActiveFeatureSpotlight] =
+    useState<FeatureSpotlightType | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
@@ -302,29 +314,98 @@ export function AdaptivePracticeMode({
   }, [inlineTermMap, question, showScaffold]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || showReadAloudHint) return;
-    if (!window.speechSynthesis) return;
-    if (window.localStorage.getItem(READ_ALOUD_HINT_DISMISSED_KEY) === "1") return;
-    setShowReadAloudHint(true);
-  }, [showReadAloudHint]);
+    if (typeof window === "undefined" || activeFeatureSpotlight) return;
 
-  useEffect(() => {
-    if (typeof window === "undefined" || showGlossaryHint) return;
-    if (glossaryTerms.length === 0) return;
-    if (window.localStorage.getItem(GLOSSARY_HINT_DISMISSED_KEY) === "1") return;
-    setShowGlossaryHint(true);
-  }, [glossaryTerms.length, showGlossaryHint]);
+    const hasSidebarGlossaryTarget = Boolean(
+      document.querySelector(
+        `[data-tour-id="${FEATURE_SPOTLIGHT_TARGET_IDS.SIDEBAR_GLOSSARY_BUTTON}"]`,
+      ),
+    );
+    const hasInlineGlossaryTarget = Boolean(
+      document.querySelector(
+        `[data-tour-id="${FEATURE_SPOTLIGHT_TARGET_IDS.INLINE_GLOSSARY_TERM}"]`,
+      ),
+    );
 
-  const dismissReadAloudHint = useCallback(() => {
-    setShowReadAloudHint(false);
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(READ_ALOUD_HINT_DISMISSED_KEY, "1");
+    const sidebarGlossaryReady =
+      showScaffold &&
+      attempts.length > 0 &&
+      isRetryReady &&
+      glossaryTerms.length > 0;
+    const inlineGlossaryReady =
+      showScaffold &&
+      attempts.length > 0 &&
+      isRetryReady &&
+      hasInlineGlossaryHighlights;
+
+    if (
+      window.speechSynthesis &&
+      // Keep this eligible even if target lookup is momentarily delayed.
+      window.localStorage.getItem(READ_ALOUD_SPOTLIGHT_DISMISSED_KEY) !== "1"
+    ) {
+      setActiveFeatureSpotlight("read-aloud");
+      return;
+    }
+
+    if (
+      sidebarGlossaryReady &&
+      hasSidebarGlossaryTarget &&
+      window.localStorage.getItem(SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY) !==
+        "1"
+    ) {
+      setActiveFeatureSpotlight("sidebar-glossary");
+      return;
+    }
+
+    if (
+      inlineGlossaryReady &&
+      hasInlineGlossaryTarget &&
+      window.localStorage.getItem(INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY) !==
+        "1"
+    ) {
+      setActiveFeatureSpotlight("inline-glossary");
+    }
+  }, [
+    activeFeatureSpotlight,
+    attempts.length,
+    glossaryTerms.length,
+    hasInlineGlossaryHighlights,
+    isRetryReady,
+    question?.id,
+    showScaffold,
+  ]);
+
+  const dismissReadAloudSpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(READ_ALOUD_SPOTLIGHT_DISMISSED_KEY, "1");
+    }
+    setActiveFeatureSpotlight((current) =>
+      current === "read-aloud" ? null : current,
+    );
   }, []);
 
-  const dismissGlossaryHint = useCallback(() => {
-    setShowGlossaryHint(false);
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(GLOSSARY_HINT_DISMISSED_KEY, "1");
+  const dismissInlineGlossarySpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY,
+        "1",
+      );
+    }
+    setActiveFeatureSpotlight((current) =>
+      current === "inline-glossary" ? null : current,
+    );
+  }, []);
+
+  const dismissSidebarGlossarySpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY,
+        "1",
+      );
+    }
+    setActiveFeatureSpotlight((current) =>
+      current === "sidebar-glossary" ? null : current,
+    );
   }, []);
 
   const feedbackReadText = useMemo(() => {
@@ -344,9 +425,16 @@ export function AdaptivePracticeMode({
         "gi",
       );
       const parts = text.split(pattern);
+      const firstHighlightedIndex = parts.findIndex((candidate) =>
+        inlineTermMap.has(candidate.toLowerCase()),
+      );
       return parts.map((part, index) => {
         const term = inlineTermMap.get(part.toLowerCase());
         if (!term) return part;
+        const spotlightId =
+          index === firstHighlightedIndex
+            ? FEATURE_SPOTLIGHT_TARGET_IDS.INLINE_GLOSSARY_TERM
+            : undefined;
         return (
           <GlossaryPopover
             key={`${term.id}_${index}`}
@@ -368,7 +456,7 @@ export function AdaptivePracticeMode({
               });
             }}
           >
-            {part}
+            <span data-tour-id={spotlightId}>{part}</span>
           </GlossaryPopover>
         );
       });
@@ -700,7 +788,10 @@ export function AdaptivePracticeMode({
               )}/${MAX_ATTEMPTS}`}
               headerAction={
                 glossaryTerms.length > 0 ? (
-                  <div className="relative">
+                  <div
+                    className="relative"
+                    data-tour-id={FEATURE_SPOTLIGHT_TARGET_IDS.SIDEBAR_GLOSSARY_BUTTON}
+                  >
                     <button
                       onClick={handleGlossaryModalOpen}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
@@ -708,30 +799,6 @@ export function AdaptivePracticeMode({
                       <BookOpen className="w-3.5 h-3.5" />
                       Glossary
                     </button>
-                    {showGlossaryHint && (
-                      <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-[#16a34a]/30 bg-white p-3 text-left shadow-lg">
-                        <button
-                          type="button"
-                          onClick={dismissGlossaryHint}
-                          className="absolute right-2 top-2 rounded p-1 text-slate-gray/40 hover:bg-slate-100 hover:text-slate-gray/70"
-                          aria-label="Dismiss glossary hint"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                        <p className="pr-5 text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
-                          Quick tip
-                        </p>
-                        <p className="mt-1 text-xs leading-relaxed text-slate-gray/80">
-                          Open this glossary for extra term support when hints unlock.
-                        </p>
-                        {hasInlineGlossaryHighlights && (
-                          <p className="mt-1.5 text-xs leading-relaxed text-slate-gray/80">
-                            Green underlined words in the question are inline glossary terms. Tap
-                            them for a quick definition.
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </div>
                 ) : undefined
               }
@@ -748,8 +815,7 @@ export function AdaptivePracticeMode({
               showOptionFeedbackIcons={isCompleted}
               feedbackReadText={feedbackReadText}
               onReadAloud={handleReadAloud}
-              showReadAloudHint={showReadAloudHint}
-              onDismissReadAloudHint={dismissReadAloudHint}
+              readAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD}
               feedbackSlot={
                 attempts.length > 0 ? (
                   <div className="space-y-4">
@@ -860,6 +926,34 @@ export function AdaptivePracticeMode({
           </div>
         </div>
       </div>
+
+      {activeFeatureSpotlight === "read-aloud" ? (
+        <FeatureSpotlight
+          targetId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD}
+          title="Read Aloud is available"
+          description="Use Read Aloud to listen to the question and choices at any time."
+          onClose={dismissReadAloudSpotlight}
+        />
+      ) : null}
+
+      {activeFeatureSpotlight === "inline-glossary" ? (
+        <FeatureSpotlight
+          targetId={FEATURE_SPOTLIGHT_TARGET_IDS.INLINE_GLOSSARY_TERM}
+          title="Inline glossary is active"
+          description="Click a green biology term in the question to see its explanation."
+          onClose={dismissInlineGlossarySpotlight}
+        />
+      ) : null}
+
+      {activeFeatureSpotlight === "sidebar-glossary" ? (
+        <FeatureSpotlight
+          targetId={FEATURE_SPOTLIGHT_TARGET_IDS.SIDEBAR_GLOSSARY_BUTTON}
+          title="Glossary support is available"
+          description="In Practice and Review mode, glossary becomes available from your second attempt onward."
+          detail="Here, you can check terms related to this question and their meanings."
+          onClose={dismissSidebarGlossarySpotlight}
+        />
+      ) : null}
 
       {isGlossaryModalOpen && glossaryTerms.length > 0 && (
         <div
