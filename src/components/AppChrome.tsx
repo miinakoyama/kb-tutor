@@ -35,7 +35,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
         className={
           hideNavigationChrome
             ? "min-h-screen"
-            : `min-h-screen pt-16 pl-14 lg:pt-0 transition-all duration-300 ${
+            : `min-h-screen pt-16 lg:pt-0 transition-all duration-300 ${
                 sidebarCollapsed ? "lg:pl-14" : "lg:pl-64"
               }`
         }

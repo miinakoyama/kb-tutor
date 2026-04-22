@@ -8,12 +8,22 @@ import type { GlossaryTerm } from "@/types/question";
 interface GlossaryPopoverProps {
   term: GlossaryTerm;
   children: ReactNode;
+  /** Fires the first time this term is opened (once per mount / close-reopen cycle). */
+  onOpen?: (term: GlossaryTerm) => void;
 }
 
-export function GlossaryPopover({ term, children }: GlossaryPopoverProps) {
+export function GlossaryPopover({ term, children, onOpen }: GlossaryPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const handleToggle = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) onOpen?.(term);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -35,7 +45,7 @@ export function GlossaryPopover({ term, children }: GlossaryPopoverProps) {
     <span className="relative inline">
       <button
         ref={triggerRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className="inline text-[#16a34a] font-medium underline decoration-[#16a34a]/40 decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 rounded"
       >
         {children}

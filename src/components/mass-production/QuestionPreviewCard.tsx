@@ -156,8 +156,12 @@ export function QuestionPreviewCard({
             <p className="text-xs font-semibold text-slate-gray/60 uppercase tracking-wide">
               Options
             </p>
-            {question.options.map((option) => {
+            {question.options.map((option, optionIndex) => {
               const isCorrect = option.id === question.correctOptionId;
+              const label =
+                /^[A-Z]$/.test(option.id)
+                  ? option.id
+                  : String.fromCharCode(65 + optionIndex);
               return (
                 <div
                   key={option.id}
@@ -175,7 +179,7 @@ export function QuestionPreviewCard({
                           : "bg-slate-gray/20 text-slate-gray/70"
                       }`}
                     >
-                      {option.id}
+                      {label}
                     </span>
                     <div className="flex-1">
                       <p className={isCorrect ? "font-medium" : ""}>
