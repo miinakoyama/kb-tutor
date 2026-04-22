@@ -5,8 +5,9 @@ import Link from "next/link";
 import { CheckCircle2, Home } from "lucide-react";
 import type { Question } from "@/types/question";
 import { AdaptivePracticeMode } from "@/components/modes/AdaptivePracticeMode";
-import { fetchIncorrectQuestionIds } from "@/lib/storage";
+import { fetchIncorrectQuestionCounts } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
+import { prioritizeQuestionsByWrongCount } from "@/lib/review-priority";
 
 const MAX_REVIEW_QUESTIONS = 10;
 
@@ -18,7 +19,7 @@ interface ReviewModeProps {
    * has already asked the server to resolve the review question set for this
    * (assignment, student) — scoped by the assignment's review_standards /
    * review_topics and capped by max_questions. In that case we MUST NOT
-   * re-filter by local `getIncorrectQuestionIds()` (whose data only reflects
+   * re-filter by local incorrect-attempt history (whose data only reflects
    * this device's history), and we must forward the assignmentId so the
    * nested AdaptivePracticeMode emits the completion POST and records
    * attempts under the assignment.
@@ -46,12 +47,27 @@ export function ReviewMode({
         setIsInitialized(true);
         return;
       }
-      // DB is the source of truth for which questions the student got wrong;
-      // localStorage is only used as an offline fallback inside the fetch.
-      const incorrectIds = new Set(await fetchIncorrectQuestionIds());
-      const incorrectQuestions = questions.filter((q) => incorrectIds.has(q.id));
+      // DB is the source of truth for incorrect attempt counts; localStorage is
+      // only used as an offline fallback inside the fetch.
+      const incorrectCounts = await fetchIncorrectQuestionCounts();
+      const wrongCountByQuestion = new Map<string, number>(
+        Object.entries(incorrectCounts).map(([questionId, count]) => [
+          questionId,
+          Number(count),
+        ]),
+      );
+      const incorrectQuestions = questions.filter((q) =>
+        wrongCountByQuestion.has(q.id),
+      );
       const cap = questionCount ?? MAX_REVIEW_QUESTIONS;
-      setReviewQuestions(shuffleArray(incorrectQuestions).slice(0, cap));
+      const prioritized = prioritizeQuestionsByWrongCount(
+        incorrectQuestions,
+        wrongCountByQuestion,
+        {
+          shuffleWithinSameWrongCount: (bucket) => shuffleArray(bucket),
+        },
+      );
+      setReviewQuestions(prioritized.slice(0, cap));
       setIsInitialized(true);
     };
     void load();

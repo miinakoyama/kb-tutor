@@ -8,6 +8,7 @@ import {
   Play,
   RotateCcw,
   Clock,
+  Info,
 } from "lucide-react";
 import type {
   StudentAssignmentListItem,
@@ -211,12 +212,19 @@ function AssignmentCard({
           <h2 className="text-lg font-semibold text-slate-gray">
             {assignment.title}
           </h2>
-          <p className="text-sm text-slate-gray/70 mt-1">
-            Topics: {assignment.topics.slice(0, 3).join(", ")}
-            {assignment.topics.length > 3
-              ? ` +${assignment.topics.length - 3} more`
-              : ""}
-          </p>
+          {assignment.instructions && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
+              <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 mb-0.5">
+                  Instructions
+                </p>
+                <p className="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed">
+                  {assignment.instructions}
+                </p>
+              </div>
+            </div>
+          )}
 
           <ProgressRow assignment={assignment} />
 
