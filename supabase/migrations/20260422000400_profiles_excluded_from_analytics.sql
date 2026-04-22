@@ -13,6 +13,10 @@ CREATE INDEX IF NOT EXISTS "idx_profiles_excluded_from_analytics"
   WHERE "excluded_from_analytics" = true;
 
 -- Rebuild dashboard views to exclude flagged students.
+-- Both views use LEFT JOIN on profiles so that attempts whose user_id has no
+-- corresponding profiles row (e.g. during testing or after a profile was
+-- deleted) are still counted. COALESCE defaults the missing flag to false,
+-- which keeps those attempts included by default.
 CREATE OR REPLACE VIEW "public"."teacher_dashboard_standard_metrics" AS
  SELECT "s"."teacher_user_id",
     "a"."user_id" AS "student_user_id",
