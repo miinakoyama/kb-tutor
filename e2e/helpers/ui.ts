@@ -16,6 +16,17 @@ export async function disableOnboardingTour(context: BrowserContext): Promise<vo
 }
 
 export async function dismissTourIfVisible(page: Page): Promise<void> {
+  const anyDismissButton = page
+    .getByRole("button", {
+      name: /^(Skip tour|Got it|Dismiss feature tip)$/,
+    })
+    .first();
+
+  const hasDismissUi = await anyDismissButton
+    .isVisible({ timeout: 5_000 })
+    .catch(() => false);
+  if (!hasDismissUi) return;
+
   for (let attempt = 0; attempt < 6; attempt += 1) {
     let dismissedSomething = false;
 
