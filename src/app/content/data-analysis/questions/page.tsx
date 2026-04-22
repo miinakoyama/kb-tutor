@@ -1,8 +1,12 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, RefreshCw } from "lucide-react";
+import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { LatexText } from "@/components/shared/LatexText";
+import type { Diagram } from "@/types/question";
 import { DataAnalysisTabs } from "../tabs";
+import { SchoolFilter } from "../school-filter";
 
 type ModeSlice = {
   mode: string;
@@ -23,6 +27,34 @@ type ChoiceSlice = {
   isCorrectChoice: boolean;
 };
 
+type QuestionOptionPreview = {
+  id: string;
+  text: string;
+};
+
+type QuestionPreview = {
+  text: string;
+  imageUrl: string | null;
+  options: QuestionOptionPreview[];
+  correctOptionId: string;
+  diagram: { type: string; data: unknown } | null;
+};
+
+type ConfidenceLevelKey = "not_sure" | "somewhat" | "sure";
+
+type ConfidenceBucket = {
+  total: number;
+  correct: number;
+  incorrect: number;
+};
+
+type ConfidenceSummary = {
+  total: number;
+  byLevel: Record<ConfidenceLevelKey, ConfidenceBucket>;
+  overconfidentWrong: number;
+  underconfidentRight: number;
+};
+
 type QuestionSummary = {
   questionId: string;
   standardId: string | null;
@@ -39,6 +71,13 @@ type QuestionSummary = {
   choiceStats: ChoiceSlice[];
   firstAnsweredAt: string | null;
   lastAnsweredAt: string | null;
+  question: QuestionPreview | null;
+  confidence: ConfidenceSummary;
+};
+
+type StandardOption = {
+  value: string;
+  label: string;
 };
 
 type SortKey =
@@ -54,6 +93,12 @@ type SortKey =
 const LOW_N_THRESHOLD = 20;
 const TOO_EASY_THRESHOLD = 0.95;
 const TOO_HARD_THRESHOLD = 0.2;
+const CONFIDENCE_LEVELS: ConfidenceLevelKey[] = ["sure", "somewhat", "not_sure"];
+const CONFIDENCE_LABELS: Record<ConfidenceLevelKey, string> = {
+  sure: "Sure",
+  somewhat: "Somewhat",
+  not_sure: "Not sure",
+};
 
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "-";
@@ -83,10 +128,6 @@ function getBadges(row: QuestionSummary): Array<{ label: string; tone: "warning"
   if (row.totalAttempts >= LOW_N_THRESHOLD && row.overall.accuracy < TOO_HARD_THRESHOLD) {
     badges.push({ label: "too hard (<20%)", tone: "warning" });
   }
-  const totalsByMode = new Map<string, number>();
-  for (const choice of row.choiceStats) {
-    totalsByMode.set(choice.mode, (totalsByMode.get(choice.mode) ?? 0) + choice.n);
-  }
   const distractorOnlyInOverall = row.choiceStats.filter((c) => c.mode === "practice");
   if (distractorOnlyInOverall.length > 0) {
     const anyUnused = distractorOnlyInOverall.some(
@@ -105,11 +146,12 @@ function getBadges(row: QuestionSummary): Array<{ label: string; tone: "warning"
 
 export default function QuestionQualityPage() {
   const [rows, setRows] = useState<QuestionSummary[]>([]);
+  const [standards, setStandards] = useState<StandardOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [schoolIds, setSchoolIds] = useState<string[]>([]);
   const [standardFilter, setStandardFilter] = useState("");
   const [minN, setMinN] = useState(0);
-  const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("attempts");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -118,6 +160,7 @@ export default function QuestionQualityPage() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
+    if (schoolIds.length > 0) params.set("schoolIds", schoolIds.join(","));
     if (standardFilter.trim()) params.set("standardId", standardFilter.trim());
     if (minN > 0) params.set("minN", String(minN));
 
@@ -129,6 +172,9 @@ export default function QuestionQualityPage() {
     const payload = (await response.json()) as {
       error?: string;
       questions?: QuestionSummary[];
+      meta?: {
+        standards?: StandardOption[];
+      };
     };
 
     if (!response.ok) {
@@ -138,26 +184,16 @@ export default function QuestionQualityPage() {
     }
 
     setRows(payload.questions ?? []);
+    setStandards(payload.meta?.standards ?? []);
     setLoading(false);
-  }, [minN, standardFilter]);
+  }, [minN, schoolIds, standardFilter]);
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
 
-  const filteredRows = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter(
-      (row) =>
-        row.questionId.toLowerCase().includes(term) ||
-        (row.standardId ?? "").toLowerCase().includes(term) ||
-        (row.standardLabel ?? "").toLowerCase().includes(term),
-    );
-  }, [rows, search]);
-
   const sortedRows = useMemo(() => {
-    const copy = [...filteredRows];
+    const copy = [...rows];
     const direction = sortDir === "asc" ? 1 : -1;
 
     const getValue = (row: QuestionSummary): number | string | null => {
@@ -193,7 +229,7 @@ export default function QuestionQualityPage() {
       return ((av as number) - (bv as number)) * direction;
     });
     return copy;
-  }, [filteredRows, sortKey, sortDir]);
+  }, [rows, sortKey, sortDir]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -215,25 +251,27 @@ export default function QuestionQualityPage() {
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
           Question Quality Diagnostics
         </h1>
-        <p className="text-slate-gray/70 max-w-3xl">
-          Per-question accuracy, distractor usage, and Practice vs Exam comparison. Helps surface
-          items that may be mis-keyed, too easy, too hard, or not discriminating well.
-        </p>
       </header>
 
       <DataAnalysisTabs active="questions" />
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
           <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">Standard filter</span>
-            <input
-              type="text"
+            <span className="block mb-1 font-medium">Standard</span>
+            <select
               value={standardFilter}
               onChange={(event) => setStandardFilter(event.target.value)}
-              placeholder="e.g. 8.EE.1"
               className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
+            >
+              <option value="">All standards</option>
+              {standards.map((standard) => (
+                <option key={standard.value} value={standard.value}>
+                  {standard.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-sm text-slate-gray">
             <span className="block mb-1 font-medium">Minimum attempts</span>
@@ -242,16 +280,6 @@ export default function QuestionQualityPage() {
               min={0}
               value={minN}
               onChange={(event) => setMinN(Math.max(0, Number.parseInt(event.target.value, 10) || 0))}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm text-slate-gray lg:col-span-2">
-            <span className="block mb-1 font-medium">Search (question id or standard)</span>
-            <input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Filter the table"
               className="w-full rounded-lg border border-slate-200 px-3 py-2"
             />
           </label>
@@ -264,6 +292,14 @@ export default function QuestionQualityPage() {
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
+          </button>
+          <button
+            onClick={() => downloadQuestionsCsv(sortedRows)}
+            disabled={sortedRows.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            Download CSV
           </button>
           <span className="text-xs text-slate-gray/60">
             {sortedRows.length} question{sortedRows.length === 1 ? "" : "s"} shown
@@ -414,9 +450,68 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
     return map;
   }, [row.choiceStats]);
 
+  const confidenceRows = CONFIDENCE_LEVELS.map((level) => ({
+    level,
+    bucket: row.confidence.byLevel[level],
+  }));
+  const confidenceTotal = row.confidence.total;
+
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <div>
+    <div className="space-y-6">
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <h3 className="text-sm font-semibold text-slate-gray mb-2">Question preview</h3>
+        {row.question ? (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-gray leading-relaxed">
+              <LatexText text={row.question.text} />
+            </p>
+            {row.question.imageUrl && (
+              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={row.question.imageUrl}
+                  alt="Question visual"
+                  className="max-h-72 w-full object-contain"
+                />
+              </div>
+            )}
+            {row.question.diagram && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <DiagramRenderer diagram={row.question.diagram as Diagram} />
+              </div>
+            )}
+            <div className="space-y-1">
+              {row.question.options.map((option, index) => {
+                const isCorrect = option.id === row.question?.correctOptionId;
+                const label =
+                  /^[A-Z]$/.test(option.id)
+                    ? option.id
+                    : String.fromCharCode(65 + index);
+                return (
+                  <div
+                    key={option.id}
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      isCorrect
+                        ? "border-green-200 bg-green-50 text-green-900"
+                        : "border-slate-200 bg-white text-slate-gray"
+                    }`}
+                  >
+                    <span className="mr-2 font-semibold">{label}.</span>
+                    <LatexText text={option.text} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-gray/70">
+            Question text is not available in generated_questions/assignment snapshots for this id.
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div>
         <h3 className="text-sm font-semibold text-slate-gray mb-2">Mode comparison</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -473,54 +568,162 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
               : "-"}
           </p>
         )}
-      </div>
-
-      <div>
-        <h3 className="text-sm font-semibold text-slate-gray mb-2">Choice selection rate</h3>
+        </div>
         <div className="space-y-4">
-          {modesOrder.map((mode) => {
-            const list = choicesByMode.get(mode);
-            if (!list || list.length === 0) return null;
-            return (
-              <div key={mode}>
-                <p className="text-xs font-medium text-slate-gray/70 capitalize mb-1">{mode}</p>
-                <ul className="space-y-1">
-                  {list.map((choice) => (
-                    <li key={`${mode}-${choice.optionId}`} className="text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={`font-mono truncate max-w-[240px] ${
-                            choice.isCorrectChoice ? "text-[#166534] font-semibold" : "text-slate-gray"
-                          }`}
-                          title={choice.optionId}
-                        >
-                          {choice.optionId}
-                          {choice.isCorrectChoice && (
-                            <span className="ml-1 rounded bg-green-100 px-1 text-[10px] text-green-800">correct</span>
-                          )}
-                        </span>
-                        <span className="text-slate-gray/70 whitespace-nowrap">
-                          {formatPercent(choice.share)} ({choice.n})
-                        </span>
-                      </div>
-                      <div className="mt-0.5 h-1.5 w-full rounded bg-slate-200 overflow-hidden">
-                        <div
-                          className={
-                            choice.isCorrectChoice
-                              ? "h-full bg-[#16a34a]"
-                              : "h-full bg-slate-400"
-                          }
-                          style={{ width: `${Math.min(100, choice.share * 100)}%` }}
-                        />
-                      </div>
-                    </li>
-                  ))}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-gray mb-2">Choice selection rate</h3>
+            <div className="space-y-4">
+              {modesOrder.map((mode) => {
+                const list = choicesByMode.get(mode);
+                if (!list || list.length === 0) return null;
+                return (
+                  <div key={mode}>
+                    <p className="text-xs font-medium text-slate-gray/70 capitalize mb-1">{mode}</p>
+                    <ul className="space-y-1">
+                      {list.map((choice) => (
+                        <li key={`${mode}-${choice.optionId}`} className="text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className={`font-mono truncate max-w-[240px] ${
+                                choice.isCorrectChoice ? "text-[#166534] font-semibold" : "text-slate-gray"
+                              }`}
+                              title={choice.optionId}
+                            >
+                              {choice.optionId}
+                              {choice.isCorrectChoice && (
+                                <span className="ml-1 rounded bg-green-100 px-1 text-[10px] text-green-800">correct</span>
+                              )}
+                            </span>
+                            <span className="text-slate-gray/70 whitespace-nowrap">
+                              {formatPercent(choice.share)} ({choice.n})
+                            </span>
+                          </div>
+                          <div className="mt-0.5 h-1.5 w-full rounded bg-slate-200 overflow-hidden">
+                            <div
+                              className={
+                                choice.isCorrectChoice
+                                  ? "h-full bg-[#16a34a]"
+                                  : "h-full bg-slate-400"
+                              }
+                              style={{ width: `${Math.min(100, choice.share * 100)}%` }}
+                            />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <h3 className="text-sm font-semibold text-slate-gray mb-2">Confidence distribution</h3>
+            {confidenceTotal === 0 ? (
+              <p className="text-xs text-slate-gray/70">No confidence submissions for this question yet.</p>
+            ) : (
+              <>
+                <ul className="space-y-2">
+                  {confidenceRows.map(({ level, bucket }) => {
+                    const share = confidenceTotal > 0 ? bucket.total / confidenceTotal : 0;
+                    const accuracy = bucket.total > 0 ? bucket.correct / bucket.total : null;
+                    return (
+                      <li key={level}>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-gray">{CONFIDENCE_LABELS[level]}</span>
+                          <span className="text-slate-gray/70">
+                            {bucket.total} ({Math.round(share * 100)}%) · {accuracy === null ? "—" : `${Math.round(accuracy * 100)}% correct`}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 h-1.5 w-full rounded bg-slate-200 overflow-hidden">
+                          <div
+                            className="h-full bg-[#16a34a]/70"
+                            style={{ width: `${Math.min(100, share * 100)}%` }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
-              </div>
-            );
-          })}
+                <p className="mt-3 text-xs text-slate-gray/70">
+                  Overconfident wrong: {row.confidence.overconfidentWrong} · Underconfident right:{" "}
+                  {row.confidence.underconfidentRight}
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function csvCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadQuestionsCsv(rows: QuestionSummary[]) {
+  const header = [
+    "question_id",
+    "standard_id",
+    "standard_label",
+    "total_attempts",
+    "unique_users",
+    "overall_accuracy",
+    "first_attempt_accuracy",
+    "first_attempt_n",
+    "practice_attempts",
+    "practice_accuracy",
+    "exam_attempts",
+    "exam_accuracy",
+    "review_attempts",
+    "review_accuracy",
+    "time_p50_sec",
+    "time_p90_sec",
+    "first_answered_at",
+    "last_answered_at",
+  ].map(csvCell).join(",");
+
+  const lines = rows.map((row) => {
+    const p = row.modes.practice;
+    const e = row.modes.exam;
+    const r = row.modes.review;
+    return [
+      row.questionId,
+      row.standardId,
+      row.standardLabel,
+      row.totalAttempts,
+      row.totalUniqueUsers,
+      row.overall.accuracy,
+      row.practiceFirstAttempt?.accuracy ?? "",
+      row.practiceFirstAttempt?.n ?? "",
+      p?.attempts ?? "",
+      p?.accuracy ?? "",
+      e?.attempts ?? "",
+      e?.accuracy ?? "",
+      r?.attempts ?? "",
+      r?.accuracy ?? "",
+      row.overall.timeP50 ?? "",
+      row.overall.timeP90 ?? "",
+      row.firstAnsweredAt ?? "",
+      row.lastAnsweredAt ?? "",
+    ].map(csvCell).join(",");
+  });
+
+  const csv = [header, ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const today = new Date().toISOString().slice(0, 10);
+  a.download = `question-quality_${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

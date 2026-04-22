@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { DataAnalysisTabs } from "../tabs";
+import { DateRangePicker, defaultPilotRange } from "../date-range";
+import { SchoolFilter } from "../school-filter";
 
 interface Counter {
   n: number;
@@ -27,30 +29,15 @@ interface FeatureUsageResponse {
   confidence: {
     matrix: Record<string, Record<string, Counter>>;
   };
-  explanation: {
-    byPhase: Record<string, Counter>;
-  };
   bookmarks: {
     added: Counter;
     removed: Counter;
   };
-  hints: {
-    opens: number;
-    closes: number;
-    dwellAvgMs: number | null;
-    dwellMedianMs: number | null;
-    sampleSize: number;
-  };
-}
-
-function isoDateOnly(value: Date): string {
-  return value.toISOString().slice(0, 10);
 }
 
 const CONFIDENCE_LEVELS = ["sure", "somewhat", "not_sure"] as const;
 const TTS_TARGETS = ["question", "choices", "feedback"] as const;
 const GLOSSARY_SOURCES = ["inline", "modal", "sidebar"] as const;
-const EXPLANATION_PHASES = ["completed", "retry", "exam_review"] as const;
 
 const CONFIDENCE_LABELS: Record<string, string> = {
   sure: "Sure",
@@ -59,15 +46,10 @@ const CONFIDENCE_LABELS: Record<string, string> = {
 };
 
 export default function FeatureUsagePage() {
-  const now = useMemo(() => new Date(), []);
-  const defaultFrom = useMemo(() => {
-    const from = new Date(now);
-    from.setDate(now.getDate() - 30);
-    return from;
-  }, [now]);
-
-  const [from, setFrom] = useState(isoDateOnly(defaultFrom));
-  const [to, setTo] = useState(isoDateOnly(now));
+  const initialRange = useMemo(() => defaultPilotRange(), []);
+  const [range, setRange] = useState(initialRange);
+  const { from, to } = range;
+  const [schoolIds, setSchoolIds] = useState<string[]>([]);
   const [mode, setMode] = useState("all");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<FeatureUsageResponse | null>(null);
@@ -77,6 +59,7 @@ export default function FeatureUsagePage() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ from, to });
+    if (schoolIds.length > 0) params.set("schoolIds", schoolIds.join(","));
     if (mode !== "all") params.set("mode", mode);
 
     try {
@@ -98,7 +81,7 @@ export default function FeatureUsagePage() {
     } finally {
       setLoading(false);
     }
-  }, [from, mode, to]);
+  }, [from, mode, schoolIds, to]);
 
   useEffect(() => {
     void fetchData();
@@ -111,32 +94,17 @@ export default function FeatureUsagePage() {
           Data Analysis
         </h1>
         <p className="text-slate-gray/70 max-w-3xl">
-          Track which scaffolding features students actually use, broken down by source, target, and confidence.
+          Tracks primarily user-initiated support actions (glossary, read-aloud, bookmarks, confidence).
+          Auto-shown hint/feedback events are intentionally excluded.
         </p>
       </header>
 
       <DataAnalysisTabs active="feature-usage" />
 
       <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">From</span>
-            <input
-              type="date"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm text-slate-gray">
-            <span className="block mb-1 font-medium">To</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
-          </label>
+        <DateRangePicker value={range} onChange={setRange} />
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
           <label className="text-sm text-slate-gray">
             <span className="block mb-1 font-medium">Mode</span>
             <select
@@ -150,13 +118,21 @@ export default function FeatureUsagePage() {
               <option value="review">Review</option>
             </select>
           </label>
-          <div className="flex items-end">
+          <div className="flex items-end flex-wrap gap-2">
             <button
               onClick={() => void fetchData()}
               className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
+            </button>
+            <button
+              onClick={() => data && downloadFeatureUsageCsv(data, range)}
+              disabled={!data}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              Download CSV
             </button>
           </div>
         </div>
@@ -180,12 +156,8 @@ export default function FeatureUsagePage() {
         <div className="space-y-6">
           <OverviewStrip data={data} />
           <GlossarySection data={data.glossary} />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <TtsSection data={data.tts} />
-            <ExplanationSection data={data.explanation} />
-          </div>
+          <TtsSection data={data.tts} />
           <ConfidenceSection data={data.confidence} />
-          <HintsSection data={data.hints} />
         </div>
       ) : (
         <p className="text-sm text-slate-gray/70">No feature usage events in the selected window.</p>
@@ -208,17 +180,12 @@ function OverviewStrip({ data }: { data: FeatureUsageResponse }) {
       sum + Object.values(inner).reduce((innerSum, counter) => innerSum + counter.n, 0),
     0,
   );
-  const explanationTotal = Object.values(data.explanation.byPhase).reduce(
-    (sum, counter) => sum + counter.n,
-    0,
-  );
 
   return (
-    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <MetricCard label="Glossary opens" value={glossaryTotal} />
       <MetricCard label="Read-aloud plays" value={ttsTotal} />
       <MetricCard label="Confidence ratings" value={confidenceTotal} />
-      <MetricCard label="Feedback views" value={explanationTotal} />
       <MetricCard
         label="Bookmarks net"
         value={data.bookmarks.added.n - data.bookmarks.removed.n}
@@ -308,40 +275,6 @@ function TtsSection({ data }: { data: FeatureUsageResponse["tts"] }) {
   );
 }
 
-function ExplanationSection({ data }: { data: FeatureUsageResponse["explanation"] }) {
-  const total = Object.values(data.byPhase).reduce((sum, counter) => sum + counter.n, 0);
-  const phases = EXPLANATION_PHASES.filter((phase) => data.byPhase[phase]);
-  const extraPhases = Object.keys(data.byPhase).filter(
-    (key) => !EXPLANATION_PHASES.includes(key as (typeof EXPLANATION_PHASES)[number]),
-  );
-  const allPhases = [...phases, ...extraPhases];
-  const phaseLabel: Record<string, string> = {
-    completed: "Practice — final",
-    retry: "Practice — after wrong attempt",
-    exam_review: "Exam review",
-  };
-
-  return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d] mb-3">Feedback (explanation) views</h2>
-      {total === 0 ? (
-        <p className="text-sm text-slate-gray/70">No feedback views in this window.</p>
-      ) : (
-        <div className="space-y-2">
-          {allPhases.map((phase) => (
-            <BarRow
-              key={phase}
-              label={phaseLabel[phase] ?? phase}
-              counter={data.byPhase[phase]}
-              total={total}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 function ConfidenceSection({ data }: { data: FeatureUsageResponse["confidence"] }) {
   const knownLevels = CONFIDENCE_LEVELS.filter((level) => data.matrix[level]);
   const extraLevels = Object.keys(data.matrix).filter(
@@ -400,27 +333,6 @@ function ConfidenceSection({ data }: { data: FeatureUsageResponse["confidence"] 
       <p className="mt-3 text-xs text-slate-gray/60">
         Calibration: compare self-reported confidence with actual correctness. Well-calibrated students
         should be mostly correct when &quot;Sure&quot; and mostly incorrect when &quot;Not sure&quot;.
-      </p>
-    </section>
-  );
-}
-
-function HintsSection({ data }: { data: FeatureUsageResponse["hints"] }) {
-  const avgSec = data.dwellAvgMs !== null ? (data.dwellAvgMs / 1000).toFixed(1) : "—";
-  const medianSec =
-    data.dwellMedianMs !== null ? (data.dwellMedianMs / 1000).toFixed(1) : "—";
-  return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d] mb-3">Hints (scaffolding dwell)</h2>
-      <div className="grid gap-3 sm:grid-cols-4">
-        <MetricCard label="Hints shown" value={data.opens} />
-        <MetricCard label="Hints closed" value={data.closes} />
-        <MetricCard label="Avg dwell" value={`${avgSec}s`} hint={`n=${data.sampleSize}`} />
-        <MetricCard label="Median dwell" value={`${medianSec}s`} />
-      </div>
-      <p className="mt-3 text-xs text-slate-gray/60">
-        Dwell is measured from <code>hint_opened</code> to <code>hint_closed</code>. Closed includes correct
-        answer, max attempts reached, and moving to the next question.
       </p>
     </section>
   );
@@ -497,4 +409,59 @@ function BarRow({
       </div>
     </div>
   );
+}
+
+function csvCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadFeatureUsageCsv(
+  data: FeatureUsageResponse,
+  range: { from: string; to: string },
+) {
+  const lines: string[] = [];
+  lines.push(`# Feature usage export`);
+  lines.push(`# from=${range.from} to=${range.to} mode=${data.meta.mode}`);
+  lines.push("");
+  lines.push("section,key,n,unique_users");
+  for (const [source, counter] of Object.entries(data.glossary.bySource)) {
+    lines.push(`glossary,${csvCell(source)},${counter.n},${counter.uniqueUsers}`);
+  }
+  for (const term of data.glossary.topTerms) {
+    lines.push(
+      `glossary_term,${csvCell(term.label)},${term.n},${term.uniqueUsers}`,
+    );
+  }
+  for (const [target, counter] of Object.entries(data.tts.byTarget)) {
+    lines.push(`tts,${csvCell(target)},${counter.n},${counter.uniqueUsers}`);
+  }
+  for (const [level, inner] of Object.entries(data.confidence.matrix)) {
+    for (const [correctness, counter] of Object.entries(inner)) {
+      lines.push(
+        `confidence,${csvCell(`${level}__${correctness}`)},${counter.n},${counter.uniqueUsers}`,
+      );
+    }
+  }
+  lines.push(
+    `bookmarks,added,${data.bookmarks.added.n},${data.bookmarks.added.uniqueUsers}`,
+  );
+  lines.push(
+    `bookmarks,removed,${data.bookmarks.removed.n},${data.bookmarks.removed.uniqueUsers}`,
+  );
+
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `feature-usage_${range.from}_${range.to}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

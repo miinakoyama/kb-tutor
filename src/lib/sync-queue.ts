@@ -442,55 +442,47 @@ function isNonRetriableError(err: unknown): boolean {
 }
 
 async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Promise<void> {
-  const supabase = getSupabaseBrowserClient();
-  const row = {
-    client_attempt_id: entry.payload.clientAttemptId,
-    question_id: entry.payload.questionId,
-    selected_option_id: entry.payload.selectedOptionId,
-    is_correct: entry.payload.isCorrect,
-    mode: entry.payload.mode,
-    module: entry.payload.module ?? null,
-    topic: entry.payload.topic ?? null,
-    standard_id: entry.payload.standardId ?? null,
-    standard_label: entry.payload.standardLabel ?? null,
-    time_spent_sec: entry.payload.timeSpentSec ?? null,
-    assignment_id: entry.payload.assignmentId ?? null,
-    answered_at: entry.payload.answeredAt,
-  };
-  const { error } = await withTimeout(
+  const response = await withTimeout(
     async () =>
-      await supabase
-        .from("attempts")
-        .upsert(row, { onConflict: "client_attempt_id", ignoreDuplicates: true }),
+      await fetch("/api/analytics/attempts", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry.payload),
+      }),
     REQUEST_TIMEOUT_MS,
   );
-  if (!error) return;
-  const syncErr = toSyncError(error);
-  // Self-heal for stale assignment references: the FK is ON DELETE SET NULL
-  // at the DB level for existing rows, but the client queue keeps submitting
-  // with the original id. If the assignment has been deleted (or never
-  // reached this environment, e.g. data copied from another project), we
-  // drop the assignment_id so the answer itself still lands.
-  if (
-    syncErr.code === "23503" &&
-    syncErr.constraint === "attempts_assignment_id_fkey" &&
-    row.assignment_id != null
-  ) {
-    debugLog("runAttempt: nulling stale assignment_id and retrying", row.assignment_id);
-    const { error: retryErr } = await withTimeout(
-      async () =>
-        await supabase
-          .from("attempts")
-          .upsert(
-            { ...row, assignment_id: null },
-            { onConflict: "client_attempt_id", ignoreDuplicates: true },
-          ),
-      REQUEST_TIMEOUT_MS,
-    );
-    if (!retryErr) return;
-    throw toSyncError(retryErr);
+
+  if (response.ok) return;
+
+  let payload:
+    | {
+        error?: string;
+        code?: string | null;
+        details?: string | null;
+        constraint?: string | null;
+      }
+    | null = null;
+
+  try {
+    payload = (await response.json()) as {
+      error?: string;
+      code?: string | null;
+      details?: string | null;
+      constraint?: string | null;
+    };
+  } catch {
+    payload = null;
   }
-  throw syncErr;
+
+  throw new SyncWriteError({
+    message:
+      payload?.error ??
+      `Failed to persist attempt (HTTP ${response.status})`,
+    code: payload?.code ?? String(response.status),
+    details: payload?.details ?? null,
+    constraint: payload?.constraint ?? null,
+  });
 }
 
 async function runBookmark(entry: Extract<PendingWrite, { kind: "bookmark" }>): Promise<void> {

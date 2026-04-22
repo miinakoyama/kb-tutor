@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import {
+  parseAnalyticsWindow,
+  parseSchoolIds,
+} from "@/lib/analytics/admin-filters";
 
 type AttemptRow = {
   user_id: string;
@@ -22,13 +26,6 @@ type ProfileRow = {
   display_name: string | null;
   email: string | null;
 };
-
-function parseDateBoundary(value: string | null, fallback: Date): Date {
-  if (!value) return fallback;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return fallback;
-  return parsed;
-}
 
 function escapeCsvValue(value: string | number | boolean | null): string {
   const text = value === null ? "" : String(value);
@@ -68,19 +65,17 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const format = url.searchParams.get("format");
-  const schoolId = url.searchParams.get("schoolId");
+  const schoolIdFilters = parseSchoolIds(url);
   const modeFilter = url.searchParams.get("mode");
   const studentFilter = url.searchParams.get("student");
-  const now = new Date();
-  const defaultFrom = new Date(now);
-  defaultFrom.setDate(now.getDate() - 30);
-  const from = parseDateBoundary(url.searchParams.get("from"), defaultFrom);
-  const to = parseDateBoundary(url.searchParams.get("to"), now);
+  const { from, to } = parseAnalyticsWindow(url, { defaultDays: 30 });
 
   const admin = createSupabaseAdminClient();
 
   let memberQuery = admin.from("school_members").select("school_id,student_user_id");
-  if (schoolId) memberQuery = memberQuery.eq("school_id", schoolId);
+  if (schoolIdFilters.length > 0) {
+    memberQuery = memberQuery.in("school_id", schoolIdFilters);
+  }
 
   const { data: membershipRows, error: membershipError } = await memberQuery;
   if (membershipError) {

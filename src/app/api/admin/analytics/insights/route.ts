@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import {
+  parseAnalyticsWindow,
+  parseSchoolIds,
+} from "@/lib/analytics/admin-filters";
 
 // Insights API — answers the four product research questions at a glance:
 //   Q2: Does scaffolding actually correct errors? (practice first vs final)
@@ -48,6 +52,13 @@ type StageCountsRow = {
   abandoned_n: number;
 };
 
+type SessionDurationSourceRow = {
+  user_id: string;
+  started_at: string;
+  ended_at: string | null;
+  mode: string;
+};
+
 type SessionDurationRow = {
   mode: string;
   duration_ms: number;
@@ -87,21 +98,6 @@ async function requireAdmin() {
     };
   }
   return { ok: true as const, userId: user.id };
-}
-
-function parseWindow(url: URL) {
-  const now = new Date();
-  const defaultFrom = new Date(now);
-  defaultFrom.setDate(now.getDate() - 30);
-
-  const fromRaw = url.searchParams.get("from");
-  const toRaw = url.searchParams.get("to");
-  const from = fromRaw ? new Date(fromRaw) : defaultFrom;
-  const to = toRaw ? new Date(toRaw) : now;
-  if (toRaw && /^\d{4}-\d{2}-\d{2}$/.test(toRaw)) {
-    to.setHours(23, 59, 59, 999);
-  }
-  return { from, to };
 }
 
 function median(sorted: number[]): number | null {
@@ -174,12 +170,62 @@ export async function GET(request: Request) {
   if (!guard.ok) return guard.response;
 
   const url = new URL(request.url);
-  const { from, to } = parseWindow(url);
+  const { from, to } = parseAnalyticsWindow(url, { defaultDays: 30 });
+  const schoolIds = parseSchoolIds(url);
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
   const admin = createSupabaseAdminClient();
   const rpcArgs = { p_from: fromIso, p_to: toIso };
+
+  let scopedUserSet: Set<string> | null = null;
+  if (schoolIds.length > 0) {
+    const { data: memberRows, error: memberError } = await admin
+      .from("school_members")
+      .select("student_user_id")
+      .in("school_id", schoolIds);
+    if (memberError) {
+      return NextResponse.json({ error: memberError.message }, { status: 400 });
+    }
+    scopedUserSet = new Set(
+      (memberRows ?? []).map((row) => String(row.student_user_id)),
+    );
+  }
+
+  let confidenceQuery = admin
+    .from("analytics_events")
+    .select("payload")
+    .eq("event_type", "confidence_submitted")
+    .gte("occurred_at", fromIso)
+    .lte("occurred_at", toIso)
+    .limit(100_000);
+  let hintOpensQuery = admin
+    .from("analytics_events")
+    .select("user_id,question_id")
+    .eq("event_type", "hint_opened")
+    .gte("occurred_at", fromIso)
+    .lte("occurred_at", toIso)
+    .limit(100_000);
+  let attemptEventsQuery = admin
+    .from("analytics_events")
+    .select("user_id,question_id,payload")
+    .eq("event_type", "attempt_submitted")
+    .gte("occurred_at", fromIso)
+    .lte("occurred_at", toIso)
+    .limit(200_000);
+  let sessionDurationQuery = admin
+    .from("analytics_sessions")
+    .select("user_id,started_at,ended_at,mode")
+    .gte("started_at", fromIso)
+    .lte("started_at", toIso)
+    .not("ended_at", "is", null)
+    .limit(100_000);
+  if (schoolIds.length > 0) {
+    confidenceQuery = confidenceQuery.in("school_id", schoolIds);
+    hintOpensQuery = hintOpensQuery.in("school_id", schoolIds);
+    attemptEventsQuery = attemptEventsQuery.in("school_id", schoolIds);
+    sessionDurationQuery = sessionDurationQuery.in("school_id", schoolIds);
+  }
 
   const [
     practiceRes,
@@ -187,14 +233,20 @@ export async function GET(request: Request) {
     reviewDwellRes,
     reviewEnteredRes,
     stageCountsRes,
-    sessionDurationsRes,
+    sessionDurationsRawRes,
+    confidenceRes,
+    hintOpensRes,
+    attemptEventsRes,
   ] = await Promise.all([
     admin.rpc("insights_practice_summary", rpcArgs),
     admin.rpc("insights_exam_summary", rpcArgs),
     admin.rpc("insights_review_dwell", rpcArgs),
     admin.rpc("insights_review_entered_users", rpcArgs),
     admin.rpc("insights_stage_counts", rpcArgs),
-    admin.rpc("insights_session_durations", rpcArgs),
+    sessionDurationQuery,
+    confidenceQuery,
+    hintOpensQuery,
+    attemptEventsQuery,
   ]);
 
   const firstError = [
@@ -203,18 +255,54 @@ export async function GET(request: Request) {
     reviewDwellRes,
     reviewEnteredRes,
     stageCountsRes,
-    sessionDurationsRes,
+    sessionDurationsRawRes,
+    confidenceRes,
+    hintOpensRes,
+    attemptEventsRes,
   ].find((r) => r.error);
   if (firstError?.error) {
     return NextResponse.json({ error: firstError.error.message }, { status: 400 });
   }
 
-  const practiceRows = (practiceRes.data ?? []) as PracticeSummaryRow[];
-  const examRows = (examRes.data ?? []) as ExamSummaryRow[];
-  const reviewDwellRows = (reviewDwellRes.data ?? []) as ReviewDwellRow[];
-  const reviewEnteredRows = (reviewEnteredRes.data ?? []) as ReviewEnteredRow[];
-  const stageCountsRows = (stageCountsRes.data ?? []) as StageCountsRow[];
-  const sessionDurationRows = (sessionDurationsRes.data ?? []) as SessionDurationRow[];
+  const practiceRowsAll = (practiceRes.data ?? []) as PracticeSummaryRow[];
+  const examRowsAll = (examRes.data ?? []) as ExamSummaryRow[];
+  const reviewDwellRowsAll = (reviewDwellRes.data ?? []) as ReviewDwellRow[];
+  const reviewEnteredRowsAll = (reviewEnteredRes.data ?? []) as ReviewEnteredRow[];
+  const stageCountsRowsAll = (stageCountsRes.data ?? []) as StageCountsRow[];
+  const sessionDurationSourceRows =
+    (sessionDurationsRawRes.data ?? []) as SessionDurationSourceRow[];
+
+  const isInScope = (userId: string) =>
+    scopedUserSet ? scopedUserSet.has(userId) : true;
+
+  const practiceRows = practiceRowsAll.filter((row) => isInScope(row.user_id));
+  const examRows = examRowsAll.filter((row) => isInScope(row.user_id));
+  const reviewDwellRows = reviewDwellRowsAll.filter((row) =>
+    isInScope(row.user_id),
+  );
+  const reviewEnteredRows = reviewEnteredRowsAll.filter((row) =>
+    isInScope(row.user_id),
+  );
+  const stageCountsRows = stageCountsRowsAll.filter((row) =>
+    isInScope(row.user_id),
+  );
+  const sessionDurationRows: SessionDurationRow[] = sessionDurationSourceRows
+    .filter((row) => isInScope(row.user_id))
+    .map((row) => {
+      const startedMs = new Date(row.started_at).getTime();
+      const endedMs = row.ended_at ? new Date(row.ended_at).getTime() : Number.NaN;
+      const valid =
+        Number.isFinite(startedMs) &&
+        Number.isFinite(endedMs) &&
+        endedMs > startedMs &&
+        endedMs - startedMs < 6 * 60 * 60 * 1000;
+      if (!valid) return null;
+      return {
+        mode: row.mode,
+        duration_ms: endedMs - startedMs,
+      };
+    })
+    .filter((row): row is SessionDurationRow => row !== null);
 
   // ---- Q2 / Q3 rollups ---------------------------------------------------
   const overall = emptyBucket();
@@ -488,6 +576,108 @@ export async function GET(request: Request) {
     .sort((a, b) => a.completionRate - b.completionRate)
     .slice(0, 50);
 
+  // ---- Hint Dependency & Confidence Calibration (new) ------------------
+  type AttemptEvent = {
+    user_id: string;
+    question_id: string | null;
+    payload: Record<string, unknown> | null;
+  };
+  type HintOpen = { user_id: string; question_id: string | null };
+  type ConfidenceEvent = { payload: Record<string, unknown> | null };
+
+  const attemptEvents = ((attemptEventsRes.data ?? []) as AttemptEvent[]).filter(
+    (row) => isInScope(row.user_id),
+  );
+  const hintOpens = ((hintOpensRes.data ?? []) as HintOpen[]).filter((row) =>
+    isInScope(row.user_id),
+  );
+  const confidenceEvents = (confidenceRes.data ?? []) as ConfidenceEvent[];
+
+  const hintKeySet = new Set<string>();
+  for (const row of hintOpens) {
+    if (!row.question_id) continue;
+    hintKeySet.add(`${row.user_id}::${row.question_id}`);
+  }
+
+  const attemptGroups = new Map<
+    string,
+    {
+      userId: string;
+      first: { index: number; correct: boolean } | null;
+      final: { index: number; correct: boolean } | null;
+    }
+  >();
+  for (const row of attemptEvents) {
+    if (!row.question_id) continue;
+    const key = `${row.user_id}::${row.question_id}`;
+    const payload = row.payload ?? {};
+    const index = typeof payload.attemptIndex === "number" ? payload.attemptIndex : 1;
+    const correct = typeof payload.isCorrect === "boolean" ? payload.isCorrect : false;
+    const group = attemptGroups.get(key) ?? {
+      userId: row.user_id,
+      first: null,
+      final: null,
+    };
+    if (!group.first || index < group.first.index) group.first = { index, correct };
+    if (!group.final || index > group.final.index) group.final = { index, correct };
+    attemptGroups.set(key, group);
+  }
+
+  let hintShownN = 0;
+  let hintShownAndRecovered = 0;
+  let hintShownAndFailed = 0;
+  let noHintN = 0;
+  let noHintCorrect = 0;
+  for (const [key, group] of attemptGroups) {
+    if (!group.first || !group.final) continue;
+    const hintShown = hintKeySet.has(key);
+    if (hintShown) {
+      hintShownN += 1;
+      if (group.final.correct && !group.first.correct) hintShownAndRecovered += 1;
+      if (!group.final.correct) hintShownAndFailed += 1;
+    } else {
+      noHintN += 1;
+      if (group.final.correct) noHintCorrect += 1;
+    }
+  }
+
+  // Recovery rate = among (hint shown) events that started wrong, how many ended correct.
+  const wrongFirstWithHint = hintShownAndRecovered + hintShownAndFailed;
+  const hintRecoveryRate =
+    wrongFirstWithHint > 0 ? hintShownAndRecovered / wrongFirstWithHint : null;
+  const noHintAccuracy = noHintN > 0 ? noHintCorrect / noHintN : null;
+  const hintDependencyIndex =
+    hintRecoveryRate !== null && noHintAccuracy !== null && noHintAccuracy > 0
+      ? hintRecoveryRate / noHintAccuracy
+      : null;
+
+  const confidenceMatrix: Record<string, { correct: number; incorrect: number }> = {
+    sure: { correct: 0, incorrect: 0 },
+    somewhat: { correct: 0, incorrect: 0 },
+    not_sure: { correct: 0, incorrect: 0 },
+  };
+  let confidenceTotal = 0;
+  for (const row of confidenceEvents) {
+    const payload = row.payload ?? {};
+    const level =
+      typeof payload.confidenceLevel === "string" ? payload.confidenceLevel : null;
+    const isCorrect =
+      typeof payload.isCorrect === "boolean" ? payload.isCorrect : null;
+    if (!level || isCorrect === null) continue;
+    const slot = confidenceMatrix[level] ?? { correct: 0, incorrect: 0 };
+    if (isCorrect) slot.correct += 1;
+    else slot.incorrect += 1;
+    confidenceMatrix[level] = slot;
+    confidenceTotal += 1;
+  }
+
+  const overconfidentWrong = confidenceMatrix.sure?.incorrect ?? 0;
+  const underconfidentRight = confidenceMatrix.not_sure?.correct ?? 0;
+  const calibratedRate =
+    confidenceTotal > 0
+      ? 1 - (overconfidentWrong + underconfidentRight) / confidenceTotal
+      : null;
+
   return NextResponse.json({
     meta: {
       from: fromIso,
@@ -499,6 +689,8 @@ export async function GET(request: Request) {
       reviewDwellPairs: reviewDwellRows.length,
       stageUserModes: stageCountsRows.length,
       sessionDurations: sessionDurationRows.length,
+      attemptEvents: attemptEvents.length,
+      confidenceEvents: confidenceEvents.length,
     },
     scaffolding: {
       overall: scaffoldingOverall,
@@ -511,6 +703,23 @@ export async function GET(request: Request) {
       overall: completionOverall,
       byMode: completionByMode,
       byStudent: completionByStudent,
+    },
+    hintDependency: {
+      hintShownN,
+      hintRecoveryRate,
+      noHintN,
+      noHintAccuracy,
+      hintDependencyIndex,
+      hintShownAndRecovered,
+      hintShownAndFailed,
+      noHintCorrect,
+    },
+    confidenceCalibration: {
+      total: confidenceTotal,
+      matrix: confidenceMatrix,
+      overconfidentWrong,
+      underconfidentRight,
+      calibratedRate,
     },
   });
 }
