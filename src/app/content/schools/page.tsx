@@ -17,6 +17,7 @@ interface SchoolView {
   name: string;
   teacher_user_id: string | null;
   keystone_exam_date: string | null;
+  is_hidden: boolean;
   teacher_label: string;
   teachers: { id: string; label: string; is_primary: boolean }[];
   students: { id: string; label: string }[];
@@ -43,6 +44,7 @@ export default function SchoolManagementPage() {
     name: "",
     teacherUserIds: [] as string[],
     keystoneExamDate: "",
+    isHidden: false,
   });
 
   const selectedSchool = useMemo(
@@ -53,6 +55,7 @@ export default function SchoolManagementPage() {
   const [editName, setEditName] = useState("");
   const [editTeacherIds, setEditTeacherIds] = useState<string[]>([]);
   const [editKeystoneExamDate, setEditKeystoneExamDate] = useState("");
+  const [editIsHidden, setEditIsHidden] = useState(false);
 
   useEffect(() => {
     const school = selectedSchool;
@@ -60,6 +63,7 @@ export default function SchoolManagementPage() {
     setEditName(school.name);
     setEditTeacherIds(school.teachers.map((t) => t.id));
     setEditKeystoneExamDate(school.keystone_exam_date ?? "");
+    setEditIsHidden(school.is_hidden);
   }, [selectedSchoolId, selectedSchool]);
 
   const loadAll = useCallback(async () => {
@@ -91,7 +95,12 @@ export default function SchoolManagementPage() {
   }, [loadAll]);
 
   function resetCreateForm() {
-    setCreateForm({ name: "", teacherUserIds: [], keystoneExamDate: "" });
+    setCreateForm({
+      name: "",
+      teacherUserIds: [],
+      keystoneExamDate: "",
+      isHidden: false,
+    });
   }
 
   async function createSchool(event: React.FormEvent<HTMLFormElement>) {
@@ -105,6 +114,7 @@ export default function SchoolManagementPage() {
         name: createForm.name.trim(),
         teacherUserIds: createForm.teacherUserIds,
         keystoneExamDate: createForm.keystoneExamDate.trim() || null,
+        isHidden: createForm.isHidden,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -130,6 +140,7 @@ export default function SchoolManagementPage() {
         name: editName.trim(),
         teacherUserIds: editTeacherIds,
         keystoneExamDate: editKeystoneExamDate.trim() || null,
+        isHidden: editIsHidden,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -170,7 +181,7 @@ export default function SchoolManagementPage() {
             School Management
           </h1>
           <p className="text-slate-gray/70 text-sm">
-            Create schools, assign teachers, and view enrolled students.
+            Create schools, assign teachers, and control student login visibility.
           </p>
         </div>
         <button
@@ -233,6 +244,11 @@ export default function SchoolManagementPage() {
                         <span className="inline-flex items-center gap-1 text-amber-700">
                           <CalendarDays className="w-3.5 h-3.5" />
                           Keystone exam: {formatExamDate(school.keystone_exam_date)}
+                        </span>
+                      )}
+                      {school.is_hidden && (
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Hidden on student login
                         </span>
                       )}
                       <span className="text-slate-gray/50 text-xs">ID: {school.id}</span>
@@ -320,6 +336,25 @@ export default function SchoolManagementPage() {
                     })
                   )}
                 </div>
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-gray">
+                <input
+                  type="checkbox"
+                  checked={createForm.isHidden}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      isHidden: e.target.checked,
+                    }))
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block font-medium">Hide from student login</span>
+                  <span className="block text-xs text-slate-gray/60">
+                    Hidden schools are not shown on the student login page.
+                  </span>
+                </span>
               </label>
 
               <div className="flex justify-end gap-3 pt-2">
@@ -420,6 +455,20 @@ export default function SchoolManagementPage() {
                     })
                   )}
                 </div>
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-gray">
+                <input
+                  type="checkbox"
+                  checked={editIsHidden}
+                  onChange={(e) => setEditIsHidden(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block font-medium">Hide from student login</span>
+                  <span className="block text-xs text-slate-gray/60">
+                    Hidden schools are excluded from the student login dropdown.
+                  </span>
+                </span>
               </label>
 
               <div>
