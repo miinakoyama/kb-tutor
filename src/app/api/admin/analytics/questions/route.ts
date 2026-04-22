@@ -61,6 +61,7 @@ type SnapshotQuestionRow = {
 };
 
 type ConfidenceEventRow = {
+  user_id: string;
   question_id: string | null;
   payload: Record<string, unknown> | null;
 };
@@ -274,219 +275,200 @@ export async function GET(request: Request) {
   let stats: QuestionStatsRow[] = [];
   let choices: ChoiceStatsRow[] = [];
   let firsts: FirstAttemptRow[] = [];
+  let memberQuery = admin.from("school_members").select("student_user_id");
+  if (schoolIds.length > 0) {
+    memberQuery = memberQuery.in("school_id", schoolIds);
+  }
+  const { data: memberRows, error: memberError } = await memberQuery;
+  if (memberError) {
+    return NextResponse.json({ error: memberError.message }, { status: 400 });
+  }
+  const memberUserIds = Array.from(
+    new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
+  );
 
-  if (schoolIds.length === 0) {
-    let statsQuery = admin
-      .from("question_stats_v")
-      .select(
-        "question_id,mode,standard_id,standard_label,attempts_n,unique_users,correct_n,accuracy,time_p50,time_p90,time_avg,first_answered_at,last_answered_at",
-      );
-    if (questionIdFilter) statsQuery = statsQuery.eq("question_id", questionIdFilter);
+  if (memberUserIds.length === 0) {
+    return NextResponse.json({
+      questions: [],
+      meta: { totalQuestions: 0, totalAttempts: 0, standards: [], confidenceLevels: CONFIDENCE_LEVELS },
+    });
+  }
 
-    const { data: statsRows, error: statsError } = await statsQuery;
-    if (statsError) {
-      return NextResponse.json({ error: statsError.message }, { status: 400 });
+  const { data: excludedRows, error: excludedError } = await admin
+    .from("profiles")
+    .select("id")
+    .in("id", memberUserIds)
+    .eq("excluded_from_analytics", true);
+  if (excludedError) {
+    return NextResponse.json({ error: excludedError.message }, { status: 400 });
+  }
+  const excludedUserIds = new Set((excludedRows ?? []).map((row) => String(row.id)));
+  const includedMemberUserIds = memberUserIds.filter((userId) => !excludedUserIds.has(userId));
+  const includedMemberUserIdSet = new Set(includedMemberUserIds);
+
+  if (includedMemberUserIds.length === 0) {
+    return NextResponse.json({
+      questions: [],
+      meta: { totalQuestions: 0, totalAttempts: 0, standards: [], confidenceLevels: CONFIDENCE_LEVELS },
+    });
+  }
+
+  let attemptsQuery = admin
+    .from("attempts")
+    .select(
+      "user_id,question_id,mode,standard_id,standard_label,selected_option_id,is_correct,time_spent_sec,answered_at",
+    )
+    .in("user_id", includedMemberUserIds)
+    .limit(500_000);
+  if (questionIdFilter) attemptsQuery = attemptsQuery.eq("question_id", questionIdFilter);
+
+  const { data: attemptRows, error: attemptError } = await attemptsQuery;
+  if (attemptError) {
+    return NextResponse.json({ error: attemptError.message }, { status: 400 });
+  }
+  const attempts = (attemptRows ?? []) as AttemptRow[];
+
+  const statsMap = new Map<
+    string,
+    {
+      questionId: string;
+      mode: string;
+      standardId: string | null;
+      standardLabel: string | null;
+      attempts: number;
+      users: Set<string>;
+      correct: number;
+      times: number[];
+      firstAnsweredAt: string | null;
+      lastAnsweredAt: string | null;
     }
-
-    let choiceQuery = admin
-      .from("question_choice_stats_v")
-      .select("question_id,mode,selected_option_id,n,is_correct_choice,share");
-    if (questionIdFilter) choiceQuery = choiceQuery.eq("question_id", questionIdFilter);
-
-    const { data: choiceRows, error: choiceError } = await choiceQuery;
-    if (choiceError) {
-      return NextResponse.json({ error: choiceError.message }, { status: 400 });
+  >();
+  const choiceMap = new Map<
+    string,
+    {
+      questionId: string;
+      mode: string;
+      selectedOptionId: string;
+      n: number;
+      isCorrectChoice: boolean;
     }
+  >();
+  const totalByQuestionMode = new Map<string, number>();
+  const firstPracticeByUserQuestion = new Map<
+    string,
+    { questionId: string; isCorrect: boolean; answeredAt: string }
+  >();
 
-    let firstQuery = admin
-      .from("practice_first_attempt_accuracy_v")
-      .select("question_id,first_attempt_n,first_attempt_correct,first_attempt_accuracy");
-    if (questionIdFilter) firstQuery = firstQuery.eq("question_id", questionIdFilter);
-
-    const { data: firstRows, error: firstError } = await firstQuery;
-    if (firstError) {
-      return NextResponse.json({ error: firstError.message }, { status: 400 });
+  for (const row of attempts) {
+    const statsKey = `${row.question_id}::${row.mode}`;
+    const statsBucket = statsMap.get(statsKey) ?? {
+      questionId: row.question_id,
+      mode: row.mode,
+      standardId: row.standard_id,
+      standardLabel: row.standard_label,
+      attempts: 0,
+      users: new Set<string>(),
+      correct: 0,
+      times: [],
+      firstAnsweredAt: null,
+      lastAnsweredAt: null,
+    };
+    statsBucket.attempts += 1;
+    statsBucket.users.add(row.user_id);
+    if (row.is_correct) statsBucket.correct += 1;
+    if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
+      statsBucket.times.push(row.time_spent_sec);
     }
-
-    stats = (statsRows ?? []) as QuestionStatsRow[];
-    choices = (choiceRows ?? []) as ChoiceStatsRow[];
-    firsts = (firstRows ?? []) as FirstAttemptRow[];
-  } else {
-    const { data: memberRows, error: memberError } = await admin
-      .from("school_members")
-      .select("student_user_id")
-      .in("school_id", schoolIds);
-    if (memberError) {
-      return NextResponse.json({ error: memberError.message }, { status: 400 });
+    if (!statsBucket.firstAnsweredAt || row.answered_at < statsBucket.firstAnsweredAt) {
+      statsBucket.firstAnsweredAt = row.answered_at;
     }
-    const memberUserIds = Array.from(
-      new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
+    if (!statsBucket.lastAnsweredAt || row.answered_at > statsBucket.lastAnsweredAt) {
+      statsBucket.lastAnsweredAt = row.answered_at;
+    }
+    if (!statsBucket.standardId && row.standard_id) statsBucket.standardId = row.standard_id;
+    if (!statsBucket.standardLabel && row.standard_label) {
+      statsBucket.standardLabel = row.standard_label;
+    }
+    statsMap.set(statsKey, statsBucket);
+    totalByQuestionMode.set(
+      statsKey,
+      (totalByQuestionMode.get(statsKey) ?? 0) + 1,
     );
 
-    if (memberUserIds.length === 0) {
-      return NextResponse.json({
-        questions: [],
-        meta: { totalQuestions: 0, totalAttempts: 0, standards: [] },
-      });
-    }
+    const choiceKey = `${row.question_id}::${row.mode}::${row.selected_option_id}`;
+    const choiceBucket = choiceMap.get(choiceKey) ?? {
+      questionId: row.question_id,
+      mode: row.mode,
+      selectedOptionId: row.selected_option_id,
+      n: 0,
+      isCorrectChoice: false,
+    };
+    choiceBucket.n += 1;
+    choiceBucket.isCorrectChoice = choiceBucket.isCorrectChoice || row.is_correct;
+    choiceMap.set(choiceKey, choiceBucket);
 
-    let attemptsQuery = admin
-      .from("attempts")
-      .select(
-        "user_id,question_id,mode,standard_id,standard_label,selected_option_id,is_correct,time_spent_sec,answered_at",
-      )
-      .in("user_id", memberUserIds)
-      .limit(500_000);
-    if (questionIdFilter) attemptsQuery = attemptsQuery.eq("question_id", questionIdFilter);
-
-    const { data: attemptRows, error: attemptError } = await attemptsQuery;
-    if (attemptError) {
-      return NextResponse.json({ error: attemptError.message }, { status: 400 });
-    }
-    const attempts = (attemptRows ?? []) as AttemptRow[];
-
-    const statsMap = new Map<
-      string,
-      {
-        questionId: string;
-        mode: string;
-        standardId: string | null;
-        standardLabel: string | null;
-        attempts: number;
-        users: Set<string>;
-        correct: number;
-        times: number[];
-        firstAnsweredAt: string | null;
-        lastAnsweredAt: string | null;
-      }
-    >();
-    const choiceMap = new Map<
-      string,
-      {
-        questionId: string;
-        mode: string;
-        selectedOptionId: string;
-        n: number;
-        isCorrectChoice: boolean;
-      }
-    >();
-    const totalByQuestionMode = new Map<string, number>();
-    const firstPracticeByUserQuestion = new Map<
-      string,
-      { questionId: string; isCorrect: boolean; answeredAt: string }
-    >();
-
-    for (const row of attempts) {
-      const statsKey = `${row.question_id}::${row.mode}`;
-      const statsBucket = statsMap.get(statsKey) ?? {
-        questionId: row.question_id,
-        mode: row.mode,
-        standardId: row.standard_id,
-        standardLabel: row.standard_label,
-        attempts: 0,
-        users: new Set<string>(),
-        correct: 0,
-        times: [],
-        firstAnsweredAt: null,
-        lastAnsweredAt: null,
-      };
-      statsBucket.attempts += 1;
-      statsBucket.users.add(row.user_id);
-      if (row.is_correct) statsBucket.correct += 1;
-      if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
-        statsBucket.times.push(row.time_spent_sec);
-      }
-      if (!statsBucket.firstAnsweredAt || row.answered_at < statsBucket.firstAnsweredAt) {
-        statsBucket.firstAnsweredAt = row.answered_at;
-      }
-      if (!statsBucket.lastAnsweredAt || row.answered_at > statsBucket.lastAnsweredAt) {
-        statsBucket.lastAnsweredAt = row.answered_at;
-      }
-      if (!statsBucket.standardId && row.standard_id) statsBucket.standardId = row.standard_id;
-      if (!statsBucket.standardLabel && row.standard_label) {
-        statsBucket.standardLabel = row.standard_label;
-      }
-      statsMap.set(statsKey, statsBucket);
-      totalByQuestionMode.set(
-        statsKey,
-        (totalByQuestionMode.get(statsKey) ?? 0) + 1,
-      );
-
-      const choiceKey = `${row.question_id}::${row.mode}::${row.selected_option_id}`;
-      const choiceBucket = choiceMap.get(choiceKey) ?? {
-        questionId: row.question_id,
-        mode: row.mode,
-        selectedOptionId: row.selected_option_id,
-        n: 0,
-        isCorrectChoice: false,
-      };
-      choiceBucket.n += 1;
-      choiceBucket.isCorrectChoice = choiceBucket.isCorrectChoice || row.is_correct;
-      choiceMap.set(choiceKey, choiceBucket);
-
-      if (row.mode === "practice") {
-        const firstKey = `${row.user_id}::${row.question_id}`;
-        const first = firstPracticeByUserQuestion.get(firstKey);
-        if (!first || row.answered_at < first.answeredAt) {
-          firstPracticeByUserQuestion.set(firstKey, {
-            questionId: row.question_id,
-            isCorrect: row.is_correct,
-            answeredAt: row.answered_at,
-          });
-        }
+    if (row.mode === "practice") {
+      const firstKey = `${row.user_id}::${row.question_id}`;
+      const first = firstPracticeByUserQuestion.get(firstKey);
+      if (!first || row.answered_at < first.answeredAt) {
+        firstPracticeByUserQuestion.set(firstKey, {
+          questionId: row.question_id,
+          isCorrect: row.is_correct,
+          answeredAt: row.answered_at,
+        });
       }
     }
-
-    stats = Array.from(statsMap.values()).map((bucket) => {
-      const attemptsN = bucket.attempts;
-      const avg =
-        bucket.times.length > 0
-          ? bucket.times.reduce((sum, value) => sum + value, 0) / bucket.times.length
-          : null;
-      return {
-        question_id: bucket.questionId,
-        mode: bucket.mode,
-        standard_id: bucket.standardId,
-        standard_label: bucket.standardLabel,
-        attempts_n: attemptsN,
-        unique_users: bucket.users.size,
-        correct_n: bucket.correct,
-        accuracy: attemptsN > 0 ? bucket.correct / attemptsN : null,
-        time_p50: percentile(bucket.times, 0.5),
-        time_p90: percentile(bucket.times, 0.9),
-        time_avg: avg,
-        first_answered_at: bucket.firstAnsweredAt,
-        last_answered_at: bucket.lastAnsweredAt,
-      };
-    });
-
-    choices = Array.from(choiceMap.values()).map((bucket) => {
-      const total = totalByQuestionMode.get(`${bucket.questionId}::${bucket.mode}`) ?? 0;
-      return {
-        question_id: bucket.questionId,
-        mode: bucket.mode,
-        selected_option_id: bucket.selectedOptionId,
-        n: bucket.n,
-        is_correct_choice: bucket.isCorrectChoice,
-        share: total > 0 ? bucket.n / total : null,
-      };
-    });
-
-    const firstByQuestion = new Map<string, { n: number; correct: number }>();
-    for (const row of firstPracticeByUserQuestion.values()) {
-      const bucket = firstByQuestion.get(row.questionId) ?? { n: 0, correct: 0 };
-      bucket.n += 1;
-      if (row.isCorrect) bucket.correct += 1;
-      firstByQuestion.set(row.questionId, bucket);
-    }
-
-    firsts = Array.from(firstByQuestion.entries()).map(([questionId, bucket]) => ({
-      question_id: questionId,
-      first_attempt_n: bucket.n,
-      first_attempt_correct: bucket.correct,
-      first_attempt_accuracy: bucket.n > 0 ? bucket.correct / bucket.n : null,
-    }));
   }
+
+  stats = Array.from(statsMap.values()).map((bucket) => {
+    const attemptsN = bucket.attempts;
+    const avg =
+      bucket.times.length > 0
+        ? bucket.times.reduce((sum, value) => sum + value, 0) / bucket.times.length
+        : null;
+    return {
+      question_id: bucket.questionId,
+      mode: bucket.mode,
+      standard_id: bucket.standardId,
+      standard_label: bucket.standardLabel,
+      attempts_n: attemptsN,
+      unique_users: bucket.users.size,
+      correct_n: bucket.correct,
+      accuracy: attemptsN > 0 ? bucket.correct / attemptsN : null,
+      time_p50: percentile(bucket.times, 0.5),
+      time_p90: percentile(bucket.times, 0.9),
+      time_avg: avg,
+      first_answered_at: bucket.firstAnsweredAt,
+      last_answered_at: bucket.lastAnsweredAt,
+    };
+  });
+
+  choices = Array.from(choiceMap.values()).map((bucket) => {
+    const total = totalByQuestionMode.get(`${bucket.questionId}::${bucket.mode}`) ?? 0;
+    return {
+      question_id: bucket.questionId,
+      mode: bucket.mode,
+      selected_option_id: bucket.selectedOptionId,
+      n: bucket.n,
+      is_correct_choice: bucket.isCorrectChoice,
+      share: total > 0 ? bucket.n / total : null,
+    };
+  });
+
+  const firstPracticeByQuestion = new Map<string, { n: number; correct: number }>();
+  for (const row of firstPracticeByUserQuestion.values()) {
+    const bucket = firstPracticeByQuestion.get(row.questionId) ?? { n: 0, correct: 0 };
+    bucket.n += 1;
+    if (row.isCorrect) bucket.correct += 1;
+    firstPracticeByQuestion.set(row.questionId, bucket);
+  }
+
+  firsts = Array.from(firstPracticeByQuestion.entries()).map(([questionId, bucket]) => ({
+    question_id: questionId,
+    first_attempt_n: bucket.n,
+    first_attempt_correct: bucket.correct,
+    first_attempt_accuracy: bucket.n > 0 ? bucket.correct / bucket.n : null,
+  }));
 
   const firstByQuestion = new Map(firsts.map((row) => [row.question_id, row]));
 
@@ -678,9 +660,10 @@ export async function GET(request: Request) {
 
     let confidenceQuery = admin
       .from("analytics_events")
-      .select("question_id,payload")
+      .select("user_id,question_id,payload")
       .eq("event_type", "confidence_submitted")
       .in("question_id", questionIds)
+      .in("user_id", Array.from(includedMemberUserIdSet))
       .limit(200_000);
 
     if (schoolIds.length > 0) {
@@ -698,6 +681,7 @@ export async function GET(request: Request) {
     }
 
     for (const row of (confidenceRows ?? []) as ConfidenceEventRow[]) {
+      if (!includedMemberUserIdSet.has(String(row.user_id))) continue;
       const questionId = row.question_id ? String(row.question_id) : "";
       if (!questionId || !summaryByQuestionId.has(questionId)) continue;
 

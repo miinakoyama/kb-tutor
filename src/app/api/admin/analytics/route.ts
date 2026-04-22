@@ -83,10 +83,59 @@ export async function GET(request: Request) {
   }
 
   const rows = membershipRows ?? [];
-  const schoolIds = Array.from(new Set(rows.map((row) => row.school_id)));
   const studentIds = Array.from(new Set(rows.map((row) => row.student_user_id)));
 
   if (studentIds.length === 0) {
+    if (format === "csv") {
+      const header = joinCsvRow([
+        "school_id",
+        "student_id",
+        "display_name",
+        "email",
+        "mode",
+        "question_id",
+        "selected_option_id",
+        "is_correct",
+        "standard_id",
+        "standard_label",
+        "time_spent_sec",
+        "answered_at",
+      ]);
+      return new NextResponse(`${header}\n`, {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": "attachment; filename=admin-data-analysis-attempts.csv",
+        },
+      });
+    }
+    return NextResponse.json({
+      summary: {
+        schools: 0,
+        students: 0,
+        attempts: 0,
+        correctRate: 0,
+        averageTimeSec: 0,
+      },
+      rows: [],
+    });
+  }
+
+  const { data: excludedProfileRows, error: excludedProfileError } = await admin
+    .from("profiles")
+    .select("id")
+    .in("id", studentIds)
+    .eq("excluded_from_analytics", true);
+  if (excludedProfileError) {
+    return NextResponse.json({ error: excludedProfileError.message }, { status: 400 });
+  }
+  const excludedUserIds = new Set((excludedProfileRows ?? []).map((row) => String(row.id)));
+  const includedStudentIds = studentIds.filter((userId) => !excludedUserIds.has(userId));
+  const filteredMembershipRows = rows.filter(
+    (row) => !excludedUserIds.has(String(row.student_user_id)),
+  );
+  const schoolIds = Array.from(new Set(filteredMembershipRows.map((row) => row.school_id)));
+
+  if (includedStudentIds.length === 0) {
     if (format === "csv") {
       const header = joinCsvRow([
         "school_id",
@@ -126,7 +175,7 @@ export async function GET(request: Request) {
     .select(
       "user_id,question_id,assignment_id,mode,selected_option_id,is_correct,standard_id,standard_label,time_spent_sec,answered_at",
     )
-    .in("user_id", studentIds)
+    .in("user_id", includedStudentIds)
     .gte("answered_at", from.toISOString())
     .lte("answered_at", to.toISOString())
     .order("answered_at", { ascending: false });
@@ -157,7 +206,9 @@ export async function GET(request: Request) {
   }
 
   const profileMap = new Map((profileRows as ProfileRow[]).map((row) => [row.id, row]));
-  const schoolByStudent = new Map(rows.map((row) => [row.student_user_id, row.school_id]));
+  const schoolByStudent = new Map(
+    filteredMembershipRows.map((row) => [row.student_user_id, row.school_id]),
+  );
 
   const enrichedRows = filteredByStudent.map((row) => {
     const profile = profileMap.get(row.user_id);

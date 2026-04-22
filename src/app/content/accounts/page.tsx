@@ -124,7 +124,7 @@ export default function AccountManagementPage() {
         role: user.role,
         displayName: user.display_name,
         studentId: user.student_id,
-        excludedFromAnalytics: user.excluded_from_analytics,
+        excludedFromAnalytics: user.role === "student" ? user.excluded_from_analytics : false,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -272,8 +272,8 @@ export default function AccountManagementPage() {
 
   <p className="mt-3 text-xs text-slate-gray/70">
     Users marked as &quot;Excluded from analytics&quot; are skipped when computing teacher dashboard
-    metrics and assignment response counts. Use this for developer or test accounts whose data should
-    not affect reporting.
+    metrics and assignment response counts. This setting applies to student accounts only. Use this
+    for developer or test accounts whose data should not affect reporting.
   </p>
 </section>
 
@@ -303,8 +303,8 @@ export default function AccountManagementPage() {
                   <th className="px-2 py-2 font-medium">Display Name</th>
                   <th className="px-2 py-2 font-medium">Role</th>
                   <th className="px-2 py-2 font-medium">Email</th>
-                  <th className="px-2 py-2 font-medium">Exclude from analytics</th>
                   <th className="px-2 py-2 font-medium">Schools</th>
+                  <th className="px-2 py-2 font-medium">Exclude from analytics</th>
                   <th className="px-2 py-2 font-medium">Dates</th>
                   <th className="px-2 py-2 font-medium">Actions</th>
                 </tr>
@@ -351,21 +351,25 @@ export default function AccountManagementPage() {
                       {user.school_names && user.school_names.length > 0 ? user.school_names.join(", ") : "—"}
                     </td>
                     <td className="px-2 py-3 min-w-[170px]">
-                      <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={user.excluded_from_analytics}
-                          onChange={(e) =>
-                            updateLocalUser(user.id, {
-                              excluded_from_analytics: e.target.checked,
-                            })
-                          }
-                          className="h-4 w-4 rounded border-slate-300 text-[#16a34a] focus:ring-[#16a34a]"
-                        />
-                        <span className="text-xs text-slate-gray/80">
-                          {user.excluded_from_analytics ? "Excluded" : "Included"}
-                        </span>
-                      </label>
+                      {user.role === "student" ? (
+                        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={user.excluded_from_analytics}
+                            onChange={(e) =>
+                              updateLocalUser(user.id, {
+                                excluded_from_analytics: e.target.checked,
+                              })
+                            }
+                            className="h-4 w-4 rounded border-slate-300 text-[#16a34a] focus:ring-[#16a34a]"
+                          />
+                          <span className="text-xs text-slate-gray/80">
+                            {user.excluded_from_analytics ? "Excluded" : "Included"}
+                          </span>
+                        </label>
+                      ) : (
+                        <span className="text-xs text-slate-gray/60">Student only</span>
+                      )}
                     </td>
                     <td className="px-2 py-3 min-w-[220px] text-xs text-slate-gray/80">
                       <p>

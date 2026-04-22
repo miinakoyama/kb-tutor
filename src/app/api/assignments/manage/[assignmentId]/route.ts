@@ -204,9 +204,6 @@ export async function GET(
   const filteredAttemptRows = (attemptRows ?? []).filter(
     (row) => !excludedUserIds.has(String(row.user_id)),
   );
-  const filteredTargetRows = (targetRows ?? []).filter(
-    (row) => !excludedUserIds.has(String(row.student_user_id)),
-  );
 
   const respondents = new Set<string>();
   let correctAttempts = 0;
