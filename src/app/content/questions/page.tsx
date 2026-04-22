@@ -11,6 +11,7 @@ import {
   Sparkles,
   FileText,
   Loader2,
+  Eye,
 } from "lucide-react";
 import type { QuestionSet, QuestionSource } from "@/types/question";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -328,6 +329,13 @@ export default function QuestionsPage() {
                     <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-[#16a34a] shrink-0" />
                   </Link>
                   <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                    <Link
+                      href={`/preview/${encodeURIComponent(set.id)}?mode=practice`}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#166534] hover:text-[#14532d] px-2 py-1 rounded-md hover:bg-[#16a34a]/10 transition-colors"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      Preview
+                    </Link>
                     <button
                       type="button"
                       onClick={(e) => void handleRemoveFromSchool(e, set.id)}

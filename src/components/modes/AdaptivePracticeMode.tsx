@@ -54,6 +54,7 @@ interface AdaptivePracticeModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  isPreview?: boolean;
 }
 
 interface AttemptRecord {
@@ -70,6 +71,7 @@ export function AdaptivePracticeMode({
   backHref = "/self-practice",
   showBackLink = false,
   answered,
+  isPreview = false,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -131,12 +133,16 @@ export function AdaptivePracticeMode({
     // Seed bookmark state from Supabase so it stays correct across devices.
     // toggleBookmark updates the localStorage cache synchronously after this
     // point, so the UI stays responsive without more DB round-trips.
-    void fetchBookmarkIds().then((ids) => {
-      const bookmarked = new Set(ids);
-      setBookmarkedQuestions(
-        new Set(selected.map((q) => q.id).filter((id) => bookmarked.has(id))),
-      );
-    });
+    if (!isPreview) {
+      void fetchBookmarkIds().then((ids) => {
+        const bookmarked = new Set(ids);
+        setBookmarkedQuestions(
+          new Set(selected.map((q) => q.id).filter((id) => bookmarked.has(id))),
+        );
+      });
+    } else {
+      setBookmarkedQuestions(new Set());
+    }
 
     if (isAssignmentRun && answered) {
       const prefilledFinals: Record<number, AnswerRecord> = {};
@@ -164,7 +170,7 @@ export function AdaptivePracticeMode({
     }
 
     setIsInitialized(true);
-  }, [questions, questionCount, isAssignmentRun, answered]);
+  }, [questions, questionCount, isAssignmentRun, answered, isPreview]);
 
   useEffect(() => {
     setSelectedOptionId(null);
@@ -360,22 +366,24 @@ export function AdaptivePracticeMode({
       ? { id: question.standardId, label: question.standardLabel }
       : getStandardForTopic(question.topic);
     const student = getStudentById(DEFAULT_STUDENT_ID);
-    saveAnswer({
-      questionId: question.id,
-      selectedOptionId: selectedOptionId,
-      isCorrect: result.isCorrect,
-      timestamp: Date.now(),
-      mode,
-      module: question.module,
-      topic: question.topic,
-      standardId: resolvedStandard.id,
-      standardLabel: resolvedStandard.label,
-      timeSpentSec: elapsedSec,
-      assignmentId,
-      studentId: student?.id,
-      classId: student?.classId,
-      teacherId: student?.teacherId,
-    });
+    if (!isPreview) {
+      saveAnswer({
+        questionId: question.id,
+        selectedOptionId: selectedOptionId,
+        isCorrect: result.isCorrect,
+        timestamp: Date.now(),
+        mode,
+        module: question.module,
+        topic: question.topic,
+        standardId: resolvedStandard.id,
+        standardLabel: resolvedStandard.label,
+        timeSpentSec: elapsedSec,
+        assignmentId,
+        studentId: student?.id,
+        classId: student?.classId,
+        teacherId: student?.teacherId,
+      });
+    }
 
     trackAnalyticsEvent({
       eventType: "attempt_submitted",
@@ -403,6 +411,7 @@ export function AdaptivePracticeMode({
     selectedOptionId,
     sessionId,
     showScaffold,
+    isPreview,
   ]);
 
   const handleConfidence = useCallback(
@@ -431,6 +440,7 @@ export function AdaptivePracticeMode({
 
   const handleBookmarkToggle = useCallback(() => {
     if (!question) return;
+    if (isPreview) return;
     const nextBookmarked = toggleBookmark(question.id);
     setBookmarkedQuestions((prev) => {
       const next = new Set(prev);
@@ -445,7 +455,7 @@ export function AdaptivePracticeMode({
       assignmentId,
       sessionId: sessionIdRef.current ?? undefined,
     });
-  }, [assignmentId, mode, question]);
+  }, [assignmentId, mode, question, isPreview]);
 
   const handleGlossaryModalOpen = useCallback(() => {
     if (!question) return;
@@ -692,19 +702,21 @@ export function AdaptivePracticeMode({
                           value={finalAnswer?.confidenceLevel}
                           onChange={handleConfidence}
                         />
-                        <button
-                          onClick={handleBookmarkToggle}
-                          className={`inline-flex items-center gap-1.5 text-sm transition-colors ${
-                            bookmarkedQuestions.has(question.id)
-                              ? "text-[#16a34a] font-medium"
-                              : "text-slate-gray/50 hover:text-slate-gray/70"
-                          }`}
-                        >
-                          <Bookmark
-                            className={`w-4 h-4 ${bookmarkedQuestions.has(question.id) ? "fill-[#16a34a]" : ""}`}
-                          />
-                          {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
-                        </button>
+                        {!isPreview && (
+                          <button
+                            onClick={handleBookmarkToggle}
+                            className={`inline-flex items-center gap-1.5 text-sm transition-colors ${
+                              bookmarkedQuestions.has(question.id)
+                                ? "text-[#16a34a] font-medium"
+                                : "text-slate-gray/50 hover:text-slate-gray/70"
+                            }`}
+                          >
+                            <Bookmark
+                              className={`w-4 h-4 ${bookmarkedQuestions.has(question.id) ? "fill-[#16a34a]" : ""}`}
+                            />
+                            {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
+                          </button>
+                        )}
                       </>
                     ) : isAwaitingRetry ? (
                       <>

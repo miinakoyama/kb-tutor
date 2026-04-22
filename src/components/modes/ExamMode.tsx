@@ -52,6 +52,7 @@ interface ExamModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  isPreview?: boolean;
 }
 
 type ExamPhase = "config" | "exam" | "confirm" | "results" | "review";
@@ -62,6 +63,7 @@ export function ExamMode({
   requestedQuestionCount,
   assignmentId,
   answered,
+  isPreview = false,
 }: ExamModeProps) {
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
   const [phase, setPhase] = useState<ExamPhase>(
@@ -286,7 +288,7 @@ export function ExamMode({
       // For assignment exam runs, persist per-question immediately so
       // closing the tab mid-exam doesn't lose progress. Self-practice exam
       // keeps the legacy batch-on-submit behavior.
-      if (isAssignmentRun && assignmentId) {
+      if (!isPreview && isAssignmentRun && assignmentId) {
         const resolvedStandard = q.standardId
           ? { id: q.standardId, label: q.standardLabel }
           : getStandardForTopic(q.topic);
@@ -321,7 +323,7 @@ export function ExamMode({
         },
       });
     },
-    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId, sessionId]
+    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId, sessionId, isPreview]
   );
 
   const toggleFlag = useCallback(() => {
@@ -349,7 +351,7 @@ export function ExamMode({
     // Assignment runs persist per-question in handleOptionClick to support
     // mid-exam resume, so the batch save would duplicate rows. Skip it here
     // and rely on the completion POST below instead.
-    if (!isAssignmentRun) {
+    if (!isPreview && !isAssignmentRun) {
       const batch = sessionQuestions.map((q, i) => {
         const a = answers[i];
         const resolvedStandard = q.standardId
@@ -402,6 +404,7 @@ export function ExamMode({
     sessionQuestions,
     elapsedMs,
     isAssignmentRun,
+    isPreview,
     assignmentId,
     answeredCount,
     markStageCompleted,
