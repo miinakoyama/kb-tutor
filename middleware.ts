@@ -76,6 +76,42 @@ function parseE2ERole(value: string | undefined): AppRole | null {
   return null;
 }
 
+function applySupabaseCookies(target: NextResponse, source: NextResponse) {
+  for (const cookie of source.cookies.getAll()) {
+    target.cookies.set(cookie);
+  }
+  return target;
+}
+
+async function hasHiddenSchoolMembership(
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string,
+): Promise<boolean> {
+  try {
+    const { data: hiddenMembershipRows, error: hiddenMembershipError } = await supabase
+      .from("school_members")
+      .select("school_id,schools!inner(id)")
+      .eq("student_user_id", userId)
+      .eq("schools.is_hidden", true)
+      .limit(1);
+
+    if (hiddenMembershipError) {
+      console.error(
+        "[middleware] hidden-school membership check failed:",
+        hiddenMembershipError.message,
+      );
+      // Fail closed: when we cannot verify eligibility, treat as blocked.
+      return true;
+    }
+
+    return (hiddenMembershipRows ?? []).length > 0;
+  } catch (error) {
+    console.error("[middleware] hidden-school membership check threw unexpectedly", error);
+    // Fail closed: when we cannot verify eligibility, treat as blocked.
+    return true;
+  }
+}
+
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const e2eRole = parseE2ERole(req.cookies.get(E2E_ROLE_COOKIE)?.value);
@@ -195,16 +231,36 @@ export async function middleware(req: NextRequest) {
     return resolvedRole;
   };
 
+  const role = await getResolvedRole();
+  if (role === "student" && !isApiAuthPath && !isApiPublic) {
+    const blocked = await hasHiddenSchoolMembership(supabase, user.id);
+    if (blocked) {
+      await supabase.auth.signOut();
+
+      if (pathname.startsWith("/api/")) {
+        return applySupabaseCookies(
+          NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+          supabaseResponse,
+        );
+      }
+
+      const loginUrl = req.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      if (!isPublicPath(pathname)) {
+        loginUrl.searchParams.set("next", pathname);
+      }
+      return applySupabaseCookies(NextResponse.redirect(loginUrl), supabaseResponse);
+    }
+  }
+
   // Authenticated users visiting a login page → redirect to their dashboard
   if (pathname === "/login" || pathname === "/login/staff") {
     const nextUrl = req.nextUrl.clone();
-    const role = await getResolvedRole();
     nextUrl.pathname = getPostLoginPath(role);
     return NextResponse.redirect(nextUrl);
   }
 
   if (requiredRoles) {
-    const role = await getResolvedRole();
     if (!role) {
       // Let admin API routes perform definitive checks in route handlers,
       // because profile reads in middleware can fail under RLS/policy setups.
