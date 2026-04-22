@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import { normalizeStudentIdValidationRule } from "@/lib/auth/student-id";
 
 async function requireAdmin() {
   const requester = await createSupabaseServerClient();
@@ -86,6 +87,45 @@ function normalizeKeystoneExamDate(
   return { ok: true, value: trimmed };
 }
 
+
+
+function normalizeStudentIdValidationConfig(input: {
+  studentIdValidationPattern?: string | null;
+  studentIdValidationHint?: string | null;
+}) {
+  const rule = normalizeStudentIdValidationRule({
+    pattern: input.studentIdValidationPattern,
+    hint: input.studentIdValidationHint,
+  });
+
+  if (!rule.pattern) {
+    return {
+      ok: true as const,
+      value: {
+        student_id_validation_pattern: null,
+        student_id_validation_hint: rule.hint,
+      },
+    };
+  }
+
+  try {
+    // Validate that the regex compiles before saving.
+    new RegExp(rule.pattern);
+  } catch {
+    return {
+      ok: false as const,
+      error: "studentIdValidationPattern is not a valid regular expression",
+    };
+  }
+
+  return {
+    ok: true as const,
+    value: {
+      student_id_validation_pattern: rule.pattern,
+      student_id_validation_hint: rule.hint,
+    },
+  };
+}
 export async function GET() {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
@@ -93,7 +133,7 @@ export async function GET() {
   const admin = createSupabaseAdminClient();
   const { data: schoolsData, error: schoolError } = await admin
     .from("schools")
-    .select("id,name,teacher_user_id,keystone_exam_date,is_hidden,created_at")
+    .select("id,name,teacher_user_id,keystone_exam_date,is_hidden,student_id_validation_pattern,student_id_validation_hint,created_at")
     .order("name", { ascending: true });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
@@ -196,6 +236,8 @@ export async function GET() {
       teacher_user_id: s.teacher_user_id,
       keystone_exam_date: s.keystone_exam_date ?? null,
       is_hidden: s.is_hidden ?? false,
+      student_id_validation_pattern: s.student_id_validation_pattern ?? null,
+      student_id_validation_hint: s.student_id_validation_hint ?? null,
       teacher_label: teacherLabel,
       teachers,
       students: studentUserIds.map((id) => {
@@ -223,6 +265,8 @@ export async function POST(request: Request) {
     studentUserIds?: string[];
     keystoneExamDate?: string | null;
     isHidden?: boolean;
+    studentIdValidationPattern?: string | null;
+    studentIdValidationHint?: string | null;
   };
 
   const schoolName = body.name?.trim();
@@ -236,6 +280,14 @@ export async function POST(request: Request) {
   const schoolId = body.id?.trim() || buildSchoolId(schoolName);
   const primaryTeacherId = teacherIds[0] ?? null;
   const isHidden = body.isHidden ?? false;
+
+  const studentIdValidation = normalizeStudentIdValidationConfig({
+    studentIdValidationPattern: body.studentIdValidationPattern,
+    studentIdValidationHint: body.studentIdValidationHint,
+  });
+  if (!studentIdValidation.ok) {
+    return NextResponse.json({ error: studentIdValidation.error }, { status: 400 });
+  }
 
   let keystoneExamDate: string | null = null;
   if (body.keystoneExamDate !== undefined) {
@@ -253,6 +305,8 @@ export async function POST(request: Request) {
     teacher_user_id: primaryTeacherId,
     keystone_exam_date: keystoneExamDate,
     is_hidden: isHidden,
+    student_id_validation_pattern: studentIdValidation.value.student_id_validation_pattern,
+    student_id_validation_hint: studentIdValidation.value.student_id_validation_hint,
   });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
@@ -299,6 +353,8 @@ export async function PATCH(request: Request) {
     studentUserIds?: string[];
     keystoneExamDate?: string | null;
     isHidden?: boolean;
+    studentIdValidationPattern?: string | null;
+    studentIdValidationHint?: string | null;
   };
 
   if (!body.id) {
@@ -311,6 +367,8 @@ export async function PATCH(request: Request) {
     teacher_user_id?: string | null;
     keystone_exam_date?: string | null;
     is_hidden?: boolean;
+    student_id_validation_pattern?: string | null;
+    student_id_validation_hint?: string | null;
   } = {};
   if (body.name !== undefined) updates.name = body.name;
   const teacherIds = normalizeTeacherIds(body);
@@ -327,6 +385,19 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "isHidden must be a boolean" }, { status: 400 });
     }
     updates.is_hidden = body.isHidden;
+  }
+  if (body.studentIdValidationPattern !== undefined || body.studentIdValidationHint !== undefined) {
+    const studentIdValidation = normalizeStudentIdValidationConfig({
+      studentIdValidationPattern: body.studentIdValidationPattern,
+      studentIdValidationHint: body.studentIdValidationHint,
+    });
+    if (!studentIdValidation.ok) {
+      return NextResponse.json({ error: studentIdValidation.error }, { status: 400 });
+    }
+    updates.student_id_validation_pattern =
+      studentIdValidation.value.student_id_validation_pattern;
+    updates.student_id_validation_hint =
+      studentIdValidation.value.student_id_validation_hint;
   }
 
   if (Object.keys(updates).length > 0) {

@@ -59,4 +59,35 @@ describe("POST /api/auth/login (student)", () => {
     expect(body.error).toBe("School not found.");
     expect(mockState.createServerClient).not.toHaveBeenCalled();
   });
+
+  it("returns 400 when student ID does not match school validation pattern", async () => {
+    const { client: adminClient } = createMockSupabaseClient({
+      tables: {
+        schools: {
+          rows: [
+            {
+              id: "school-visible",
+              is_hidden: false,
+              student_id_validation_pattern: "^st\\d{9}$",
+              student_id_validation_hint: "Example: st004720601",
+            },
+          ],
+        },
+      },
+    });
+    mockState.adminClient = adminClient;
+    mockState.createServerClient.mockClear();
+
+    const response = await POST(
+      makeStudentLoginRequest({
+        schoolId: "school-visible",
+        studentId: "alice@example.com",
+      }),
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("Invalid student ID format. Example: st004720601");
+    expect(mockState.createServerClient).not.toHaveBeenCalled();
+  });
 });

@@ -7,7 +7,7 @@ export async function GET() {
     const admin = createSupabaseAdminClient();
     const { data, error } = await admin
       .from("schools")
-      .select("id,name")
+      .select("id,name,student_id_validation_pattern,student_id_validation_hint")
       .eq("is_hidden", false)
       .order("name", { ascending: true });
 

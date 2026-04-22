@@ -3,10 +3,13 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { validateStudentIdAgainstRule } from "@/lib/auth/student-id";
 
 interface School {
   id: string;
   name: string;
+  student_id_validation_pattern?: string | null;
+  student_id_validation_hint?: string | null;
 }
 
 export default function LoginPage() {
@@ -18,6 +21,8 @@ export default function LoginPage() {
   const [studentId, setStudentId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedSchool = schools.find((school) => school.id === schoolId) ?? null;
 
   const loadSchools = useCallback(async () => {
     setSchoolsLoaded(false);
@@ -47,6 +52,16 @@ export default function LoginPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    const validation = validateStudentIdAgainstRule(studentId, {
+      pattern: selectedSchool?.student_id_validation_pattern ?? null,
+      hint: selectedSchool?.student_id_validation_hint ?? null,
+    });
+    if (!validation.isValid) {
+      setError(validation.reason ?? "Invalid student ID format.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await fetch("/api/auth/login", {
@@ -123,6 +138,11 @@ export default function LoginPage() {
               placeholder="e.g. st000000000"
               required
             />
+            {selectedSchool?.student_id_validation_hint && (
+              <span className="mt-1 block text-xs text-slate-gray/60">
+                Required format: {selectedSchool.student_id_validation_hint}
+              </span>
+            )}
           </label>
           {error && (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

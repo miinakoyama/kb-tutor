@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
-import { normalizeStudentId } from "@/lib/auth/student-id";
+import {
+  normalizeStudentId,
+  validateStudentIdAgainstRule,
+} from "@/lib/auth/student-id";
 
 type AppRole = "student" | "teacher" | "admin";
 
@@ -42,7 +45,7 @@ async function handleStudentLogin(body: {
   const admin = createSupabaseAdminClient();
   const { data: schoolRow, error: schoolError } = await admin
     .from("schools")
-    .select("id,is_hidden")
+    .select("id,is_hidden,student_id_validation_pattern,student_id_validation_hint")
     .eq("id", schoolId)
     .maybeSingle();
 
@@ -50,6 +53,17 @@ async function handleStudentLogin(body: {
     return NextResponse.json(
       { error: "School not found." },
       { status: 404 },
+    );
+  }
+
+  const validationResult = validateStudentIdAgainstRule(studentId, {
+    pattern: schoolRow.student_id_validation_pattern,
+    hint: schoolRow.student_id_validation_hint,
+  });
+  if (!validationResult.isValid) {
+    return NextResponse.json(
+      { error: validationResult.reason ?? "Invalid student ID format." },
+      { status: 400 },
     );
   }
 

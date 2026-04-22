@@ -23,9 +23,9 @@ describe("GET /api/public/schools", () => {
       tables: {
         schools: {
           rows: [
-            { id: "school-visible-1", name: "A Visible School", is_hidden: false },
+            { id: "school-visible-1", name: "A Visible School", is_hidden: false, student_id_validation_hint: "Example: st004720601", student_id_validation_pattern: "^st\\d{9}$" },
             { id: "school-hidden-1", name: "B Hidden School", is_hidden: true },
-            { id: "school-visible-2", name: "C Visible School", is_hidden: false },
+            { id: "school-visible-2", name: "C Visible School", is_hidden: false, student_id_validation_hint: null, student_id_validation_pattern: null },
           ],
         },
       },
@@ -34,13 +34,17 @@ describe("GET /api/public/schools", () => {
 
     const response = await GET();
     const body = (await response.json()) as {
-      schools: Array<{ id: string; name: string }>;
+      schools: Array<{ id: string; name: string; student_id_validation_hint?: string | null }>;
     };
 
     expect(response.status).toBe(200);
-    expect(body.schools.map((school) => ({ id: school.id, name: school.name }))).toEqual([
-      { id: "school-visible-1", name: "A Visible School" },
-      { id: "school-visible-2", name: "C Visible School" },
+    expect(body.schools.map((school) => ({
+      id: school.id,
+      name: school.name,
+      student_id_validation_hint: school.student_id_validation_hint ?? null,
+    }))).toEqual([
+      { id: "school-visible-1", name: "A Visible School", student_id_validation_hint: "Example: st004720601" },
+      { id: "school-visible-2", name: "C Visible School", student_id_validation_hint: null },
     ]);
   });
 
