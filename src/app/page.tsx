@@ -5,6 +5,8 @@ import { getStudentNotifications } from "@/lib/notifications";
 import { getStudentAssignmentList } from "@/lib/student-assignments";
 import { getStudentKeystoneExam } from "@/lib/keystone-exam";
 import { getStudentUserSettings } from "@/lib/user-settings";
+import { getStudentViewContext } from "@/lib/student-view";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -16,6 +18,18 @@ export default async function Home() {
     redirect("/login");
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const role = await resolveRoleWithServerFallback(user, profile?.role);
+  const studentView = await getStudentViewContext();
+  const previewSchoolId =
+    (role === "teacher" || role === "admin") && studentView.isActive
+      ? studentView.schoolId
+      : null;
+
   const { timeZone, notificationsLastReadAt } =
     await getStudentUserSettings(supabase);
 
@@ -24,9 +38,10 @@ export default async function Home() {
       getStudentNotifications(supabase, user.id, {
         timeZone,
         lastReadAt: notificationsLastReadAt,
+        previewSchoolId,
       }),
-      getStudentAssignmentList(supabase, user.id),
-      getStudentKeystoneExam(supabase, user.id, { timeZone }),
+      getStudentAssignmentList(supabase, user.id, { previewSchoolId }),
+      getStudentKeystoneExam(supabase, user.id, { timeZone, previewSchoolId }),
     ]);
 
   return (

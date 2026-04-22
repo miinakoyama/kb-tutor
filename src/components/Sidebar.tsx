@@ -23,6 +23,7 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  Eye,
 } from "lucide-react";
 import { fetchBookmarkIds, getBookmarkedIds } from "@/lib/storage";
 
@@ -104,6 +105,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [bookmarkCount, setBookmarkCount] = useState(0);
   const [role, setRole] = useState<AppRole>("student");
   const [roleLoaded, setRoleLoaded] = useState(false);
+  const [studentView, setStudentView] = useState<{
+    isActive: boolean;
+    schoolId: string | null;
+    schoolName: string | null;
+  }>({ isActive: false, schoolId: null, schoolName: null });
+  const [schoolOptions, setSchoolOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState("");
+  const [isTogglingStudentView, setIsTogglingStudentView] = useState(false);
   const [userProfile, setUserProfile] = useState<{ display_name: string | null; student_id: string | null; email: string } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   // Separate refs for mobile drawer vs desktop sidebar. Both instances of the
@@ -113,7 +122,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const desktopUserMenuRef = useRef<HTMLDivElement>(null);
   const mobileUserMenuRef = useRef<HTMLDivElement>(null);
 
-  const navSections = getNavSections(role);
+  const navSections = getNavSections(studentView.isActive ? "student" : role);
   const hasBookmarks = navSections.some((section) =>
     section.items.some((item) => item.href === "/bookmarks")
   );
@@ -135,6 +144,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             app_metadata?: { role?: string };
           } | null;
           profile?: { role?: AppRole; display_name?: string | null; student_id?: string | null; email?: string } | null;
+          studentView?: { isActive: boolean; schoolId: string | null; schoolName: string | null };
         };
 
         const inferredRole =
@@ -162,6 +172,13 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               : null;
 
         setUserProfile(profileForUi);
+        setStudentView(
+          payload.studentView ?? {
+            isActive: false,
+            schoolId: null,
+            schoolName: null,
+          },
+        );
       } catch {
         setRole("student");
         setUserProfile({
@@ -175,6 +192,29 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     };
     void loadRole();
   }, []);
+
+  useEffect(() => {
+    if (!roleLoaded || (role !== "teacher" && role !== "admin")) return;
+    const endpoint = role === "admin" ? "/api/admin/schools" : "/api/teacher/schools";
+    const loadSchools = async () => {
+      const response = await fetch(endpoint, { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = (await response.json()) as {
+        schools?: Array<{ id: string; name: string }>;
+      };
+      const schools = (payload.schools ?? []).map((school) => ({
+        id: school.id,
+        name: school.name,
+      }));
+      setSchoolOptions(schools);
+      if (studentView.schoolId) {
+        setSelectedSchoolId(studentView.schoolId);
+      } else if (schools[0]) {
+        setSelectedSchoolId(schools[0].id);
+      }
+    };
+    void loadSchools();
+  }, [roleLoaded, role, studentView.schoolId]);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -235,6 +275,37 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
+  }
+
+  async function handleEnterStudentView() {
+    if (!selectedSchoolId) return;
+    const selectedSchool = schoolOptions.find((option) => option.id === selectedSchoolId);
+    if (!selectedSchool) return;
+    setIsTogglingStudentView(true);
+    try {
+      const response = await fetch("/api/student-view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schoolId: selectedSchool.id,
+          schoolName: selectedSchool.name,
+        }),
+      });
+      if (!response.ok) return;
+      window.location.href = "/";
+    } finally {
+      setIsTogglingStudentView(false);
+    }
+  }
+
+  async function handleExitStudentView() {
+    setIsTogglingStudentView(true);
+    try {
+      await fetch("/api/student-view", { method: "DELETE" });
+      window.location.reload();
+    } finally {
+      setIsTogglingStudentView(false);
+    }
   }
 
   const renderNavItems = (
@@ -365,6 +436,61 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     </div>
   );
 
+  const renderStudentViewPanel = (collapsed: boolean) => {
+    if (collapsed) return null;
+    if (role !== "teacher" && role !== "admin") return null;
+
+    return (
+      <div className="mb-4 rounded-lg border border-white/20 bg-white/10 p-3 text-white">
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+          Student View
+        </p>
+        {studentView.isActive ? (
+          <>
+            <p className="mt-2 text-sm text-white/90">
+              Previewing {studentView.schoolName ?? "selected school"}
+            </p>
+            <button
+              onClick={handleExitStudentView}
+              disabled={isTogglingStudentView}
+              className="mt-3 w-full rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#14532d] hover:bg-white/90 disabled:opacity-60"
+            >
+              Leave Student View
+            </button>
+          </>
+        ) : (
+          <>
+            <label className="mt-2 block text-xs text-white/70" htmlFor="student-view-school">
+              School
+            </label>
+            <select
+              id="student-view-school"
+              value={selectedSchoolId}
+              onChange={(e) => setSelectedSchoolId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/30 bg-white/95 px-2 py-1.5 text-sm text-slate-800"
+            >
+              {schoolOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleEnterStudentView}
+              disabled={isTogglingStudentView || !selectedSchoolId}
+              className="mt-3 w-full rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#14532d] hover:bg-white/90 disabled:opacity-60"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Eye className="w-4 h-4" />
+                Open Student View
+              </span>
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
+
   const desktopSidebarContent = (
     <>
       <div className={`flex items-center border-b border-white/10 ${
@@ -387,6 +513,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </div>
 
       <nav className={`flex-1 py-4 overflow-y-auto ${isCollapsed ? "px-2" : "px-3"}`}>
+        {renderStudentViewPanel(isCollapsed)}
         {renderSections(isCollapsed, false)}
       </nav>
 
@@ -450,7 +577,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <nav className="flex-1 px-3 py-4 overflow-y-auto">{renderSections(false, true)}</nav>
+              <nav className="flex-1 px-3 py-4 overflow-y-auto">
+                {renderStudentViewPanel(false)}
+                {renderSections(false, true)}
+              </nav>
               {renderUserButton(false, true)}
             </div>
           </motion.aside>

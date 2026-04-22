@@ -63,6 +63,7 @@ type TargetLoadResult = {
 async function loadTargetsAndAssignments(
   supabase: SupabaseClient,
   studentUserId: string,
+  previewSchoolId?: string | null,
 ): Promise<TargetLoadResult> {
   // Resolve assignments by school membership so students see every
   // assignment for their school, not just the ones that existed at
@@ -77,21 +78,23 @@ async function loadTargetsAndAssignments(
   // via assignment_targets (or created_by/admin). Without this split, a
   // late-joined student would get 0 assignment rows with no error, and
   // therefore no notifications.
-  const { data: memberRowsData, error: memberRowsError } = await supabase
-    .from("school_members")
-    .select("school_id")
-    .eq("student_user_id", studentUserId);
-  if (memberRowsError) {
-    return {
-      targetRows: [],
-      assignmentsById: new Map<string, AssignmentRecord>(),
-      error: `Failed to load school memberships for notifications: ${memberRowsError.message}`,
-    };
+  const schoolIds = previewSchoolId ? [previewSchoolId] : [];
+  if (schoolIds.length === 0) {
+    const { data: memberRowsData, error: memberRowsError } = await supabase
+      .from("school_members")
+      .select("school_id")
+      .eq("student_user_id", studentUserId);
+    if (memberRowsError) {
+      return {
+        targetRows: [],
+        assignmentsById: new Map<string, AssignmentRecord>(),
+        error: `Failed to load school memberships for notifications: ${memberRowsError.message}`,
+      };
+    }
+    schoolIds.push(
+      ...Array.from(new Set((memberRowsData ?? []).map((row) => String(row.school_id)))),
+    );
   }
-
-  const schoolIds = Array.from(
-    new Set((memberRowsData ?? []).map((row) => String(row.school_id))),
-  );
   if (schoolIds.length === 0) {
     return {
       targetRows: [],
@@ -206,7 +209,7 @@ async function loadTargetsAndAssignments(
 export async function getStudentNotifications(
   supabase: SupabaseClient,
   studentUserId: string,
-  options?: { timeZone?: string; lastReadAt?: string | null },
+  options?: { timeZone?: string; lastReadAt?: string | null; previewSchoolId?: string | null },
 ): Promise<StudentNotificationsResult> {
   const timeZone = normalizeTimeZone(options?.timeZone, DEFAULT_APP_TIME_ZONE);
   const lastReadAtMs = options?.lastReadAt
@@ -214,7 +217,11 @@ export async function getStudentNotifications(
     : null;
   const hasValidLastReadAt =
     lastReadAtMs !== null && Number.isFinite(lastReadAtMs);
-  const loadResult = await loadTargetsAndAssignments(supabase, studentUserId);
+  const loadResult = await loadTargetsAndAssignments(
+    supabase,
+    studentUserId,
+    options?.previewSchoolId,
+  );
   if (loadResult.error) {
     return {
       notifications: [],

@@ -33,6 +33,7 @@ export interface GetStudentKeystoneExamOptions {
    * render the rest of the page in.
    */
   timeZone?: string;
+  previewSchoolId?: string | null;
 }
 
 /**
@@ -48,20 +49,39 @@ export async function getStudentKeystoneExam(
   userId: string,
   options: GetStudentKeystoneExamOptions = {},
 ): Promise<KeystoneExamInfo | null> {
-  const { data, error } = await supabase
-    .from("school_members")
-    .select(
-      "school_id,schools(id,name,keystone_exam_date)",
-    )
-    .eq("student_user_id", userId);
-
-  if (error || !data) return null;
+  const { previewSchoolId } = options;
+  let data: SchoolMemberRow[] | null = null;
+  if (previewSchoolId) {
+    const { data: schoolRow, error } = await supabase
+      .from("schools")
+      .select("id,name,keystone_exam_date")
+      .eq("id", previewSchoolId)
+      .maybeSingle();
+    if (error || !schoolRow) return null;
+    data = [
+      {
+        school_id: schoolRow.id,
+        schools: {
+          id: schoolRow.id,
+          name: schoolRow.name,
+          keystone_exam_date: schoolRow.keystone_exam_date,
+        },
+      },
+    ];
+  } else {
+    const query = await supabase
+      .from("school_members")
+      .select("school_id,schools(id,name,keystone_exam_date)")
+      .eq("student_user_id", userId);
+    if (query.error || !query.data) return null;
+    data = query.data as SchoolMemberRow[];
+  }
 
   const now = options.now ?? new Date();
   const todayYmd = todayYmdInTimeZone(options.timeZone, now);
 
   const candidates: KeystoneExamInfo[] = [];
-  for (const row of data as SchoolMemberRow[]) {
+  for (const row of data) {
     const school = pickSchool(row);
     if (!school?.keystone_exam_date) continue;
     if (school.keystone_exam_date < todayYmd) continue;

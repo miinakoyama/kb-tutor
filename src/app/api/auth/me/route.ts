@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveMetadataRole, resolveProfileRole } from "@/lib/auth/role";
+import { getStudentViewContext } from "@/lib/student-view";
 
 type AppRole = "student" | "teacher" | "admin";
 
@@ -11,13 +12,14 @@ function inferRoleFromUser(user: User): AppRole {
 }
 
 export async function GET() {
+  const studentView = await getStudentViewContext();
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ user: null, profile: null }, { status: 200 });
+    return NextResponse.json({ user: null, profile: null, studentView }, { status: 200 });
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -28,7 +30,7 @@ export async function GET() {
 
   const sessionProfileRole = resolveProfileRole(profile?.role);
   if (profile && sessionProfileRole) {
-    return NextResponse.json({ user, profile }, { status: 200 });
+    return NextResponse.json({ user, profile, studentView }, { status: 200 });
   }
 
   // If session profile is missing/invalid, re-check via service-role before metadata fallback.
@@ -41,7 +43,7 @@ export async function GET() {
       .maybeSingle();
 
     if (adminProfile && resolveProfileRole(adminProfile.role)) {
-      return NextResponse.json({ user, profile: adminProfile }, { status: 200 });
+      return NextResponse.json({ user, profile: adminProfile, studentView }, { status: 200 });
     }
   }
 
@@ -66,7 +68,7 @@ export async function GET() {
     .upsert(fallbackProfile, { onConflict: "id" });
 
   if (upsertError) {
-    return NextResponse.json({ user, profile: fallbackProfile }, { status: 200 });
+    return NextResponse.json({ user, profile: fallbackProfile, studentView }, { status: 200 });
   }
 
   const { data: ensuredProfile } = await admin
@@ -76,7 +78,7 @@ export async function GET() {
     .maybeSingle();
 
   return NextResponse.json(
-    { user, profile: ensuredProfile ?? fallbackProfile },
+    { user, profile: ensuredProfile ?? fallbackProfile, studentView },
     { status: 200 },
   );
 }
