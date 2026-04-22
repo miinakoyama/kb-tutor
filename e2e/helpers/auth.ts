@@ -18,8 +18,7 @@ export async function setRoleCookie(
     {
       name: ROLE_COOKIE_NAME,
       value: role,
-      domain: url.hostname,
-      path: "/",
+      url: url.origin,
       httpOnly: false,
       secure: false,
       sameSite: "Lax",
@@ -36,8 +35,7 @@ export async function clearRoleCookie(
     {
       name: ROLE_COOKIE_NAME,
       value: "",
-      domain: url.hostname,
-      path: "/",
+      url: url.origin,
       expires: 0,
       httpOnly: false,
       secure: false,

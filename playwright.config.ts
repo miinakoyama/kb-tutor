@@ -22,6 +22,14 @@ export default defineConfig({
           env: {
             ...process.env,
             E2E_AUTH_BYPASS: "1",
+            // Provide safe placeholders so server-side env guards do not crash
+            // in CI where Supabase vars are intentionally absent for E2E.
+            NEXT_PUBLIC_SUPABASE_URL:
+              process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321",
+            NEXT_PUBLIC_SUPABASE_ANON_KEY:
+              process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "e2e-anon-key",
+            SUPABASE_SERVICE_ROLE_KEY:
+              process.env.SUPABASE_SERVICE_ROLE_KEY ?? "e2e-service-role-key",
           },
         },
       }

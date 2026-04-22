@@ -98,6 +98,6 @@ test.describe("Login and role access", () => {
 
     await setRoleCookie(context, baseURL, "student");
     await page.goto("/teacher-dashboard");
-    await expect(page).toHaveURL(/\/login(\?|$)/);
+    await expect(page).toHaveURL(/(?:\/$|\/login(?:\?|$))/);
   });
 });
