@@ -40,6 +40,18 @@ async function handleStudentLogin(body: {
   }
 
   const admin = createSupabaseAdminClient();
+  const { data: schoolRow, error: schoolError } = await admin
+    .from("schools")
+    .select("id,is_hidden")
+    .eq("id", schoolId)
+    .maybeSingle();
+
+  if (schoolError || !schoolRow || schoolRow.is_hidden) {
+    return NextResponse.json(
+      { error: "School not found." },
+      { status: 404 },
+    );
+  }
 
   // Look up whether this student already has an account in this school
   const { data: memberRows } = await admin
@@ -74,21 +86,7 @@ async function handleStudentLogin(body: {
     return NextResponse.json({ ok: true, redirectTo: "/" });
   }
 
-  // No existing account — verify school exists, then self-register
-  const { data: schoolRow, error: schoolError } = await admin
-    .from("schools")
-    .select("id")
-    .eq("id", schoolId)
-    .maybeSingle();
-
-  if (schoolError || !schoolRow) {
-    return NextResponse.json(
-      { error: "School not found." },
-      { status: 404 },
-    );
-  }
-
-  // Create new student account
+  // No existing account — self-register for this visible school
   const email = buildStudentEmail(schoolId, studentId);
   const password = buildStudentPassword(schoolId, studentId);
 

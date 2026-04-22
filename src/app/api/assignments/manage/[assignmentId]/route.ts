@@ -174,9 +174,40 @@ export async function GET(
     payload: row.payload as Question,
   }));
 
+  const attemptUserIds = Array.from(
+    new Set((attemptRows ?? []).map((row) => String(row.user_id))),
+  );
+  const targetUserIds = Array.from(
+    new Set((targetRows ?? []).map((row) => String(row.student_user_id))),
+  );
+  const memberUserIds = Array.from(
+    new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
+  );
+  const profileIdsForExclusion = Array.from(
+    new Set([...attemptUserIds, ...targetUserIds, ...memberUserIds]),
+  );
+  const excludedUserIds = new Set<string>();
+  if (profileIdsForExclusion.length > 0) {
+    const { data: excludedRows, error: excludedError } = await admin
+      .from("profiles")
+      .select("id")
+      .in("id", profileIdsForExclusion)
+      .eq("excluded_from_analytics", true);
+    if (excludedError) {
+      return NextResponse.json({ error: excludedError.message }, { status: 400 });
+    }
+    for (const row of excludedRows ?? []) {
+      excludedUserIds.add(String(row.id));
+    }
+  }
+
+  const filteredAttemptRows = (attemptRows ?? []).filter(
+    (row) => !excludedUserIds.has(String(row.user_id)),
+  );
+
   const respondents = new Set<string>();
   let correctAttempts = 0;
-  for (const row of attemptRows ?? []) {
+  for (const row of filteredAttemptRows) {
     respondents.add(String(row.user_id));
     if (row.is_correct) correctAttempts += 1;
   }
@@ -205,7 +236,7 @@ export async function GET(
       ...targetStudentIds,
       ...attemptStudentIds,
     ]),
-  ];
+  ].filter((id) => !excludedUserIds.has(id));
   const { data: profileRows, error: profileError } =
     allStudentIds.length > 0
       ? await admin
@@ -310,11 +341,11 @@ export async function GET(
       // Reflect the current school roster rather than the creation-time
       // snapshot: school membership is what determines who currently sees
       // the assignment on the student side.
-      total: currentMemberIds.size,
-      student_ids: [...currentMemberIds],
+      total: [...currentMemberIds].filter((id) => !excludedUserIds.has(id)).length,
+      student_ids: [...currentMemberIds].filter((id) => !excludedUserIds.has(id)),
     },
     attempts: {
-      total: (attemptRows ?? []).length,
+      total: filteredAttemptRows.length,
       respondents: respondents.size,
       correct: correctAttempts,
     },

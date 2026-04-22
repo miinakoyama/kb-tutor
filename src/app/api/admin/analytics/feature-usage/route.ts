@@ -121,6 +121,23 @@ export async function GET(request: Request) {
   }
 
   const events = (rows ?? []) as EventRow[];
+  const uniqueUserIds = Array.from(new Set(events.map((event) => String(event.user_id))));
+  const excludedUserIds = new Set<string>();
+  if (uniqueUserIds.length > 0) {
+    const { data: excludedRows, error: excludedError } = await admin
+      .from("profiles")
+      .select("id")
+      .in("id", uniqueUserIds)
+      .eq("excluded_from_analytics", true);
+    if (excludedError) {
+      return NextResponse.json({ error: excludedError.message }, { status: 400 });
+    }
+    for (const row of excludedRows ?? []) {
+      excludedUserIds.add(String(row.id));
+    }
+  }
+
+  const filteredEvents = events.filter((event) => !excludedUserIds.has(String(event.user_id)));
   const wasTruncated = events.length >= MAX_ROWS;
 
   // --- Aggregators --------------------------------------------------------
@@ -141,7 +158,7 @@ export async function GET(request: Request) {
     removed: emptyCounter(),
   };
 
-  for (const event of events) {
+  for (const event of filteredEvents) {
     const { event_type, user_id, payload } = event;
     switch (event_type) {
       case "glossary_term_opened": {
@@ -210,7 +227,7 @@ export async function GET(request: Request) {
       from: fromIso,
       to: toIso,
       mode: modeFilter ?? "all",
-      totalEvents: events.length,
+      totalEvents: filteredEvents.length,
       truncated: wasTruncated,
     },
     glossary: {

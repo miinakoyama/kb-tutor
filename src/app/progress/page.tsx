@@ -58,6 +58,7 @@ export default function ProgressPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
+  const [isChartMounted, setIsChartMounted] = useState(false);
   const [masteryData, setMasteryData] = useState<MasteryDatum[]>(() =>
     PROGRESS_TOPICS.map(({ key }) => ({
       topic: key,
@@ -70,6 +71,10 @@ export default function ProgressPage() {
       fill: "#94a3b8",
     })),
   );
+
+  useEffect(() => {
+    setIsChartMounted(true);
+  }, []);
 
   useEffect(() => {
     const loadProgress = async () => {
@@ -167,56 +172,60 @@ export default function ProgressPage() {
               : `${attemptedTopicCount}/${masteryData.length} topics have attempt data (estimated until enough attempts).`}
           </p>
           <div className="h-[280px] sm:h-[360px] md:h-[400px] min-h-[200px] w-full min-w-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={masteryData}>
-                <PolarGrid stroke="#2d6a4f" strokeOpacity={0.3} />
-                <PolarAngleAxis
-                  dataKey="topic"
-                  tick={{ fill: "#2c3e2e", fontSize: 11 }}
-                />
-                <PolarRadiusAxis
-                  angle={90}
-                  domain={[0, 100]}
-                  tick={{ fill: "#2c3e2e", fontSize: 10 }}
-                />
-                <Radar
-                  name="Mastery %"
-                  dataKey="masteryValue"
-                  stroke="#16a34a"
-                  fill="#16a34a"
-                  fillOpacity={0.6}
-                  strokeWidth={2}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#f8f6f3",
-                    border: "1px solid #2d6a4f",
-                    borderRadius: "8px",
-                  }}
-                  formatter={(value, _name, item) => {
-                    const payload = item?.payload as MasteryDatum | undefined;
-                    const mastery = typeof value === "number" ? value : 0;
-                    const attempts = payload?.attempts ?? 0;
-                    if (!payload || payload.level === "insufficient_data") {
-                      return ["Not enough data yet", "Mastery"];
-                    }
-                    const suffix =
-                      payload.level === "estimated" ? " (estimated)" : "";
-                    return [
-                      `${mastery}% (${attempts} attempts)${suffix}`,
-                      "Mastery",
-                    ];
-                  }}
-                  labelFormatter={(label, payload) => {
-                    const row = payload?.[0]?.payload as
-                      | MasteryDatum
-                      | undefined;
-                    return row?.fullTopic ?? String(label ?? "");
-                  }}
-                />
-                <Legend />
-              </RadarChart>
-            </ResponsiveContainer>
+            {isChartMounted ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={masteryData}>
+                  <PolarGrid stroke="#2d6a4f" strokeOpacity={0.3} />
+                  <PolarAngleAxis
+                    dataKey="topic"
+                    tick={{ fill: "#2c3e2e", fontSize: 11 }}
+                  />
+                  <PolarRadiusAxis
+                    angle={90}
+                    domain={[0, 100]}
+                    tick={{ fill: "#2c3e2e", fontSize: 10 }}
+                  />
+                  <Radar
+                    name="Mastery %"
+                    dataKey="masteryValue"
+                    stroke="#16a34a"
+                    fill="#16a34a"
+                    fillOpacity={0.6}
+                    strokeWidth={2}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#f8f6f3",
+                      border: "1px solid #2d6a4f",
+                      borderRadius: "8px",
+                    }}
+                    formatter={(value, _name, item) => {
+                      const payload = item?.payload as MasteryDatum | undefined;
+                      const mastery = typeof value === "number" ? value : 0;
+                      const attempts = payload?.attempts ?? 0;
+                      if (!payload || payload.level === "insufficient_data") {
+                        return ["Not enough data yet", "Mastery"];
+                      }
+                      const suffix =
+                        payload.level === "estimated" ? " (estimated)" : "";
+                      return [
+                        `${mastery}% (${attempts} attempts)${suffix}`,
+                        "Mastery",
+                      ];
+                    }}
+                    labelFormatter={(label, payload) => {
+                      const row = payload?.[0]?.payload as
+                        | MasteryDatum
+                        | undefined;
+                      return row?.fullTopic ?? String(label ?? "");
+                    }}
+                  />
+                  <Legend />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full w-full animate-pulse rounded-xl bg-slate-100" />
+            )}
           </div>
         </section>
       </div>

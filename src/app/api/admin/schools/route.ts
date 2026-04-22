@@ -93,7 +93,7 @@ export async function GET() {
   const admin = createSupabaseAdminClient();
   const { data: schoolsData, error: schoolError } = await admin
     .from("schools")
-    .select("id,name,teacher_user_id,keystone_exam_date,created_at")
+    .select("id,name,teacher_user_id,keystone_exam_date,is_hidden,created_at")
     .order("name", { ascending: true });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
@@ -195,6 +195,7 @@ export async function GET() {
       created_at: s.created_at,
       teacher_user_id: s.teacher_user_id,
       keystone_exam_date: s.keystone_exam_date ?? null,
+      is_hidden: s.is_hidden ?? false,
       teacher_label: teacherLabel,
       teachers,
       students: studentUserIds.map((id) => {
@@ -221,6 +222,7 @@ export async function POST(request: Request) {
     teacherUserIds?: string[];
     studentUserIds?: string[];
     keystoneExamDate?: string | null;
+    isHidden?: boolean;
   };
 
   const schoolName = body.name?.trim();
@@ -228,8 +230,12 @@ export async function POST(request: Request) {
   if (!schoolName) {
     return NextResponse.json({ error: "Missing required field: name" }, { status: 400 });
   }
+  if (body.isHidden !== undefined && typeof body.isHidden !== "boolean") {
+    return NextResponse.json({ error: "isHidden must be a boolean" }, { status: 400 });
+  }
   const schoolId = body.id?.trim() || buildSchoolId(schoolName);
   const primaryTeacherId = teacherIds[0] ?? null;
+  const isHidden = body.isHidden ?? false;
 
   let keystoneExamDate: string | null = null;
   if (body.keystoneExamDate !== undefined) {
@@ -246,6 +252,7 @@ export async function POST(request: Request) {
     name: schoolName,
     teacher_user_id: primaryTeacherId,
     keystone_exam_date: keystoneExamDate,
+    is_hidden: isHidden,
   });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
@@ -291,6 +298,7 @@ export async function PATCH(request: Request) {
     teacherUserIds?: string[];
     studentUserIds?: string[];
     keystoneExamDate?: string | null;
+    isHidden?: boolean;
   };
 
   if (!body.id) {
@@ -302,6 +310,7 @@ export async function PATCH(request: Request) {
     name?: string;
     teacher_user_id?: string | null;
     keystone_exam_date?: string | null;
+    is_hidden?: boolean;
   } = {};
   if (body.name !== undefined) updates.name = body.name;
   const teacherIds = normalizeTeacherIds(body);
@@ -312,6 +321,12 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: normalized.error }, { status: 400 });
     }
     updates.keystone_exam_date = normalized.value;
+  }
+  if (body.isHidden !== undefined) {
+    if (typeof body.isHidden !== "boolean") {
+      return NextResponse.json({ error: "isHidden must be a boolean" }, { status: 400 });
+    }
+    updates.is_hidden = body.isHidden;
   }
 
   if (Object.keys(updates).length > 0) {
