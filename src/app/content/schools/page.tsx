@@ -19,9 +19,14 @@ interface SchoolView {
   keystone_exam_date: string | null;
   is_hidden: boolean;
   teacher_label: string;
+  student_id_validation_pattern: string | null;
+  student_id_validation_hint: string | null;
   teachers: { id: string; label: string; is_primary: boolean }[];
   students: { id: string; label: string }[];
 }
+
+const CARRICK_VALIDATION_PATTERN = "^st\\d{9}$";
+const CARRICK_VALIDATION_HINT = "Example: st004720601";
 
 function normalizeAdminError(message?: string) {
   if (!message) return "Failed to load admin data.";
@@ -45,6 +50,9 @@ export default function SchoolManagementPage() {
     teacherUserIds: [] as string[],
     keystoneExamDate: "",
     isHidden: false,
+    studentIdValidationPreset: "none" as "none" | "carrick" | "custom",
+    studentIdValidationPattern: "",
+    studentIdValidationHint: "",
   });
 
   const selectedSchool = useMemo(
@@ -56,6 +64,11 @@ export default function SchoolManagementPage() {
   const [editTeacherIds, setEditTeacherIds] = useState<string[]>([]);
   const [editKeystoneExamDate, setEditKeystoneExamDate] = useState("");
   const [editIsHidden, setEditIsHidden] = useState(false);
+  const [editStudentIdValidationPreset, setEditStudentIdValidationPreset] = useState<
+    "none" | "carrick" | "custom"
+  >("none");
+  const [editStudentIdValidationPattern, setEditStudentIdValidationPattern] = useState("");
+  const [editStudentIdValidationHint, setEditStudentIdValidationHint] = useState("");
 
   useEffect(() => {
     const school = selectedSchool;
@@ -64,6 +77,22 @@ export default function SchoolManagementPage() {
     setEditTeacherIds(school.teachers.map((t) => t.id));
     setEditKeystoneExamDate(school.keystone_exam_date ?? "");
     setEditIsHidden(school.is_hidden);
+
+    const pattern = school.student_id_validation_pattern ?? "";
+    const hint = school.student_id_validation_hint ?? "";
+    if (!pattern) {
+      setEditStudentIdValidationPreset("none");
+      setEditStudentIdValidationPattern("");
+      setEditStudentIdValidationHint(hint);
+    } else if (pattern === CARRICK_VALIDATION_PATTERN) {
+      setEditStudentIdValidationPreset("carrick");
+      setEditStudentIdValidationPattern(CARRICK_VALIDATION_PATTERN);
+      setEditStudentIdValidationHint(hint || CARRICK_VALIDATION_HINT);
+    } else {
+      setEditStudentIdValidationPreset("custom");
+      setEditStudentIdValidationPattern(pattern);
+      setEditStudentIdValidationHint(hint);
+    }
   }, [selectedSchoolId, selectedSchool]);
 
   const loadAll = useCallback(async () => {
@@ -100,6 +129,9 @@ export default function SchoolManagementPage() {
       teacherUserIds: [],
       keystoneExamDate: "",
       isHidden: false,
+      studentIdValidationPreset: "none",
+      studentIdValidationPattern: "",
+      studentIdValidationHint: "",
     });
   }
 
@@ -115,6 +147,18 @@ export default function SchoolManagementPage() {
         teacherUserIds: createForm.teacherUserIds,
         keystoneExamDate: createForm.keystoneExamDate.trim() || null,
         isHidden: createForm.isHidden,
+        studentIdValidationPattern:
+          createForm.studentIdValidationPreset === "none"
+            ? null
+            : createForm.studentIdValidationPreset === "carrick"
+              ? CARRICK_VALIDATION_PATTERN
+              : createForm.studentIdValidationPattern.trim() || null,
+        studentIdValidationHint:
+          createForm.studentIdValidationPreset === "none"
+            ? null
+            : createForm.studentIdValidationPreset === "carrick"
+              ? CARRICK_VALIDATION_HINT
+              : createForm.studentIdValidationHint.trim() || null,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -141,6 +185,18 @@ export default function SchoolManagementPage() {
         teacherUserIds: editTeacherIds,
         keystoneExamDate: editKeystoneExamDate.trim() || null,
         isHidden: editIsHidden,
+        studentIdValidationPattern:
+          editStudentIdValidationPreset === "none"
+            ? null
+            : editStudentIdValidationPreset === "carrick"
+              ? CARRICK_VALIDATION_PATTERN
+              : editStudentIdValidationPattern.trim() || null,
+        studentIdValidationHint:
+          editStudentIdValidationPreset === "none"
+            ? null
+            : editStudentIdValidationPreset === "carrick"
+              ? CARRICK_VALIDATION_HINT
+              : editStudentIdValidationHint.trim() || null,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -181,7 +237,7 @@ export default function SchoolManagementPage() {
             School Management
           </h1>
           <p className="text-slate-gray/70 text-sm">
-            Create schools, assign teachers, and control student login visibility.
+            Create schools, assign teachers, control student login visibility, and set student ID format rules.
           </p>
         </div>
         <button
@@ -249,6 +305,11 @@ export default function SchoolManagementPage() {
                       {school.is_hidden && (
                         <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Hidden on student login
+                        </span>
+                      )}
+                      {school.student_id_validation_pattern && (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                          Student ID format check enabled
                         </span>
                       )}
                       <span className="text-slate-gray/50 text-xs">ID: {school.id}</span>
@@ -337,6 +398,62 @@ export default function SchoolManagementPage() {
                   )}
                 </div>
               </label>
+              <div className="rounded-lg border border-slate-200 p-3 text-sm text-slate-gray space-y-3">
+                <p className="font-medium">Student ID Format Validation</p>
+                <select
+                  value={createForm.studentIdValidationPreset}
+                  onChange={(e) => {
+                    const preset = e.target.value as "none" | "carrick" | "custom";
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      studentIdValidationPreset: preset,
+                      studentIdValidationPattern:
+                        preset === "carrick"
+                          ? CARRICK_VALIDATION_PATTERN
+                          : preset === "none"
+                            ? ""
+                            : prev.studentIdValidationPattern,
+                      studentIdValidationHint:
+                        preset === "carrick"
+                          ? CARRICK_VALIDATION_HINT
+                          : preset === "none"
+                            ? ""
+                            : prev.studentIdValidationHint,
+                    }));
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                >
+                  <option value="none">No validation (any student ID)</option>
+                  <option value="carrick">Carrick format (st + 9 digits)</option>
+                  <option value="custom">Custom regex (advanced)</option>
+                </select>
+                {createForm.studentIdValidationPreset === "custom" && (
+                  <div className="space-y-2">
+                    <input
+                      value={createForm.studentIdValidationPattern}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          studentIdValidationPattern: e.target.value,
+                        }))
+                      }
+                      placeholder="Regex pattern, e.g. ^st\\d{9}$"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                    <input
+                      value={createForm.studentIdValidationHint}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          studentIdValidationHint: e.target.value,
+                        }))
+                      }
+                      placeholder="Hint shown to students, e.g. Example: st004720601"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                )}
+              </div>
               <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-gray">
                 <input
                   type="checkbox"
@@ -456,6 +573,44 @@ export default function SchoolManagementPage() {
                   )}
                 </div>
               </label>
+              <div className="rounded-lg border border-slate-200 p-3 text-sm text-slate-gray space-y-3">
+                <p className="font-medium">Student ID Format Validation</p>
+                <select
+                  value={editStudentIdValidationPreset}
+                  onChange={(e) => {
+                    const preset = e.target.value as "none" | "carrick" | "custom";
+                    setEditStudentIdValidationPreset(preset);
+                    if (preset === "none") {
+                      setEditStudentIdValidationPattern("");
+                      setEditStudentIdValidationHint("");
+                    } else if (preset === "carrick") {
+                      setEditStudentIdValidationPattern(CARRICK_VALIDATION_PATTERN);
+                      setEditStudentIdValidationHint(CARRICK_VALIDATION_HINT);
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                >
+                  <option value="none">No validation (any student ID)</option>
+                  <option value="carrick">Carrick format (st + 9 digits)</option>
+                  <option value="custom">Custom regex (advanced)</option>
+                </select>
+                {editStudentIdValidationPreset === "custom" && (
+                  <div className="space-y-2">
+                    <input
+                      value={editStudentIdValidationPattern}
+                      onChange={(e) => setEditStudentIdValidationPattern(e.target.value)}
+                      placeholder="Regex pattern, e.g. ^st\\d{9}$"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                    <input
+                      value={editStudentIdValidationHint}
+                      onChange={(e) => setEditStudentIdValidationHint(e.target.value)}
+                      placeholder="Hint shown to students, e.g. Example: st004720601"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                )}
+              </div>
               <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-gray">
                 <input
                   type="checkbox"
