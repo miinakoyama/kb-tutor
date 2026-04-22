@@ -1,6 +1,7 @@
 import type { ConfidenceLevel } from "@/types/question";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { incrementWrongCount } from "@/lib/review-priority";
 import {
   enqueueAttempt,
   enqueueAttempts,
@@ -212,9 +213,11 @@ function computeIncorrectIds(history: StoredAnswer[]): string[] {
 function computeIncorrectCounts(history: StoredAnswer[]): Map<string, number> {
   const wrongCountByQuestion = new Map<string, number>();
   for (const answer of history) {
-    if (answer.isCorrect) continue;
-    const current = wrongCountByQuestion.get(answer.questionId) ?? 0;
-    wrongCountByQuestion.set(answer.questionId, current + 1);
+    incrementWrongCount(
+      wrongCountByQuestion,
+      answer.questionId,
+      answer.isCorrect,
+    );
   }
   return wrongCountByQuestion;
 }

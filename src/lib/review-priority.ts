@@ -5,12 +5,24 @@ export interface AttemptOutcome {
 
 export type WrongCountMap = Map<string, number>;
 
+export function incrementWrongCount(
+  wrongCountByQuestion: WrongCountMap,
+  questionId: string,
+  isCorrect: boolean,
+): void {
+  if (isCorrect) return;
+  const current = wrongCountByQuestion.get(questionId) ?? 0;
+  wrongCountByQuestion.set(questionId, current + 1);
+}
+
 export function buildWrongCountMap(attempts: AttemptOutcome[]): WrongCountMap {
   const wrongCountByQuestion: WrongCountMap = new Map<string, number>();
   for (const attempt of attempts) {
-    if (attempt.isCorrect) continue;
-    const current = wrongCountByQuestion.get(attempt.questionId) ?? 0;
-    wrongCountByQuestion.set(attempt.questionId, current + 1);
+    incrementWrongCount(
+      wrongCountByQuestion,
+      attempt.questionId,
+      attempt.isCorrect,
+    );
   }
   return wrongCountByQuestion;
 }

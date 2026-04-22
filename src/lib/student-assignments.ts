@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Question } from "@/types/question";
 import {
-  buildWrongCountMap,
+  incrementWrongCount,
   prioritizeQuestionsByWrongCount,
 } from "@/lib/review-priority";
 
@@ -366,7 +366,7 @@ export async function resolveReviewQuestionsForAssignment(
   const noFilter = topics.length === 0 && standards.length === 0;
   const topicsSet = new Set(topics);
   const standardsSet = new Set(standards);
-  const scopedAttempts: { questionId: string; isCorrect: boolean }[] = [];
+  const wrongCountByQuestion = new Map<string, number>();
   for (const attempt of allAttempts ?? []) {
     const questionId = String(attempt.question_id);
     // OR semantic: a question matches the review scope when either its
@@ -381,13 +381,13 @@ export async function resolveReviewQuestionsForAssignment(
       topicsSet.size > 0 && topicsSet.has(String(attempt.topic ?? ""));
     const inScope = noFilter || standardMatch || topicMatch;
     if (!inScope) continue;
-    scopedAttempts.push({
+    incrementWrongCount(
+      wrongCountByQuestion,
       questionId,
-      isCorrect: Boolean(attempt.is_correct),
-    });
+      Boolean(attempt.is_correct),
+    );
   }
 
-  const wrongCountByQuestion = buildWrongCountMap(scopedAttempts);
   const matchedQuestionIds = Array.from(wrongCountByQuestion.keys());
 
   if (matchedQuestionIds.length === 0) {

@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   buildWrongCountMap,
+  incrementWrongCount,
   prioritizeQuestionsByWrongCount,
 } from "./review-priority";
+
+describe("incrementWrongCount", () => {
+  it("increments only incorrect attempts", () => {
+    const map = new Map<string, number>();
+    incrementWrongCount(map, "q1", true);
+    incrementWrongCount(map, "q1", false);
+    incrementWrongCount(map, "q1", false);
+
+    expect(map.get("q1")).toBe(2);
+  });
+});
 
 describe("buildWrongCountMap", () => {
   it("counts incorrect attempts per question", () => {
