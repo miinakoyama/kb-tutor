@@ -20,6 +20,32 @@ type AttemptRow = {
   answered_at: string;
 };
 
+type SessionRow = {
+  id: string;
+  school_id: string;
+  user_id: string;
+  mode: string;
+  started_at: string;
+  ended_at: string | null;
+  client_started_at: string | null;
+  device_type: string | null;
+  browser: string | null;
+  os: string | null;
+  timezone: string | null;
+};
+
+type EventRow = {
+  school_id: string;
+  session_id: string | null;
+  user_id: string;
+  event_type: string;
+  mode: string | null;
+  question_id: string | null;
+  assignment_id: string | null;
+  occurred_at: string;
+  payload: Record<string, unknown> | null;
+};
+
 type ProfileRow = {
   id: string;
   student_id: string | null;
@@ -37,6 +63,55 @@ function escapeCsvValue(value: string | number | boolean | null): string {
 
 function joinCsvRow(columns: Array<string | number | boolean | null>): string {
   return columns.map(escapeCsvValue).join(",");
+}
+
+type CsvRecord = {
+  recordType: "attempt" | "event" | "session";
+  schoolId: string;
+  studentUserId: string;
+  studentId: string;
+  studentName: string;
+  email: string;
+  mode: string;
+  eventType: string;
+  questionId: string;
+  assignmentId: string;
+  selectedOptionId: string;
+  isCorrect: boolean | null;
+  standardId: string;
+  standardLabel: string;
+  timeSpentSec: number | null;
+  answeredAt: string;
+  sessionId: string;
+  sessionStartedAt: string;
+  sessionEndedAt: string;
+  clientStartedAt: string;
+  deviceType: string;
+  browser: string;
+  os: string;
+  timezone: string;
+  occurredAt: string;
+  payloadJson: string;
+  payloadFields: Record<string, string | number | boolean | null>;
+};
+
+function toCsvScalar(value: unknown): string | number | boolean | null {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    value === null
+  ) {
+    return value;
+  }
+  return JSON.stringify(value);
+}
+
+function normalizePayloadFields(payload: Record<string, unknown> | null): Record<string, string | number | boolean | null> {
+  if (!payload) return {};
+  return Object.fromEntries(
+    Object.entries(payload).map(([key, value]) => [key, toCsvScalar(value)]),
+  );
 }
 
 async function requireAdmin() {
@@ -88,23 +163,37 @@ export async function GET(request: Request) {
   if (studentIds.length === 0) {
     if (format === "csv") {
       const header = joinCsvRow([
+        "record_type",
         "school_id",
+        "student_user_id",
         "student_id",
-        "display_name",
+        "student_name",
         "email",
         "mode",
+        "event_type",
         "question_id",
+        "assignment_id",
         "selected_option_id",
         "is_correct",
         "standard_id",
         "standard_label",
         "time_spent_sec",
         "answered_at",
+        "session_id",
+        "session_started_at",
+        "session_ended_at",
+        "client_started_at",
+        "device_type",
+        "browser",
+        "os",
+        "timezone",
+        "occurred_at",
+        "payload_json",
       ]);
       return new NextResponse(`${header}\n`, {
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": "attachment; filename=admin-data-analysis-attempts.csv",
+          "Content-Disposition": "attachment; filename=admin-data-analysis-interactions.csv",
         },
       });
     }
@@ -134,27 +223,44 @@ export async function GET(request: Request) {
     (row) => !excludedUserIds.has(String(row.student_user_id)),
   );
   const schoolIds = Array.from(new Set(filteredMembershipRows.map((row) => row.school_id)));
+  const schoolByStudent = new Map(
+    filteredMembershipRows.map((row) => [row.student_user_id, row.school_id]),
+  );
 
   if (includedStudentIds.length === 0) {
     if (format === "csv") {
       const header = joinCsvRow([
+        "record_type",
         "school_id",
+        "student_user_id",
         "student_id",
-        "display_name",
+        "student_name",
         "email",
         "mode",
+        "event_type",
         "question_id",
+        "assignment_id",
         "selected_option_id",
         "is_correct",
         "standard_id",
         "standard_label",
         "time_spent_sec",
         "answered_at",
+        "session_id",
+        "session_started_at",
+        "session_ended_at",
+        "client_started_at",
+        "device_type",
+        "browser",
+        "os",
+        "timezone",
+        "occurred_at",
+        "payload_json",
       ]);
       return new NextResponse(`${header}\n`, {
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": "attachment; filename=admin-data-analysis-attempts.csv",
+          "Content-Disposition": "attachment; filename=admin-data-analysis-interactions.csv",
         },
       });
     }
@@ -206,10 +312,6 @@ export async function GET(request: Request) {
   }
 
   const profileMap = new Map((profileRows as ProfileRow[]).map((row) => [row.id, row]));
-  const schoolByStudent = new Map(
-    filteredMembershipRows.map((row) => [row.student_user_id, row.school_id]),
-  );
-
   const enrichedRows = filteredByStudent.map((row) => {
     const profile = profileMap.get(row.user_id);
     return {
@@ -230,42 +332,244 @@ export async function GET(request: Request) {
   });
 
   if (format === "csv") {
-    const header = joinCsvRow([
+    let eventsQuery = admin
+      .from("analytics_events")
+      .select(
+        "school_id,session_id,user_id,event_type,mode,question_id,assignment_id,occurred_at,payload",
+      )
+      .in("user_id", includedStudentIds)
+      .gte("occurred_at", from.toISOString())
+      .lte("occurred_at", to.toISOString())
+      .order("occurred_at", { ascending: false });
+
+    if (modeFilter) {
+      eventsQuery = eventsQuery.eq("mode", modeFilter);
+    }
+
+    const { data: eventRows, error: eventError } = await eventsQuery.limit(1000000);
+    if (eventError) {
+      return NextResponse.json({ error: eventError.message }, { status: 400 });
+    }
+
+    let sessionsQuery = admin
+      .from("analytics_sessions")
+      .select(
+        "id,school_id,user_id,mode,started_at,ended_at,client_started_at,device_type,browser,os,timezone",
+      )
+      .in("user_id", includedStudentIds)
+      .gte("started_at", from.toISOString())
+      .lte("started_at", to.toISOString())
+      .order("started_at", { ascending: false });
+
+    if (modeFilter) {
+      sessionsQuery = sessionsQuery.eq("mode", modeFilter);
+    }
+
+    const { data: sessionRows, error: sessionError } = await sessionsQuery.limit(1000000);
+    if (sessionError) {
+      return NextResponse.json({ error: sessionError.message }, { status: 400 });
+    }
+
+    const events = (eventRows ?? []) as EventRow[];
+    const sessions = (sessionRows ?? []) as SessionRow[];
+    const filteredEvents = studentFilter
+      ? events.filter((row) => row.user_id.includes(studentFilter))
+      : events;
+    const filteredSessions = studentFilter
+      ? sessions.filter((row) => row.user_id.includes(studentFilter))
+      : sessions;
+
+    const csvProfileIds = Array.from(
+      new Set([
+        ...filteredByStudent.map((row) => row.user_id),
+        ...filteredEvents.map((row) => row.user_id),
+        ...filteredSessions.map((row) => row.user_id),
+      ]),
+    );
+
+    const { data: csvProfileRows, error: csvProfileError } = await admin
+      .from("profiles")
+      .select("id,student_id,display_name,email")
+      .in("id", csvProfileIds);
+    if (csvProfileError) {
+      return NextResponse.json({ error: csvProfileError.message }, { status: 400 });
+    }
+    const csvProfileMap = new Map(
+      (csvProfileRows as ProfileRow[]).map((row) => [row.id, row]),
+    );
+
+    const csvRecords: CsvRecord[] = [
+      ...filteredByStudent.map((row) => {
+        const profile = csvProfileMap.get(row.user_id);
+        return {
+          recordType: "attempt" as const,
+          schoolId: schoolByStudent.get(row.user_id) ?? "",
+          studentUserId: row.user_id,
+          studentId: profile?.student_id ?? "",
+          studentName: profile?.display_name ?? "",
+          email: profile?.email ?? "",
+          mode: row.mode,
+          eventType: "",
+          questionId: row.question_id,
+          assignmentId: row.assignment_id ?? "",
+          selectedOptionId: row.selected_option_id,
+          isCorrect: row.is_correct,
+          standardId: row.standard_id ?? "",
+          standardLabel: row.standard_label ?? "",
+          timeSpentSec: row.time_spent_sec,
+          answeredAt: row.answered_at,
+          sessionId: "",
+          sessionStartedAt: "",
+          sessionEndedAt: "",
+          clientStartedAt: "",
+          deviceType: "",
+          browser: "",
+          os: "",
+          timezone: "",
+          occurredAt: row.answered_at,
+          payloadJson: "",
+          payloadFields: {},
+        };
+      }),
+      ...filteredEvents.map((row) => {
+        const profile = csvProfileMap.get(row.user_id);
+        const payloadFields = normalizePayloadFields(row.payload);
+        return {
+          recordType: "event" as const,
+          schoolId: row.school_id ?? schoolByStudent.get(row.user_id) ?? "",
+          studentUserId: row.user_id,
+          studentId: profile?.student_id ?? "",
+          studentName: profile?.display_name ?? "",
+          email: profile?.email ?? "",
+          mode: row.mode ?? "",
+          eventType: row.event_type,
+          questionId: row.question_id ?? "",
+          assignmentId: row.assignment_id ?? "",
+          selectedOptionId: "",
+          isCorrect: null,
+          standardId: "",
+          standardLabel: "",
+          timeSpentSec: null,
+          answeredAt: "",
+          sessionId: row.session_id ?? "",
+          sessionStartedAt: "",
+          sessionEndedAt: "",
+          clientStartedAt: "",
+          deviceType: "",
+          browser: "",
+          os: "",
+          timezone: "",
+          occurredAt: row.occurred_at,
+          payloadJson: row.payload ? JSON.stringify(row.payload) : "",
+          payloadFields,
+        };
+      }),
+      ...filteredSessions.map((row) => {
+        const profile = csvProfileMap.get(row.user_id);
+        return {
+          recordType: "session" as const,
+          schoolId: row.school_id ?? schoolByStudent.get(row.user_id) ?? "",
+          studentUserId: row.user_id,
+          studentId: profile?.student_id ?? "",
+          studentName: profile?.display_name ?? "",
+          email: profile?.email ?? "",
+          mode: row.mode,
+          eventType: "",
+          questionId: "",
+          assignmentId: "",
+          selectedOptionId: "",
+          isCorrect: null,
+          standardId: "",
+          standardLabel: "",
+          timeSpentSec: null,
+          answeredAt: "",
+          sessionId: row.id,
+          sessionStartedAt: row.started_at,
+          sessionEndedAt: row.ended_at ?? "",
+          clientStartedAt: row.client_started_at ?? "",
+          deviceType: row.device_type ?? "",
+          browser: row.browser ?? "",
+          os: row.os ?? "",
+          timezone: row.timezone ?? "",
+          occurredAt: row.started_at,
+          payloadJson: "",
+          payloadFields: {},
+        };
+      }),
+    ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+
+    const payloadKeys = Array.from(
+      new Set(
+        csvRecords.flatMap((record) =>
+          Object.keys(record.payloadFields).map((key) => `payload_${key}`),
+        ),
+      ),
+    ).sort();
+
+    const baseHeader = [
+      "record_type",
       "school_id",
       "student_user_id",
       "student_id",
       "student_name",
       "email",
       "mode",
+      "event_type",
       "question_id",
+      "assignment_id",
       "selected_option_id",
       "is_correct",
       "standard_id",
       "standard_label",
       "time_spent_sec",
       "answered_at",
-    ]);
-    const body = enrichedRows.map((row) =>
+      "session_id",
+      "session_started_at",
+      "session_ended_at",
+      "client_started_at",
+      "device_type",
+      "browser",
+      "os",
+      "timezone",
+      "occurred_at",
+      "payload_json",
+    ];
+    const header = joinCsvRow([...baseHeader, ...payloadKeys]);
+    const body = csvRecords.map((record) =>
       joinCsvRow([
-        row.schoolId,
-        row.studentUserId,
-        row.studentId,
-        row.studentName,
-        row.email,
-        row.mode,
-        row.questionId,
-        row.selectedOptionId,
-        row.isCorrect,
-        row.standardId,
-        row.standardLabel,
-        row.timeSpentSec,
-        row.answeredAt,
+        record.recordType,
+        record.schoolId,
+        record.studentUserId,
+        record.studentId,
+        record.studentName,
+        record.email,
+        record.mode,
+        record.eventType,
+        record.questionId,
+        record.assignmentId,
+        record.selectedOptionId,
+        record.isCorrect,
+        record.standardId,
+        record.standardLabel,
+        record.timeSpentSec,
+        record.answeredAt,
+        record.sessionId,
+        record.sessionStartedAt,
+        record.sessionEndedAt,
+        record.clientStartedAt,
+        record.deviceType,
+        record.browser,
+        record.os,
+        record.timezone,
+        record.occurredAt,
+        record.payloadJson,
+        ...payloadKeys.map((key) => record.payloadFields[key.replace("payload_", "")] ?? ""),
       ]),
     );
     return new NextResponse([header, ...body].join("\n"), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": "attachment; filename=admin-data-analysis-attempts.csv",
+        "Content-Disposition": "attachment; filename=admin-data-analysis-interactions.csv",
       },
     });
   }
