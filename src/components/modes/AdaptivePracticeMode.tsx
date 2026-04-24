@@ -21,6 +21,7 @@ import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
+import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
@@ -34,6 +35,26 @@ import type { ReadSection } from "@/hooks/useTextToSpeech";
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
 const GLOSSARY_FALLBACK_LIMIT = 6;
+const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
+const READ_ALOUD_SPOTLIGHT_DISMISSED_KEY =
+  "kb-tutor-spotlight-read-aloud-dismissed-v1";
+const SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
+  "kb-tutor-spotlight-sidebar-glossary-dismissed-v1";
+const INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
+  "kb-tutor-spotlight-inline-glossary-dismissed-v1";
+const FEATURE_SPOTLIGHT_TARGET_IDS = {
+  READ_ALOUD_QUESTION: "feature-read-aloud-question",
+  READ_ALOUD_CHOICES: "feature-read-aloud-choices",
+  SIDEBAR_GLOSSARY_BUTTON: "feature-sidebar-glossary-button",
+  INLINE_GLOSSARY_TERM: "feature-inline-glossary-term",
+} as const;
+
+type FeatureSpotlightType = "read-aloud" | "sidebar-glossary" | "inline-glossary";
+
+function isDocumentActiveForTiming(): boolean {
+  if (typeof document === "undefined") return false;
+  return !document.hidden && document.hasFocus();
+}
 
 interface AdaptivePracticeModeProps {
   questions: Question[];
@@ -78,12 +99,16 @@ export function AdaptivePracticeMode({
   const [retryReadyByIndex, setRetryReadyByIndex] = useState<Record<number, boolean>>({});
   const [finalAnswers, setFinalAnswers] = useState<Record<number, AnswerRecord>>({});
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
-  const [questionStartMs, setQuestionStartMs] = useState<number>(() => Date.now());
   const [showSummary, setShowSummary] = useState(false);
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
+  const [activeFeatureSpotlight, setActiveFeatureSpotlight] =
+    useState<FeatureSpotlightType | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const attemptDwellMsRef = useRef(0);
+  const attemptVisitRef = useRef<{ index: number; startMs: number } | null>(null);
+  const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
 
@@ -119,6 +144,26 @@ export function AdaptivePracticeMode({
       });
     };
   }, [mode, assignmentId]);
+
+  const clearBlurFlushTimer = useCallback(() => {
+    if (blurFlushTimerRef.current === null) return;
+    clearTimeout(blurFlushTimerRef.current);
+    blurFlushTimerRef.current = null;
+  }, []);
+
+  const flushAttemptVisit = useCallback(() => {
+    const visit = attemptVisitRef.current;
+    if (!visit) return;
+    const delta = Math.max(0, Date.now() - visit.startMs);
+    attemptDwellMsRef.current += delta;
+    attemptVisitRef.current = null;
+  }, []);
+
+  const resetAttemptDwell = useCallback(() => {
+    clearBlurFlushTimer();
+    flushAttemptVisit();
+    attemptDwellMsRef.current = 0;
+  }, [clearBlurFlushTimer, flushAttemptVisit]);
 
   useEffect(() => {
     // For assignments we trust the server's deterministic ordering so resume
@@ -168,7 +213,6 @@ export function AdaptivePracticeMode({
 
   useEffect(() => {
     setSelectedOptionId(null);
-    setQuestionStartMs(Date.now());
   }, [currentIndex]);
 
   useEffect(() => {
@@ -203,6 +247,72 @@ export function AdaptivePracticeMode({
   const totalQuestions = sessionQuestions.length;
   const completedCount = Object.keys(finalAnswers).length;
   const allCompleted = completedCount === totalQuestions && totalQuestions > 0;
+
+  useEffect(() => {
+    if (!question || showSummary) {
+      resetAttemptDwell();
+      return;
+    }
+    resetAttemptDwell();
+    if (!isDocumentActiveForTiming()) return;
+    attemptVisitRef.current = { index: currentIndex, startMs: Date.now() };
+    return () => {
+      clearBlurFlushTimer();
+      flushAttemptVisit();
+    };
+  }, [
+    clearBlurFlushTimer,
+    currentIndex,
+    flushAttemptVisit,
+    question,
+    resetAttemptDwell,
+    showSummary,
+  ]);
+
+  useEffect(() => {
+    if (!question || showSummary) return;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearBlurFlushTimer();
+        flushAttemptVisit();
+        return;
+      }
+      if (!document.hasFocus()) return;
+      clearBlurFlushTimer();
+      if (!attemptVisitRef.current) {
+        attemptVisitRef.current = { index: currentIndex, startMs: Date.now() };
+      }
+    };
+    const handleWindowBlur = () => {
+      clearBlurFlushTimer();
+      blurFlushTimerRef.current = setTimeout(() => {
+        blurFlushTimerRef.current = null;
+        flushAttemptVisit();
+      }, FOCUS_LOSS_FLUSH_GRACE_MS);
+    };
+    const handleWindowFocus = () => {
+      clearBlurFlushTimer();
+      if (!isDocumentActiveForTiming()) return;
+      if (!attemptVisitRef.current) {
+        attemptVisitRef.current = { index: currentIndex, startMs: Date.now() };
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      clearBlurFlushTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [
+    clearBlurFlushTimer,
+    currentIndex,
+    flushAttemptVisit,
+    question,
+    showSummary,
+  ]);
 
   useEffect(() => {
     if (!question) return;
@@ -282,6 +392,116 @@ export function AdaptivePracticeMode({
     return map;
   }, [question, showScaffold]);
 
+  const hasInlineGlossaryHighlights = useMemo(() => {
+    if (!question || !showScaffold || inlineTermMap.size === 0) return false;
+    const searchableText = `${question.text} ${question.options
+      .map((option) => option.text)
+      .join(" ")}`;
+
+    for (const termLabel of inlineTermMap.keys()) {
+      const escaped = termLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`\\b${escaped}\\b`, "i");
+      if (regex.test(searchableText)) return true;
+    }
+
+    return false;
+  }, [inlineTermMap, question, showScaffold]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || activeFeatureSpotlight) return;
+
+    const hasSidebarGlossaryTarget = Boolean(
+      document.querySelector(
+        `[data-tour-id="${FEATURE_SPOTLIGHT_TARGET_IDS.SIDEBAR_GLOSSARY_BUTTON}"]`,
+      ),
+    );
+    const hasInlineGlossaryTarget = Boolean(
+      document.querySelector(
+        `[data-tour-id="${FEATURE_SPOTLIGHT_TARGET_IDS.INLINE_GLOSSARY_TERM}"]`,
+      ),
+    );
+
+    const sidebarGlossaryReady =
+      showScaffold &&
+      attempts.length > 0 &&
+      isRetryReady &&
+      glossaryTerms.length > 0;
+    const inlineGlossaryReady =
+      showScaffold &&
+      attempts.length > 0 &&
+      isRetryReady &&
+      hasInlineGlossaryHighlights;
+
+    if (
+      window.speechSynthesis &&
+      // Keep this eligible even if target lookup is momentarily delayed.
+      window.localStorage.getItem(READ_ALOUD_SPOTLIGHT_DISMISSED_KEY) !== "1"
+    ) {
+      setActiveFeatureSpotlight("read-aloud");
+      return;
+    }
+
+    if (
+      sidebarGlossaryReady &&
+      hasSidebarGlossaryTarget &&
+      window.localStorage.getItem(SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY) !==
+        "1"
+    ) {
+      setActiveFeatureSpotlight("sidebar-glossary");
+      return;
+    }
+
+    if (
+      inlineGlossaryReady &&
+      hasInlineGlossaryTarget &&
+      window.localStorage.getItem(INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY) !==
+        "1"
+    ) {
+      setActiveFeatureSpotlight("inline-glossary");
+    }
+  }, [
+    activeFeatureSpotlight,
+    attempts.length,
+    glossaryTerms.length,
+    hasInlineGlossaryHighlights,
+    isRetryReady,
+    question?.id,
+    showScaffold,
+  ]);
+
+  const dismissReadAloudSpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(READ_ALOUD_SPOTLIGHT_DISMISSED_KEY, "1");
+    }
+    setActiveFeatureSpotlight((current) =>
+      current === "read-aloud" ? null : current,
+    );
+  }, []);
+
+  const dismissInlineGlossarySpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY,
+        "1",
+      );
+    }
+    setActiveFeatureSpotlight((current) =>
+      current === "inline-glossary" ? null : current,
+    );
+  }, []);
+
+  const dismissSidebarGlossarySpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY,
+        "1",
+      );
+    }
+    setActiveFeatureSpotlight((current) =>
+      current === "sidebar-glossary" ? null : current,
+    );
+  }, []);
+
   const feedbackReadText = useMemo(() => {
     if (!question || !finalAnswer) return "";
     return buildFeedbackReadText(question, finalAnswer, {
@@ -299,9 +519,16 @@ export function AdaptivePracticeMode({
         "gi",
       );
       const parts = text.split(pattern);
+      const firstHighlightedIndex = parts.findIndex((candidate) =>
+        inlineTermMap.has(candidate.toLowerCase()),
+      );
       return parts.map((part, index) => {
         const term = inlineTermMap.get(part.toLowerCase());
         if (!term) return part;
+        const spotlightId =
+          index === firstHighlightedIndex
+            ? FEATURE_SPOTLIGHT_TARGET_IDS.INLINE_GLOSSARY_TERM
+            : undefined;
         return (
           <GlossaryPopover
             key={`${term.id}_${index}`}
@@ -323,7 +550,7 @@ export function AdaptivePracticeMode({
               });
             }}
           >
-            {part}
+            <span data-tour-id={spotlightId}>{part}</span>
           </GlossaryPopover>
         );
       });
@@ -333,19 +560,28 @@ export function AdaptivePracticeMode({
 
   const submitAttempt = useCallback(() => {
     if (!question || !selectedOptionId || isCompleted || !isRetryReady) return;
+    flushAttemptVisit();
+    const elapsedSec = Math.max(
+      5,
+      Math.round(attemptDwellMsRef.current / 1000),
+    );
+    attemptDwellMsRef.current = 0;
+
     const result: AttemptRecord = {
       selectedOptionId,
       isCorrect: selectedOptionId === question.correctOptionId,
     };
     const nextAttempts = [...attempts, result];
-    const elapsedSec = Math.max(5, Math.round((Date.now() - questionStartMs) / 1000));
+    const shouldFinalize = result.isCorrect || nextAttempts.length >= MAX_ATTEMPTS;
 
     setAttemptsByIndex((prev) => ({ ...prev, [currentIndex]: nextAttempts }));
     setSelectedOptionId(null);
     setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: false }));
-    setQuestionStartMs(Date.now());
+    if (!shouldFinalize && isDocumentActiveForTiming()) {
+      clearBlurFlushTimer();
+      attemptVisitRef.current = { index: currentIndex, startMs: Date.now() };
+    }
 
-    const shouldFinalize = result.isCorrect || nextAttempts.length >= MAX_ATTEMPTS;
     if (shouldFinalize) {
       const finalRecord: AnswerRecord = {
         // Keep the learner's final choice so UI can show wrong (red) + correct (green)
@@ -395,10 +631,11 @@ export function AdaptivePracticeMode({
     assignmentId,
     attempts,
     currentIndex,
+    clearBlurFlushTimer,
+    flushAttemptVisit,
     isCompleted,
     mode,
     question,
-    questionStartMs,
     isRetryReady,
     selectedOptionId,
     sessionId,
@@ -594,7 +831,7 @@ export function AdaptivePracticeMode({
               setSelectedOptionId(null);
               setShowSummary(false);
               setCompletionReported(false);
-              setQuestionStartMs(Date.now());
+              resetAttemptDwell();
             }}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
           >
@@ -655,13 +892,18 @@ export function AdaptivePracticeMode({
               )}/${MAX_ATTEMPTS}`}
               headerAction={
                 glossaryTerms.length > 0 ? (
-                  <button
-                    onClick={handleGlossaryModalOpen}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
+                  <div
+                    className="relative"
+                    data-tour-id={FEATURE_SPOTLIGHT_TARGET_IDS.SIDEBAR_GLOSSARY_BUTTON}
                   >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    Glossary
-                  </button>
+                    <button
+                      onClick={handleGlossaryModalOpen}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Glossary
+                    </button>
+                  </div>
                 ) : undefined
               }
               currentAnswer={displayAnswer}
@@ -677,6 +919,8 @@ export function AdaptivePracticeMode({
               showOptionFeedbackIcons={isCompleted}
               feedbackReadText={feedbackReadText}
               onReadAloud={handleReadAloud}
+              questionReadAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_QUESTION}
+              choicesReadAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_CHOICES}
               feedbackSlot={
                 attempts.length > 0 ? (
                   <div className="space-y-4">
@@ -787,6 +1031,37 @@ export function AdaptivePracticeMode({
           </div>
         </div>
       </div>
+
+      {activeFeatureSpotlight === "read-aloud" ? (
+        <FeatureSpotlight
+          targetIds={[
+            FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_QUESTION,
+            FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_CHOICES,
+          ]}
+          title="Read Aloud is available"
+          description="Use Read Aloud to listen to the question and choices at any time."
+          onClose={dismissReadAloudSpotlight}
+        />
+      ) : null}
+
+      {activeFeatureSpotlight === "inline-glossary" ? (
+        <FeatureSpotlight
+          targetId={FEATURE_SPOTLIGHT_TARGET_IDS.INLINE_GLOSSARY_TERM}
+          title="Inline glossary is active"
+          description="Click a green biology term in the question to see its explanation."
+          onClose={dismissInlineGlossarySpotlight}
+        />
+      ) : null}
+
+      {activeFeatureSpotlight === "sidebar-glossary" ? (
+        <FeatureSpotlight
+          targetId={FEATURE_SPOTLIGHT_TARGET_IDS.SIDEBAR_GLOSSARY_BUTTON}
+          title="Glossary support is available"
+          description="In Practice and Review mode, glossary becomes available from your second attempt onward."
+          detail="Here, you can check terms related to this question and their meanings."
+          onClose={dismissSidebarGlossarySpotlight}
+        />
+      ) : null}
 
       {isGlossaryModalOpen && glossaryTerms.length > 0 && (
         <div
