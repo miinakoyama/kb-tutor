@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { countIncompleteSchoolAssignmentsForStudent } from "@/lib/assignment-school-completion";
+import { countIncompleteEnrolledAssignmentsForStudent } from "@/lib/assignment-school-completion";
 
 /**
  * Mark the current student's assignment_target as completed. Called by the
@@ -112,9 +112,8 @@ export async function POST(
     }
   }
 
-  const schoolId = String(assignment.school_id ?? "");
   const { total, incomplete, error: countError } =
-    await countIncompleteSchoolAssignmentsForStudent(admin, schoolId, user.id);
+    await countIncompleteEnrolledAssignmentsForStudent(admin, user.id);
   const allAssignmentsCompleted =
     !countError && total > 0 && incomplete === 0;
 

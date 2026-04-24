@@ -171,6 +171,9 @@ describe("POST /api/assignments/[assignmentId]/completion", () => {
             },
           ],
         },
+        school_members: {
+          rows: [{ school_id: "school-1", student_user_id: "student-1" }],
+        },
       },
     });
     mockState.serverClient = serverClient;
@@ -192,7 +195,7 @@ describe("POST /api/assignments/[assignmentId]/completion", () => {
     );
   });
 
-  it("sets all_assignments_completed false when another school assignment is incomplete", async () => {
+  it("sets all_assignments_completed false when an enrolled second-school assignment is incomplete", async () => {
     vi.setSystemTime(new Date("2026-04-22T16:00:00.000Z"));
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser(),
@@ -202,7 +205,13 @@ describe("POST /api/assignments/[assignmentId]/completion", () => {
         assignments: {
           rows: [
             { id: "as_1", school_id: "school-1", created_at: "2026-04-01T09:00:00.000Z" },
-            { id: "as_2", school_id: "school-1", created_at: "2026-04-01T10:00:00.000Z" },
+            { id: "as_2", school_id: "school-2", created_at: "2026-04-01T10:00:00.000Z" },
+          ],
+        },
+        school_members: {
+          rows: [
+            { school_id: "school-1", student_user_id: "student-1" },
+            { school_id: "school-2", student_user_id: "student-1" },
           ],
         },
         assignment_targets: {
