@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Home, Loader2 } from "lucide-react";
 import { ModeSelector } from "@/components/ModeSelector";
 import { AdaptivePracticeMode } from "@/components/modes/AdaptivePracticeMode";
@@ -14,6 +14,7 @@ import type {
 } from "@/types/question";
 import { MODULES } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
+import { emitAllAssignmentsCompletedEvent } from "@/lib/all-assignments-complete-modal";
 
 const VALID_MODES: PracticeModeType[] = ["practice", "exam", "review"];
 
@@ -127,6 +128,10 @@ export function PracticePageClient({
   );
   const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+
+  const handleAllSchoolAssignmentsCompleted = useCallback(() => {
+    emitAllAssignmentsCompletedEvent();
+  }, []);
 
   useEffect(() => {
     const assignmentId = assignmentIdParam?.trim();
@@ -307,6 +312,10 @@ export function PracticePageClient({
     );
   }
 
+  const assignmentCompletionCallback = assignmentIdParam?.trim()
+    ? handleAllSchoolAssignmentsCompleted
+    : undefined;
+
   switch (normalizedModeParam) {
     case "practice":
       return (
@@ -316,6 +325,7 @@ export function PracticePageClient({
           questionCount={requestedQuestionCount}
           assignmentId={assignmentIdParam}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
+          onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
         />
       );
     case "exam": {
@@ -326,6 +336,7 @@ export function PracticePageClient({
           requestedQuestionCount={requestedQuestionCount ?? 10}
           assignmentId={assignmentIdParam}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
+          onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
         />
       );
     }
@@ -336,6 +347,7 @@ export function PracticePageClient({
           topicName={topicName}
           assignmentId={assignmentIdParam}
           questionCount={requestedQuestionCount}
+          onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
         />
       );
     default:

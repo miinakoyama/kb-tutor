@@ -7,6 +7,7 @@ import {
   type AttemptMode,
   type AttemptRecord,
 } from "@/lib/analytics/teacher-dashboard-server";
+import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
 
 /**
  * Raw shape returned by Supabase for the `attempts` table.
@@ -17,11 +18,12 @@ import {
  *  - `mode` is `string | null` because the column is untyped TEXT in the DB
  *    (no CHECK constraint) — we coerce to the `AttemptMode` enum below
  *  - `time_spent_sec` can be NULL for legacy rows
- *  - `answered_at` is used only for server-side filtering (`.gte`) and is
- *    intentionally omitted from this type / SELECT (see attempts query)
+ *  - `answered_at` is selected so assignment-exam rows can be deduped to the
+ *    latest final answer per question before aggregation.
  */
 interface AttemptQueryRow {
   user_id: string;
+  question_id: string;
   standard_id: string | null;
   standard_label: string | null;
   topic: string | null;
@@ -29,6 +31,7 @@ interface AttemptQueryRow {
   is_correct: boolean;
   time_spent_sec: number | null;
   assignment_id: string | null;
+  answered_at: string;
 }
 
 const ATTEMPT_MODES = ["practice", "exam", "review"] as const satisfies readonly AttemptMode[];
@@ -217,8 +220,6 @@ export async function GET(request: Request) {
     );
   }
 
-  // Note: `answered_at` is used only for server-side date filtering (`.gte` below)
-  // and is intentionally NOT included in the SELECT list to reduce payload size.
   const filteredStudentIds = scopedStudentIds.filter((id) => !excludedSet.has(id));
   const filteredEffectiveStudentIds =
     studentId && filteredStudentIds.includes(studentId)
@@ -228,7 +229,7 @@ export async function GET(request: Request) {
   let attemptsQuery = admin
     .from("attempts")
     .select(
-      "user_id,standard_id,standard_label,topic,mode,is_correct,time_spent_sec,assignment_id",
+      "user_id,question_id,standard_id,standard_label,topic,mode,is_correct,time_spent_sec,assignment_id,answered_at",
     )
     .in("user_id", filteredEffectiveStudentIds);
   if (range !== "all") {
@@ -254,7 +255,10 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
-  const attempts = ((attemptsData ?? []) as AttemptQueryRow[]).map<AttemptRecord>(
+  const dedupedAttemptRows = dedupeAssignmentExamAttempts(
+    (attemptsData ?? []) as AttemptQueryRow[],
+  );
+  const attempts = dedupedAttemptRows.map<AttemptRecord>(
     (row) => ({
       userId: String(row.user_id),
       standardId: row.standard_id,
@@ -262,7 +266,10 @@ export async function GET(request: Request) {
       topic: row.topic,
       mode: coerceAttemptMode(row.mode),
       isCorrect: Boolean(row.is_correct),
-      timeSpentSec: row.time_spent_sec ?? 0,
+      timeSpentSec:
+        typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)
+          ? row.time_spent_sec
+          : null,
       assignmentId: row.assignment_id,
     }),
   );
