@@ -45,3 +45,30 @@ export function writeStoredIncompleteAssignmentCount(
     // ignore quota / private mode
   }
 }
+
+export function shouldOpenAllAssignmentsCompleteModal(args: {
+  previousIncomplete: number | null;
+  currentIncomplete: number;
+  totalAssignments: number;
+  allAssignmentsCompleted: boolean;
+  alreadyShownForCurrentCompletion: boolean;
+}): boolean {
+  return (
+    args.previousIncomplete !== null &&
+    args.previousIncomplete > 0 &&
+    args.currentIncomplete === 0 &&
+    args.totalAssignments > 0 &&
+    args.allAssignmentsCompleted &&
+    !args.alreadyShownForCurrentCompletion
+  );
+}
+
+export function computeNextShownForCurrentCompletion(args: {
+  currentIncomplete: number;
+  alreadyShownForCurrentCompletion: boolean;
+  openedModalNow: boolean;
+}): boolean {
+  if (args.openedModalNow) return true;
+  if (args.currentIncomplete > 0) return false;
+  return args.alreadyShownForCurrentCompletion;
+}

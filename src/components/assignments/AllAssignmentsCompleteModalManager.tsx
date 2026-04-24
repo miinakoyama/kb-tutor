@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AllAssignmentsCompleteSelfPracticeModal } from "@/components/assignments/AllAssignmentsCompleteSelfPracticeModal";
 import {
+  computeNextShownForCurrentCompletion,
   readStoredIncompleteAssignmentCount,
+  shouldOpenAllAssignmentsCompleteModal,
   subscribeToAllAssignmentsCompleted,
   writeStoredIncompleteAssignmentCount,
 } from "@/lib/all-assignments-complete-modal";
@@ -13,6 +15,8 @@ type CompletionStatusResponse = {
   is_student?: unknown;
   student_user_id?: unknown;
   incomplete_assignments?: unknown;
+  total_assignments?: unknown;
+  all_assignments_completed?: unknown;
 };
 
 export function AllAssignmentsCompleteModalManager() {
@@ -35,26 +39,33 @@ export function AllAssignmentsCompleteModalManager() {
         return;
       }
       if (typeof body.incomplete_assignments !== "number") return;
+      if (typeof body.total_assignments !== "number") return;
       const currentIncomplete = body.incomplete_assignments;
+      const totalAssignments = body.total_assignments;
       if (!Number.isFinite(currentIncomplete) || currentIncomplete < 0) return;
+      if (!Number.isFinite(totalAssignments) || totalAssignments < 0) return;
 
       const previousIncomplete = readStoredIncompleteAssignmentCount(
         body.student_user_id,
       );
-      if (
-        previousIncomplete !== null &&
-        previousIncomplete > 0 &&
-        currentIncomplete === 0
-      ) {
-        if (!alreadyShownForCurrentCompletionRef.current) {
-          setOpen(true);
-        }
+      const shouldOpen = shouldOpenAllAssignmentsCompleteModal({
+        previousIncomplete,
+        currentIncomplete,
+        totalAssignments,
+        allAssignmentsCompleted: body.all_assignments_completed === true,
+        alreadyShownForCurrentCompletion:
+          alreadyShownForCurrentCompletionRef.current,
+      });
+      if (shouldOpen) {
+        setOpen(true);
       }
-      if (currentIncomplete === 0) {
-        alreadyShownForCurrentCompletionRef.current = false;
-      } else if (currentIncomplete > 0) {
-        alreadyShownForCurrentCompletionRef.current = false;
-      }
+      alreadyShownForCurrentCompletionRef.current =
+        computeNextShownForCurrentCompletion({
+          currentIncomplete,
+          alreadyShownForCurrentCompletion:
+            alreadyShownForCurrentCompletionRef.current,
+          openedModalNow: shouldOpen,
+        });
 
       writeStoredIncompleteAssignmentCount(
         body.student_user_id,
