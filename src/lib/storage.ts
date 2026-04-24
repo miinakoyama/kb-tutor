@@ -307,7 +307,10 @@ export async function syncAnswerHistoryFromDb(): Promise<StoredAnswer[]> {
       topic: row.topic ? String(row.topic) : undefined,
       standardId: row.standard_id ? String(row.standard_id) : undefined,
       standardLabel: row.standard_label ? String(row.standard_label) : undefined,
-      timeSpentSec: row.time_spent_sec ? Number(row.time_spent_sec) : undefined,
+      timeSpentSec:
+        typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)
+          ? Number(row.time_spent_sec)
+          : undefined,
       assignmentId: row.assignment_id ? String(row.assignment_id) : undefined,
       timestamp: new Date(String(row.answered_at)).getTime(),
       clientAttemptId: row.client_attempt_id ? String(row.client_attempt_id) : undefined,

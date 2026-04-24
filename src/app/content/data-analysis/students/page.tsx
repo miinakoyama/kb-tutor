@@ -29,7 +29,7 @@ interface AttemptRow {
   isCorrect: boolean;
   standardId: string;
   standardLabel: string;
-  timeSpentSec: number;
+  timeSpentSec: number | null;
   answeredAt: string;
 }
 
@@ -215,7 +215,9 @@ function StudentsInner() {
                     <td className="px-2 py-2 min-w-[180px] text-slate-gray/80">
                       {row.standardId || row.standardLabel || "-"}
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap">{row.timeSpentSec}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      {row.timeSpentSec ?? "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
