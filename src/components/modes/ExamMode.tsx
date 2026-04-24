@@ -156,7 +156,7 @@ export function ExamMode({
   }, [clearBlurFlushTimer, flushQuestionVisit]);
 
   useEffect(() => {
-    if (phase !== "exam") return;
+    if (phase !== "exam" || examOnboardingStep !== null) return;
     // We flush before starting a new visit window so navigation between
     // questions does not leave overlapping active intervals.
     clearBlurFlushTimer();
@@ -167,10 +167,16 @@ export function ExamMode({
       clearBlurFlushTimer();
       flushQuestionVisit();
     };
-  }, [clearBlurFlushTimer, currentIndex, phase, flushQuestionVisit]);
+  }, [
+    clearBlurFlushTimer,
+    currentIndex,
+    examOnboardingStep,
+    phase,
+    flushQuestionVisit,
+  ]);
 
   useEffect(() => {
-    if (phase !== "exam") return;
+    if (phase !== "exam" || examOnboardingStep !== null) return;
     const handleVisibilityChange = () => {
       if (document.hidden) {
         clearBlurFlushTimer();
@@ -206,7 +212,13 @@ export function ExamMode({
       window.removeEventListener("blur", handleWindowBlur);
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [clearBlurFlushTimer, currentIndex, flushQuestionVisit, phase]);
+  }, [
+    clearBlurFlushTimer,
+    currentIndex,
+    examOnboardingStep,
+    flushQuestionVisit,
+    phase,
+  ]);
 
   const {
     isSupported,
@@ -277,7 +289,7 @@ export function ExamMode({
     }
   }, [phase]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === "undefined") return;
     if (phase !== "exam") return;
     if (!isInitialized) return;
@@ -287,10 +299,7 @@ export function ExamMode({
     }
     if (examOnboardingOfferedRef.current) return;
     examOnboardingOfferedRef.current = true;
-    const id = window.requestAnimationFrame(() => {
-      setExamOnboardingStep("intro");
-    });
-    return () => window.cancelAnimationFrame(id);
+    setExamOnboardingStep("intro");
   }, [phase, isInitialized, sessionQuestions.length]);
 
   useLayoutEffect(() => {
@@ -411,7 +420,7 @@ export function ExamMode({
   }, [examOnboardingStep, isNavigatorOpen]);
 
   useEffect(() => {
-    if (phase !== "exam") return;
+    if (phase !== "exam" || examOnboardingStep !== null) return;
     const currentQuestion = sessionQuestions[currentIndex];
     if (!currentQuestion) return;
     trackAnalyticsEvent({
@@ -421,7 +430,14 @@ export function ExamMode({
       assignmentId,
       sessionId: sessionId ?? undefined,
     });
-  }, [assignmentId, currentIndex, phase, sessionQuestions, sessionId]);
+  }, [
+    assignmentId,
+    currentIndex,
+    examOnboardingStep,
+    phase,
+    sessionQuestions,
+    sessionId,
+  ]);
   const startExam = useCallback(() => {
     let selectedQuestions: Question[] = [];
     
@@ -883,7 +899,7 @@ export function ExamMode({
         rightSlot={
           <>
             <Timer
-              isRunning={phase === "exam"}
+              isRunning={phase === "exam" && examOnboardingStep === null}
               onElapsedChange={setElapsedMs}
             />
             <button
