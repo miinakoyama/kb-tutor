@@ -86,6 +86,30 @@ function normalizeKeystoneExamDate(
   return { ok: true, value: trimmed };
 }
 
+const STUDENT_LOGIN_NOTICE_MAX_LEN = 2000;
+
+function normalizeStudentLoginNotice(
+  input: unknown,
+):
+  | { ok: true; value: string | null }
+  | { ok: false; error: string } {
+  if (input === null || input === undefined || input === "") {
+    return { ok: true, value: null };
+  }
+  if (typeof input !== "string") {
+    return { ok: false, error: "studentLoginNotice must be a string or null" };
+  }
+  const trimmed = input.trim();
+  if (!trimmed) return { ok: true, value: null };
+  if (trimmed.length > STUDENT_LOGIN_NOTICE_MAX_LEN) {
+    return {
+      ok: false,
+      error: `studentLoginNotice must be ${STUDENT_LOGIN_NOTICE_MAX_LEN} characters or less`,
+    };
+  }
+  return { ok: true, value: trimmed };
+}
+
 export async function GET() {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
@@ -93,7 +117,7 @@ export async function GET() {
   const admin = createSupabaseAdminClient();
   const { data: schoolsData, error: schoolError } = await admin
     .from("schools")
-    .select("id,name,teacher_user_id,keystone_exam_date,is_hidden,created_at")
+    .select("id,name,teacher_user_id,keystone_exam_date,is_hidden,student_login_notice,created_at")
     .order("name", { ascending: true });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
@@ -196,6 +220,7 @@ export async function GET() {
       teacher_user_id: s.teacher_user_id,
       keystone_exam_date: s.keystone_exam_date ?? null,
       is_hidden: s.is_hidden ?? false,
+      student_login_notice: s.student_login_notice ?? null,
       teacher_label: teacherLabel,
       teachers,
       students: studentUserIds.map((id) => {
@@ -223,6 +248,7 @@ export async function POST(request: Request) {
     studentUserIds?: string[];
     keystoneExamDate?: string | null;
     isHidden?: boolean;
+    studentLoginNotice?: string | null;
   };
 
   const schoolName = body.name?.trim();
@@ -236,6 +262,15 @@ export async function POST(request: Request) {
   const schoolId = body.id?.trim() || buildSchoolId(schoolName);
   const primaryTeacherId = teacherIds[0] ?? null;
   const isHidden = body.isHidden ?? false;
+
+  let studentLoginNotice: string | null = null;
+  if (body.studentLoginNotice !== undefined) {
+    const normalized = normalizeStudentLoginNotice(body.studentLoginNotice);
+    if (!normalized.ok) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 });
+    }
+    studentLoginNotice = normalized.value;
+  }
 
   let keystoneExamDate: string | null = null;
   if (body.keystoneExamDate !== undefined) {
@@ -253,6 +288,7 @@ export async function POST(request: Request) {
     teacher_user_id: primaryTeacherId,
     keystone_exam_date: keystoneExamDate,
     is_hidden: isHidden,
+    student_login_notice: studentLoginNotice,
   });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
@@ -299,6 +335,7 @@ export async function PATCH(request: Request) {
     studentUserIds?: string[];
     keystoneExamDate?: string | null;
     isHidden?: boolean;
+    studentLoginNotice?: string | null;
   };
 
   if (!body.id) {
@@ -311,6 +348,7 @@ export async function PATCH(request: Request) {
     teacher_user_id?: string | null;
     keystone_exam_date?: string | null;
     is_hidden?: boolean;
+    student_login_notice?: string | null;
   } = {};
   if (body.name !== undefined) updates.name = body.name;
   const teacherIds = normalizeTeacherIds(body);
@@ -327,6 +365,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "isHidden must be a boolean" }, { status: 400 });
     }
     updates.is_hidden = body.isHidden;
+  }
+  if (body.studentLoginNotice !== undefined) {
+    const normalized = normalizeStudentLoginNotice(body.studentLoginNotice);
+    if (!normalized.ok) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 });
+    }
+    updates.student_login_notice = normalized.value;
   }
 
   if (Object.keys(updates).length > 0) {

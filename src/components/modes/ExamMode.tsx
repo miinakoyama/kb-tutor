@@ -36,6 +36,7 @@ import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
+const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
 
 interface ExamModeProps {
   questions: Question[];
@@ -57,6 +58,21 @@ interface ExamModeProps {
 }
 
 type ExamPhase = "config" | "exam" | "confirm" | "results" | "review";
+
+/** Seconds stored on attempts; `null` in DB means time was not measured. */
+function dwellMsToRecordedSec(ms: number): number | null {
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  return Math.max(1, Math.round(ms / 1000));
+}
+
+function nowMs(): number {
+  return Date.now();
+}
+
+function isDocumentActiveForTiming(): boolean {
+  if (typeof document === "undefined") return false;
+  return !document.hidden && document.hasFocus();
+}
 
 export function ExamMode({
   questions,
@@ -82,6 +98,86 @@ export function ExamMode({
   const [supportsHover, setSupportsHover] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
+  /** Cumulative time (ms) the learner had each question visible during the exam phase (multiple visits add up). */
+  const questionDwellMsRef = useRef<Record<number, number>>({});
+  const assignmentPersistedDwellMsRef = useRef<Record<number, number>>({});
+  const visitRef = useRef<{ index: number; startMs: number } | null>(null);
+  const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBlurFlushTimer = useCallback(() => {
+    if (blurFlushTimerRef.current === null) return;
+    clearTimeout(blurFlushTimerRef.current);
+    blurFlushTimerRef.current = null;
+  }, []);
+
+  const flushQuestionVisit = useCallback(() => {
+    const v = visitRef.current;
+    if (!v) return;
+    const delta = Math.max(0, nowMs() - v.startMs);
+    const prev = questionDwellMsRef.current[v.index] ?? 0;
+    questionDwellMsRef.current[v.index] = prev + delta;
+    visitRef.current = null;
+  }, []);
+
+  const resetExamDwellTracking = useCallback(() => {
+    clearBlurFlushTimer();
+    flushQuestionVisit();
+    questionDwellMsRef.current = {};
+    assignmentPersistedDwellMsRef.current = {};
+  }, [clearBlurFlushTimer, flushQuestionVisit]);
+
+  useEffect(() => {
+    if (phase !== "exam") return;
+    // We flush before starting a new visit window so navigation between
+    // questions does not leave overlapping active intervals.
+    clearBlurFlushTimer();
+    flushQuestionVisit();
+    if (!isDocumentActiveForTiming()) return;
+    visitRef.current = { index: currentIndex, startMs: nowMs() };
+    return () => {
+      clearBlurFlushTimer();
+      flushQuestionVisit();
+    };
+  }, [clearBlurFlushTimer, currentIndex, phase, flushQuestionVisit]);
+
+  useEffect(() => {
+    if (phase !== "exam") return;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearBlurFlushTimer();
+        flushQuestionVisit();
+        return;
+      }
+      if (!document.hasFocus()) return;
+      clearBlurFlushTimer();
+      if (!visitRef.current) {
+        visitRef.current = { index: currentIndex, startMs: nowMs() };
+      }
+    };
+    const handleWindowBlur = () => {
+      clearBlurFlushTimer();
+      blurFlushTimerRef.current = setTimeout(() => {
+        blurFlushTimerRef.current = null;
+        flushQuestionVisit();
+      }, FOCUS_LOSS_FLUSH_GRACE_MS);
+    };
+    const handleWindowFocus = () => {
+      clearBlurFlushTimer();
+      if (!isDocumentActiveForTiming()) return;
+      if (!visitRef.current) {
+        visitRef.current = { index: currentIndex, startMs: nowMs() };
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      clearBlurFlushTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [clearBlurFlushTimer, currentIndex, flushQuestionVisit, phase]);
   const {
     isSupported,
     isSpeaking,
@@ -270,17 +366,21 @@ export function ExamMode({
       }));
     }
     
+    resetExamDwellTracking();
     setSessionQuestions(selectedQuestions);
     setAnswers({});
     setCurrentIndex(0);
     setPhase("exam");
-  }, [questionCount, questions]);
+  }, [questionCount, questions, resetExamDwellTracking]);
 
   const handleOptionClick = useCallback(
     (optionId: string) => {
       const q = sessionQuestions[currentIndex];
       if (!q) return;
       const isCorrect = optionId === q.correctOptionId;
+      flushQuestionVisit();
+      const totalDwellMs = questionDwellMsRef.current[currentIndex] ?? 0;
+      const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
       setAnswers((prev) => ({
         ...prev,
         [currentIndex]: { ...prev[currentIndex], selectedOptionId: optionId, isCorrect },
@@ -308,7 +408,9 @@ export function ExamMode({
           studentId: student?.id,
           classId: student?.classId,
           teacherId: student?.teacherId,
+          ...(timeSpentSec !== null ? { timeSpentSec } : {}),
         });
+        assignmentPersistedDwellMsRef.current[currentIndex] = totalDwellMs;
       }
 
       trackAnalyticsEvent({
@@ -323,8 +425,17 @@ export function ExamMode({
           isAssignmentRun,
         },
       });
+
+      visitRef.current = { index: currentIndex, startMs: nowMs() };
     },
-    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId, sessionId]
+    [
+      currentIndex,
+      sessionQuestions,
+      isAssignmentRun,
+      assignmentId,
+      sessionId,
+      flushQuestionVisit,
+    ]
   );
 
   const toggleFlag = useCallback(() => {
@@ -344,10 +455,7 @@ export function ExamMode({
 
   const confirmSubmit = useCallback(() => {
     const student = getStudentById(DEFAULT_STUDENT_ID);
-    const timePerQuestion =
-      sessionQuestions.length > 0
-        ? Math.max(5, Math.round(elapsedMs / 1000 / sessionQuestions.length))
-        : 0;
+    flushQuestionVisit();
 
     // Assignment runs persist per-question in handleOptionClick to support
     // mid-exam resume, so the batch save would duplicate rows. Skip it here
@@ -358,6 +466,8 @@ export function ExamMode({
         const resolvedStandard = q.standardId
           ? { id: q.standardId, label: q.standardLabel }
           : getStandardForTopic(q.topic);
+        const totalDwellMs = questionDwellMsRef.current[i] ?? 0;
+        const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
         return {
           questionId: q.id,
           selectedOptionId: a?.selectedOptionId ?? "",
@@ -368,7 +478,7 @@ export function ExamMode({
           topic: q.topic,
           standardId: resolvedStandard.id,
           standardLabel: resolvedStandard.label,
-          timeSpentSec: timePerQuestion,
+          ...(timeSpentSec !== null ? { timeSpentSec } : {}),
           studentId: student?.id,
           classId: student?.classId,
           teacherId: student?.teacherId,
@@ -378,6 +488,50 @@ export function ExamMode({
     }
 
     if (isAssignmentRun && assignmentId) {
+      // Persist any additional dwell collected after the last answer click.
+      // This avoids under-reporting when a learner answers once and then
+      // spends more time reviewing before submitting.
+      sessionQuestions.forEach((q, i) => {
+        const a = answers[i];
+        if (!a?.selectedOptionId) return;
+        // Only questions persisted in this browser session should be eligible
+        // for submit-time dwell delta writes. Resumed pre-answered questions
+        // have no baseline here; treating them as 0 would create duplicate
+        // attempts even when the learner never changed their answer.
+        if (
+          !Object.prototype.hasOwnProperty.call(
+            assignmentPersistedDwellMsRef.current,
+            i,
+          )
+        ) {
+          return;
+        }
+        const totalDwellMs = questionDwellMsRef.current[i] ?? 0;
+        const persistedDwellMs = assignmentPersistedDwellMsRef.current[i] ?? 0;
+        if (totalDwellMs <= persistedDwellMs) return;
+        const resolvedStandard = q.standardId
+          ? { id: q.standardId, label: q.standardLabel }
+          : getStandardForTopic(q.topic);
+        const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
+        saveAnswer({
+          questionId: q.id,
+          selectedOptionId: a.selectedOptionId,
+          isCorrect: a.isCorrect,
+          timestamp: nowMs(),
+          mode: "exam",
+          module: q.module,
+          topic: q.topic,
+          standardId: resolvedStandard.id,
+          standardLabel: resolvedStandard.label,
+          assignmentId,
+          studentId: student?.id,
+          classId: student?.classId,
+          teacherId: student?.teacherId,
+          ...(timeSpentSec !== null ? { timeSpentSec } : {}),
+        });
+        assignmentPersistedDwellMsRef.current[i] = totalDwellMs;
+      });
+
       void (async () => {
         try {
           const res = await fetch(
@@ -385,7 +539,9 @@ export function ExamMode({
             { method: "POST" },
           );
           if (!res.ok) return;
-          const body = (await res.json()) as { all_assignments_completed?: unknown };
+          const body = (await res.json()) as {
+            all_assignments_completed?: unknown;
+          };
           if (body.all_assignments_completed === true) {
             onAllSchoolAssignmentsCompleted?.();
           }
@@ -412,10 +568,11 @@ export function ExamMode({
   }, [
     answers,
     sessionQuestions,
-    elapsedMs,
+    flushQuestionVisit,
     isAssignmentRun,
     assignmentId,
     answeredCount,
+    elapsedMs,
     markStageCompleted,
     sessionId,
     onAllSchoolAssignmentsCompleted,

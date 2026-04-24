@@ -15,7 +15,7 @@ function attempt(
   userId: string,
   standardId: string,
   isCorrect: boolean,
-  timeSpentSec: number,
+  timeSpentSec: number | null,
   topic = "Cell Division",
   overrides: Partial<AttemptRecord> = {},
 ): AttemptRecord {
@@ -234,6 +234,27 @@ describe("buildDashboardResponse", () => {
     expect(result.summary.byMode?.practice.attempted).toBe(10);
     expect(result.summary.byMode?.exam.accuracy).toBe(60);
     expect(result.summary.byMode?.review.attempted).toBe(4);
+  });
+
+  it("excludes attempts with null time from average time (legacy unmeasured)", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "BIO.1.1", true, 60),
+      attempt("s1", "BIO.1.1", true, null),
+      attempt("s1", "BIO.1.1", false, null),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    expect(result.summary.totalAnswered).toBe(3);
+    expect(result.summary.avgTimeSec).toBe(60);
+
+    const row = result.byStandard.find((item) => item.standardId === "BIO.1.1");
+    expect(row?.attempted).toBe(3);
+    expect(row?.averageTimeSec).toBe(60);
   });
 
   it("omits byMode when includeModeBreakdown is false", () => {
