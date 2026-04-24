@@ -14,8 +14,7 @@ import type {
 } from "@/types/question";
 import { MODULES } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
-import { readAllAssignmentsCompleteNudgeDismissed } from "@/lib/self-practice-completion-nudge";
-import { AllAssignmentsCompleteSelfPracticeModal } from "@/components/assignments/AllAssignmentsCompleteSelfPracticeModal";
+import { emitAllAssignmentsCompletedEvent } from "@/lib/all-assignments-complete-modal";
 
 const VALID_MODES: PracticeModeType[] = ["practice", "exam", "review"];
 
@@ -129,12 +128,9 @@ export function PracticePageClient({
   );
   const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
-  const [showAllAssignmentsCompleteModal, setShowAllAssignmentsCompleteModal] =
-    useState(false);
 
   const handleAllSchoolAssignmentsCompleted = useCallback(() => {
-    if (readAllAssignmentsCompleteNudgeDismissed()) return;
-    setShowAllAssignmentsCompleteModal(true);
+    emitAllAssignmentsCompletedEvent();
   }, []);
 
   useEffect(() => {
@@ -323,54 +319,36 @@ export function PracticePageClient({
   switch (normalizedModeParam) {
     case "practice":
       return (
-        <>
-          <AdaptivePracticeMode
-            questions={filteredQuestions}
-            topicName={topicName}
-            questionCount={requestedQuestionCount}
-            assignmentId={assignmentIdParam}
-            answered={hasAssignmentSnapshot ? answeredMap : undefined}
-            onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
-          />
-          <AllAssignmentsCompleteSelfPracticeModal
-            open={showAllAssignmentsCompleteModal}
-            onDismiss={() => setShowAllAssignmentsCompleteModal(false)}
-          />
-        </>
+        <AdaptivePracticeMode
+          questions={filteredQuestions}
+          topicName={topicName}
+          questionCount={requestedQuestionCount}
+          assignmentId={assignmentIdParam}
+          answered={hasAssignmentSnapshot ? answeredMap : undefined}
+          onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+        />
       );
     case "exam": {
       return (
-        <>
-          <ExamMode
-            questions={filteredQuestions}
-            topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
-            requestedQuestionCount={requestedQuestionCount ?? 10}
-            assignmentId={assignmentIdParam}
-            answered={hasAssignmentSnapshot ? answeredMap : undefined}
-            onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
-          />
-          <AllAssignmentsCompleteSelfPracticeModal
-            open={showAllAssignmentsCompleteModal}
-            onDismiss={() => setShowAllAssignmentsCompleteModal(false)}
-          />
-        </>
+        <ExamMode
+          questions={filteredQuestions}
+          topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
+          requestedQuestionCount={requestedQuestionCount ?? 10}
+          assignmentId={assignmentIdParam}
+          answered={hasAssignmentSnapshot ? answeredMap : undefined}
+          onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+        />
       );
     }
     case "review":
       return (
-        <>
-          <ReviewMode
-            questions={filteredQuestions}
-            topicName={topicName}
-            assignmentId={assignmentIdParam}
-            questionCount={requestedQuestionCount}
-            onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
-          />
-          <AllAssignmentsCompleteSelfPracticeModal
-            open={showAllAssignmentsCompleteModal}
-            onDismiss={() => setShowAllAssignmentsCompleteModal(false)}
-          />
-        </>
+        <ReviewMode
+          questions={filteredQuestions}
+          topicName={topicName}
+          assignmentId={assignmentIdParam}
+          questionCount={requestedQuestionCount}
+          onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+        />
       );
     default:
       return (

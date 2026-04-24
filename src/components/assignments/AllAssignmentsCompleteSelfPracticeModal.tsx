@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Sparkles, X } from "lucide-react";
-import { dismissAllAssignmentsCompleteNudge } from "@/lib/self-practice-completion-nudge";
 
 interface AllAssignmentsCompleteSelfPracticeModalProps {
   open: boolean;
@@ -16,7 +15,6 @@ export function AllAssignmentsCompleteSelfPracticeModal({
   if (!open) return null;
 
   const handleClose = () => {
-    dismissAllAssignmentsCompleteNudge();
     onDismiss();
   };
 
