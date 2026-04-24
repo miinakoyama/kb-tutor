@@ -69,6 +69,8 @@ interface AdaptivePracticeModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  /** Fires when the completion API reports every school assignment is done. */
+  onAllSchoolAssignmentsCompleted?: () => void;
 }
 
 interface AttemptRecord {
@@ -85,6 +87,7 @@ export function AdaptivePracticeMode({
   backHref = "/self-practice",
   showBackLink = false,
   answered,
+  onAllSchoolAssignmentsCompleted,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -196,13 +199,28 @@ export function AdaptivePracticeMode({
       return;
     }
     setCompletionReported(true);
-    void fetch(
-      `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
-      { method: "POST" },
-    ).catch(() => {
-      // Best-effort; failure leaves the assignment as in_progress until next run.
-    });
-  }, [assignmentId, showSummary, isAssignmentRun, completionReported]);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
+          { method: "POST" },
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as { all_assignments_completed?: unknown };
+        if (body.all_assignments_completed === true) {
+          onAllSchoolAssignmentsCompleted?.();
+        }
+      } catch {
+        // Best-effort; failure leaves the assignment as in_progress until next run.
+      }
+    })();
+  }, [
+    assignmentId,
+    showSummary,
+    isAssignmentRun,
+    completionReported,
+    onAllSchoolAssignmentsCompleted,
+  ]);
 
   const question = sessionQuestions[currentIndex];
   const attempts = useMemo(

@@ -52,6 +52,8 @@ interface ExamModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  /** Fires when the completion API reports every school assignment is done. */
+  onAllSchoolAssignmentsCompleted?: () => void;
 }
 
 type ExamPhase = "config" | "exam" | "confirm" | "results" | "review";
@@ -62,6 +64,7 @@ export function ExamMode({
   requestedQuestionCount,
   assignmentId,
   answered,
+  onAllSchoolAssignmentsCompleted,
 }: ExamModeProps) {
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
   const [phase, setPhase] = useState<ExamPhase>(
@@ -375,12 +378,21 @@ export function ExamMode({
     }
 
     if (isAssignmentRun && assignmentId) {
-      void fetch(
-        `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
-        { method: "POST" },
-      ).catch(() => {
-        // Best-effort; failure leaves the assignment as in_progress.
-      });
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
+            { method: "POST" },
+          );
+          if (!res.ok) return;
+          const body = (await res.json()) as { all_assignments_completed?: unknown };
+          if (body.all_assignments_completed === true) {
+            onAllSchoolAssignmentsCompleted?.();
+          }
+        } catch {
+          // Best-effort; failure leaves the assignment as in_progress.
+        }
+      })();
     }
 
     trackAnalyticsEvent({
@@ -406,6 +418,7 @@ export function ExamMode({
     answeredCount,
     markStageCompleted,
     sessionId,
+    onAllSchoolAssignmentsCompleted,
   ]);
 
   if (phase === "config") {

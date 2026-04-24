@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Home, Loader2 } from "lucide-react";
 import { ModeSelector } from "@/components/ModeSelector";
 import { AdaptivePracticeMode } from "@/components/modes/AdaptivePracticeMode";
@@ -14,6 +14,8 @@ import type {
 } from "@/types/question";
 import { MODULES } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
+import { readAllAssignmentsCompleteNudgeDismissed } from "@/lib/self-practice-completion-nudge";
+import { AllAssignmentsCompleteSelfPracticeModal } from "@/components/assignments/AllAssignmentsCompleteSelfPracticeModal";
 
 const VALID_MODES: PracticeModeType[] = ["practice", "exam", "review"];
 
@@ -127,6 +129,13 @@ export function PracticePageClient({
   );
   const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+  const [showAllAssignmentsCompleteModal, setShowAllAssignmentsCompleteModal] =
+    useState(false);
+
+  const handleAllSchoolAssignmentsCompleted = useCallback(() => {
+    if (readAllAssignmentsCompleteNudgeDismissed()) return;
+    setShowAllAssignmentsCompleteModal(true);
+  }, []);
 
   useEffect(() => {
     const assignmentId = assignmentIdParam?.trim();
@@ -307,36 +316,61 @@ export function PracticePageClient({
     );
   }
 
+  const assignmentCompletionCallback = assignmentIdParam?.trim()
+    ? handleAllSchoolAssignmentsCompleted
+    : undefined;
+
   switch (normalizedModeParam) {
     case "practice":
       return (
-        <AdaptivePracticeMode
-          questions={filteredQuestions}
-          topicName={topicName}
-          questionCount={requestedQuestionCount}
-          assignmentId={assignmentIdParam}
-          answered={hasAssignmentSnapshot ? answeredMap : undefined}
-        />
+        <>
+          <AdaptivePracticeMode
+            questions={filteredQuestions}
+            topicName={topicName}
+            questionCount={requestedQuestionCount}
+            assignmentId={assignmentIdParam}
+            answered={hasAssignmentSnapshot ? answeredMap : undefined}
+            onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+          />
+          <AllAssignmentsCompleteSelfPracticeModal
+            open={showAllAssignmentsCompleteModal}
+            onDismiss={() => setShowAllAssignmentsCompleteModal(false)}
+          />
+        </>
       );
     case "exam": {
       return (
-        <ExamMode
-          questions={filteredQuestions}
-          topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
-          requestedQuestionCount={requestedQuestionCount ?? 10}
-          assignmentId={assignmentIdParam}
-          answered={hasAssignmentSnapshot ? answeredMap : undefined}
-        />
+        <>
+          <ExamMode
+            questions={filteredQuestions}
+            topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
+            requestedQuestionCount={requestedQuestionCount ?? 10}
+            assignmentId={assignmentIdParam}
+            answered={hasAssignmentSnapshot ? answeredMap : undefined}
+            onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+          />
+          <AllAssignmentsCompleteSelfPracticeModal
+            open={showAllAssignmentsCompleteModal}
+            onDismiss={() => setShowAllAssignmentsCompleteModal(false)}
+          />
+        </>
       );
     }
     case "review":
       return (
-        <ReviewMode
-          questions={filteredQuestions}
-          topicName={topicName}
-          assignmentId={assignmentIdParam}
-          questionCount={requestedQuestionCount}
-        />
+        <>
+          <ReviewMode
+            questions={filteredQuestions}
+            topicName={topicName}
+            assignmentId={assignmentIdParam}
+            questionCount={requestedQuestionCount}
+            onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+          />
+          <AllAssignmentsCompleteSelfPracticeModal
+            open={showAllAssignmentsCompleteModal}
+            onDismiss={() => setShowAllAssignmentsCompleteModal(false)}
+          />
+        </>
       );
     default:
       return (

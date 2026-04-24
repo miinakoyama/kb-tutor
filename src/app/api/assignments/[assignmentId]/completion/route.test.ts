@@ -131,11 +131,16 @@ describe("POST /api/assignments/[assignmentId]/completion", () => {
     mockState.adminClient = adminClient;
 
     const response = await POST(requestMock(), contextFor("as_1"));
-    const body = (await response.json()) as { ok: boolean; last_completed_at: string };
+    const body = (await response.json()) as {
+      ok: boolean;
+      last_completed_at: string;
+      all_assignments_completed?: boolean;
+    };
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.last_completed_at).toBe("2026-04-22T14:00:00.000Z");
+    expect(body.all_assignments_completed).toBe(true);
     expect(tables.assignment_targets.rows).toEqual([
       {
         assignment_id: "as_1",
@@ -172,14 +177,64 @@ describe("POST /api/assignments/[assignmentId]/completion", () => {
     mockState.adminClient = adminClient;
 
     const response = await POST(requestMock(), contextFor("as_1"));
-    const body = (await response.json()) as { ok: boolean; last_completed_at: string };
+    const body = (await response.json()) as {
+      ok: boolean;
+      last_completed_at: string;
+      all_assignments_completed?: boolean;
+    };
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.last_completed_at).toBe("2026-04-22T15:00:00.000Z");
+    expect(body.all_assignments_completed).toBe(true);
     expect(tables.assignment_targets.rows[0].last_completed_at).toBe(
       "2026-04-22T15:00:00.000Z",
     );
+  });
+
+  it("sets all_assignments_completed false when another school assignment is incomplete", async () => {
+    vi.setSystemTime(new Date("2026-04-22T16:00:00.000Z"));
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser(),
+    });
+    const { client: adminClient } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [
+            { id: "as_1", school_id: "school-1", created_at: "2026-04-01T09:00:00.000Z" },
+            { id: "as_2", school_id: "school-1", created_at: "2026-04-01T10:00:00.000Z" },
+          ],
+        },
+        assignment_targets: {
+          rows: [
+            {
+              assignment_id: "as_1",
+              student_user_id: "student-1",
+              created_at: "2026-04-01T09:00:00.000Z",
+              last_completed_at: null,
+            },
+            {
+              assignment_id: "as_2",
+              student_user_id: "student-1",
+              created_at: "2026-04-01T10:00:00.000Z",
+              last_completed_at: null,
+            },
+          ],
+        },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(requestMock(), contextFor("as_1"));
+    const body = (await response.json()) as {
+      ok: boolean;
+      all_assignments_completed?: boolean;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.all_assignments_completed).toBe(false);
   });
 
   it("returns 500 when assignment.created_at is missing during backfill insert", async () => {
