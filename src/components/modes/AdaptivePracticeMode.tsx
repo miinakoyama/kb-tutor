@@ -31,6 +31,10 @@ import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
+import {
+  OPTION_FEEDBACK_ICONS_SPOTLIGHT_DISMISSED_KEY,
+  OPTION_FEEDBACK_ICON_TOUR_ID_PREFIX,
+} from "@/lib/option-feedback-spotlight";
 
 const DEFAULT_QUESTION_COUNT = 10;
 const MAX_ATTEMPTS = 3;
@@ -49,7 +53,11 @@ const FEATURE_SPOTLIGHT_TARGET_IDS = {
   INLINE_GLOSSARY_TERM: "feature-inline-glossary-term",
 } as const;
 
-type FeatureSpotlightType = "read-aloud" | "sidebar-glossary" | "inline-glossary";
+type FeatureSpotlightType =
+  | "read-aloud"
+  | "option-feedback-icons"
+  | "sidebar-glossary"
+  | "inline-glossary";
 
 function isDocumentActiveForTiming(): boolean {
   if (typeof document === "undefined") return false;
@@ -425,6 +433,13 @@ export function AdaptivePracticeMode({
     return false;
   }, [inlineTermMap, question, showScaffold]);
 
+  const optionFeedbackRationaleTargetIds = useMemo(() => {
+    if (!question || !isCompleted) return [];
+    return question.options
+      .filter((o) => Boolean(o.feedback))
+      .map((o) => `${OPTION_FEEDBACK_ICON_TOUR_ID_PREFIX}${o.id}`);
+  }, [isCompleted, question]);
+
   useEffect(() => {
     if (typeof window === "undefined" || activeFeatureSpotlight) return;
 
@@ -460,6 +475,22 @@ export function AdaptivePracticeMode({
     }
 
     if (
+      isCompleted &&
+      question &&
+      window.localStorage.getItem(OPTION_FEEDBACK_ICONS_SPOTLIGHT_DISMISSED_KEY) !==
+        "1" &&
+      optionFeedbackRationaleTargetIds.length > 0
+    ) {
+      const allPresent = optionFeedbackRationaleTargetIds.every((id) =>
+        document.querySelector(`[data-tour-id="${id}"]`),
+      );
+      if (allPresent) {
+        setActiveFeatureSpotlight("option-feedback-icons");
+        return;
+      }
+    }
+
+    if (
       sidebarGlossaryReady &&
       hasSidebarGlossaryTarget &&
       window.localStorage.getItem(SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY) !==
@@ -482,8 +513,10 @@ export function AdaptivePracticeMode({
     attempts.length,
     glossaryTerms.length,
     hasInlineGlossaryHighlights,
+    isCompleted,
     isRetryReady,
-    question?.id,
+    optionFeedbackRationaleTargetIds,
+    question,
     showScaffold,
   ]);
 
@@ -493,6 +526,18 @@ export function AdaptivePracticeMode({
     }
     setActiveFeatureSpotlight((current) =>
       current === "read-aloud" ? null : current,
+    );
+  }, []);
+
+  const dismissOptionFeedbackIconsSpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        OPTION_FEEDBACK_ICONS_SPOTLIGHT_DISMISSED_KEY,
+        "1",
+      );
+    }
+    setActiveFeatureSpotlight((current) =>
+      current === "option-feedback-icons" ? null : current,
     );
   }, []);
 
@@ -1059,6 +1104,15 @@ export function AdaptivePracticeMode({
           title="Read Aloud is available"
           description="Use Read Aloud to listen to the question and choices at any time."
           onClose={dismissReadAloudSpotlight}
+        />
+      ) : null}
+
+      {activeFeatureSpotlight === "option-feedback-icons" ? (
+        <FeatureSpotlight
+          targetIds={optionFeedbackRationaleTargetIds}
+          title="Per-choice explanations"
+          description="Hover or tap the info icons next to each choice to see why that option is correct or incorrect."
+          onClose={dismissOptionFeedbackIconsSpotlight}
         />
       ) : null}
 

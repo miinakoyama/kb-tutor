@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -29,6 +29,11 @@ import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramVi
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
+import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
+import {
+  OPTION_FEEDBACK_ICONS_SPOTLIGHT_DISMISSED_KEY,
+  OPTION_FEEDBACK_ICON_TOUR_ID_PREFIX,
+} from "@/lib/option-feedback-spotlight";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
@@ -98,6 +103,8 @@ export function ExamMode({
   const [supportsHover, setSupportsHover] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
+  const [showOptionFeedbackSpotlight, setShowOptionFeedbackSpotlight] =
+    useState(false);
   /** Cumulative time (ms) the learner had each question visible during the exam phase (multiple visits add up). */
   const questionDwellMsRef = useRef<Record<number, number>>({});
   const assignmentPersistedDwellMsRef = useRef<Record<number, number>>({});
@@ -178,6 +185,67 @@ export function ExamMode({
       window.removeEventListener("focus", handleWindowFocus);
     };
   }, [clearBlurFlushTimer, currentIndex, flushQuestionVisit, phase]);
+
+  const reviewQuestionForSpotlight =
+    phase === "review" &&
+    reviewIndex !== null &&
+    sessionQuestions[reviewIndex] !== undefined
+      ? sessionQuestions[reviewIndex]
+      : null;
+
+  const examOptionFeedbackSpotlightTargetIds = useMemo(() => {
+    const q = reviewQuestionForSpotlight;
+    if (!q) return [];
+    return q.options
+      .filter((o) => Boolean(o.feedback))
+      .map((o) => `${OPTION_FEEDBACK_ICON_TOUR_ID_PREFIX}${o.id}`);
+  }, [reviewQuestionForSpotlight]);
+
+  useEffect(() => {
+    if (phase !== "review" || reviewIndex === null) {
+      setShowOptionFeedbackSpotlight(false);
+      return;
+    }
+    if (typeof window === "undefined") return;
+    if (
+      window.localStorage.getItem(OPTION_FEEDBACK_ICONS_SPOTLIGHT_DISMISSED_KEY) ===
+      "1"
+    ) {
+      setShowOptionFeedbackSpotlight(false);
+      return;
+    }
+    if (examOptionFeedbackSpotlightTargetIds.length === 0) {
+      setShowOptionFeedbackSpotlight(false);
+      return;
+    }
+    const checkAndOpen = () => {
+      const allPresent = examOptionFeedbackSpotlightTargetIds.every((id) =>
+        document.querySelector(`[data-tour-id="${id}"]`),
+      );
+      if (allPresent) setShowOptionFeedbackSpotlight(true);
+    };
+    checkAndOpen();
+    let raf2 = 0;
+    const raf1 = window.requestAnimationFrame(() => {
+      checkAndOpen();
+      raf2 = window.requestAnimationFrame(checkAndOpen);
+    });
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      if (raf2) window.cancelAnimationFrame(raf2);
+    };
+  }, [examOptionFeedbackSpotlightTargetIds, phase, reviewIndex]);
+
+  const dismissExamOptionFeedbackSpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        OPTION_FEEDBACK_ICONS_SPOTLIGHT_DISMISSED_KEY,
+        "1",
+      );
+    }
+    setShowOptionFeedbackSpotlight(false);
+  }, []);
+
   const {
     isSupported,
     isSpeaking,
@@ -631,6 +699,7 @@ export function ExamMode({
       includeMisconception: true,
     });
     return (
+      <>
       <div className="max-w-4xl mx-auto">
         <button
           onClick={() => setPhase("results")}
@@ -688,6 +757,11 @@ export function ExamMode({
                     isAnswered={true}
                     onSelect={() => {}}
                     showFeedbackIcon
+                    feedbackIconTourId={
+                      opt.feedback
+                        ? `${OPTION_FEEDBACK_ICON_TOUR_ID_PREFIX}${opt.id}`
+                        : undefined
+                    }
                   />
                 );
               })}
@@ -735,6 +809,15 @@ export function ExamMode({
           )}
         </div>
       </div>
+      {showOptionFeedbackSpotlight ? (
+        <FeatureSpotlight
+          targetIds={examOptionFeedbackSpotlightTargetIds}
+          title="Per-choice explanations"
+          description="Hover or tap the info icons next to each choice to see why that option is correct or incorrect."
+          onClose={dismissExamOptionFeedbackSpotlight}
+        />
+      ) : null}
+      </>
     );
   }
 

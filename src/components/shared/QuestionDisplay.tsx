@@ -10,6 +10,9 @@ import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramVi
 import { useTextToSpeech, type ReadSection } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "./ReadAloudButton";
+import {
+  OPTION_FEEDBACK_ICON_TOUR_ID_PREFIX,
+} from "@/lib/option-feedback-spotlight";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -27,6 +30,8 @@ interface QuestionDisplayProps {
   feedbackReadText?: string;
   belowOptionsSlot?: ReactNode;
   showOptionFeedbackIcons?: boolean;
+  /** When `showOptionFeedbackIcons` is true, adds `data-tour-id` on each option info icon for onboarding. */
+  optionFeedbackIconTourIdPrefix?: string;
   onReadAloud?: (section: ReadSection) => void;
   questionReadAloudTourId?: string;
   choicesReadAloudTourId?: string;
@@ -48,6 +53,7 @@ export function QuestionDisplay({
   feedbackReadText,
   belowOptionsSlot,
   showOptionFeedbackIcons = false,
+  optionFeedbackIconTourIdPrefix = OPTION_FEEDBACK_ICON_TOUR_ID_PREFIX,
   onReadAloud,
   questionReadAloudTourId,
   choicesReadAloudTourId,
@@ -183,6 +189,11 @@ export function QuestionDisplay({
                   isAnswered={isAnswered}
                   onSelect={onOptionClick}
                   showFeedbackIcon={showOptionFeedbackIcons}
+                  feedbackIconTourId={
+                    showOptionFeedbackIcons && opt.feedback
+                      ? `${optionFeedbackIconTourIdPrefix}${opt.id}`
+                      : undefined
+                  }
                   pendingSelection={pendingSelection}
                   compact={compactLayout}
                 />
