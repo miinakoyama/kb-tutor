@@ -62,6 +62,10 @@ function dwellMsToRecordedSec(ms: number): number | null {
   return Math.max(1, Math.round(ms / 1000));
 }
 
+function nowMs(): number {
+  return Date.now();
+}
+
 export function ExamMode({
   questions,
   topicName,
@@ -87,12 +91,13 @@ export function ExamMode({
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
   /** Cumulative time (ms) the learner had each question visible during the exam phase (multiple visits add up). */
   const questionDwellMsRef = useRef<Record<number, number>>({});
+  const assignmentPersistedDwellMsRef = useRef<Record<number, number>>({});
   const visitRef = useRef<{ index: number; startMs: number } | null>(null);
 
   const flushQuestionVisit = useCallback(() => {
     const v = visitRef.current;
     if (!v) return;
-    const delta = Math.max(0, Date.now() - v.startMs);
+    const delta = Math.max(0, nowMs() - v.startMs);
     const prev = questionDwellMsRef.current[v.index] ?? 0;
     questionDwellMsRef.current[v.index] = prev + delta;
     visitRef.current = null;
@@ -101,16 +106,36 @@ export function ExamMode({
   const resetExamDwellTracking = useCallback(() => {
     flushQuestionVisit();
     questionDwellMsRef.current = {};
+    assignmentPersistedDwellMsRef.current = {};
   }, [flushQuestionVisit]);
 
   useEffect(() => {
     if (phase !== "exam") return;
+    // We flush before starting a new visit window so navigation between
+    // questions does not leave overlapping active intervals.
     flushQuestionVisit();
-    visitRef.current = { index: currentIndex, startMs: Date.now() };
+    if (typeof document !== "undefined" && document.hidden) return;
+    visitRef.current = { index: currentIndex, startMs: nowMs() };
     return () => {
       flushQuestionVisit();
     };
   }, [currentIndex, phase, flushQuestionVisit]);
+
+  useEffect(() => {
+    if (phase !== "exam") return;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        flushQuestionVisit();
+        return;
+      }
+      if (!visitRef.current) {
+        visitRef.current = { index: currentIndex, startMs: nowMs() };
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [currentIndex, flushQuestionVisit, phase]);
   const {
     isSupported,
     isSpeaking,
@@ -343,6 +368,7 @@ export function ExamMode({
           teacherId: student?.teacherId,
           ...(timeSpentSec !== null ? { timeSpentSec } : {}),
         });
+        assignmentPersistedDwellMsRef.current[currentIndex] = totalDwellMs;
       }
 
       trackAnalyticsEvent({
@@ -358,7 +384,7 @@ export function ExamMode({
         },
       });
 
-      visitRef.current = { index: currentIndex, startMs: Date.now() };
+      visitRef.current = { index: currentIndex, startMs: nowMs() };
     },
     [
       currentIndex,
@@ -417,6 +443,41 @@ export function ExamMode({
         };
       });
       saveAnswerBatch(batch.filter((b) => b.selectedOptionId));
+    }
+
+    if (isAssignmentRun && assignmentId) {
+      // Persist any additional dwell collected after the last answer click.
+      // This avoids under-reporting when a learner answers once and then
+      // spends more time reviewing before submitting.
+      const student = getStudentById(DEFAULT_STUDENT_ID);
+      sessionQuestions.forEach((q, i) => {
+        const a = answers[i];
+        if (!a?.selectedOptionId) return;
+        const totalDwellMs = questionDwellMsRef.current[i] ?? 0;
+        const persistedDwellMs = assignmentPersistedDwellMsRef.current[i] ?? 0;
+        if (totalDwellMs <= persistedDwellMs) return;
+        const resolvedStandard = q.standardId
+          ? { id: q.standardId, label: q.standardLabel }
+          : getStandardForTopic(q.topic);
+        const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
+        saveAnswer({
+          questionId: q.id,
+          selectedOptionId: a.selectedOptionId,
+          isCorrect: a.isCorrect,
+          timestamp: nowMs(),
+          mode: "exam",
+          module: q.module,
+          topic: q.topic,
+          standardId: resolvedStandard.id,
+          standardLabel: resolvedStandard.label,
+          assignmentId,
+          studentId: student?.id,
+          classId: student?.classId,
+          teacherId: student?.teacherId,
+          ...(timeSpentSec !== null ? { timeSpentSec } : {}),
+        });
+        assignmentPersistedDwellMsRef.current[i] = totalDwellMs;
+      });
     }
 
     if (isAssignmentRun && assignmentId) {
