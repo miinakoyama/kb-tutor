@@ -33,6 +33,7 @@ const PAGE_ROLE_RULES: RoleRule[] = [
       "/content",
       "/content/questions",
       "/content/mass-production",
+      "/preview",
     ],
     allowedRoles: ["teacher", "admin"],
   },
