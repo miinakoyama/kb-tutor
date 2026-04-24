@@ -18,6 +18,7 @@ interface SchoolView {
   teacher_user_id: string | null;
   keystone_exam_date: string | null;
   is_hidden: boolean;
+  student_login_notice: string | null;
   teacher_label: string;
   teachers: { id: string; label: string; is_primary: boolean }[];
   students: { id: string; label: string }[];
@@ -44,6 +45,7 @@ export default function SchoolManagementPage() {
     name: "",
     teacherUserIds: [] as string[],
     keystoneExamDate: "",
+    studentLoginNotice: "",
     isHidden: false,
   });
 
@@ -55,6 +57,7 @@ export default function SchoolManagementPage() {
   const [editName, setEditName] = useState("");
   const [editTeacherIds, setEditTeacherIds] = useState<string[]>([]);
   const [editKeystoneExamDate, setEditKeystoneExamDate] = useState("");
+  const [editStudentLoginNotice, setEditStudentLoginNotice] = useState("");
   const [editIsHidden, setEditIsHidden] = useState(false);
 
   useEffect(() => {
@@ -63,6 +66,7 @@ export default function SchoolManagementPage() {
     setEditName(school.name);
     setEditTeacherIds(school.teachers.map((t) => t.id));
     setEditKeystoneExamDate(school.keystone_exam_date ?? "");
+    setEditStudentLoginNotice(school.student_login_notice ?? "");
     setEditIsHidden(school.is_hidden);
   }, [selectedSchoolId, selectedSchool]);
 
@@ -99,6 +103,7 @@ export default function SchoolManagementPage() {
       name: "",
       teacherUserIds: [],
       keystoneExamDate: "",
+      studentLoginNotice: "",
       isHidden: false,
     });
   }
@@ -114,6 +119,7 @@ export default function SchoolManagementPage() {
         name: createForm.name.trim(),
         teacherUserIds: createForm.teacherUserIds,
         keystoneExamDate: createForm.keystoneExamDate.trim() || null,
+        studentLoginNotice: createForm.studentLoginNotice.trim() || null,
         isHidden: createForm.isHidden,
       }),
     });
@@ -140,6 +146,7 @@ export default function SchoolManagementPage() {
         name: editName.trim(),
         teacherUserIds: editTeacherIds,
         keystoneExamDate: editKeystoneExamDate.trim() || null,
+        studentLoginNotice: editStudentLoginNotice.trim() || null,
         isHidden: editIsHidden,
       }),
     });
@@ -306,6 +313,23 @@ export default function SchoolManagementPage() {
                 </span>
               </label>
               <label className="block text-sm text-slate-gray">
+                <span className="block mb-1 font-medium">Student login notice (optional)</span>
+                <textarea
+                  rows={4}
+                  maxLength={2000}
+                  placeholder="e.g. If you forgot your student ID, sign in with your school email or FirstnameLastname."
+                  value={createForm.studentLoginNotice}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, studentLoginNotice: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors resize-y min-h-[88px]"
+                />
+                <span className="mt-1 block text-xs text-slate-gray/60">
+                  Shown on the student login page below Student ID when this school is selected.
+                  Leave empty for no extra message.
+                </span>
+              </label>
+              <label className="block text-sm text-slate-gray">
                 <span className="block mb-1 font-medium">Teachers (optional)</span>
                 <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 p-3 space-y-2">
                   {teachers.length === 0 ? (
@@ -423,6 +447,20 @@ export default function SchoolManagementPage() {
                 </div>
                 <span className="mt-1 block text-xs text-slate-gray/60">
                   Leave empty to hide the countdown on student home pages.
+                </span>
+              </label>
+              <label className="block text-sm text-slate-gray">
+                <span className="block mb-1 font-medium">Student login notice</span>
+                <textarea
+                  rows={4}
+                  maxLength={2000}
+                  placeholder="Optional message for students on /login"
+                  value={editStudentLoginNotice}
+                  onChange={(e) => setEditStudentLoginNotice(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none transition-colors resize-y min-h-[88px]"
+                />
+                <span className="mt-1 block text-xs text-slate-gray/60">
+                  Shown below Student ID when this school is chosen. Clear the text and save to remove.
                 </span>
               </label>
               <label className="block text-sm text-slate-gray">

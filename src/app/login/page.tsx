@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface School {
   id: string;
   name: string;
+  student_login_notice?: string | null;
 }
 
 export default function LoginPage() {
@@ -43,6 +44,14 @@ export default function LoginPage() {
   useEffect(() => {
     void loadSchools();
   }, [loadSchools]);
+
+  const studentLoginNotice = useMemo(() => {
+    const school = schools.find((s) => s.id === schoolId);
+    const raw = school?.student_login_notice;
+    if (typeof raw !== "string") return null;
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [schools, schoolId]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,6 +132,17 @@ export default function LoginPage() {
               placeholder="e.g. st000000000"
               required
             />
+            {studentLoginNotice && (
+              <div
+                role="note"
+                className="mt-3 rounded-lg border border-[#16a34a]/35 bg-[#f0fdf4] px-3 py-3 text-sm text-[#14532d] shadow-sm"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#15803d]/90 mb-1.5">
+                  School notice
+                </p>
+                <p className="whitespace-pre-wrap break-words leading-relaxed">{studentLoginNotice}</p>
+              </div>
+            )}
           </label>
           {error && (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
