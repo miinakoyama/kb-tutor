@@ -28,6 +28,8 @@ interface QuestionDisplayProps {
   belowOptionsSlot?: ReactNode;
   showOptionFeedbackIcons?: boolean;
   onReadAloud?: (section: ReadSection) => void;
+  questionReadAloudTourId?: string;
+  choicesReadAloudTourId?: string;
 }
 
 export function QuestionDisplay({
@@ -47,6 +49,8 @@ export function QuestionDisplay({
   belowOptionsSlot,
   showOptionFeedbackIcons = false,
   onReadAloud,
+  questionReadAloudTourId,
+  choicesReadAloudTourId,
 }: QuestionDisplayProps) {
   const isAnswered = currentAnswer !== undefined;
   const choicesReadText = buildChoicesReadText(question);
@@ -83,15 +87,17 @@ export function QuestionDisplay({
           </div>
           <div className="flex items-center gap-2">
             {isSupported && (
-              <ReadAloudButton
-                section="question"
-                label="Question"
-                text={question.text}
-                isSpeaking={isSpeaking}
-                currentSection={currentSection}
-                onToggle={toggleSpeak}
-                onPlay={onReadAloud}
-              />
+              <div className="relative" data-tour-id={questionReadAloudTourId}>
+                <ReadAloudButton
+                  section="question"
+                  label="Question"
+                  text={question.text}
+                  isSpeaking={isSpeaking}
+                  currentSection={currentSection}
+                  onToggle={toggleSpeak}
+                  onPlay={onReadAloud}
+                />
+              </div>
             )}
             {headerAction}
           </div>
@@ -144,15 +150,17 @@ export function QuestionDisplay({
               Choices
             </p>
             {isSupported && (
-              <ReadAloudButton
-                section="choices"
-                label="Choices"
-                text={choicesReadText}
-                isSpeaking={isSpeaking}
-                currentSection={currentSection}
-                onToggle={toggleSpeak}
-                onPlay={onReadAloud}
-              />
+              <div data-tour-id={choicesReadAloudTourId}>
+                <ReadAloudButton
+                  section="choices"
+                  label="Choices"
+                  text={choicesReadText}
+                  isSpeaking={isSpeaking}
+                  currentSection={currentSection}
+                  onToggle={toggleSpeak}
+                  onPlay={onReadAloud}
+                />
+              </div>
             )}
           </div>
           <div className={`${compactLayout ? "space-y-2 mt-1.5" : "space-y-2.5 mt-2"}`}>
