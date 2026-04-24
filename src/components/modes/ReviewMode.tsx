@@ -27,6 +27,8 @@ interface ReviewModeProps {
   assignmentId?: string;
   /** Hard cap on the review session size for non-assignment runs. */
   questionCount?: number;
+  /** Fires when the completion API reports every school assignment is done. */
+  onAllSchoolAssignmentsCompleted?: () => void;
 }
 
 export function ReviewMode({
@@ -34,6 +36,7 @@ export function ReviewMode({
   topicName,
   assignmentId,
   questionCount,
+  onAllSchoolAssignmentsCompleted,
 }: ReviewModeProps) {
   const [reviewQuestions, setReviewQuestions] = useState<Question[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -118,6 +121,7 @@ export function ReviewMode({
       // uses `answered !== undefined` as the signal that this is an assignment
       // run (enables the completion POST). Pass an empty object for review.
       answered={isAssignmentRun ? {} : undefined}
+      onAllSchoolAssignmentsCompleted={onAllSchoolAssignmentsCompleted}
     />
   );
 }

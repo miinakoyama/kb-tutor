@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { MigrationBootstrap } from "@/components/MigrationBootstrap";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { AllAssignmentsCompleteModalManager } from "@/components/assignments/AllAssignmentsCompleteModalManager";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -42,6 +43,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
       >
         {children}
       </div>
+      <AllAssignmentsCompleteModalManager />
 
       <div className="fixed bottom-0 right-0 pointer-events-none opacity-10 translate-x-1/4 translate-y-1/4">
         <svg

@@ -53,6 +53,8 @@ interface ExamModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  /** Fires when the completion API reports every school assignment is done. */
+  onAllSchoolAssignmentsCompleted?: () => void;
 }
 
 type ExamPhase = "config" | "exam" | "confirm" | "results" | "review";
@@ -78,6 +80,7 @@ export function ExamMode({
   requestedQuestionCount,
   assignmentId,
   answered,
+  onAllSchoolAssignmentsCompleted,
 }: ExamModeProps) {
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
   const [phase, setPhase] = useState<ExamPhase>(
@@ -488,7 +491,6 @@ export function ExamMode({
       // Persist any additional dwell collected after the last answer click.
       // This avoids under-reporting when a learner answers once and then
       // spends more time reviewing before submitting.
-      const student = getStudentById(DEFAULT_STUDENT_ID);
       sessionQuestions.forEach((q, i) => {
         const a = answers[i];
         if (!a?.selectedOptionId) return;
@@ -529,15 +531,24 @@ export function ExamMode({
         });
         assignmentPersistedDwellMsRef.current[i] = totalDwellMs;
       });
-    }
 
-    if (isAssignmentRun && assignmentId) {
-      void fetch(
-        `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
-        { method: "POST" },
-      ).catch(() => {
-        // Best-effort; failure leaves the assignment as in_progress.
-      });
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
+            { method: "POST" },
+          );
+          if (!res.ok) return;
+          const body = (await res.json()) as {
+            all_assignments_completed?: unknown;
+          };
+          if (body.all_assignments_completed === true) {
+            onAllSchoolAssignmentsCompleted?.();
+          }
+        } catch {
+          // Best-effort; failure leaves the assignment as in_progress.
+        }
+      })();
     }
 
     trackAnalyticsEvent({
@@ -564,6 +575,7 @@ export function ExamMode({
     elapsedMs,
     markStageCompleted,
     sessionId,
+    onAllSchoolAssignmentsCompleted,
   ]);
 
   if (phase === "config") {
