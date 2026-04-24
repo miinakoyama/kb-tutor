@@ -16,6 +16,8 @@ interface OptionButtonProps {
   isAnswered: boolean;
   onSelect: (optionId: string) => void;
   showFeedbackIcon?: boolean;
+  /** When set with `showFeedbackIcon`, placed on the info icon for spotlight tours. */
+  feedbackIconTourId?: string;
   pendingSelection?: boolean;
   compact?: boolean;
 }
@@ -28,6 +30,7 @@ export function OptionButton({
   isAnswered,
   onSelect,
   showFeedbackIcon = false,
+  feedbackIconTourId,
   pendingSelection = false,
   compact = false,
 }: OptionButtonProps) {
@@ -123,6 +126,7 @@ export function OptionButton({
         {shouldShowIcon && (
           <span
             ref={iconRef}
+            data-tour-id={feedbackIconTourId}
             role="button"
             tabIndex={0}
             onClick={(e) => {
