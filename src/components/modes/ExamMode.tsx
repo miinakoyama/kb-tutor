@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -29,6 +35,7 @@ import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramVi
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
+import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
@@ -36,6 +43,18 @@ import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
+
+const EXAM_ONBOARDING_DISMISSED_KEY = "kb-tutor-exam-onboarding-dismissed-v1";
+
+const EXAM_ONBOARDING_TOUR_IDS = {
+  NEXT_QUESTION: "exam-onboarding-next-question",
+  /** Edge control that opens the question navigator (always visible). */
+  NAVIGATOR_TOGGLE: "exam-onboarding-navigator-toggle",
+  NAVIGATOR_PANEL: "exam-onboarding-navigator-panel",
+  FLAG: "exam-onboarding-flag",
+} as const;
+
+type ExamOnboardingStep = "intro" | "next" | "navigator" | "flag";
 
 interface ExamModeProps {
   questions: Question[];
@@ -79,6 +98,9 @@ export function ExamMode({
   const [supportsHover, setSupportsHover] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
+  const [examOnboardingStep, setExamOnboardingStep] =
+    useState<ExamOnboardingStep | null>(null);
+  const examOnboardingOfferedRef = useRef(false);
   const {
     isSupported,
     isSpeaking,
@@ -133,6 +155,41 @@ export function ExamMode({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  const finishExamOnboarding = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+    }
+    setIsNavigatorPinnedOpen(false);
+    setExamOnboardingStep(null);
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "exam") {
+      examOnboardingOfferedRef.current = false;
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (phase !== "exam") return;
+    if (!isInitialized) return;
+    if (sessionQuestions.length === 0) return;
+    if (window.localStorage.getItem(EXAM_ONBOARDING_DISMISSED_KEY) === "1") {
+      return;
+    }
+    if (examOnboardingOfferedRef.current) return;
+    examOnboardingOfferedRef.current = true;
+    const id = window.requestAnimationFrame(() => {
+      setExamOnboardingStep("intro");
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [phase, isInitialized, sessionQuestions.length]);
+
+  useLayoutEffect(() => {
+    if (examOnboardingStep !== "navigator") return;
+    setIsNavigatorPinnedOpen(true);
+  }, [examOnboardingStep]);
 
   // Session lifecycle. The session is created once the learner actually
   // starts the exam (i.e. leaves the config phase). `markStageCompleted` is
@@ -735,6 +792,7 @@ export function ExamMode({
             onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
             className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex flex-col items-center justify-center gap-1 w-11 h-20 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
             aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
+            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_TOGGLE}
           >
             <ChevronLeft className={`w-4 h-4 transition-transform ${isNavigatorOpen ? "translate-x-0.5" : ""}`} />
             {unansweredLabel > 0 && (
@@ -748,6 +806,7 @@ export function ExamMode({
             onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
             className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 px-3 py-3 min-h-[44px] text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
             aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
+            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_TOGGLE}
           >
             {isNavigatorOpen ? (
               <PanelRightClose className="w-4 h-4" />
@@ -781,6 +840,7 @@ export function ExamMode({
                 exit={{ x: 380, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 260, damping: 24 }}
                 className="fixed right-0 top-16 bottom-0 z-40 w-[22rem] max-w-[92vw]"
+                data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_PANEL}
                 onMouseEnter={() => supportsHover && setIsNavigatorHovered(true)}
                 onMouseLeave={() => supportsHover && setIsNavigatorHovered(false)}
               >
@@ -816,6 +876,7 @@ export function ExamMode({
 
           <button
             onClick={toggleFlag}
+            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
             className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-[13px] font-medium transition-colors ${
               answers[currentIndex]?.flagged
                 ? "text-amber-600 bg-amber-50 border border-amber-200"
@@ -834,6 +895,7 @@ export function ExamMode({
               setCurrentIndex((i) => i + 1)
             }
             disabled={currentIndex === totalQuestions - 1}
+            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
             Next
@@ -841,6 +903,80 @@ export function ExamMode({
           </button>
         </div>
       </div>
+
+      {examOnboardingStep === "intro" ? (
+        <div className="fixed inset-0 z-[76] flex items-center justify-center px-4 py-6">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={finishExamOnboarding}
+            role="presentation"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-md rounded-2xl border border-[#16a34a]/25 bg-white p-6 shadow-2xl"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
+              Exam mode
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-[#14532d]">
+              How this session works
+            </h2>
+            <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+              This is exam mode: it feels closer to a real test. You will not see
+              hints or whether each answer is correct until you finish, and your
+              score appears at the end. Next, we will point out a few controls
+              that help you move through the exam.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={finishExamOnboarding}
+                className="text-sm font-semibold text-slate-500 hover:text-slate-700"
+              >
+                Skip tips
+              </button>
+              <button
+                type="button"
+                onClick={() => setExamOnboardingStep("next")}
+                className="rounded-lg bg-[#16a34a] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#15803d]"
+              >
+                Continue
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      ) : null}
+
+      {examOnboardingStep === "next" ? (
+        <FeatureSpotlight
+          targetId={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
+          title="Move to the next question"
+          description="Use Next to go forward anytime. You can still change your answer until you submit the whole exam."
+          ctaLabel="Continue"
+          onClose={() => setExamOnboardingStep("navigator")}
+        />
+      ) : null}
+
+      {examOnboardingStep === "navigator" ? (
+        <FeatureSpotlight
+          targetId={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_PANEL}
+          title="Question navigator"
+          description="Open this panel from the right edge to jump to any question. Use the tabs to filter all, unanswered, or flagged items."
+          ctaLabel="Continue"
+          onClose={() => setExamOnboardingStep("flag")}
+        />
+      ) : null}
+
+      {examOnboardingStep === "flag" ? (
+        <FeatureSpotlight
+          targetId={EXAM_ONBOARDING_TOUR_IDS.FLAG}
+          title="Mark for review"
+          description="Flag questions you want to revisit before you submit. Flagged items are easy to spot in the navigator and on your results summary."
+          ctaLabel="Got it"
+          onClose={finishExamOnboarding}
+        />
+      ) : null}
     </div>
   );
 }
