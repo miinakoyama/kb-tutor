@@ -55,7 +55,12 @@ const EXAM_ONBOARDING_TOUR_IDS = {
   FLAG: "exam-onboarding-flag",
 } as const;
 
-type ExamOnboardingStep = "intro" | "next" | "navigator" | "flag";
+type ExamOnboardingStep =
+  | "intro"
+  | "next"
+  | "navigator-toggle"
+  | "navigator"
+  | "flag";
 
 interface ExamModeProps {
   questions: Question[];
@@ -119,6 +124,8 @@ export function ExamMode({
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
   const [examOnboardingStep, setExamOnboardingStep] =
     useState<ExamOnboardingStep | null>(null);
+  const [isNavigatorSpotlightReady, setIsNavigatorSpotlightReady] =
+    useState(false);
   const examOnboardingOfferedRef = useRef(false);
   /** Cumulative time (ms) the learner had each question visible during the exam phase (multiple visits add up). */
   const questionDwellMsRef = useRef<Record<number, number>>({});
@@ -386,6 +393,22 @@ export function ExamMode({
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.values(answers).filter((a) => a.selectedOptionId).length;
   const unansweredCount = totalQuestions - answeredCount;
+  const isNavigatorOpen = supportsHover
+    ? isNavigatorHovered || isNavigatorPinnedOpen
+    : isNavigatorPinnedOpen;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (examOnboardingStep !== "navigator" || !isNavigatorOpen) {
+      setIsNavigatorSpotlightReady(false);
+      return;
+    }
+    setIsNavigatorSpotlightReady(false);
+    const timeoutId = window.setTimeout(() => {
+      setIsNavigatorSpotlightReady(true);
+    }, 420);
+    return () => window.clearTimeout(timeoutId);
+  }, [examOnboardingStep, isNavigatorOpen]);
 
   useEffect(() => {
     if (phase !== "exam") return;
@@ -843,9 +866,6 @@ export function ExamMode({
     : "/";
   const modeLabel = isTopicQuiz ? "Topic Quiz" : "Mock Exam";
   const unansweredLabel = Math.max(0, unansweredCount);
-  const isNavigatorOpen = supportsHover
-    ? isNavigatorHovered || isNavigatorPinnedOpen
-    : isNavigatorPinnedOpen;
 
   return (
     <div className="flex flex-col h-full">
@@ -1011,11 +1031,10 @@ export function ExamMode({
                 exit={{ x: 380, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 260, damping: 24 }}
                 className="fixed right-0 top-16 bottom-0 z-40 w-[22rem] max-w-[92vw]"
-                data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_PANEL}
                 onMouseEnter={() => supportsHover && setIsNavigatorHovered(true)}
                 onMouseLeave={() => supportsHover && setIsNavigatorHovered(false)}
               >
-                <div className="h-full p-2">
+                <div className="p-2" data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_PANEL}>
                   <ExamNavigator
                     totalQuestions={totalQuestions}
                     currentIndex={currentIndex}
@@ -1125,6 +1144,16 @@ export function ExamMode({
           title="Move to the next question"
           description="Use Next to go forward anytime. You can still change your answer until you submit the whole exam."
           ctaLabel="Continue"
+          onClose={() => setExamOnboardingStep("navigator-toggle")}
+        />
+      ) : null}
+
+      {examOnboardingStep === "navigator-toggle" ? (
+        <FeatureSpotlight
+          targetId={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_TOGGLE}
+          title="Open the navigator"
+          description="Use this edge control to open or close the question navigator."
+          ctaLabel="Continue"
           onClose={() => setExamOnboardingStep("navigator")}
         />
       ) : null}
@@ -1133,7 +1162,9 @@ export function ExamMode({
         <FeatureSpotlight
           targetId={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_PANEL}
           title="Question navigator"
-          description="Open this panel from the right edge to jump to any question. Use the tabs to filter all, unanswered, or flagged items."
+          description="Use this panel to jump to any question. Tabs help you filter all, unanswered, or flagged items."
+          cardOffsetY={88}
+          showCard={isNavigatorSpotlightReady}
           ctaLabel="Continue"
           onClose={() => setExamOnboardingStep("flag")}
         />
