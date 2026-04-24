@@ -262,7 +262,10 @@ export async function GET(request: Request) {
       topic: row.topic,
       mode: coerceAttemptMode(row.mode),
       isCorrect: Boolean(row.is_correct),
-      timeSpentSec: row.time_spent_sec ?? 0,
+      timeSpentSec:
+        typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)
+          ? row.time_spent_sec
+          : null,
       assignmentId: row.assignment_id,
     }),
   );
