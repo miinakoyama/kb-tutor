@@ -40,6 +40,7 @@ export default function SchoolManagementPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const [createForm, setCreateForm] = useState({
     name: "",
@@ -59,6 +60,7 @@ export default function SchoolManagementPage() {
   const [editKeystoneExamDate, setEditKeystoneExamDate] = useState("");
   const [editStudentLoginNotice, setEditStudentLoginNotice] = useState("");
   const [editIsHidden, setEditIsHidden] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     const school = selectedSchool;
@@ -68,6 +70,7 @@ export default function SchoolManagementPage() {
     setEditKeystoneExamDate(school.keystone_exam_date ?? "");
     setEditStudentLoginNotice(school.student_login_notice ?? "");
     setEditIsHidden(school.is_hidden);
+    setEditError(null);
   }, [selectedSchoolId, selectedSchool]);
 
   const loadAll = useCallback(async () => {
@@ -108,10 +111,26 @@ export default function SchoolManagementPage() {
     });
   }
 
+  function openCreateModal() {
+    setCreateError(null);
+    setShowCreateModal(true);
+  }
+
+  function closeCreateModal() {
+    setCreateError(null);
+    setShowCreateModal(false);
+  }
+
+  function closeEditModal() {
+    setEditError(null);
+    setSelectedSchoolId(null);
+  }
+
   async function createSchool(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     setError(null);
+    setCreateError(null);
     const response = await fetch("/api/admin/schools", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -125,11 +144,13 @@ export default function SchoolManagementPage() {
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to create school.");
+      const nextError = normalizeAdminError(payload.error) || "Failed to create school.";
+      setCreateError(nextError);
+      setError(nextError);
       return;
     }
     setMessage("School created.");
-    setShowCreateModal(false);
+    closeCreateModal();
     resetCreateForm();
     await loadAll();
   }
@@ -138,6 +159,7 @@ export default function SchoolManagementPage() {
     if (!selectedSchool) return;
     setMessage(null);
     setError(null);
+    setEditError(null);
     const response = await fetch("/api/admin/schools", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -152,11 +174,13 @@ export default function SchoolManagementPage() {
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to update school.");
+      const nextError = normalizeAdminError(payload.error) || "Failed to update school.";
+      setEditError(nextError);
+      setError(nextError);
       return;
     }
     setMessage("School updated.");
-    setSelectedSchoolId(null);
+    closeEditModal();
     await loadAll();
   }
 
@@ -165,6 +189,7 @@ export default function SchoolManagementPage() {
     if (!confirm(`Delete school "${selectedSchool.name}"? This will also delete all associated assignments and student data.`)) return;
     setMessage(null);
     setError(null);
+    setEditError(null);
     const response = await fetch("/api/admin/schools", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -172,11 +197,13 @@ export default function SchoolManagementPage() {
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setError(normalizeAdminError(payload.error) || "Failed to delete school.");
+      const nextError = normalizeAdminError(payload.error) || "Failed to delete school.";
+      setEditError(nextError);
+      setError(nextError);
       return;
     }
     setMessage("School deleted.");
-    setSelectedSchoolId(null);
+    closeEditModal();
     await loadAll();
   }
 
@@ -192,7 +219,7 @@ export default function SchoolManagementPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={openCreateModal}
           className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
@@ -219,7 +246,7 @@ export default function SchoolManagementPage() {
             <School className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p className="text-slate-gray/70 mb-4">No schools yet.</p>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={openCreateModal}
               className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -272,19 +299,27 @@ export default function SchoolManagementPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/40"
-            onClick={() => setShowCreateModal(false)}
+            onClick={closeCreateModal}
           />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <h2 className="text-lg font-semibold text-slate-gray">Create School</h2>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={closeCreateModal}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form className="p-5 space-y-4" onSubmit={createSchool}>
+              {createError && (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                >
+                  {createError}
+                </p>
+              )}
               <label className="block text-sm text-slate-gray">
                 <span className="block mb-1 font-medium">School Name</span>
                 <input
@@ -384,7 +419,7 @@ export default function SchoolManagementPage() {
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={closeCreateModal}
                   className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Cancel
@@ -405,19 +440,27 @@ export default function SchoolManagementPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/40"
-            onClick={() => setSelectedSchoolId(null)}
+            onClick={closeEditModal}
           />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <h2 className="text-lg font-semibold text-slate-gray">Edit School</h2>
               <button
-                onClick={() => setSelectedSchoolId(null)}
+                onClick={closeEditModal}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 space-y-4">
+              {editError && (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                >
+                  {editError}
+                </p>
+              )}
               <label className="block text-sm text-slate-gray">
                 <span className="block mb-1 font-medium">School Name</span>
                 <input
@@ -538,7 +581,7 @@ export default function SchoolManagementPage() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setSelectedSchoolId(null)}
+                    onClick={closeEditModal}
                     className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
                   >
                     Cancel
