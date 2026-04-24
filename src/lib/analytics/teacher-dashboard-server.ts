@@ -18,7 +18,8 @@ export interface AttemptRecord {
   topic: string | null;
   mode: AttemptMode;
   isCorrect: boolean;
-  timeSpentSec: number;
+  /** Measured dwell time in seconds. `null` means not recorded (legacy rows); exclude from time averages. */
+  timeSpentSec: number | null;
   assignmentId: string | null;
 }
 
@@ -166,12 +167,16 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     totalAnswered > 0
       ? roundPercent((totalCorrect / totalAnswered) * 100)
       : 0;
-  const totalTime = scopedAttempts.reduce(
-    (sum, row) => sum + (Number.isFinite(row.timeSpentSec) ? row.timeSpentSec : 0),
-    0,
-  );
+  let measuredTimeTotal = 0;
+  let measuredTimeCount = 0;
+  for (const row of scopedAttempts) {
+    if (row.timeSpentSec !== null && Number.isFinite(row.timeSpentSec)) {
+      measuredTimeTotal += row.timeSpentSec;
+      measuredTimeCount += 1;
+    }
+  }
   const avgTimeSec =
-    totalAnswered > 0 ? Math.round(totalTime / totalAnswered) : 0;
+    measuredTimeCount > 0 ? Math.round(measuredTimeTotal / measuredTimeCount) : 0;
 
   // Per-mode totals for the summary
   const summaryModeAgg = emptyModeBreakdown();
@@ -180,20 +185,27 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     exam: 0,
     review: 0,
   };
+  const summaryModeMeasuredCount: Record<AttemptMode, number> = {
+    practice: 0,
+    exam: 0,
+    review: 0,
+  };
   for (const row of scopedAttempts) {
     const mode = row.mode;
     summaryModeAgg[mode].attempted += 1;
     if (row.isCorrect) summaryModeAgg[mode].correct += 1;
-    summaryModeTotalTime[mode] += row.timeSpentSec ?? 0;
+    if (row.timeSpentSec !== null && Number.isFinite(row.timeSpentSec)) {
+      summaryModeTotalTime[mode] += row.timeSpentSec;
+      summaryModeMeasuredCount[mode] += 1;
+    }
   }
   for (const mode of MODES) {
     const agg = summaryModeAgg[mode];
     agg.accuracy =
       agg.attempted > 0 ? roundPercent((agg.correct / agg.attempted) * 100) : 0;
+    const mc = summaryModeMeasuredCount[mode];
     agg.averageTimeSec =
-      agg.attempted > 0
-        ? Math.round(summaryModeTotalTime[mode] / agg.attempted)
-        : 0;
+      mc > 0 ? Math.round(summaryModeTotalTime[mode] / mc) : 0;
   }
 
   // Standards aggregation (overall + per-mode)
@@ -202,8 +214,10 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     attempted: number;
     correct: number;
     totalTime: number;
+    measuredTimeCount: number;
     byMode: Record<AttemptMode, ModeMetrics>;
     byModeTotalTime: Record<AttemptMode, number>;
+    byModeMeasuredCount: Record<AttemptMode, number>;
   }
   const standardAgg = new Map<string, StandardAgg>();
   // Stable id used when DB row has no standardId. We namespace by topic so
@@ -232,8 +246,10 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         attempted: 0,
         correct: 0,
         totalTime: 0,
+        measuredTimeCount: 0,
         byMode: emptyModeBreakdown(),
         byModeTotalTime: { practice: 0, exam: 0, review: 0 },
+        byModeMeasuredCount: { practice: 0, exam: 0, review: 0 },
       } satisfies StandardAgg);
     // Ensure canonical label wins even if the first seen row had a stale value
     if (canonical?.label) {
@@ -241,11 +257,17 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     }
     existing.attempted += 1;
     if (row.isCorrect) existing.correct += 1;
-    existing.totalTime += row.timeSpentSec ?? 0;
+    if (row.timeSpentSec !== null && Number.isFinite(row.timeSpentSec)) {
+      existing.totalTime += row.timeSpentSec;
+      existing.measuredTimeCount += 1;
+    }
     const modeAgg = existing.byMode[row.mode];
     modeAgg.attempted += 1;
     if (row.isCorrect) modeAgg.correct += 1;
-    existing.byModeTotalTime[row.mode] += row.timeSpentSec ?? 0;
+    if (row.timeSpentSec !== null && Number.isFinite(row.timeSpentSec)) {
+      existing.byModeTotalTime[row.mode] += row.timeSpentSec;
+      existing.byModeMeasuredCount[row.mode] += 1;
+    }
     standardAgg.set(aggKey, existing);
   }
 
@@ -256,11 +278,14 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
           ? roundPercent((item.correct / item.attempted) * 100)
           : 0;
       const averageTimeSec =
-        item.attempted > 0 ? Math.round(item.totalTime / item.attempted) : 0;
+        item.measuredTimeCount > 0
+          ? Math.round(item.totalTime / item.measuredTimeCount)
+          : 0;
 
       const byMode: Record<AttemptMode, ModeMetrics> = emptyModeBreakdown();
       for (const mode of MODES) {
         const m = item.byMode[mode];
+        const modeMeasured = item.byModeMeasuredCount[mode];
         byMode[mode] = {
           attempted: m.attempted,
           correct: m.correct,
@@ -269,8 +294,8 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
               ? roundPercent((m.correct / m.attempted) * 100)
               : 0,
           averageTimeSec:
-            m.attempted > 0
-              ? Math.round(item.byModeTotalTime[mode] / m.attempted)
+            modeMeasured > 0
+              ? Math.round(item.byModeTotalTime[mode] / modeMeasured)
               : 0,
         };
       }
@@ -294,17 +319,21 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
   // Student aggregation — always emit a row per scoped student so the teacher sees non-starters too.
   const studentAgg = new Map<
     string,
-    { attempted: number; correct: number; totalTime: number }
+    { attempted: number; correct: number; totalTime: number; measuredTimeCount: number }
   >();
   for (const row of scopedAttempts) {
     const existing = studentAgg.get(row.userId) ?? {
       attempted: 0,
       correct: 0,
       totalTime: 0,
+      measuredTimeCount: 0,
     };
     existing.attempted += 1;
     if (row.isCorrect) existing.correct += 1;
-    existing.totalTime += row.timeSpentSec ?? 0;
+    if (row.timeSpentSec !== null && Number.isFinite(row.timeSpentSec)) {
+      existing.totalTime += row.timeSpentSec;
+      existing.measuredTimeCount += 1;
+    }
     studentAgg.set(row.userId, existing);
   }
 
@@ -314,13 +343,16 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         attempted: 0,
         correct: 0,
         totalTime: 0,
+        measuredTimeCount: 0,
       };
       const accuracy =
         agg.attempted > 0
           ? roundPercent((agg.correct / agg.attempted) * 100)
           : 0;
       const averageTimeSec =
-        agg.attempted > 0 ? Math.round(agg.totalTime / agg.attempted) : 0;
+        agg.measuredTimeCount > 0
+          ? Math.round(agg.totalTime / agg.measuredTimeCount)
+          : 0;
       const status = classifyStudent(accuracy, agg.attempted);
       const isLowAndFast =
         agg.attempted >= LOW_AND_FAST_MIN_ATTEMPTS &&
