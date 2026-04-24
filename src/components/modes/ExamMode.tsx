@@ -36,6 +36,7 @@ import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
+const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
 
 interface ExamModeProps {
   questions: Question[];
@@ -66,6 +67,11 @@ function nowMs(): number {
   return Date.now();
 }
 
+function isDocumentActiveForTiming(): boolean {
+  if (typeof document === "undefined") return false;
+  return !document.hidden && document.hasFocus();
+}
+
 export function ExamMode({
   questions,
   topicName,
@@ -93,6 +99,13 @@ export function ExamMode({
   const questionDwellMsRef = useRef<Record<number, number>>({});
   const assignmentPersistedDwellMsRef = useRef<Record<number, number>>({});
   const visitRef = useRef<{ index: number; startMs: number } | null>(null);
+  const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBlurFlushTimer = useCallback(() => {
+    if (blurFlushTimerRef.current === null) return;
+    clearTimeout(blurFlushTimerRef.current);
+    blurFlushTimerRef.current = null;
+  }, []);
 
   const flushQuestionVisit = useCallback(() => {
     const v = visitRef.current;
@@ -104,38 +117,64 @@ export function ExamMode({
   }, []);
 
   const resetExamDwellTracking = useCallback(() => {
+    clearBlurFlushTimer();
     flushQuestionVisit();
     questionDwellMsRef.current = {};
     assignmentPersistedDwellMsRef.current = {};
-  }, [flushQuestionVisit]);
+  }, [clearBlurFlushTimer, flushQuestionVisit]);
 
   useEffect(() => {
     if (phase !== "exam") return;
     // We flush before starting a new visit window so navigation between
     // questions does not leave overlapping active intervals.
+    clearBlurFlushTimer();
     flushQuestionVisit();
-    if (typeof document !== "undefined" && document.hidden) return;
+    if (!isDocumentActiveForTiming()) return;
     visitRef.current = { index: currentIndex, startMs: nowMs() };
     return () => {
+      clearBlurFlushTimer();
       flushQuestionVisit();
     };
-  }, [currentIndex, phase, flushQuestionVisit]);
+  }, [clearBlurFlushTimer, currentIndex, phase, flushQuestionVisit]);
 
   useEffect(() => {
     if (phase !== "exam") return;
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        clearBlurFlushTimer();
         flushQuestionVisit();
         return;
       }
+      if (!document.hasFocus()) return;
+      clearBlurFlushTimer();
+      if (!visitRef.current) {
+        visitRef.current = { index: currentIndex, startMs: nowMs() };
+      }
+    };
+    const handleWindowBlur = () => {
+      clearBlurFlushTimer();
+      blurFlushTimerRef.current = setTimeout(() => {
+        blurFlushTimerRef.current = null;
+        flushQuestionVisit();
+      }, FOCUS_LOSS_FLUSH_GRACE_MS);
+    };
+    const handleWindowFocus = () => {
+      clearBlurFlushTimer();
+      if (!isDocumentActiveForTiming()) return;
       if (!visitRef.current) {
         visitRef.current = { index: currentIndex, startMs: nowMs() };
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      clearBlurFlushTimer();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [currentIndex, flushQuestionVisit, phase]);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [clearBlurFlushTimer, currentIndex, flushQuestionVisit, phase]);
   const {
     isSupported,
     isSpeaking,
@@ -453,6 +492,18 @@ export function ExamMode({
       sessionQuestions.forEach((q, i) => {
         const a = answers[i];
         if (!a?.selectedOptionId) return;
+        // Only questions persisted in this browser session should be eligible
+        // for submit-time dwell delta writes. Resumed pre-answered questions
+        // have no baseline here; treating them as 0 would create duplicate
+        // attempts even when the learner never changed their answer.
+        if (
+          !Object.prototype.hasOwnProperty.call(
+            assignmentPersistedDwellMsRef.current,
+            i,
+          )
+        ) {
+          return;
+        }
         const totalDwellMs = questionDwellMsRef.current[i] ?? 0;
         const persistedDwellMs = assignmentPersistedDwellMsRef.current[i] ?? 0;
         if (totalDwellMs <= persistedDwellMs) return;

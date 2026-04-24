@@ -6,6 +6,7 @@ import {
   parseAnalyticsWindow,
   parseSchoolIds,
 } from "@/lib/analytics/admin-filters";
+import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
 
 type AttemptRow = {
   user_id: string;
@@ -190,7 +191,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: attemptError.message }, { status: 400 });
   }
 
-  const attempts = (attemptRows ?? []) as AttemptRow[];
+  const attempts = dedupeAssignmentExamAttempts((attemptRows ?? []) as AttemptRow[]);
   const filteredByStudent = studentFilter
     ? attempts.filter((row) => row.user_id.includes(studentFilter))
     : attempts;
@@ -224,7 +225,11 @@ export async function GET(request: Request) {
       isCorrect: row.is_correct,
       standardId: row.standard_id ?? "",
       standardLabel: row.standard_label ?? "",
-      timeSpentSec: row.time_spent_sec ?? 0,
+      timeSpentSec:
+        typeof row.time_spent_sec === "number" &&
+        Number.isFinite(row.time_spent_sec)
+          ? row.time_spent_sec
+          : null,
       answeredAt: row.answered_at,
     };
   });
@@ -272,7 +277,12 @@ export async function GET(request: Request) {
 
   const attemptsCount = enrichedRows.length;
   const correctCount = enrichedRows.filter((row) => row.isCorrect).length;
-  const totalTime = enrichedRows.reduce((sum, row) => sum + row.timeSpentSec, 0);
+  const measuredRows = enrichedRows.filter(
+    (row): row is (typeof row & { timeSpentSec: number }) =>
+      row.timeSpentSec !== null,
+  );
+  const totalTime = measuredRows.reduce((sum, row) => sum + row.timeSpentSec, 0);
+  const measuredCount = measuredRows.length;
 
   return NextResponse.json({
     summary: {
@@ -280,7 +290,7 @@ export async function GET(request: Request) {
       students: uniqueProfileIds.length,
       attempts: attemptsCount,
       correctRate: attemptsCount > 0 ? Math.round((correctCount / attemptsCount) * 100) : 0,
-      averageTimeSec: attemptsCount > 0 ? Math.round(totalTime / attemptsCount) : 0,
+      averageTimeSec: measuredCount > 0 ? Math.round(totalTime / measuredCount) : 0,
       from: from.toISOString(),
       to: to.toISOString(),
     },
