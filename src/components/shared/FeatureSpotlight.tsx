@@ -8,8 +8,11 @@ const SPOTLIGHT_PADDING = 6;
 const SPOTLIGHT_RING_RADIUS = 16;
 const SPOTLIGHT_CARD_GAP = 12;
 const SPOTLIGHT_CARD_MAX_WIDTH = 420;
+const SPOTLIGHT_ENTRY_FADE_MS = 220;
+const SPOTLIGHT_INITIAL_TRACK_MS = 520;
 
 type SpotlightRect = {
+  targetId: string;
   top: number;
   left: number;
   width: number;
@@ -56,6 +59,7 @@ function toSpotlightRects(targetIds: string[]): SpotlightRect[] {
     );
 
     rects.push({
+      targetId,
       top,
       left,
       width: Math.max(0, right - left),
@@ -73,6 +77,7 @@ function toBoundingRect(rects: SpotlightRect[]): SpotlightRect | null {
   const right = Math.max(...rects.map((rect) => rect.left + rect.width));
   const bottom = Math.max(...rects.map((rect) => rect.top + rect.height));
   return {
+    targetId: "__combined__",
     top,
     left,
     width: right - left,
@@ -88,10 +93,37 @@ function toCardPosition(
     SPOTLIGHT_CARD_MAX_WIDTH,
     window.innerWidth - VIEWPORT_GUTTER * 2,
   );
+  const horizontalGap = SPOTLIGHT_CARD_GAP;
   const maxLeft = Math.max(
     VIEWPORT_GUTTER,
     window.innerWidth - width - VIEWPORT_GUTTER,
   );
+  const availableRight =
+    window.innerWidth - VIEWPORT_GUTTER - (rect.left + rect.width) - horizontalGap;
+  const availableLeft = rect.left - VIEWPORT_GUTTER - horizontalGap;
+  const canPlaceRight = availableRight >= width;
+  const canPlaceLeft = availableLeft >= width;
+
+  if (canPlaceRight || canPlaceLeft) {
+    const placeRight = canPlaceRight && (!canPlaceLeft || availableRight >= availableLeft);
+    const left = placeRight
+      ? Math.min(maxLeft, rect.left + rect.width + horizontalGap)
+      : Math.max(VIEWPORT_GUTTER, rect.left - width - horizontalGap);
+    let top = rect.top + rect.height / 2 - cardHeight / 2;
+    if (rect.height > cardHeight + SPOTLIGHT_CARD_GAP * 2) {
+      top = rect.top + SPOTLIGHT_CARD_GAP;
+    }
+    const maxTop = Math.max(
+      VIEWPORT_GUTTER,
+      window.innerHeight - cardHeight - VIEWPORT_GUTTER,
+    );
+    return {
+      top: Math.min(maxTop, Math.max(VIEWPORT_GUTTER, top)),
+      left,
+      width,
+    };
+  }
+
   const left = Math.min(maxLeft, Math.max(VIEWPORT_GUTTER, rect.left));
 
   const belowTop = rect.top + rect.height + SPOTLIGHT_CARD_GAP;
@@ -118,6 +150,9 @@ function toCardPosition(
 interface FeatureSpotlightProps {
   targetId?: string;
   targetIds?: string[];
+  cardAnchorTargetId?: string;
+  cardOffsetY?: number;
+  showCard?: boolean;
   title: string;
   description: string;
   detail?: string;
@@ -128,12 +163,16 @@ interface FeatureSpotlightProps {
 export function FeatureSpotlight({
   targetId,
   targetIds,
+  cardAnchorTargetId,
+  cardOffsetY = 0,
+  showCard = true,
   title,
   description,
   detail,
   ctaLabel = "Got it",
   onClose,
 }: FeatureSpotlightProps) {
+  const [isVisible, setIsVisible] = useState(false);
   const [spotlightRects, setSpotlightRects] = useState<SpotlightRect[]>([]);
   const [cardPosition, setCardPosition] = useState<SpotlightCardPosition | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -151,31 +190,63 @@ export function FeatureSpotlight({
   );
 
   useEffect(() => {
+    setIsVisible(false);
+    const rafId = window.requestAnimationFrame(() => setIsVisible(true));
+    return () => window.cancelAnimationFrame(rafId);
+  }, [targetIdsKey]);
+
+  useEffect(() => {
     const update = () => setSpotlightRects(toSpotlightRects(resolvedTargetIds));
     update();
+    const startTs = performance.now();
+    let rafId = 0;
+    const tick = (now: number) => {
+      update();
+      if (now - startTs < SPOTLIGHT_INITIAL_TRACK_MS) {
+        rafId = window.requestAnimationFrame(tick);
+      }
+    };
+    rafId = window.requestAnimationFrame(tick);
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
     return () => {
+      window.cancelAnimationFrame(rafId);
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
   }, [targetIdsKey, resolvedTargetIds]);
 
   useEffect(() => {
-    const boundingRect = toBoundingRect(spotlightRects);
-    if (!boundingRect) {
+    const targetRect =
+      (cardAnchorTargetId
+        ? spotlightRects.find((rect) => rect.targetId === cardAnchorTargetId)
+        : null) ?? toBoundingRect(spotlightRects);
+
+    if (!targetRect) {
       setCardPosition(null);
       return;
     }
 
     const update = () => {
       const cardHeight = cardRef.current?.offsetHeight ?? 220;
-      setCardPosition(toCardPosition(boundingRect, cardHeight));
+      const position = toCardPosition(targetRect, cardHeight);
+      if (cardOffsetY === 0) {
+        setCardPosition(position);
+        return;
+      }
+      const maxTop = Math.max(
+        VIEWPORT_GUTTER,
+        window.innerHeight - cardHeight - VIEWPORT_GUTTER,
+      );
+      setCardPosition({
+        ...position,
+        top: Math.min(maxTop, Math.max(VIEWPORT_GUTTER, position.top + cardOffsetY)),
+      });
     };
     update();
     const rafId = window.requestAnimationFrame(update);
     return () => window.cancelAnimationFrame(rafId);
-  }, [spotlightRects]);
+  }, [cardAnchorTargetId, cardOffsetY, spotlightRects]);
 
   const cardStyle: CSSProperties | undefined = cardPosition
     ? {
@@ -193,7 +264,13 @@ export function FeatureSpotlight({
       };
 
   return (
-    <div className="fixed inset-0 z-[75]">
+    <div
+      className="fixed inset-0 z-[75] transition-opacity ease-out"
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transitionDuration: `${SPOTLIGHT_ENTRY_FADE_MS}ms`,
+      }}
+    >
       {spotlightRects.length > 0 ? (
         <svg
           className="fixed inset-0 h-full w-full"
@@ -205,7 +282,7 @@ export function FeatureSpotlight({
               <rect x="0" y="0" width="100%" height="100%" fill="white" />
               {spotlightRects.map((rect, index) => (
                 <rect
-                  key={`mask-${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
+                  key={`mask-${rect.targetId}-${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
                   x={rect.left}
                   y={rect.top}
                   width={rect.width}
@@ -231,8 +308,8 @@ export function FeatureSpotlight({
       )}
       {spotlightRects.map((rect, index) => (
         <div
-          key={`${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
-          className="pointer-events-none fixed border-2 border-[#4ade80] transition-all duration-200"
+          key={`${rect.targetId}-${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
+          className="pointer-events-none fixed border-2 border-[#4ade80] transition-[top,left,width,height] duration-150 ease-out"
           style={{
             top: rect.top,
             left: rect.left,
@@ -243,43 +320,45 @@ export function FeatureSpotlight({
         />
       ))}
 
-      <div className="fixed inset-0">
-        <div
-          ref={cardRef}
-          style={cardStyle}
-          className="w-full rounded-2xl border border-[#16a34a]/20 bg-white shadow-2xl"
-        >
-          <div className="border-b border-slate-100 px-6 py-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
-                  Feature tip
-                </p>
-                <h2 className="text-lg font-bold text-[#14532d]">{title}</h2>
+      {showCard ? (
+        <div className="fixed inset-0">
+          <div
+            ref={cardRef}
+            style={cardStyle}
+            className="w-full rounded-2xl border border-[#16a34a]/20 bg-white shadow-2xl"
+          >
+            <div className="border-b border-slate-100 px-6 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
+                    Feature tip
+                  </p>
+                  <h2 className="text-lg font-bold text-[#14532d]">{title}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Dismiss feature tip"
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
+              <p className="mt-2 text-sm text-slate-600">{description}</p>
+              {detail ? <p className="mt-1.5 text-sm text-slate-600">{detail}</p> : null}
+            </div>
+            <div className="flex justify-end px-6 py-4">
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Dismiss feature tip"
-                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d]"
               >
-                <X className="h-4 w-4" />
+                {ctaLabel}
               </button>
             </div>
-            <p className="mt-2 text-sm text-slate-600">{description}</p>
-            {detail ? <p className="mt-1.5 text-sm text-slate-600">{detail}</p> : null}
-          </div>
-          <div className="flex justify-end px-6 py-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d]"
-            >
-              {ctaLabel}
-            </button>
           </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
