@@ -98,6 +98,15 @@ function isDocumentActiveForTiming(): boolean {
   return !document.hidden && document.hasFocus();
 }
 
+function isExamOnboardingDismissedLocally(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(EXAM_ONBOARDING_DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function ExamMode({
   questions,
   topicName,
@@ -155,8 +164,14 @@ export function ExamMode({
     assignmentPersistedDwellMsRef.current = {};
   }, [clearBlurFlushTimer, flushQuestionVisit]);
 
+  const isExamTimingPausedByOnboarding =
+    phase === "exam" &&
+    isInitialized &&
+    sessionQuestions.length > 0 &&
+    !isExamOnboardingDismissedLocally();
+
   useEffect(() => {
-    if (phase !== "exam" || examOnboardingStep !== null) return;
+    if (phase !== "exam" || isExamTimingPausedByOnboarding) return;
     // We flush before starting a new visit window so navigation between
     // questions does not leave overlapping active intervals.
     clearBlurFlushTimer();
@@ -170,13 +185,13 @@ export function ExamMode({
   }, [
     clearBlurFlushTimer,
     currentIndex,
-    examOnboardingStep,
+    isExamTimingPausedByOnboarding,
     phase,
     flushQuestionVisit,
   ]);
 
   useEffect(() => {
-    if (phase !== "exam" || examOnboardingStep !== null) return;
+    if (phase !== "exam" || isExamTimingPausedByOnboarding) return;
     const handleVisibilityChange = () => {
       if (document.hidden) {
         clearBlurFlushTimer();
@@ -215,7 +230,7 @@ export function ExamMode({
   }, [
     clearBlurFlushTimer,
     currentIndex,
-    examOnboardingStep,
+    isExamTimingPausedByOnboarding,
     flushQuestionVisit,
     phase,
   ]);
@@ -277,7 +292,12 @@ export function ExamMode({
 
   const finishExamOnboarding = useCallback(() => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+      try {
+        window.localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+      } catch {
+        // Storage can throw (private mode, blocked storage, quota). Dismissal
+        // must still work without persisting the flag.
+      }
     }
     setIsNavigatorPinnedOpen(false);
     setExamOnboardingStep(null);
@@ -420,7 +440,7 @@ export function ExamMode({
   }, [examOnboardingStep, isNavigatorOpen]);
 
   useEffect(() => {
-    if (phase !== "exam" || examOnboardingStep !== null) return;
+    if (phase !== "exam" || isExamTimingPausedByOnboarding) return;
     const currentQuestion = sessionQuestions[currentIndex];
     if (!currentQuestion) return;
     trackAnalyticsEvent({
@@ -433,7 +453,7 @@ export function ExamMode({
   }, [
     assignmentId,
     currentIndex,
-    examOnboardingStep,
+    isExamTimingPausedByOnboarding,
     phase,
     sessionQuestions,
     sessionId,
@@ -899,7 +919,7 @@ export function ExamMode({
         rightSlot={
           <>
             <Timer
-              isRunning={phase === "exam" && examOnboardingStep === null}
+              isRunning={phase === "exam" && !isExamTimingPausedByOnboarding}
               onElapsedChange={setElapsedMs}
             />
             <button
