@@ -304,15 +304,15 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      <div className="flex items-start justify-between mb-6">
-        <div>
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           {isGeneratedFromDb && isEditingSetName ? (
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <input
                 type="text"
                 value={setNameDraft}
                 onChange={(event) => setSetNameDraft(event.target.value)}
-                className="min-w-[260px] max-w-xl w-full px-3 py-2 rounded-lg border border-slate-gray/20 focus:outline-none focus:ring-2 focus:ring-[#16a34a]/40 text-base font-semibold text-slate-gray"
+                className="w-full sm:min-w-[260px] max-w-xl px-3 py-2 rounded-lg border border-slate-gray/20 focus:outline-none focus:ring-2 focus:ring-[#16a34a]/40 text-base font-semibold text-slate-gray"
                 placeholder="Question set name"
                 disabled={isSavingSetName}
               />
@@ -340,8 +340,8 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
               </button>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-xl font-bold text-slate-gray">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <h1 className="break-words text-xl font-bold text-slate-gray">
                 {questionSet.name}
               </h1>
               {isGeneratedFromDb && (
@@ -377,11 +377,11 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isGeneratedFromDb && questionSet && (
             <Link
               href={`/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}`}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-[#16a34a] hover:bg-[#15803d] transition-colors"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#15803d]"
             >
               <ClipboardList className="w-4 h-4" />
               Create assignment from this set
@@ -390,7 +390,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
           {isGeneratedFromDb && (
             <button
               onClick={handleDeleteAll}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
             >
               <Trash2 className="w-4 h-4" />
               Delete Set
@@ -400,13 +400,13 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
       </div>
 
       {/* Export */}
-      <div className="flex items-center justify-end mb-4 p-3 bg-slate-gray/5 rounded-lg">
-        <div className="flex items-center gap-2">
+      <div className="mb-4 rounded-lg bg-slate-gray/5 p-3">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             onClick={handleDownloadTsv}
             disabled={questions.length === 0}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-slate-gray/20 px-3 py-2 text-sm text-slate-gray transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FileSpreadsheet className="w-4 h-4" />
             TSV
@@ -415,7 +415,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
             type="button"
             onClick={handleDownloadText}
             disabled={questions.length === 0}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-slate-gray/20 px-3 py-2 text-sm text-slate-gray transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FileText className="w-4 h-4" />
             TXT
@@ -424,7 +424,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
             type="button"
             onClick={handleDownloadJson}
             disabled={questions.length === 0}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-slate-gray/20 px-3 py-2 text-sm text-slate-gray transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FileJson className="w-4 h-4" />
             JSON

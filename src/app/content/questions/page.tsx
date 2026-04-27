@@ -258,14 +258,14 @@ export default function QuestionsPage() {
       )}
 
       <div className="mb-6 flex flex-col sm:flex-row gap-4 sm:items-end">
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="block text-sm font-medium text-slate-gray mb-1">
             School
           </label>
           <select
             value={selectedSchoolId ?? ""}
             onChange={(e) => setSelectedSchoolId(e.target.value || null)}
-            className="min-w-[220px] border border-slate-gray/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50"
+            className="w-full sm:w-auto sm:min-w-[220px] border border-slate-gray/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50"
           >
             {schools.length === 0 ? (
               <option value="">No schools available</option>
@@ -278,7 +278,7 @@ export default function QuestionsPage() {
             )}
           </select>
         </div>
-        <div className="relative flex-1 max-w-md">
+        <div className="relative w-full sm:flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-gray/40" />
           <input
             type="text"
@@ -305,7 +305,7 @@ export default function QuestionsPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <Link
                     href={`/content/questions/${encodeURIComponent(set.id)}`}
-                    className="flex items-center gap-4 flex-1 min-w-0 group"
+                    className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0 group"
                   >
                     <div className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
                       {getSourceIcon(set.source)}
@@ -327,18 +327,18 @@ export default function QuestionsPage() {
                     </div>
                     <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-[#16a34a] shrink-0" />
                   </Link>
-                  <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
                     <button
                       type="button"
                       onClick={(e) => void handleRemoveFromSchool(e, set.id)}
-                      className="text-xs font-medium text-slate-gray hover:text-red-600 px-2 py-1"
+                      className="min-h-[40px] px-2 py-1 text-xs font-medium text-slate-gray hover:text-red-600"
                     >
                       Remove from school
                     </button>
                     <button
                       type="button"
                       onClick={(e) => void handleDeleteSetEverywhere(e, set.id)}
-                      className="p-2 rounded-lg text-slate-gray/40 hover:text-red-500 hover:bg-red-50"
+                      className="min-h-[40px] min-w-[40px] p-2 rounded-lg text-slate-gray/40 hover:text-red-500 hover:bg-red-50"
                       title="Delete set entirely"
                     >
                       <Trash2 className="w-4 h-4" />

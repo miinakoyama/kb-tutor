@@ -95,9 +95,9 @@ export function QuestionPreviewCard({
           </div>
 
           {isEditable && (
-            <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3 flex-shrink-0">
+            <div className="flex shrink-0 flex-row flex-wrap items-center justify-end gap-1.5 sm:gap-2">
               {onToggleIncludeInSelfPractice && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 rounded-lg border border-slate-gray/10 px-2 py-1">
                   <span
                     id={`sp-label-${question.id}`}
                     className="text-xs font-medium text-slate-gray/70 whitespace-nowrap"
@@ -127,14 +127,14 @@ export function QuestionPreviewCard({
               )}
               <button
                 onClick={onEdit}
-                className="p-2 rounded-lg text-slate-gray/50 hover:text-[#16a34a] hover:bg-[#16a34a]/10 transition-colors"
+                className="min-h-[40px] min-w-[40px] rounded-lg p-2 text-slate-gray/50 transition-colors hover:bg-[#16a34a]/10 hover:text-[#16a34a]"
                 title="Edit"
               >
                 <Edit2 className="w-4 h-4" />
               </button>
               <button
                 onClick={onDelete}
-                className="p-2 rounded-lg text-slate-gray/50 hover:text-red-500 hover:bg-red-50 transition-colors"
+                className="min-h-[40px] min-w-[40px] rounded-lg p-2 text-slate-gray/50 transition-colors hover:bg-red-50 hover:text-red-500"
                 title="Delete"
               >
                 <Trash2 className="w-4 h-4" />
