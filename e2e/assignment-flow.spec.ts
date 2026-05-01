@@ -60,6 +60,8 @@ test("teacher creates an assignment and student completes it in practice mode @f
               name: "Cell Biology Set",
               generated_at: "2026-04-20T10:00:00.000Z",
               question_count: 1,
+              school_ids: ["school-1"],
+              owned_by_requester: true,
             },
           ],
           assignments: assignmentCreated
@@ -98,7 +100,7 @@ test("teacher creates an assignment and student completes it in practice mode @f
     await route.fallback();
   });
 
-  await teacherPage.goto("/assignments/manage/new?setId=set-1");
+  await teacherPage.goto("/assignments/manage/new?setId=set-1&schoolId=school-1");
   await dismissTourIfVisible(teacherPage);
   await expect(
     teacherPage.getByRole("heading", { name: "Create Assignment" }),

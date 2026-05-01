@@ -15,22 +15,37 @@ import {
 import type { QuestionSet, QuestionSource } from "@/types/question";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
-  fetchQuestionSetsForSchool,
   deleteSchoolQuestionSetLink,
-  type SchoolQuestionSetRow,
 } from "@/lib/school-generated-questions";
 import { deleteGeneratedQuestionSet } from "@/lib/question-storage";
 
 type SchoolOption = { id: string; name: string };
+type QuestionManagerRow = {
+  schoolId: string;
+  setId: string;
+  setName: string;
+  generatedAt: string;
+  generationModelId?: string;
+  generationModelLabel?: string;
+  creatorUserId: string;
+  creatorName: string;
+  ownedByRequester: boolean;
+};
+
+function isManualQuestionSet(row: QuestionManagerRow): boolean {
+  if (row.generationModelId === "manual") return true;
+  return row.generationModelLabel?.trim().toLowerCase() === "manual";
+}
 
 export default function QuestionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
-  const [rows, setRows] = useState<SchoolQuestionSetRow[]>([]);
+  const [rows, setRows] = useState<QuestionManagerRow[]>([]);
   const [loadingSchools, setLoadingSchools] = useState(true);
   const [loadingSets, setLoadingSets] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [onlyMySets, setOnlyMySets] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadSchools = useCallback(async () => {
@@ -66,14 +81,18 @@ export default function QuestionsPage() {
     setLoadingSets(true);
     setError(null);
     try {
-      const supabase = getSupabaseBrowserClient();
-      const result = await fetchQuestionSetsForSchool(supabase, selectedSchoolId);
-      if (result.error) {
-        setError(result.error);
-        setRows([]);
-      } else {
-        setRows(result.rows);
+      const response = await fetch(
+        `/api/teacher/question-sets?schoolId=${encodeURIComponent(selectedSchoolId)}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        rows?: QuestionManagerRow[];
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to load sets");
       }
+      setRows(payload.rows ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load sets");
       setRows([]);
@@ -86,12 +105,19 @@ export default function QuestionsPage() {
     void reloadSets();
   }, [reloadSets]);
 
+  const rowBySetId = useMemo(
+    () => new Map(rows.map((row) => [row.setId, row])),
+    [rows],
+  );
+
   const questionSetList: QuestionSet[] = useMemo(
     () =>
       rows.map((r) => ({
         id: r.setId,
         name: r.setName,
-        source: "generated" as QuestionSource,
+        source: isManualQuestionSet(r)
+          ? ("manual" as QuestionSource)
+          : ("generated" as QuestionSource),
         createdAt: r.generatedAt,
         questionIds: [],
         generationModelId: r.generationModelId,
@@ -101,11 +127,15 @@ export default function QuestionsPage() {
   );
 
   const filteredSets = useMemo(() => {
-    const base = questionSetList;
+    const base = questionSetList.filter((set) => {
+      if (!onlyMySets) return true;
+      const row = rowBySetId.get(set.id);
+      return row?.ownedByRequester === true;
+    });
     if (!searchQuery.trim()) return base;
     const q = searchQuery.toLowerCase();
     return base.filter((s) => s.name.toLowerCase().includes(q));
-  }, [questionSetList, searchQuery]);
+  }, [questionSetList, searchQuery, onlyMySets, rowBySetId]);
 
   const handleRemoveFromSchool = async (e: React.MouseEvent, setId: string) => {
     e.preventDefault();
@@ -150,7 +180,8 @@ export default function QuestionsPage() {
     }
   };
 
-  const totalQuestionCount = rows.length;
+  const totalSetCount = rows.length;
+  const filteredSetCount = filteredSets.length;
 
   const getSourceIcon = (source: QuestionSource) => {
     switch (source) {
@@ -199,7 +230,9 @@ export default function QuestionsPage() {
           <h1 className="text-xl font-bold text-slate-gray">Question Manager</h1>
           <p className="text-sm text-slate-gray/70">
             {selectedSchoolId
-              ? `${totalQuestionCount} set(s) for the selected school`
+              ? filteredSetCount !== totalSetCount || searchQuery.trim() || onlyMySets
+                ? `Showing ${filteredSetCount} of ${totalSetCount} set(s) for the selected school`
+                : `${totalSetCount} set(s) for the selected school`
               : "Select a school"}
           </p>
         </div>
@@ -288,6 +321,17 @@ export default function QuestionsPage() {
             className="w-full pl-10 pr-4 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-sm"
           />
         </div>
+        <div className="flex h-10 items-center">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-gray">
+            <input
+              type="checkbox"
+              checked={onlyMySets}
+              onChange={(e) => setOnlyMySets(e.target.checked)}
+              className="rounded border-slate-gray/30 text-[#16a34a]"
+            />
+            Show only my sets
+          </label>
+        </div>
       </div>
 
       {loadingSets ? (
@@ -297,6 +341,7 @@ export default function QuestionsPage() {
       ) : (
         <div className="space-y-3">
           {filteredSets.map((set) => {
+            const row = rowBySetId.get(set.id);
             return (
               <div
                 key={set.id}
@@ -304,7 +349,11 @@ export default function QuestionsPage() {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <Link
-                    href={`/content/questions/${encodeURIComponent(set.id)}`}
+                    href={
+                      selectedSchoolId
+                        ? `/content/questions/${encodeURIComponent(set.id)}?schoolId=${encodeURIComponent(selectedSchoolId)}`
+                        : `/content/questions/${encodeURIComponent(set.id)}`
+                    }
                     className="flex items-center gap-4 flex-1 min-w-0 group"
                   >
                     <div className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
@@ -321,6 +370,11 @@ export default function QuestionsPage() {
                         {set.createdAt && (
                           <span className="text-xs text-slate-gray/50">
                             {new Date(set.createdAt).toLocaleDateString()}
+                          </span>
+                        )}
+                        {row && (
+                          <span className="text-xs text-slate-gray/50">
+                            Created by: {row.creatorName}
                           </span>
                         )}
                       </div>
@@ -354,6 +408,8 @@ export default function QuestionsPage() {
               <p className="text-slate-gray/60 mb-4">
                 {searchQuery
                   ? "No question sets found matching your search."
+                  : onlyMySets
+                    ? "No question sets created by you match this view."
                   : "No question sets linked to this school yet."}
               </p>
               <p className="text-sm text-slate-gray/50 mb-4">

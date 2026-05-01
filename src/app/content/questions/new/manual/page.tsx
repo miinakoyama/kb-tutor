@@ -94,6 +94,7 @@ export default function ManualQuestionSetPage() {
 
       const generatedAt = new Date().toISOString();
       const setId = await addGeneratedQuestionSet(questions, name, generatedAt, {
+        generationModel: { id: "manual", label: "Manual" },
         schoolLinks: selectedSchoolIds.map((schoolId) => ({ schoolId })),
       });
       router.push(`/content/questions/${encodeURIComponent(setId)}`);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -49,6 +49,8 @@ interface PageProps {
 export default function QuestionSetDetailPage({ params }: PageProps) {
   const { setId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const schoolIdFromQuery = searchParams.get("schoolId") ?? "";
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionSet, setQuestionSet] = useState<QuestionSet | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
@@ -380,7 +382,11 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
         <div className="flex items-center gap-2">
           {isGeneratedFromDb && questionSet && (
             <Link
-              href={`/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}`}
+              href={
+                schoolIdFromQuery
+                  ? `/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}&schoolId=${encodeURIComponent(schoolIdFromQuery)}`
+                  : `/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}`
+              }
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-[#16a34a] hover:bg-[#15803d] transition-colors"
             >
               <ClipboardList className="w-4 h-4" />

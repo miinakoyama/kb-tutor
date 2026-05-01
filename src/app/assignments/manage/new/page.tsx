@@ -118,18 +118,37 @@ function CreateAssignmentContent() {
     };
   }, [schoolIdFromQuery]);
 
+  const visibleQuestionSets = useMemo(() => {
+    if (!selectedSchoolId) return questionSets;
+    return questionSets.filter(
+      (set) =>
+        set.owned_by_requester === true ||
+        (set.school_ids ?? []).includes(selectedSchoolId),
+    );
+  }, [questionSets, selectedSchoolId]);
+
   const autoSelectSets = useMemo(() => {
     if (!setIdFromQuery) return undefined;
-    const exists = questionSets.some((set) => set.id === setIdFromQuery);
+    const exists = visibleQuestionSets.some((set) => set.id === setIdFromQuery);
     if (!exists) return undefined;
     return new Set([setIdFromQuery]);
-  }, [setIdFromQuery, questionSets]);
+  }, [setIdFromQuery, visibleQuestionSets]);
 
   useEffect(() => {
-    if (setIdFromQuery && questionSets.some((set) => set.id === setIdFromQuery)) {
+    const visibleSetIds = new Set(visibleQuestionSets.map((set) => set.id));
+    setSelection((current) =>
+      current.filter((entry) => visibleSetIds.has(entry.setId)),
+    );
+  }, [visibleQuestionSets]);
+
+  useEffect(() => {
+    if (
+      setIdFromQuery &&
+      visibleQuestionSets.some((set) => set.id === setIdFromQuery)
+    ) {
       setSourceType("existing_set");
     }
-  }, [setIdFromQuery, questionSets]);
+  }, [setIdFromQuery, visibleQuestionSets]);
 
   const totalExistingSelected = useMemo(
     () =>
@@ -471,10 +490,10 @@ function CreateAssignmentContent() {
             </div>
 
             {sourceType === "existing_set" ? (
-              questionSets.length === 0 ? (
+              visibleQuestionSets.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center">
                   <p className="text-sm text-slate-gray/70 mb-3">
-                    No question sets yet. Generate a set first in the content area.
+                    No question sets are available for this school yet.
                   </p>
                   <Link
                     href="/content/mass-production"
@@ -485,7 +504,7 @@ function CreateAssignmentContent() {
                 </div>
               ) : (
                 <ExistingSetPicker
-                  sets={questionSets}
+                  sets={visibleQuestionSets}
                   selection={selection}
                   onChange={setSelection}
                   initiallyExpandedSetIds={

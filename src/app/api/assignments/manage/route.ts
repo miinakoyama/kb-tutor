@@ -5,6 +5,7 @@ import type { Question } from "@/types/question";
 import {
   type AssignmentMode,
   type AssignmentSourceType,
+  fetchAccessibleQuestionSets,
   getRequester,
   getScopedSchoolIds,
   resolveSnapshotQuestions,
@@ -27,24 +28,31 @@ export async function GET(request: NextRequest) {
   const includeQuestionsForSetId = url.searchParams.get("questionsForSetId");
 
   const admin = createSupabaseAdminClient();
+  const schoolResult = await getScopedSchoolIds(admin, requester);
+  if ("error" in schoolResult) {
+    return NextResponse.json({ error: schoolResult.error }, { status: 400 });
+  }
+  const schools = schoolResult.schools;
+  const schoolIds = schools.map((item) => item.id);
 
   if (includeQuestionsForSetId) {
     const setId = includeQuestionsForSetId.trim();
     if (!setId) {
       return NextResponse.json({ error: "Missing set id" }, { status: 400 });
     }
-    let setQuery = admin
-      .from("generated_question_sets")
-      .select("id,user_id,name")
-      .eq("id", setId);
-    if (requester.role === "teacher") {
-      setQuery = setQuery.eq("user_id", requester.id);
+    const accessibleSetsResult = await fetchAccessibleQuestionSets(
+      admin,
+      requester,
+      schoolIds,
+      { setIds: [setId] },
+    );
+    if ("error" in accessibleSetsResult) {
+      return NextResponse.json(
+        { error: accessibleSetsResult.error },
+        { status: 400 },
+      );
     }
-    const { data: setRow, error: setError } = await setQuery.maybeSingle();
-    if (setError) {
-      return NextResponse.json({ error: setError.message }, { status: 400 });
-    }
-    if (!setRow) {
+    if (!accessibleSetsResult.rows.some((row) => row.id === setId)) {
       return NextResponse.json(
         { error: "Question set not found or not accessible." },
         { status: 403 },
@@ -66,13 +74,6 @@ export async function GET(request: NextRequest) {
       })),
     });
   }
-
-  const schoolResult = await getScopedSchoolIds(admin, requester);
-  if ("error" in schoolResult) {
-    return NextResponse.json({ error: schoolResult.error }, { status: 400 });
-  }
-  const schools = schoolResult.schools;
-  const schoolIds = schools.map((item) => item.id);
 
   if (schoolIds.length === 0) {
     return NextResponse.json({ schools: [], assignments: [], question_sets: [] });
@@ -165,18 +166,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  let setQuery = admin
-    .from("generated_question_sets")
-    .select("id,name,user_id,generated_at")
-    .order("generated_at", { ascending: false });
-  if (requester.role === "teacher") {
-    setQuery = setQuery.eq("user_id", requester.id);
+  const accessibleSetsResult = await fetchAccessibleQuestionSets(
+    admin,
+    requester,
+    schoolIds,
+  );
+  if ("error" in accessibleSetsResult) {
+    return NextResponse.json(
+      { error: accessibleSetsResult.error },
+      { status: 400 },
+    );
   }
-  const { data: questionSetsData, error: questionSetsError } = await setQuery;
-  if (questionSetsError) {
-    return NextResponse.json({ error: questionSetsError.message }, { status: 400 });
-  }
-  const setIds = (questionSetsData ?? []).map((row) => String(row.id));
+  const setIds = accessibleSetsResult.rows.map((row) => row.id);
   const { data: setQuestionRows, error: setQuestionError } =
     setIds.length > 0
       ? await admin.from("generated_questions").select("set_id").in("set_id", setIds)
@@ -237,12 +238,14 @@ export async function GET(request: NextRequest) {
       attempt_count: attemptCountByAssignment.get(assignment.id) ?? 0,
       respondent_count: respondentsByAssignment.get(assignment.id)?.size ?? 0,
     })),
-    question_sets: (questionSetsData ?? []).map((row) => ({
-      id: String(row.id),
-      name: String(row.name),
-      user_id: String(row.user_id),
-      generated_at: String(row.generated_at),
-      question_count: setQuestionCount.get(String(row.id)) ?? 0,
+    question_sets: accessibleSetsResult.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      user_id: row.user_id,
+      generated_at: row.generated_at,
+      school_ids: row.school_ids,
+      owned_by_requester: row.owned_by_requester,
+      question_count: setQuestionCount.get(row.id) ?? 0,
     })),
   });
 }
@@ -341,7 +344,12 @@ export async function POST(request: Request) {
         ? body.topics.map((item) => item.trim()).filter(Boolean)
         : reviewTopics;
   } else {
-    const snapshotResolution = await resolveSnapshotQuestions(admin, requester, body);
+    const snapshotResolution = await resolveSnapshotQuestions(
+      admin,
+      requester,
+      [schoolId],
+      body,
+    );
     if ("error" in snapshotResolution) {
       return NextResponse.json(
         { error: snapshotResolution.error },
