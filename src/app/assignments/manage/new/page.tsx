@@ -118,13 +118,6 @@ function CreateAssignmentContent() {
     };
   }, [schoolIdFromQuery]);
 
-  const autoSelectSets = useMemo(() => {
-    if (!setIdFromQuery) return undefined;
-    const exists = questionSets.some((set) => set.id === setIdFromQuery);
-    if (!exists) return undefined;
-    return new Set([setIdFromQuery]);
-  }, [setIdFromQuery, questionSets]);
-
   const visibleQuestionSets = useMemo(() => {
     if (!selectedSchoolId) return questionSets;
     return questionSets.filter(
@@ -134,6 +127,13 @@ function CreateAssignmentContent() {
     );
   }, [questionSets, selectedSchoolId]);
 
+  const autoSelectSets = useMemo(() => {
+    if (!setIdFromQuery) return undefined;
+    const exists = visibleQuestionSets.some((set) => set.id === setIdFromQuery);
+    if (!exists) return undefined;
+    return new Set([setIdFromQuery]);
+  }, [setIdFromQuery, visibleQuestionSets]);
+
   useEffect(() => {
     const visibleSetIds = new Set(visibleQuestionSets.map((set) => set.id));
     setSelection((current) =>
@@ -142,10 +142,13 @@ function CreateAssignmentContent() {
   }, [visibleQuestionSets]);
 
   useEffect(() => {
-    if (setIdFromQuery && questionSets.some((set) => set.id === setIdFromQuery)) {
+    if (
+      setIdFromQuery &&
+      visibleQuestionSets.some((set) => set.id === setIdFromQuery)
+    ) {
       setSourceType("existing_set");
     }
-  }, [setIdFromQuery, questionSets]);
+  }, [setIdFromQuery, visibleQuestionSets]);
 
   const totalExistingSelected = useMemo(
     () =>

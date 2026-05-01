@@ -458,4 +458,56 @@ describe("fetchAccessibleQuestionSets", () => {
       school_ids: [],
     });
   });
+
+  it("filters validation queries down to the requested set ids and school scope", async () => {
+    const { client } = createMockSupabaseClient({
+      tables: {
+        generated_question_sets: {
+          rows: [
+            {
+              id: "owned-set",
+              name: "Owned Set",
+              user_id: "teacher-1",
+              generated_at: "2026-05-01T09:00:00.000Z",
+            },
+          ],
+        },
+        school_question_sets: {
+          rows: [
+            {
+              school_id: "school-2",
+              set_id: "other-school-set",
+              generated_question_sets: {
+                id: "other-school-set",
+                name: "Other School Set",
+                user_id: "teacher-2",
+                generated_at: "2026-05-01T11:00:00.000Z",
+              },
+            },
+            {
+              school_id: "school-1",
+              set_id: "school-1-set",
+              generated_question_sets: {
+                id: "school-1-set",
+                name: "School 1 Set",
+                user_id: "teacher-2",
+                generated_at: "2026-05-01T10:00:00.000Z",
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await fetchAccessibleQuestionSets(
+      client as unknown as SupabaseClient,
+      { id: "teacher-1", role: "teacher" },
+      ["school-1"],
+      { setIds: ["school-1-set", "other-school-set"] },
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.rows.map((row) => row.id)).toEqual(["school-1-set"]);
+  });
 });

@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     creatorIds.length > 0
       ? await admin
           .from("profiles")
-          .select("id,display_name,email")
+          .select("id,display_name")
           .in("id", creatorIds)
       : { data: [], error: null as null | { message: string } };
   if (creatorError) {
@@ -85,10 +85,6 @@ export async function GET(request: NextRequest) {
         displayName:
           typeof profile.display_name === "string" && profile.display_name.trim()
             ? profile.display_name.trim()
-            : null,
-        email:
-          typeof profile.email === "string" && profile.email.trim()
-            ? profile.email.trim()
             : null,
       },
     ]),
@@ -113,8 +109,7 @@ export async function GET(request: NextRequest) {
           ? String(meta.generation_model_label)
           : undefined,
         creatorUserId: creatorId,
-        creatorName:
-          creator?.displayName ?? creator?.email ?? `${creatorId.slice(0, 8)}...`,
+        creatorName: creator?.displayName ?? `${creatorId.slice(0, 8)}...`,
         ownedByRequester: creatorId === requester.id,
       };
       return row;

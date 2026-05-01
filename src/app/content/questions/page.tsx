@@ -32,6 +32,11 @@ type QuestionManagerRow = {
   ownedByRequester: boolean;
 };
 
+function isManualQuestionSet(row: QuestionManagerRow): boolean {
+  if (row.generationModelId === "manual") return true;
+  return row.generationModelLabel?.trim().toLowerCase() === "manual";
+}
+
 export default function QuestionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [schools, setSchools] = useState<SchoolOption[]>([]);
@@ -100,15 +105,19 @@ export default function QuestionsPage() {
     void reloadSets();
   }, [reloadSets]);
 
+  const rowBySetId = useMemo(
+    () => new Map(rows.map((row) => [row.setId, row])),
+    [rows],
+  );
+
   const questionSetList: QuestionSet[] = useMemo(
     () =>
       rows.map((r) => ({
         id: r.setId,
         name: r.setName,
-        source:
-          r.generationModelLabel === "Manual"
-            ? ("manual" as QuestionSource)
-            : ("generated" as QuestionSource),
+        source: isManualQuestionSet(r)
+          ? ("manual" as QuestionSource)
+          : ("generated" as QuestionSource),
         createdAt: r.generatedAt,
         questionIds: [],
         generationModelId: r.generationModelId,
@@ -120,18 +129,13 @@ export default function QuestionsPage() {
   const filteredSets = useMemo(() => {
     const base = questionSetList.filter((set) => {
       if (!onlyMySets) return true;
-      const row = rows.find((item) => item.setId === set.id);
+      const row = rowBySetId.get(set.id);
       return row?.ownedByRequester === true;
     });
     if (!searchQuery.trim()) return base;
     const q = searchQuery.toLowerCase();
     return base.filter((s) => s.name.toLowerCase().includes(q));
-  }, [questionSetList, searchQuery, onlyMySets, rows]);
-
-  const rowBySetId = useMemo(
-    () => new Map(rows.map((row) => [row.setId, row])),
-    [rows],
-  );
+  }, [questionSetList, searchQuery, onlyMySets, rowBySetId]);
 
   const handleRemoveFromSchool = async (e: React.MouseEvent, setId: string) => {
     e.preventDefault();
@@ -176,7 +180,8 @@ export default function QuestionsPage() {
     }
   };
 
-  const totalQuestionCount = filteredSets.length;
+  const totalSetCount = rows.length;
+  const filteredSetCount = filteredSets.length;
 
   const getSourceIcon = (source: QuestionSource) => {
     switch (source) {
@@ -225,7 +230,9 @@ export default function QuestionsPage() {
           <h1 className="text-xl font-bold text-slate-gray">Question Manager</h1>
           <p className="text-sm text-slate-gray/70">
             {selectedSchoolId
-              ? `${totalQuestionCount} set(s) for the selected school`
+              ? filteredSetCount !== totalSetCount || searchQuery.trim() || onlyMySets
+                ? `Showing ${filteredSetCount} of ${totalSetCount} set(s) for the selected school`
+                : `${totalSetCount} set(s) for the selected school`
               : "Select a school"}
           </p>
         </div>

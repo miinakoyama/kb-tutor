@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       admin,
       requester,
       schoolIds,
+      { setIds: [setId] },
     );
     if ("error" in accessibleSetsResult) {
       return NextResponse.json(
@@ -346,7 +347,7 @@ export async function POST(request: Request) {
     const snapshotResolution = await resolveSnapshotQuestions(
       admin,
       requester,
-      schoolResult.schools.map((item) => item.id),
+      [schoolId],
       body,
     );
     if ("error" in snapshotResolution) {

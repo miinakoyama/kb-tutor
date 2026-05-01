@@ -281,42 +281,86 @@ export async function fetchAccessibleQuestionSets(
   admin: AdminClient,
   requester: Requester,
   scopedSchoolIds: string[],
+  options?: { setIds?: string[] },
 ): Promise<
   | { rows: AccessibleQuestionSetRow[] }
   | { rows: AccessibleQuestionSetRow[]; error: string }
 > {
+  const normalizedSetIds = Array.from(
+    new Set((options?.setIds ?? []).map((id) => id.trim()).filter(Boolean)),
+  );
+
+  const ownedSetsQuery =
+    requester.role === "admin"
+      ? (() => {
+          const query = admin
+            .from("generated_question_sets")
+            .select("id,name,user_id,generated_at");
+          if (normalizedSetIds.length > 0) {
+            return query.in("id", normalizedSetIds);
+          }
+          return query;
+        })()
+      : (() => {
+          const query = admin
+            .from("generated_question_sets")
+            .select("id,name,user_id,generated_at")
+            .eq("user_id", requester.id);
+          if (normalizedSetIds.length > 0) {
+            return query.in("id", normalizedSetIds);
+          }
+          return query;
+        })();
+
+  const linkedSetsQuery =
+    scopedSchoolIds.length > 0
+      ? (() => {
+          const query = admin
+            .from("school_question_sets")
+            .select(
+              "school_id,set_id,generated_question_sets!inner(id,name,user_id,generated_at)",
+            )
+            .in("school_id", scopedSchoolIds);
+          if (normalizedSetIds.length > 0) {
+            return query.in("set_id", normalizedSetIds);
+          }
+          return query;
+        })()
+      : Promise.resolve({ data: [], error: null as null | { message: string } });
+
   const [
     { data: ownedSets, error: ownedSetsError },
     { data: linkedSets, error: linkedSetsError },
-  ] = await Promise.all([
-    requester.role === "admin"
-      ? admin
-          .from("generated_question_sets")
-          .select("id,name,user_id,generated_at")
-      : admin
-          .from("generated_question_sets")
-          .select("id,name,user_id,generated_at")
-          .eq("user_id", requester.id),
-    scopedSchoolIds.length > 0
-      ? admin
-          .from("school_question_sets")
-          .select(
-            "school_id,set_id,generated_question_sets!inner(id,name,user_id,generated_at)",
-          )
-          .in("school_id", scopedSchoolIds)
-      : Promise.resolve({ data: [], error: null as null | { message: string } }),
-  ]);
+  ] = await Promise.all([ownedSetsQuery, linkedSetsQuery]);
 
+  return buildAccessibleQuestionSetsResult(
+    ownedSets ?? [],
+    linkedSets ?? [],
+    requester.id,
+    ownedSetsError?.message ?? null,
+    linkedSetsError?.message ?? null,
+  );
+}
+
+function buildAccessibleQuestionSetsResult(
+  ownedSets: Array<Record<string, unknown>>,
+  linkedSets: Array<Record<string, unknown>>,
+  requesterId: string,
+  ownedSetsError: string | null,
+  linkedSetsError: string | null,
+):
+  | { rows: AccessibleQuestionSetRow[] }
+  | { rows: AccessibleQuestionSetRow[]; error: string } {
   if (ownedSetsError) {
-    return { rows: [], error: ownedSetsError.message };
+    return { rows: [], error: ownedSetsError };
   }
   if (linkedSetsError) {
-    return { rows: [], error: linkedSetsError.message };
+    return { rows: [], error: linkedSetsError };
   }
 
   const setsById = new Map<string, AccessibleQuestionSetRow>();
 
-  for (const row of ownedSets ?? []) {
+  for (const row of ownedSets) {
     mergeAccessibleQuestionSet(
       setsById,
       {
@@ -325,24 +369,25 @@ export async function fetchAccessibleQuestionSets(
         user_id: String(row.user_id),
         generated_at: String(row.generated_at),
       },
-      requester.id,
+      requesterId,
     );
   }
 
-  for (const row of linkedSets ?? []) {
+  for (const row of linkedSets) {
     const joined = Array.isArray(row.generated_question_sets)
       ? row.generated_question_sets[0]
       : row.generated_question_sets;
-    if (!joined) continue;
+    if (!joined || typeof joined !== "object") continue;
+    const joinedRow = joined as Record<string, unknown>;
     mergeAccessibleQuestionSet(
       setsById,
       {
-        id: String(joined.id),
-        name: String(joined.name),
-        user_id: String(joined.user_id),
-        generated_at: String(joined.generated_at),
+        id: String(joinedRow.id),
+        name: String(joinedRow.name),
+        user_id: String(joinedRow.user_id),
+        generated_at: String(joinedRow.generated_at),
       },
-      requester.id,
+      requesterId,
       String(row.school_id),
     );
   }
@@ -471,6 +516,7 @@ async function resolveSelectedQuestions(
     admin,
     requester,
     scopedSchoolIds,
+    { setIds },
   );
   if ("error" in accessibleSetResult) {
     return { error: accessibleSetResult.error, status: 400 };
@@ -565,6 +611,7 @@ export async function resolveSnapshotQuestions(
       admin,
       requester,
       scopedSchoolIds,
+      { setIds: [setId] },
     );
     if ("error" in accessibleSetResult) {
       return { error: accessibleSetResult.error, status: 400 };
