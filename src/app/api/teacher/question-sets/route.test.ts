@@ -92,7 +92,9 @@ describe("GET /api/teacher/question-sets", () => {
     mockState.role = "teacher";
 
     const response = await GET(
-      new Request("http://localhost/api/teacher/question-sets?schoolId=school-1"),
+      new Request(
+        "http://localhost/api/teacher/question-sets?schoolId=school-1",
+      ) as never,
     );
     const body = (await response.json()) as {
       rows: Array<{
@@ -132,7 +134,9 @@ describe("GET /api/teacher/question-sets", () => {
     mockState.role = "teacher";
 
     const response = await GET(
-      new Request("http://localhost/api/teacher/question-sets?schoolId=school-1"),
+      new Request(
+        "http://localhost/api/teacher/question-sets?schoolId=school-1",
+      ) as never,
     );
     const body = (await response.json()) as { error: string };
 
