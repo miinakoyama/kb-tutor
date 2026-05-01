@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -29,6 +35,7 @@ import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramVi
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
+import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
@@ -36,6 +43,24 @@ import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
+const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
+
+const EXAM_ONBOARDING_DISMISSED_KEY = "kb-tutor-exam-onboarding-dismissed-v1";
+
+const EXAM_ONBOARDING_TOUR_IDS = {
+  NEXT_QUESTION: "exam-onboarding-next-question",
+  /** Edge control that opens the question navigator (always visible). */
+  NAVIGATOR_TOGGLE: "exam-onboarding-navigator-toggle",
+  NAVIGATOR_PANEL: "exam-onboarding-navigator-panel",
+  FLAG: "exam-onboarding-flag",
+} as const;
+
+type ExamOnboardingStep =
+  | "intro"
+  | "next"
+  | "navigator-toggle"
+  | "navigator"
+  | "flag";
 
 interface ExamModeProps {
   questions: Question[];
@@ -52,9 +77,35 @@ interface ExamModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  /** Fires when the completion API reports every school assignment is done. */
+  onAllSchoolAssignmentsCompleted?: () => void;
 }
 
 type ExamPhase = "config" | "exam" | "confirm" | "results" | "review";
+
+/** Seconds stored on attempts; `null` in DB means time was not measured. */
+function dwellMsToRecordedSec(ms: number): number | null {
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  return Math.max(1, Math.round(ms / 1000));
+}
+
+function nowMs(): number {
+  return Date.now();
+}
+
+function isDocumentActiveForTiming(): boolean {
+  if (typeof document === "undefined") return false;
+  return !document.hidden && document.hasFocus();
+}
+
+function isExamOnboardingDismissedLocally(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(EXAM_ONBOARDING_DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export function ExamMode({
   questions,
@@ -62,6 +113,7 @@ export function ExamMode({
   requestedQuestionCount,
   assignmentId,
   answered,
+  onAllSchoolAssignmentsCompleted,
 }: ExamModeProps) {
   const isAssignmentRun = Boolean(assignmentId) && answered !== undefined;
   const [phase, setPhase] = useState<ExamPhase>(
@@ -79,6 +131,110 @@ export function ExamMode({
   const [supportsHover, setSupportsHover] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
+  const [examOnboardingStep, setExamOnboardingStep] =
+    useState<ExamOnboardingStep | null>(null);
+  const [isNavigatorSpotlightReady, setIsNavigatorSpotlightReady] =
+    useState(false);
+  const examOnboardingOfferedRef = useRef(false);
+  /** Cumulative time (ms) the learner had each question visible during the exam phase (multiple visits add up). */
+  const questionDwellMsRef = useRef<Record<number, number>>({});
+  const assignmentPersistedDwellMsRef = useRef<Record<number, number>>({});
+  const visitRef = useRef<{ index: number; startMs: number } | null>(null);
+  const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBlurFlushTimer = useCallback(() => {
+    if (blurFlushTimerRef.current === null) return;
+    clearTimeout(blurFlushTimerRef.current);
+    blurFlushTimerRef.current = null;
+  }, []);
+
+  const flushQuestionVisit = useCallback(() => {
+    const v = visitRef.current;
+    if (!v) return;
+    const delta = Math.max(0, nowMs() - v.startMs);
+    const prev = questionDwellMsRef.current[v.index] ?? 0;
+    questionDwellMsRef.current[v.index] = prev + delta;
+    visitRef.current = null;
+  }, []);
+
+  const resetExamDwellTracking = useCallback(() => {
+    clearBlurFlushTimer();
+    flushQuestionVisit();
+    questionDwellMsRef.current = {};
+    assignmentPersistedDwellMsRef.current = {};
+  }, [clearBlurFlushTimer, flushQuestionVisit]);
+
+  const isExamTimingPausedByOnboarding =
+    phase === "exam" &&
+    isInitialized &&
+    sessionQuestions.length > 0 &&
+    !isExamOnboardingDismissedLocally();
+
+  useEffect(() => {
+    if (phase !== "exam" || isExamTimingPausedByOnboarding) return;
+    // We flush before starting a new visit window so navigation between
+    // questions does not leave overlapping active intervals.
+    clearBlurFlushTimer();
+    flushQuestionVisit();
+    if (!isDocumentActiveForTiming()) return;
+    visitRef.current = { index: currentIndex, startMs: nowMs() };
+    return () => {
+      clearBlurFlushTimer();
+      flushQuestionVisit();
+    };
+  }, [
+    clearBlurFlushTimer,
+    currentIndex,
+    isExamTimingPausedByOnboarding,
+    phase,
+    flushQuestionVisit,
+  ]);
+
+  useEffect(() => {
+    if (phase !== "exam" || isExamTimingPausedByOnboarding) return;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearBlurFlushTimer();
+        flushQuestionVisit();
+        return;
+      }
+      if (!document.hasFocus()) return;
+      clearBlurFlushTimer();
+      if (!visitRef.current) {
+        visitRef.current = { index: currentIndex, startMs: nowMs() };
+      }
+    };
+    const handleWindowBlur = () => {
+      clearBlurFlushTimer();
+      blurFlushTimerRef.current = setTimeout(() => {
+        blurFlushTimerRef.current = null;
+        flushQuestionVisit();
+      }, FOCUS_LOSS_FLUSH_GRACE_MS);
+    };
+    const handleWindowFocus = () => {
+      clearBlurFlushTimer();
+      if (!isDocumentActiveForTiming()) return;
+      if (!visitRef.current) {
+        visitRef.current = { index: currentIndex, startMs: nowMs() };
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      clearBlurFlushTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [
+    clearBlurFlushTimer,
+    currentIndex,
+    isExamTimingPausedByOnboarding,
+    flushQuestionVisit,
+    phase,
+  ]);
+
   const {
     isSupported,
     isSpeaking,
@@ -133,6 +289,43 @@ export function ExamMode({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  const finishExamOnboarding = useCallback(() => {
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+      } catch {
+        // Storage can throw (private mode, blocked storage, quota). Dismissal
+        // must still work without persisting the flag.
+      }
+    }
+    setIsNavigatorPinnedOpen(false);
+    setExamOnboardingStep(null);
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "exam") {
+      examOnboardingOfferedRef.current = false;
+    }
+  }, [phase]);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    if (phase !== "exam") return;
+    if (!isInitialized) return;
+    if (sessionQuestions.length === 0) return;
+    if (window.localStorage.getItem(EXAM_ONBOARDING_DISMISSED_KEY) === "1") {
+      return;
+    }
+    if (examOnboardingOfferedRef.current) return;
+    examOnboardingOfferedRef.current = true;
+    setExamOnboardingStep("intro");
+  }, [phase, isInitialized, sessionQuestions.length]);
+
+  useLayoutEffect(() => {
+    if (examOnboardingStep !== "navigator") return;
+    setIsNavigatorPinnedOpen(true);
+  }, [examOnboardingStep]);
 
   // Session lifecycle. The session is created once the learner actually
   // starts the exam (i.e. leaves the config phase). `markStageCompleted` is
@@ -229,9 +422,25 @@ export function ExamMode({
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.values(answers).filter((a) => a.selectedOptionId).length;
   const unansweredCount = totalQuestions - answeredCount;
+  const isNavigatorOpen = supportsHover
+    ? isNavigatorHovered || isNavigatorPinnedOpen
+    : isNavigatorPinnedOpen;
 
   useEffect(() => {
-    if (phase !== "exam") return;
+    if (typeof window === "undefined") return;
+    if (examOnboardingStep !== "navigator" || !isNavigatorOpen) {
+      setIsNavigatorSpotlightReady(false);
+      return;
+    }
+    setIsNavigatorSpotlightReady(false);
+    const timeoutId = window.setTimeout(() => {
+      setIsNavigatorSpotlightReady(true);
+    }, 420);
+    return () => window.clearTimeout(timeoutId);
+  }, [examOnboardingStep, isNavigatorOpen]);
+
+  useEffect(() => {
+    if (phase !== "exam" || isExamTimingPausedByOnboarding) return;
     const currentQuestion = sessionQuestions[currentIndex];
     if (!currentQuestion) return;
     trackAnalyticsEvent({
@@ -241,7 +450,14 @@ export function ExamMode({
       assignmentId,
       sessionId: sessionId ?? undefined,
     });
-  }, [assignmentId, currentIndex, phase, sessionQuestions, sessionId]);
+  }, [
+    assignmentId,
+    currentIndex,
+    isExamTimingPausedByOnboarding,
+    phase,
+    sessionQuestions,
+    sessionId,
+  ]);
   const startExam = useCallback(() => {
     let selectedQuestions: Question[] = [];
     
@@ -267,17 +483,21 @@ export function ExamMode({
       }));
     }
     
+    resetExamDwellTracking();
     setSessionQuestions(selectedQuestions);
     setAnswers({});
     setCurrentIndex(0);
     setPhase("exam");
-  }, [questionCount, questions]);
+  }, [questionCount, questions, resetExamDwellTracking]);
 
   const handleOptionClick = useCallback(
     (optionId: string) => {
       const q = sessionQuestions[currentIndex];
       if (!q) return;
       const isCorrect = optionId === q.correctOptionId;
+      flushQuestionVisit();
+      const totalDwellMs = questionDwellMsRef.current[currentIndex] ?? 0;
+      const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
       setAnswers((prev) => ({
         ...prev,
         [currentIndex]: { ...prev[currentIndex], selectedOptionId: optionId, isCorrect },
@@ -305,7 +525,9 @@ export function ExamMode({
           studentId: student?.id,
           classId: student?.classId,
           teacherId: student?.teacherId,
+          ...(timeSpentSec !== null ? { timeSpentSec } : {}),
         });
+        assignmentPersistedDwellMsRef.current[currentIndex] = totalDwellMs;
       }
 
       trackAnalyticsEvent({
@@ -320,8 +542,17 @@ export function ExamMode({
           isAssignmentRun,
         },
       });
+
+      visitRef.current = { index: currentIndex, startMs: nowMs() };
     },
-    [currentIndex, sessionQuestions, isAssignmentRun, assignmentId, sessionId]
+    [
+      currentIndex,
+      sessionQuestions,
+      isAssignmentRun,
+      assignmentId,
+      sessionId,
+      flushQuestionVisit,
+    ]
   );
 
   const toggleFlag = useCallback(() => {
@@ -341,10 +572,7 @@ export function ExamMode({
 
   const confirmSubmit = useCallback(() => {
     const student = getStudentById(DEFAULT_STUDENT_ID);
-    const timePerQuestion =
-      sessionQuestions.length > 0
-        ? Math.max(5, Math.round(elapsedMs / 1000 / sessionQuestions.length))
-        : 0;
+    flushQuestionVisit();
 
     // Assignment runs persist per-question in handleOptionClick to support
     // mid-exam resume, so the batch save would duplicate rows. Skip it here
@@ -355,6 +583,8 @@ export function ExamMode({
         const resolvedStandard = q.standardId
           ? { id: q.standardId, label: q.standardLabel }
           : getStandardForTopic(q.topic);
+        const totalDwellMs = questionDwellMsRef.current[i] ?? 0;
+        const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
         return {
           questionId: q.id,
           selectedOptionId: a?.selectedOptionId ?? "",
@@ -365,7 +595,7 @@ export function ExamMode({
           topic: q.topic,
           standardId: resolvedStandard.id,
           standardLabel: resolvedStandard.label,
-          timeSpentSec: timePerQuestion,
+          ...(timeSpentSec !== null ? { timeSpentSec } : {}),
           studentId: student?.id,
           classId: student?.classId,
           teacherId: student?.teacherId,
@@ -375,12 +605,67 @@ export function ExamMode({
     }
 
     if (isAssignmentRun && assignmentId) {
-      void fetch(
-        `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
-        { method: "POST" },
-      ).catch(() => {
-        // Best-effort; failure leaves the assignment as in_progress.
+      // Persist any additional dwell collected after the last answer click.
+      // This avoids under-reporting when a learner answers once and then
+      // spends more time reviewing before submitting.
+      sessionQuestions.forEach((q, i) => {
+        const a = answers[i];
+        if (!a?.selectedOptionId) return;
+        // Only questions persisted in this browser session should be eligible
+        // for submit-time dwell delta writes. Resumed pre-answered questions
+        // have no baseline here; treating them as 0 would create duplicate
+        // attempts even when the learner never changed their answer.
+        if (
+          !Object.prototype.hasOwnProperty.call(
+            assignmentPersistedDwellMsRef.current,
+            i,
+          )
+        ) {
+          return;
+        }
+        const totalDwellMs = questionDwellMsRef.current[i] ?? 0;
+        const persistedDwellMs = assignmentPersistedDwellMsRef.current[i] ?? 0;
+        if (totalDwellMs <= persistedDwellMs) return;
+        const resolvedStandard = q.standardId
+          ? { id: q.standardId, label: q.standardLabel }
+          : getStandardForTopic(q.topic);
+        const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
+        saveAnswer({
+          questionId: q.id,
+          selectedOptionId: a.selectedOptionId,
+          isCorrect: a.isCorrect,
+          timestamp: nowMs(),
+          mode: "exam",
+          module: q.module,
+          topic: q.topic,
+          standardId: resolvedStandard.id,
+          standardLabel: resolvedStandard.label,
+          assignmentId,
+          studentId: student?.id,
+          classId: student?.classId,
+          teacherId: student?.teacherId,
+          ...(timeSpentSec !== null ? { timeSpentSec } : {}),
+        });
+        assignmentPersistedDwellMsRef.current[i] = totalDwellMs;
       });
+
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/assignments/${encodeURIComponent(assignmentId)}/completion`,
+            { method: "POST" },
+          );
+          if (!res.ok) return;
+          const body = (await res.json()) as {
+            all_assignments_completed?: unknown;
+          };
+          if (body.all_assignments_completed === true) {
+            onAllSchoolAssignmentsCompleted?.();
+          }
+        } catch {
+          // Best-effort; failure leaves the assignment as in_progress.
+        }
+      })();
     }
 
     trackAnalyticsEvent({
@@ -400,12 +685,14 @@ export function ExamMode({
   }, [
     answers,
     sessionQuestions,
-    elapsedMs,
+    flushQuestionVisit,
     isAssignmentRun,
     assignmentId,
     answeredCount,
+    elapsedMs,
     markStageCompleted,
     sessionId,
+    onAllSchoolAssignmentsCompleted,
   ]);
 
   if (phase === "config") {
@@ -615,9 +902,6 @@ export function ExamMode({
     : "/";
   const modeLabel = isTopicQuiz ? "Topic Quiz" : "Mock Exam";
   const unansweredLabel = Math.max(0, unansweredCount);
-  const isNavigatorOpen = supportsHover
-    ? isNavigatorHovered || isNavigatorPinnedOpen
-    : isNavigatorPinnedOpen;
 
   return (
     <div className="flex flex-col h-full">
@@ -635,7 +919,7 @@ export function ExamMode({
         rightSlot={
           <>
             <Timer
-              isRunning={phase === "exam"}
+              isRunning={phase === "exam" && !isExamTimingPausedByOnboarding}
               onElapsedChange={setElapsedMs}
             />
             <button
@@ -735,6 +1019,7 @@ export function ExamMode({
             onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
             className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex flex-col items-center justify-center gap-1 w-11 h-20 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
             aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
+            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_TOGGLE}
           >
             <ChevronLeft className={`w-4 h-4 transition-transform ${isNavigatorOpen ? "translate-x-0.5" : ""}`} />
             {unansweredLabel > 0 && (
@@ -748,6 +1033,7 @@ export function ExamMode({
             onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
             className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 px-3 py-3 min-h-[44px] text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
             aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
+            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_TOGGLE}
           >
             {isNavigatorOpen ? (
               <PanelRightClose className="w-4 h-4" />
@@ -784,7 +1070,7 @@ export function ExamMode({
                 onMouseEnter={() => supportsHover && setIsNavigatorHovered(true)}
                 onMouseLeave={() => supportsHover && setIsNavigatorHovered(false)}
               >
-                <div className="h-full p-2">
+                <div className="p-2" data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_PANEL}>
                   <ExamNavigator
                     totalQuestions={totalQuestions}
                     currentIndex={currentIndex}
@@ -816,6 +1102,7 @@ export function ExamMode({
 
           <button
             onClick={toggleFlag}
+            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
             className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-[13px] font-medium transition-colors ${
               answers[currentIndex]?.flagged
                 ? "text-amber-600 bg-amber-50 border border-amber-200"
@@ -834,6 +1121,7 @@ export function ExamMode({
               setCurrentIndex((i) => i + 1)
             }
             disabled={currentIndex === totalQuestions - 1}
+            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
             Next
@@ -841,6 +1129,92 @@ export function ExamMode({
           </button>
         </div>
       </div>
+
+      {examOnboardingStep === "intro" ? (
+        <div className="fixed inset-0 z-[76] flex items-center justify-center px-4 py-6">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={finishExamOnboarding}
+            role="presentation"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-md rounded-2xl border border-[#16a34a]/25 bg-white p-6 shadow-2xl"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
+              Exam mode
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-[#14532d]">
+              How this session works
+            </h2>
+            <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+              This is exam mode: it feels closer to a real test. You will not see
+              hints or whether each answer is correct until you finish, and your
+              score appears at the end. Next, we will point out a few controls
+              that help you move through the exam.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={finishExamOnboarding}
+                className="text-sm font-semibold text-slate-500 hover:text-slate-700"
+              >
+                Skip tips
+              </button>
+              <button
+                type="button"
+                onClick={() => setExamOnboardingStep("next")}
+                className="rounded-lg bg-[#16a34a] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#15803d]"
+              >
+                Continue
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      ) : null}
+
+      {examOnboardingStep === "next" ? (
+        <FeatureSpotlight
+          targetId={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
+          title="Move to the next question"
+          description="Use Next to go forward anytime. You can still change your answer until you submit the whole exam."
+          ctaLabel="Continue"
+          onClose={() => setExamOnboardingStep("navigator-toggle")}
+        />
+      ) : null}
+
+      {examOnboardingStep === "navigator-toggle" ? (
+        <FeatureSpotlight
+          targetId={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_TOGGLE}
+          title="Open the navigator"
+          description="Use this edge control to open or close the question navigator."
+          ctaLabel="Continue"
+          onClose={() => setExamOnboardingStep("navigator")}
+        />
+      ) : null}
+
+      {examOnboardingStep === "navigator" ? (
+        <FeatureSpotlight
+          targetId={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_PANEL}
+          title="Question navigator"
+          description="Use this panel to jump to any question. Tabs help you filter all, unanswered, or flagged items."
+          cardOffsetY={88}
+          showCard={isNavigatorSpotlightReady}
+          ctaLabel="Continue"
+          onClose={() => setExamOnboardingStep("flag")}
+        />
+      ) : null}
+
+      {examOnboardingStep === "flag" ? (
+        <FeatureSpotlight
+          targetId={EXAM_ONBOARDING_TOUR_IDS.FLAG}
+          title="Mark for review"
+          description="Flag questions you want to revisit before you submit. Flagged items are easy to spot in the navigator and on your results summary."
+          ctaLabel="Got it"
+          onClose={finishExamOnboarding}
+        />
+      ) : null}
     </div>
   );
 }

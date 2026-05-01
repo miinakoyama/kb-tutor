@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getStudentAssignmentList } from "@/lib/student-assignments";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { StudentAssignmentsList } from "@/components/assignments/StudentAssignmentsList";
+import { StudentAssignmentsPageClient } from "@/components/assignments/StudentAssignmentsPageClient";
 
 export default async function AssignmentsPage() {
   const supabase = await createSupabaseServerClient();
@@ -18,7 +18,7 @@ export default async function AssignmentsPage() {
   );
 
   return (
-    <StudentAssignmentsList
+    <StudentAssignmentsPageClient
       assignments={assignments}
       loadError={listError}
     />
