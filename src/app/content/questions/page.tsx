@@ -314,15 +314,17 @@ export default function QuestionsPage() {
             className="w-full pl-10 pr-4 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-sm"
           />
         </div>
-        <label className="inline-flex items-center gap-2 text-sm text-slate-gray">
-          <input
-            type="checkbox"
-            checked={onlyMySets}
-            onChange={(e) => setOnlyMySets(e.target.checked)}
-            className="rounded border-slate-gray/30 text-[#16a34a]"
-          />
-          Only my sets
-        </label>
+        <div className="flex h-10 items-center">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-gray">
+            <input
+              type="checkbox"
+              checked={onlyMySets}
+              onChange={(e) => setOnlyMySets(e.target.checked)}
+              className="rounded border-slate-gray/30 text-[#16a34a]"
+            />
+            Show only my sets
+          </label>
+        </div>
       </div>
 
       {loadingSets ? (
