@@ -21,6 +21,14 @@ export interface Requester {
 }
 
 export type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
+export interface AccessibleQuestionSetRow {
+  id: string;
+  name: string;
+  user_id: string;
+  generated_at: string;
+  school_ids: string[];
+  owned_by_requester: boolean;
+}
 
 /**
  * Best-effort compensation for a partially-created assignment.
@@ -238,6 +246,114 @@ export async function getScopedSchoolIds(
   return { schools: data ?? [] };
 }
 
+type RawQuestionSetMeta = {
+  id: string;
+  name: string;
+  user_id: string;
+  generated_at: string;
+};
+
+function mergeAccessibleQuestionSet(
+  setsById: Map<string, AccessibleQuestionSetRow>,
+  row: RawQuestionSetMeta,
+  requesterId: string,
+  schoolId?: string,
+): void {
+  const existing = setsById.get(row.id);
+  if (existing) {
+    if (schoolId && !existing.school_ids.includes(schoolId)) {
+      existing.school_ids.push(schoolId);
+    }
+    if (row.user_id === requesterId) {
+      existing.owned_by_requester = true;
+    }
+    return;
+  }
+
+  setsById.set(row.id, {
+    ...row,
+    school_ids: schoolId ? [schoolId] : [],
+    owned_by_requester: row.user_id === requesterId,
+  });
+}
+
+export async function fetchAccessibleQuestionSets(
+  admin: AdminClient,
+  requester: Requester,
+  scopedSchoolIds: string[],
+): Promise<
+  | { rows: AccessibleQuestionSetRow[] }
+  | { rows: AccessibleQuestionSetRow[]; error: string }
+> {
+  const [
+    { data: ownedSets, error: ownedSetsError },
+    { data: linkedSets, error: linkedSetsError },
+  ] = await Promise.all([
+    requester.role === "admin"
+      ? admin
+          .from("generated_question_sets")
+          .select("id,name,user_id,generated_at")
+      : admin
+          .from("generated_question_sets")
+          .select("id,name,user_id,generated_at")
+          .eq("user_id", requester.id),
+    scopedSchoolIds.length > 0
+      ? admin
+          .from("school_question_sets")
+          .select(
+            "school_id,set_id,generated_question_sets!inner(id,name,user_id,generated_at)",
+          )
+          .in("school_id", scopedSchoolIds)
+      : Promise.resolve({ data: [], error: null as null | { message: string } }),
+  ]);
+
+  if (ownedSetsError) {
+    return { rows: [], error: ownedSetsError.message };
+  }
+  if (linkedSetsError) {
+    return { rows: [], error: linkedSetsError.message };
+  }
+
+  const setsById = new Map<string, AccessibleQuestionSetRow>();
+
+  for (const row of ownedSets ?? []) {
+    mergeAccessibleQuestionSet(
+      setsById,
+      {
+        id: String(row.id),
+        name: String(row.name),
+        user_id: String(row.user_id),
+        generated_at: String(row.generated_at),
+      },
+      requester.id,
+    );
+  }
+
+  for (const row of linkedSets ?? []) {
+    const joined = Array.isArray(row.generated_question_sets)
+      ? row.generated_question_sets[0]
+      : row.generated_question_sets;
+    if (!joined) continue;
+    mergeAccessibleQuestionSet(
+      setsById,
+      {
+        id: String(joined.id),
+        name: String(joined.name),
+        user_id: String(joined.user_id),
+        generated_at: String(joined.generated_at),
+      },
+      requester.id,
+      String(row.school_id),
+    );
+  }
+
+  const rows = Array.from(setsById.values()).sort(
+    (a, b) =>
+      new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime(),
+  );
+  return { rows };
+}
+
 export function normalizeQuestionPayload(
   raw: unknown,
   index: number,
@@ -332,6 +448,7 @@ export function normalizeQuestionPayload(
 async function resolveSelectedQuestions(
   admin: AdminClient,
   requester: Requester,
+  scopedSchoolIds: string[],
   selection: Array<{ setId: string; questionIds: string[] }>,
 ): Promise<{ questions: Question[] } | { error: string; status: number }> {
   const cleanedSelection = selection
@@ -350,20 +467,16 @@ async function resolveSelectedQuestions(
   }
 
   const setIds = Array.from(new Set(cleanedSelection.map((entry) => entry.setId)));
-
-  let setQuery = admin
-    .from("generated_question_sets")
-    .select("id,user_id")
-    .in("id", setIds);
-  if (requester.role === "teacher") {
-    setQuery = setQuery.eq("user_id", requester.id);
-  }
-  const { data: accessibleSets, error: setError } = await setQuery;
-  if (setError) {
-    return { error: setError.message, status: 400 };
+  const accessibleSetResult = await fetchAccessibleQuestionSets(
+    admin,
+    requester,
+    scopedSchoolIds,
+  );
+  if ("error" in accessibleSetResult) {
+    return { error: accessibleSetResult.error, status: 400 };
   }
   const accessibleSetIds = new Set(
-    (accessibleSets ?? []).map((row) => String(row.id)),
+    accessibleSetResult.rows.map((row) => row.id),
   );
   const inaccessible = setIds.find((id) => !accessibleSetIds.has(id));
   if (inaccessible) {
@@ -418,6 +531,7 @@ async function resolveSelectedQuestions(
 export async function resolveSnapshotQuestions(
   admin: AdminClient,
   requester: Requester,
+  scopedSchoolIds: string[],
   body: {
     sourceType?: AssignmentSourceType;
     existingSetId?: string;
@@ -433,6 +547,7 @@ export async function resolveSnapshotQuestions(
     const result = await resolveSelectedQuestions(
       admin,
       requester,
+      scopedSchoolIds,
       body.selectedQuestions,
     );
     if ("error" in result) return result;
@@ -446,18 +561,15 @@ export async function resolveSnapshotQuestions(
     if (!setId) {
       return { error: "Missing question set id.", status: 400 };
     }
-    let setQuery = admin
-      .from("generated_question_sets")
-      .select("id,user_id")
-      .eq("id", setId);
-    if (requester.role === "teacher") {
-      setQuery = setQuery.eq("user_id", requester.id);
+    const accessibleSetResult = await fetchAccessibleQuestionSets(
+      admin,
+      requester,
+      scopedSchoolIds,
+    );
+    if ("error" in accessibleSetResult) {
+      return { error: accessibleSetResult.error, status: 400 };
     }
-    const { data: setRow, error: setError } = await setQuery.maybeSingle();
-    if (setError) {
-      return { error: setError.message, status: 400 };
-    }
-    if (!setRow) {
+    if (!accessibleSetResult.rows.some((row) => row.id === setId)) {
       return { error: "Question set not found or not accessible.", status: 403 };
     }
 

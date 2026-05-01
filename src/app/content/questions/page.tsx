@@ -304,7 +304,11 @@ export default function QuestionsPage() {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <Link
-                    href={`/content/questions/${encodeURIComponent(set.id)}`}
+                    href={
+                      selectedSchoolId
+                        ? `/content/questions/${encodeURIComponent(set.id)}?schoolId=${encodeURIComponent(selectedSchoolId)}`
+                        : `/content/questions/${encodeURIComponent(set.id)}`
+                    }
                     className="flex items-center gap-4 flex-1 min-w-0 group"
                   >
                     <div className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">

@@ -10,6 +10,8 @@ export interface QuestionSetSummary {
   name: string;
   generated_at: string;
   question_count: number;
+  school_ids?: string[];
+  owned_by_requester?: boolean;
 }
 
 export interface QuestionSetSelection {
@@ -460,4 +462,3 @@ export function ExistingSetPicker({
     </div>
   );
 }
-
