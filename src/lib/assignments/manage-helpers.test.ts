@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   asDiagram,
   asDokLevel,
   asOptionalString,
   asQuestionType,
+  fetchAccessibleQuestionSets,
   asRationaleQuestion,
   normalizeQuestionPayload,
   sanitizeMode,
   sanitizeStringArray,
 } from "@/lib/assignments/manage-helpers";
+import { createMockSupabaseClient } from "@/test-utils/supabase-mock";
 
 describe("asOptionalString", () => {
   it("returns trimmed string when value is non-empty", () => {
@@ -328,5 +331,131 @@ describe("normalizeQuestionPayload", () => {
   it("returns null when the raw payload is not an object", () => {
     expect(normalizeQuestionPayload(null, 0, "manual")).toBeNull();
     expect(normalizeQuestionPayload("oops", 0, "manual")).toBeNull();
+  });
+});
+
+describe("fetchAccessibleQuestionSets", () => {
+  it("returns both owned and school-linked sets for teachers", async () => {
+    const { client: linkedClient } = createMockSupabaseClient({
+      tables: {
+        generated_question_sets: {
+          rows: [
+            {
+              id: "owned-set",
+              name: "Owned Set",
+              user_id: "teacher-1",
+              generated_at: "2026-05-01T10:00:00.000Z",
+            },
+          ],
+        },
+        school_question_sets: {
+          rows: [
+            {
+              school_id: "school-1",
+              set_id: "shared-set",
+              generated_question_sets: {
+                id: "shared-set",
+                name: "Shared Set",
+                user_id: "teacher-2",
+                generated_at: "2026-05-02T12:00:00.000Z",
+              },
+            },
+            {
+              school_id: "school-2",
+              set_id: "owned-set",
+              generated_question_sets: {
+                id: "owned-set",
+                name: "Owned Set",
+                user_id: "teacher-1",
+                generated_at: "2026-05-01T10:00:00.000Z",
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await fetchAccessibleQuestionSets(
+      linkedClient as unknown as SupabaseClient,
+      { id: "teacher-1", role: "teacher" },
+      ["school-1", "school-2"],
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.rows).toEqual([
+      {
+        id: "shared-set",
+        name: "Shared Set",
+        user_id: "teacher-2",
+        generated_at: "2026-05-02T12:00:00.000Z",
+        school_ids: ["school-1"],
+        owned_by_requester: false,
+      },
+      {
+        id: "owned-set",
+        name: "Owned Set",
+        user_id: "teacher-1",
+        generated_at: "2026-05-01T10:00:00.000Z",
+        school_ids: ["school-2"],
+        owned_by_requester: true,
+      },
+    ]);
+  });
+
+  it("marks admin-visible school-linked sets as not owned when another user created them", async () => {
+    const { client } = createMockSupabaseClient({
+      tables: {
+        generated_question_sets: {
+          rows: [
+            {
+              id: "admin-owned",
+              name: "Admin Owned",
+              user_id: "admin-1",
+              generated_at: "2026-05-01T09:00:00.000Z",
+            },
+            {
+              id: "shared-set",
+              name: "Shared Set",
+              user_id: "teacher-2",
+              generated_at: "2026-05-01T11:00:00.000Z",
+            },
+          ],
+        },
+        school_question_sets: {
+          rows: [
+            {
+              school_id: "school-1",
+              set_id: "shared-set",
+              generated_question_sets: {
+                id: "shared-set",
+                name: "Shared Set",
+                user_id: "teacher-2",
+                generated_at: "2026-05-01T11:00:00.000Z",
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await fetchAccessibleQuestionSets(
+      client as unknown as SupabaseClient,
+      { id: "admin-1", role: "admin" },
+      ["school-1"],
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.rows[0]).toMatchObject({
+      id: "shared-set",
+      owned_by_requester: false,
+      school_ids: ["school-1"],
+    });
+    expect(result.rows[1]).toMatchObject({
+      id: "admin-owned",
+      owned_by_requester: true,
+      school_ids: [],
+    });
   });
 });
