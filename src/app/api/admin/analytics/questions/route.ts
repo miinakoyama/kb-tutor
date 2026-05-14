@@ -3,6 +3,13 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { parseSchoolIds } from "@/lib/analytics/admin-filters";
+import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
+import {
+  ANALYTICS_IN_FILTER_CHUNK_SIZE,
+  ANALYTICS_PAGE_SIZE,
+  appendPage,
+  chunkArray,
+} from "@/lib/analytics/pagination";
 
 type QuestionStatsRow = {
   question_id: string;
@@ -39,6 +46,7 @@ type FirstAttemptRow = {
 type AttemptRow = {
   user_id: string;
   question_id: string;
+  assignment_id: string | null;
   mode: string;
   standard_id: string | null;
   standard_label: string | null;
@@ -65,6 +73,8 @@ type ConfidenceEventRow = {
   question_id: string | null;
   payload: Record<string, unknown> | null;
 };
+
+type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
 type ModeSlice = {
   mode: string;
@@ -138,6 +148,8 @@ type StandardOption = {
   label: string;
 };
 
+const MAX_QUESTION_ATTEMPT_ROWS = 200_000;
+const MAX_QUESTION_CONFIDENCE_ROWS = 100_000;
 const CONFIDENCE_LEVELS: ConfidenceLevelKey[] = ["not_sure", "somewhat", "sure"];
 
 function toNumber(value: number | string | null | undefined): number | null {
@@ -260,6 +272,177 @@ async function requireAdmin() {
   return { ok: true as const, userId: user.id };
 }
 
+async function fetchSchoolMemberUserIds(
+  admin: SupabaseAdminClient,
+  schoolIds: string[],
+): Promise<{ data: string[]; error: string | null }> {
+  const ids = new Set<string>();
+
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+    let query = admin
+      .from("school_members")
+      .select("student_user_id")
+      .order("student_user_id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+    if (schoolIds.length > 0) {
+      query = query.in("school_id", schoolIds);
+    }
+
+    const { data, error } = await query;
+    if (error) return { data: [], error: error.message };
+    const rows = data ?? [];
+    rows.forEach((row) => ids.add(String(row.student_user_id)));
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
+  }
+
+  return { data: Array.from(ids), error: null };
+}
+
+async function fetchExcludedProfileIds(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+): Promise<{ data: Set<string>; error: string | null }> {
+  const excluded = new Set<string>();
+
+  for (const chunk of chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("profiles")
+        .select("id")
+        .in("id", chunk)
+        .eq("excluded_from_analytics", true)
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+      if (error) return { data: new Set(), error: error.message };
+      const rows = (data ?? []) as Array<{ id: string }>;
+      rows.forEach((row) => excluded.add(String(row.id)));
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
+    }
+  }
+
+  return { data: excluded, error: null };
+}
+
+async function fetchAttempts(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+  questionIdFilter: string | null,
+): Promise<{ data: AttemptRow[]; error: string | null }> {
+  const data: AttemptRow[] = [];
+
+  for (const chunk of chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+      let query = admin
+        .from("attempts")
+        .select(
+          "user_id,question_id,assignment_id,mode,standard_id,standard_label,selected_option_id,is_correct,time_spent_sec,answered_at",
+        )
+        .in("user_id", chunk)
+        .order("answered_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+      if (questionIdFilter) query = query.eq("question_id", questionIdFilter);
+
+      const { data: page, error } = await query;
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as AttemptRow[];
+      const capError = appendPage(data, rows, MAX_QUESTION_ATTEMPT_ROWS);
+      if (capError) return { data: [], error: capError };
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
+}
+
+async function fetchGeneratedQuestions(
+  admin: SupabaseAdminClient,
+  questionIds: string[],
+): Promise<{ data: GeneratedQuestionRow[]; error: string | null }> {
+  const data: GeneratedQuestionRow[] = [];
+
+  for (const chunk of chunkArray(questionIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+      const { data: page, error } = await admin
+        .from("generated_questions")
+        .select("id,payload,updated_at")
+        .in("id", chunk)
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as GeneratedQuestionRow[];
+      data.push(...rows);
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
+}
+
+async function fetchSnapshotQuestions(
+  admin: SupabaseAdminClient,
+  questionIds: string[],
+): Promise<{ data: SnapshotQuestionRow[]; error: string | null }> {
+  const data: SnapshotQuestionRow[] = [];
+
+  for (const chunk of chunkArray(questionIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+      const { data: page, error } = await admin
+        .from("assignment_question_snapshots")
+        .select("question_id,payload,created_at")
+        .in("question_id", chunk)
+        .order("created_at", { ascending: false })
+        .order("question_id", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as SnapshotQuestionRow[];
+      data.push(...rows);
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
+}
+
+async function fetchConfidenceEvents(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+  questionIds: string[],
+  schoolIds: string[],
+): Promise<{ data: ConfidenceEventRow[]; error: string | null }> {
+  const data: ConfidenceEventRow[] = [];
+
+  for (const userChunk of chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (const questionChunk of chunkArray(questionIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+      for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+        let query = admin
+          .from("analytics_events")
+          .select("user_id,question_id,payload")
+          .eq("event_type", "confidence_submitted")
+          .in("user_id", userChunk)
+          .in("question_id", questionChunk)
+          .order("occurred_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+        if (schoolIds.length > 0) {
+          query = query.in("school_id", schoolIds);
+        }
+
+        const { data: page, error } = await query;
+        if (error) return { data: [], error: error.message };
+        const rows = (page ?? []) as ConfidenceEventRow[];
+        const capError = appendPage(data, rows, MAX_QUESTION_CONFIDENCE_ROWS);
+        if (capError) return { data: [], error: capError };
+        if (rows.length < ANALYTICS_PAGE_SIZE) break;
+      }
+    }
+  }
+
+  return { data, error: null };
+}
+
 export async function GET(request: Request) {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
@@ -275,17 +458,13 @@ export async function GET(request: Request) {
   let stats: QuestionStatsRow[] = [];
   let choices: ChoiceStatsRow[] = [];
   let firsts: FirstAttemptRow[] = [];
-  let memberQuery = admin.from("school_members").select("student_user_id");
-  if (schoolIds.length > 0) {
-    memberQuery = memberQuery.in("school_id", schoolIds);
-  }
-  const { data: memberRows, error: memberError } = await memberQuery;
-  if (memberError) {
-    return NextResponse.json({ error: memberError.message }, { status: 400 });
-  }
-  const memberUserIds = Array.from(
-    new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
+  const { data: memberUserIds, error: memberError } = await fetchSchoolMemberUserIds(
+    admin,
+    schoolIds,
   );
+  if (memberError) {
+    return NextResponse.json({ error: memberError }, { status: 400 });
+  }
 
   if (memberUserIds.length === 0) {
     return NextResponse.json({
@@ -294,15 +473,13 @@ export async function GET(request: Request) {
     });
   }
 
-  const { data: excludedRows, error: excludedError } = await admin
-    .from("profiles")
-    .select("id")
-    .in("id", memberUserIds)
-    .eq("excluded_from_analytics", true);
+  const { data: excludedUserIds, error: excludedError } = await fetchExcludedProfileIds(
+    admin,
+    memberUserIds,
+  );
   if (excludedError) {
-    return NextResponse.json({ error: excludedError.message }, { status: 400 });
+    return NextResponse.json({ error: excludedError }, { status: 400 });
   }
-  const excludedUserIds = new Set((excludedRows ?? []).map((row) => String(row.id)));
   const includedMemberUserIds = memberUserIds.filter((userId) => !excludedUserIds.has(userId));
   const includedMemberUserIdSet = new Set(includedMemberUserIds);
 
@@ -313,20 +490,15 @@ export async function GET(request: Request) {
     });
   }
 
-  let attemptsQuery = admin
-    .from("attempts")
-    .select(
-      "user_id,question_id,mode,standard_id,standard_label,selected_option_id,is_correct,time_spent_sec,answered_at",
-    )
-    .in("user_id", includedMemberUserIds)
-    .limit(500_000);
-  if (questionIdFilter) attemptsQuery = attemptsQuery.eq("question_id", questionIdFilter);
-
-  const { data: attemptRows, error: attemptError } = await attemptsQuery;
+  const { data: attemptRows, error: attemptError } = await fetchAttempts(
+    admin,
+    includedMemberUserIds,
+    questionIdFilter,
+  );
   if (attemptError) {
-    return NextResponse.json({ error: attemptError.message }, { status: 400 });
+    return NextResponse.json({ error: attemptError }, { status: 400 });
   }
-  const attempts = (attemptRows ?? []) as AttemptRow[];
+  const attempts = dedupeAssignmentExamAttempts((attemptRows ?? []) as AttemptRow[]);
 
   const statsMap = new Map<
     string,
@@ -354,12 +526,18 @@ export async function GET(request: Request) {
     }
   >();
   const totalByQuestionMode = new Map<string, number>();
+  const usersByQuestion = new Map<string, Set<string>>();
+  const timesByQuestion = new Map<string, number[]>();
   const firstPracticeByUserQuestion = new Map<
     string,
     { questionId: string; isCorrect: boolean; answeredAt: string }
   >();
 
   for (const row of attempts) {
+    const questionUsers = usersByQuestion.get(row.question_id) ?? new Set<string>();
+    questionUsers.add(row.user_id);
+    usersByQuestion.set(row.question_id, questionUsers);
+
     const statsKey = `${row.question_id}::${row.mode}`;
     const statsBucket = statsMap.get(statsKey) ?? {
       questionId: row.question_id,
@@ -378,6 +556,9 @@ export async function GET(request: Request) {
     if (row.is_correct) statsBucket.correct += 1;
     if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
       statsBucket.times.push(row.time_spent_sec);
+      const questionTimes = timesByQuestion.get(row.question_id) ?? [];
+      questionTimes.push(row.time_spent_sec);
+      timesByQuestion.set(row.question_id, questionTimes);
     }
     if (!statsBucket.firstAnsweredAt || row.answered_at < statsBucket.firstAnsweredAt) {
       statsBucket.firstAnsweredAt = row.answered_at;
@@ -505,7 +686,7 @@ export async function GET(request: Request) {
   for (const [questionId, rows] of byQuestion) {
     const totalAttempts = rows.reduce((sum, row) => sum + row.attempts_n, 0);
     const totalCorrect = rows.reduce((sum, row) => sum + row.correct_n, 0);
-    const userIdSetSize = rows.reduce((max, row) => Math.max(max, row.unique_users), 0);
+    const userIdSetSize = usersByQuestion.get(questionId)?.size ?? 0;
 
     const standardRow = rows.find((row) => row.standard_id) ?? rows[0];
     const firstAnsweredAt =
@@ -520,10 +701,11 @@ export async function GET(request: Request) {
         .sort()
         .pop() ?? null;
 
-    const overallTimeRow = rows.reduce<QuestionStatsRow | null>(
-      (acc, row) => (!acc || row.attempts_n > acc.attempts_n ? row : acc),
-      null,
-    );
+    const questionTimes = timesByQuestion.get(questionId) ?? [];
+    const overallTimeAvg =
+      questionTimes.length > 0
+        ? questionTimes.reduce((sum, value) => sum + value, 0) / questionTimes.length
+        : null;
 
     const overall: ModeSlice = {
       mode: "all",
@@ -531,9 +713,9 @@ export async function GET(request: Request) {
       uniqueUsers: userIdSetSize,
       correct: totalCorrect,
       accuracy: totalAttempts > 0 ? totalCorrect / totalAttempts : 0,
-      timeP50: overallTimeRow ? toNumber(overallTimeRow.time_p50) : null,
-      timeP90: overallTimeRow ? toNumber(overallTimeRow.time_p90) : null,
-      timeAvg: overallTimeRow ? toNumber(overallTimeRow.time_avg) : null,
+      timeP50: percentile(questionTimes, 0.5),
+      timeP90: percentile(questionTimes, 0.9),
+      timeAvg: overallTimeAvg,
     };
 
     const firstRow = firstByQuestion.get(questionId);
@@ -604,14 +786,11 @@ export async function GET(request: Request) {
   const questionIds = summaries.map((summary) => summary.questionId);
 
   if (questionIds.length > 0) {
-    const { data: generatedRows, error: generatedError } = await admin
-      .from("generated_questions")
-      .select("id,payload,updated_at")
-      .in("id", questionIds)
-      .order("updated_at", { ascending: false });
+    const { data: generatedRows, error: generatedError } =
+      await fetchGeneratedQuestions(admin, questionIds);
 
     if (generatedError) {
-      return NextResponse.json({ error: generatedError.message }, { status: 400 });
+      return NextResponse.json({ error: generatedError }, { status: 400 });
     }
 
     const previewByQuestionId = new Map<
@@ -635,15 +814,11 @@ export async function GET(request: Request) {
     const missingQuestionIds = questionIds.filter((id) => !previewByQuestionId.has(id));
 
     if (missingQuestionIds.length > 0) {
-      const { data: snapshotRows, error: snapshotError } = await admin
-        .from("assignment_question_snapshots")
-        .select("question_id,payload,created_at")
-        .in("question_id", missingQuestionIds)
-        .order("created_at", { ascending: false })
-        .limit(200_000);
+      const { data: snapshotRows, error: snapshotError } =
+        await fetchSnapshotQuestions(admin, missingQuestionIds);
 
       if (snapshotError) {
-        return NextResponse.json({ error: snapshotError.message }, { status: 400 });
+        return NextResponse.json({ error: snapshotError }, { status: 400 });
       }
 
       for (const row of (snapshotRows ?? []) as SnapshotQuestionRow[]) {
@@ -658,21 +833,15 @@ export async function GET(request: Request) {
       }
     }
 
-    let confidenceQuery = admin
-      .from("analytics_events")
-      .select("user_id,question_id,payload")
-      .eq("event_type", "confidence_submitted")
-      .in("question_id", questionIds)
-      .in("user_id", Array.from(includedMemberUserIdSet))
-      .limit(200_000);
-
-    if (schoolIds.length > 0) {
-      confidenceQuery = confidenceQuery.in("school_id", schoolIds);
-    }
-
-    const { data: confidenceRows, error: confidenceError } = await confidenceQuery;
+    const { data: confidenceRows, error: confidenceError } =
+      await fetchConfidenceEvents(
+        admin,
+        Array.from(includedMemberUserIdSet),
+        questionIds,
+        schoolIds,
+      );
     if (confidenceError) {
-      return NextResponse.json({ error: confidenceError.message }, { status: 400 });
+      return NextResponse.json({ error: confidenceError }, { status: 400 });
     }
 
     const confidenceByQuestionId = new Map<string, ConfidenceSummary>();
