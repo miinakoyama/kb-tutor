@@ -61,7 +61,13 @@ describe("POST /api/analytics/attempts", () => {
     const { client: adminClient, tables } = createMockSupabaseClient({
       tables: {
         assignments: {
-          rows: [{ id: "assignment-1", school_id: "school-1" }],
+          rows: [
+            {
+              id: "assignment-1",
+              school_id: "school-1",
+              created_at: "2026-05-01T00:00:00.000Z",
+            },
+          ],
         },
         assignment_targets: { rows: [] },
         school_members: { rows: [] },
@@ -76,6 +82,7 @@ describe("POST /api/analytics/attempts", () => {
     expect(response.status).toBe(200);
     expect(tables.attempts.rows).toHaveLength(1);
     expect(tables.attempts.rows[0].assignment_id).toBeNull();
+    expect(tables.assignment_targets.rows).toHaveLength(0);
   });
 
   it("keeps assignmentId when the student is a current school member", async () => {
@@ -85,7 +92,13 @@ describe("POST /api/analytics/attempts", () => {
     const { client: adminClient, tables } = createMockSupabaseClient({
       tables: {
         assignments: {
-          rows: [{ id: "assignment-1", school_id: "school-1" }],
+          rows: [
+            {
+              id: "assignment-1",
+              school_id: "school-1",
+              created_at: "2026-05-01T00:00:00.000Z",
+            },
+          ],
         },
         assignment_targets: { rows: [] },
         school_members: {
@@ -102,5 +115,12 @@ describe("POST /api/analytics/attempts", () => {
     expect(response.status).toBe(200);
     expect(tables.attempts.rows).toHaveLength(1);
     expect(tables.attempts.rows[0].assignment_id).toBe("assignment-1");
+    expect(tables.assignment_targets.rows).toEqual([
+      {
+        assignment_id: "assignment-1",
+        student_user_id: "student-1",
+        created_at: "2026-05-01T00:00:00.000Z",
+      },
+    ]);
   });
 });

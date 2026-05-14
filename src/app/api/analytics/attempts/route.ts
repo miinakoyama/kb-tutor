@@ -40,7 +40,7 @@ async function resolveAuthorizedAssignmentId(
 
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
-    .select("id,school_id")
+    .select("id,school_id,created_at")
     .eq("id", normalizedAssignmentId)
     .maybeSingle();
   if (assignmentError) {
@@ -72,10 +72,34 @@ async function resolveAuthorizedAssignmentId(
     return { assignmentId: null, error: memberError.message };
   }
 
-  return {
-    assignmentId: targetRow || memberRow ? normalizedAssignmentId : null,
-    error: null,
-  };
+  if (targetRow) {
+    return { assignmentId: normalizedAssignmentId, error: null };
+  }
+
+  if (!memberRow) {
+    return { assignmentId: null, error: null };
+  }
+
+  const assignmentCreatedAt =
+    typeof assignment.created_at === "string" ? assignment.created_at : null;
+  if (!assignmentCreatedAt) {
+    return { assignmentId: null, error: "Assignment is missing created_at" };
+  }
+  const { error: insertTargetError } = await admin
+    .from("assignment_targets")
+    .insert({
+      assignment_id: normalizedAssignmentId,
+      student_user_id: userId,
+      created_at: assignmentCreatedAt,
+    });
+  if (insertTargetError) {
+    const code = (insertTargetError as { code?: string }).code;
+    if (code !== "23505") {
+      return { assignmentId: null, error: insertTargetError.message };
+    }
+  }
+
+  return { assignmentId: normalizedAssignmentId, error: null };
 }
 
 export async function POST(request: Request) {
