@@ -242,6 +242,7 @@ export async function GET(request: Request) {
         "standard_label",
         "time_spent_sec",
         "answered_at",
+        "assignment_id",
       ]);
       return new NextResponse(`${header}\n`, {
         headers: {
@@ -288,6 +289,7 @@ export async function GET(request: Request) {
         "standard_label",
         "time_spent_sec",
         "answered_at",
+        "assignment_id",
       ]);
       return new NextResponse(`${header}\n`, {
         headers: {
@@ -360,6 +362,7 @@ export async function GET(request: Request) {
           ? row.time_spent_sec
           : null,
       answeredAt: row.answered_at,
+      assignmentId: row.assignment_id ?? null,
     };
   });
 
@@ -378,6 +381,7 @@ export async function GET(request: Request) {
       "standard_label",
       "time_spent_sec",
       "answered_at",
+      "assignment_id",
     ]);
     const body = enrichedRows.map((row) =>
       joinCsvRow([
@@ -394,6 +398,7 @@ export async function GET(request: Request) {
         row.standardLabel,
         row.timeSpentSec,
         row.answeredAt,
+        row.assignmentId,
       ]),
     );
     return new NextResponse([header, ...body].join("\n"), {
