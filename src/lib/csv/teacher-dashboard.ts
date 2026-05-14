@@ -44,12 +44,15 @@ export function downloadStandardMetricsCsv(rows: StandardRow[]): void {
         "practice_attempted",
         "practice_correct",
         "practice_accuracy_percent",
+        "practice_students",
         "exam_attempted",
         "exam_correct",
         "exam_accuracy_percent",
+        "exam_students",
         "review_attempted",
         "review_correct",
         "review_accuracy_percent",
+        "review_students",
       ]
     : [];
   const header = joinCsvRow([...baseHeader, ...modeHeader]);
@@ -69,12 +72,15 @@ export function downloadStandardMetricsCsv(rows: StandardRow[]): void {
         bm?.practice.attempted ?? 0,
         bm?.practice.correct ?? 0,
         bm?.practice.accuracy ?? 0,
+        bm?.practice.studentsAttempted ?? 0,
         bm?.exam.attempted ?? 0,
         bm?.exam.correct ?? 0,
         bm?.exam.accuracy ?? 0,
+        bm?.exam.studentsAttempted ?? 0,
         bm?.review.attempted ?? 0,
         bm?.review.correct ?? 0,
         bm?.review.accuracy ?? 0,
+        bm?.review.studentsAttempted ?? 0,
       );
     }
     return joinCsvRow(base);

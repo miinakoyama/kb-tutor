@@ -105,6 +105,50 @@ describe("downloadStandardMetricsCsv", () => {
     const text = harness.captured.text ?? "";
     expect(text).toContain('"Label, with ""quotes"""');
   });
+
+  it("includes per-mode student counts for compare exports", () => {
+    const rows: StandardRow[] = [
+      {
+        standardId: "S1",
+        standardLabel: "Label A",
+        attempted: 8,
+        correct: 5,
+        accuracy: 63,
+        averageTimeSec: 40,
+        status: "watch",
+        byMode: {
+          practice: {
+            attempted: 4,
+            correct: 3,
+            accuracy: 75,
+            averageTimeSec: 35,
+            studentsAttempted: 2,
+          },
+          exam: {
+            attempted: 3,
+            correct: 1,
+            accuracy: 33,
+            averageTimeSec: 50,
+            studentsAttempted: 1,
+          },
+          review: {
+            attempted: 1,
+            correct: 1,
+            accuracy: 100,
+            averageTimeSec: 25,
+            studentsAttempted: 1,
+          },
+        },
+      },
+    ];
+
+    downloadStandardMetricsCsv(rows);
+    const text = harness.captured.text ?? "";
+    expect(text.split("\n")[0]).toBe(
+      "standard_id,standard_label,attempted,correct,accuracy_percent,average_time_seconds,status,practice_attempted,practice_correct,practice_accuracy_percent,practice_students,exam_attempted,exam_correct,exam_accuracy_percent,exam_students,review_attempted,review_correct,review_accuracy_percent,review_students",
+    );
+    expect(text).toContain("S1,Label A,8,5,63,40,watch,4,3,75,2,3,1,33,1,1,1,100,1");
+  });
 });
 
 describe("downloadStudentMetricsCsv", () => {

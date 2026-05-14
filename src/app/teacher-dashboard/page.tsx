@@ -128,6 +128,9 @@ function TeacherDashboardContent() {
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
 
   useEffect(() => {
+    let isCurrent = true;
+    const controller = new AbortController();
+
     const load = async () => {
       setIsLoading(true);
       const params = new URLSearchParams({ range, mode, source });
@@ -138,17 +141,33 @@ function TeacherDashboardContent() {
       try {
         const response = await fetch(
           `/api/teacher-dashboard?${params.toString()}`,
-          { cache: "no-store" },
+          { cache: "no-store", signal: controller.signal },
         );
         if (response.ok) {
           const json = (await response.json()) as DashboardPayload;
-          setData(json);
+          if (isCurrent) {
+            setData(json);
+          }
+        }
+      } catch (error) {
+        if (
+          isCurrent &&
+          !(error instanceof DOMException && error.name === "AbortError")
+        ) {
+          console.error("[teacher-dashboard] failed to load dashboard", error);
         }
       } finally {
-        setIsLoading(false);
+        if (isCurrent) {
+          setIsLoading(false);
+        }
       }
     };
     void load();
+
+    return () => {
+      isCurrent = false;
+      controller.abort();
+    };
   }, [topic, classId, studentId, range, mode, source]);
 
   const filteredStudents = useMemo(() => {
@@ -218,9 +237,9 @@ function TeacherDashboardContent() {
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <KpiCard
-          label="Completion Rate"
+          label="Active Students"
           value={`${data.summary.completionRate}%`}
-          helper={`${data.summary.studentsAttempted} of ${data.summary.studentsTotal} students`}
+          helper={activeStudentsHelper(data.summary, mode)}
           icon={CheckCircle2}
           accentClass="text-[#16a34a]"
           bgClass="bg-[#16a34a]/10"
@@ -774,10 +793,18 @@ function ModeAccuracyCard({ summary }: { summary: DashboardSummary }) {
                 </span>
                 <span className="text-[10px] text-slate-gray/60">
                   {hasAttempts
-                    ? `${metrics?.correct ?? 0}/${metrics?.attempted ?? 0}`
+                    ? `${metrics?.correct ?? 0}/${metrics?.attempted ?? 0} answers`
                     : "no attempts"}
                 </span>
               </div>
+              {hasAttempts && (
+                <span className="text-[10px] text-slate-gray/50">
+                  {metrics?.studentsAttempted ?? 0}{" "}
+                  {(metrics?.studentsAttempted ?? 0) === 1
+                    ? "student"
+                    : "students"}
+                </span>
+              )}
             </li>
           );
         })}
@@ -1004,7 +1031,11 @@ function ModeAccuracyCell({ metrics }: { metrics: ModeMetrics | undefined }) {
         {metrics.accuracy}%
       </span>
       <span className="text-[10px] text-slate-gray/60">
-        {metrics.correct}/{metrics.attempted}
+        {metrics.correct}/{metrics.attempted} answers
+      </span>
+      <span className="text-[10px] text-slate-gray/50">
+        {metrics.studentsAttempted}{" "}
+        {metrics.studentsAttempted === 1 ? "student" : "students"}
       </span>
     </div>
   );
@@ -1069,4 +1100,9 @@ function avgTimeHelper(seconds: number): string {
   if (seconds < 20) return "possibly rushing";
   if (seconds > 180) return "taking their time";
   return "engaged, not rushing";
+}
+
+function activeStudentsHelper(summary: DashboardSummary, mode: ModeKey): string {
+  const scope = mode === "compare" ? "any selected mode" : `${mode} mode`;
+  return `${summary.studentsAttempted} of ${summary.studentsTotal} students answered in ${scope}`;
 }

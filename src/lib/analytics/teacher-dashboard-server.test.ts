@@ -212,18 +212,21 @@ describe("buildDashboardResponse", () => {
       correct: 9,
       accuracy: 90,
       averageTimeSec: 50,
+      studentsAttempted: 1,
     });
     expect(row?.byMode?.exam).toEqual({
       attempted: 5,
       correct: 3,
       accuracy: 60,
       averageTimeSec: 80,
+      studentsAttempted: 1,
     });
     expect(row?.byMode?.review).toEqual({
       attempted: 4,
       correct: 2,
       accuracy: 50,
       averageTimeSec: 40,
+      studentsAttempted: 1,
     });
 
     // Overall still aggregates all attempts
@@ -232,8 +235,47 @@ describe("buildDashboardResponse", () => {
 
     // Summary should also include byMode
     expect(result.summary.byMode?.practice.attempted).toBe(10);
+    expect(result.summary.byMode?.practice.studentsAttempted).toBe(1);
     expect(result.summary.byMode?.exam.accuracy).toBe(60);
     expect(result.summary.byMode?.review.attempted).toBe(4);
+  });
+
+  it("counts compare students as the union of students with attempts across modes", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60, "Structure and Function", {
+        mode: "practice",
+      }),
+      attempt("s2", "3.1.9-12.A", false, 80, "Structure and Function", {
+        mode: "exam",
+      }),
+      attempt("s3", "3.1.9-12.A", true, 40, "Structure and Function", {
+        mode: "review",
+      }),
+      attempt("s3", "3.1.9-12.A", false, 35, "Structure and Function", {
+        mode: "practice",
+      }),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+      includeModeBreakdown: true,
+    });
+
+    expect(result.summary.studentsTotal).toBe(4);
+    expect(result.summary.studentsAttempted).toBe(3);
+    expect(result.summary.completionRate).toBe(75);
+    expect(result.summary.byMode?.practice.studentsAttempted).toBe(2);
+    expect(result.summary.byMode?.exam.studentsAttempted).toBe(1);
+    expect(result.summary.byMode?.review.studentsAttempted).toBe(1);
+
+    const row = result.byStandard.find(
+      (item) => item.standardId === "3.1.9-12.A",
+    );
+    expect(row?.byMode?.practice.studentsAttempted).toBe(2);
+    expect(row?.byMode?.exam.studentsAttempted).toBe(1);
+    expect(row?.byMode?.review.studentsAttempted).toBe(1);
   });
 
   it("excludes attempts with null time from average time (legacy unmeasured)", () => {
