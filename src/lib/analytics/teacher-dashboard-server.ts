@@ -36,6 +36,7 @@ export interface ModeMetrics {
   correct: number;
   accuracy: number;
   averageTimeSec: number;
+  studentsAttempted: number;
 }
 
 export interface StandardRow {
@@ -120,7 +121,13 @@ interface BuildArgs {
 const MODES: AttemptMode[] = ["practice", "exam", "review"];
 
 function emptyModeMetrics(): ModeMetrics {
-  return { attempted: 0, correct: 0, accuracy: 0, averageTimeSec: 0 };
+  return {
+    attempted: 0,
+    correct: 0,
+    accuracy: 0,
+    averageTimeSec: 0,
+    studentsAttempted: 0,
+  };
 }
 
 function emptyModeBreakdown(): Record<AttemptMode, ModeMetrics> {
@@ -190,9 +197,15 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     exam: 0,
     review: 0,
   };
+  const summaryModeStudentIds: Record<AttemptMode, Set<string>> = {
+    practice: new Set<string>(),
+    exam: new Set<string>(),
+    review: new Set<string>(),
+  };
   for (const row of scopedAttempts) {
     const mode = row.mode;
     summaryModeAgg[mode].attempted += 1;
+    summaryModeStudentIds[mode].add(row.userId);
     if (row.isCorrect) summaryModeAgg[mode].correct += 1;
     if (row.timeSpentSec !== null && Number.isFinite(row.timeSpentSec)) {
       summaryModeTotalTime[mode] += row.timeSpentSec;
@@ -206,6 +219,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     const mc = summaryModeMeasuredCount[mode];
     agg.averageTimeSec =
       mc > 0 ? Math.round(summaryModeTotalTime[mode] / mc) : 0;
+    agg.studentsAttempted = summaryModeStudentIds[mode].size;
   }
 
   // Standards aggregation (overall + per-mode)
@@ -218,6 +232,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     byMode: Record<AttemptMode, ModeMetrics>;
     byModeTotalTime: Record<AttemptMode, number>;
     byModeMeasuredCount: Record<AttemptMode, number>;
+    byModeStudentIds: Record<AttemptMode, Set<string>>;
   }
   const standardAgg = new Map<string, StandardAgg>();
   // Stable id used when DB row has no standardId. We namespace by topic so
@@ -250,6 +265,11 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         byMode: emptyModeBreakdown(),
         byModeTotalTime: { practice: 0, exam: 0, review: 0 },
         byModeMeasuredCount: { practice: 0, exam: 0, review: 0 },
+        byModeStudentIds: {
+          practice: new Set<string>(),
+          exam: new Set<string>(),
+          review: new Set<string>(),
+        },
       } satisfies StandardAgg);
     // Ensure canonical label wins even if the first seen row had a stale value
     if (canonical?.label) {
@@ -263,6 +283,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     }
     const modeAgg = existing.byMode[row.mode];
     modeAgg.attempted += 1;
+    existing.byModeStudentIds[row.mode].add(row.userId);
     if (row.isCorrect) modeAgg.correct += 1;
     if (row.timeSpentSec !== null && Number.isFinite(row.timeSpentSec)) {
       existing.byModeTotalTime[row.mode] += row.timeSpentSec;
@@ -297,6 +318,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
             modeMeasured > 0
               ? Math.round(item.byModeTotalTime[mode] / modeMeasured)
               : 0,
+          studentsAttempted: item.byModeStudentIds[mode].size,
         };
       }
 
