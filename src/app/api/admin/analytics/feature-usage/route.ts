@@ -32,6 +32,12 @@ type EventRow = {
   payload: Record<string, unknown> | null;
 };
 
+type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
+
+const PAGE_SIZE = 1000;
+const IN_FILTER_CHUNK_SIZE = 200;
+const ALLOWED_MODE_FILTERS = new Set(["practice", "exam", "review"]);
+
 type Counter = { n: number; users: Set<string> };
 
 function bump(counter: Counter, userId: string) {
@@ -55,6 +61,78 @@ function getString(payload: Record<string, unknown> | null, key: string): string
 function getBoolean(payload: Record<string, unknown> | null, key: string): boolean | null {
   const value = payload?.[key];
   return typeof value === "boolean" ? value : null;
+}
+
+function chunkArray<T>(values: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < values.length; i += size) {
+    chunks.push(values.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function parseModeFilter(value: string | null): string | null {
+  if (!value || value === "all") return null;
+  return ALLOWED_MODE_FILTERS.has(value) ? value : null;
+}
+
+async function fetchFeatureEvents(
+  admin: SupabaseAdminClient,
+  fromIso: string,
+  toIso: string,
+  schoolIds: string[],
+  modeFilter: string | null,
+): Promise<{ data: EventRow[]; error: string | null }> {
+  const data: EventRow[] = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = admin
+      .from("analytics_events")
+      .select("event_type,user_id,question_id,mode,occurred_at,payload")
+      .in("event_type", FEATURE_EVENT_TYPES as unknown as string[])
+      .gte("occurred_at", fromIso)
+      .lte("occurred_at", toIso)
+      .order("occurred_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+    if (schoolIds.length > 0) {
+      query = query.in("school_id", schoolIds);
+    }
+    if (modeFilter) {
+      query = query.eq("mode", modeFilter);
+    }
+
+    const { data: page, error } = await query;
+    if (error) return { data: [], error: error.message };
+    const rows = (page ?? []) as EventRow[];
+    data.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+
+  return { data, error: null };
+}
+
+async function fetchExcludedProfileIds(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+): Promise<{ data: Set<string>; error: string | null }> {
+  const excluded = new Set<string>();
+
+  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("profiles")
+        .select("id")
+        .in("id", chunk)
+        .eq("excluded_from_analytics", true)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) return { data: new Set(), error: error.message };
+      const rows = (data ?? []) as Array<{ id: string }>;
+      rows.forEach((row) => excluded.add(String(row.id)));
+      if (rows.length < PAGE_SIZE) break;
+    }
+  }
+
+  return { data: excluded, error: null };
 }
 
 async function requireAdmin() {
@@ -90,55 +168,32 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const { from, to } = parseAnalyticsWindow(url, { defaultDays: 30 });
   const schoolIds = parseSchoolIds(url);
-  const modeFilter = url.searchParams.get("mode");
+  const modeFilter = parseModeFilter(url.searchParams.get("mode"));
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
   const admin = createSupabaseAdminClient();
 
-  // Defensive cap — if a school has unusually high traffic this protects the
-  // function from OOM. 50k events covers ~8 concurrent classes for a month.
-  const MAX_ROWS = 50_000;
-
-  let query = admin
-    .from("analytics_events")
-    .select("event_type,user_id,question_id,mode,occurred_at,payload")
-    .in("event_type", FEATURE_EVENT_TYPES as unknown as string[])
-    .gte("occurred_at", fromIso)
-    .lte("occurred_at", toIso)
-    .order("occurred_at", { ascending: false })
-    .limit(MAX_ROWS);
-  if (schoolIds.length > 0) {
-    query = query.in("school_id", schoolIds);
-  }
-  if (modeFilter && modeFilter !== "all") {
-    query = query.eq("mode", modeFilter);
-  }
-
-  const { data: rows, error } = await query;
+  const { data: rows, error } = await fetchFeatureEvents(
+    admin,
+    fromIso,
+    toIso,
+    schoolIds,
+    modeFilter,
+  );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error }, { status: 400 });
   }
 
   const events = (rows ?? []) as EventRow[];
   const uniqueUserIds = Array.from(new Set(events.map((event) => String(event.user_id))));
-  const excludedUserIds = new Set<string>();
-  if (uniqueUserIds.length > 0) {
-    const { data: excludedRows, error: excludedError } = await admin
-      .from("profiles")
-      .select("id")
-      .in("id", uniqueUserIds)
-      .eq("excluded_from_analytics", true);
-    if (excludedError) {
-      return NextResponse.json({ error: excludedError.message }, { status: 400 });
-    }
-    for (const row of excludedRows ?? []) {
-      excludedUserIds.add(String(row.id));
-    }
+  const { data: excludedUserIds, error: excludedError } =
+    await fetchExcludedProfileIds(admin, uniqueUserIds);
+  if (excludedError) {
+    return NextResponse.json({ error: excludedError }, { status: 400 });
   }
 
   const filteredEvents = events.filter((event) => !excludedUserIds.has(String(event.user_id)));
-  const wasTruncated = events.length >= MAX_ROWS;
 
   // --- Aggregators --------------------------------------------------------
   // Glossary opens by source
@@ -228,7 +283,7 @@ export async function GET(request: Request) {
       to: toIso,
       mode: modeFilter ?? "all",
       totalEvents: filteredEvents.length,
-      truncated: wasTruncated,
+      truncated: false,
     },
     glossary: {
       bySource: serializeRecord(glossaryBySource),

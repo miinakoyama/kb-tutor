@@ -6,6 +6,7 @@ import {
   parseAnalyticsWindow,
   parseSchoolIds,
 } from "@/lib/analytics/admin-filters";
+import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
 
 // Overview endpoint for the pilot-monitoring dashboard.
 //
@@ -62,6 +63,11 @@ type ProfileRow = {
   email: string | null;
   excluded_from_analytics?: boolean;
 };
+
+type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
+
+const PAGE_SIZE = 1000;
+const IN_FILTER_CHUNK_SIZE = 200;
 
 export interface OverviewResponse {
   meta: {
@@ -186,6 +192,146 @@ function joinCsv(values: Array<string | number | boolean | null | undefined>): s
   return values.map(escapeCsv).join(",");
 }
 
+function chunkArray<T>(values: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < values.length; i += size) {
+    chunks.push(values.slice(i, i + size));
+  }
+  return chunks;
+}
+
+async function fetchSchoolMembers(
+  admin: SupabaseAdminClient,
+  schoolIdFilters: string[],
+): Promise<{ data: SchoolMemberRow[]; error: string | null }> {
+  const data: SchoolMemberRow[] = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = admin
+      .from("school_members")
+      .select("school_id,student_user_id")
+      .range(from, from + PAGE_SIZE - 1);
+    if (schoolIdFilters.length > 0) {
+      query = query.in("school_id", schoolIdFilters);
+    }
+
+    const { data: page, error } = await query;
+    if (error) return { data: [], error: error.message };
+    const rows = (page ?? []) as SchoolMemberRow[];
+    data.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+
+  return { data, error: null };
+}
+
+async function fetchProfiles(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+): Promise<{ data: ProfileRow[]; error: string | null }> {
+  const data: ProfileRow[] = [];
+
+  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data: page, error } = await admin
+        .from("profiles")
+        .select("id,display_name,student_id,email,excluded_from_analytics")
+        .in("id", chunk)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as ProfileRow[];
+      data.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
+}
+
+async function fetchAttempts(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+  fromIso: string,
+  toIso: string,
+): Promise<{ data: AttemptRow[]; error: string | null }> {
+  const data: AttemptRow[] = [];
+
+  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+      const { data: page, error } = await admin
+        .from("attempts")
+        .select(
+          "user_id,question_id,mode,is_correct,time_spent_sec,answered_at,client_attempt_id,assignment_id",
+        )
+        .in("user_id", chunk)
+        .gte("answered_at", fromIso)
+        .lte("answered_at", toIso)
+        .range(offset, offset + PAGE_SIZE - 1);
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as AttemptRow[];
+      data.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
+}
+
+async function fetchSessions(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+  fromIso: string,
+  toIso: string,
+): Promise<{ data: SessionRow[]; error: string | null }> {
+  const data: SessionRow[] = [];
+
+  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+      const { data: page, error } = await admin
+        .from("analytics_sessions")
+        .select("id,user_id,mode,started_at,ended_at,device_type,browser,os")
+        .in("user_id", chunk)
+        .gte("started_at", fromIso)
+        .lte("started_at", toIso)
+        .range(offset, offset + PAGE_SIZE - 1);
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as SessionRow[];
+      data.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
+}
+
+async function fetchStageEvents(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+  fromIso: string,
+  toIso: string,
+): Promise<{ data: StageEventRow[]; error: string | null }> {
+  const data: StageEventRow[] = [];
+
+  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+      const { data: page, error } = await admin
+        .from("analytics_events")
+        .select("user_id,event_type,mode,occurred_at")
+        .in("user_id", chunk)
+        .in("event_type", ["stage_started", "stage_completed", "stage_abandoned"])
+        .gte("occurred_at", fromIso)
+        .lte("occurred_at", toIso)
+        .range(offset, offset + PAGE_SIZE - 1);
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as StageEventRow[];
+      data.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
+}
+
 export async function GET(request: Request) {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
@@ -198,15 +344,12 @@ export async function GET(request: Request) {
   const admin = createSupabaseAdminClient();
 
   // 1. Resolve enrolled students.
-  let memberQuery = admin
-    .from("school_members")
-    .select("school_id,student_user_id");
-  if (schoolIdFilters.length > 0) {
-    memberQuery = memberQuery.in("school_id", schoolIdFilters);
-  }
-  const { data: memberRows, error: memberErr } = await memberQuery;
+  const { data: memberRows, error: memberErr } = await fetchSchoolMembers(
+    admin,
+    schoolIdFilters,
+  );
   if (memberErr) {
-    return NextResponse.json({ error: memberErr.message }, { status: 400 });
+    return NextResponse.json({ error: memberErr }, { status: 400 });
   }
   const members = (memberRows ?? []) as SchoolMemberRow[];
   const memberUserIds = Array.from(new Set(members.map((m) => m.student_user_id)));
@@ -250,12 +393,12 @@ export async function GET(request: Request) {
     return NextResponse.json(empty);
   }
 
-  const { data: profileRows, error: profileErr } = await admin
-    .from("profiles")
-    .select("id,display_name,student_id,email,excluded_from_analytics")
-    .in("id", memberUserIds);
+  const { data: profileRows, error: profileErr } = await fetchProfiles(
+    admin,
+    memberUserIds,
+  );
   if (profileErr) {
-    return NextResponse.json({ error: profileErr.message }, { status: 400 });
+    return NextResponse.json({ error: profileErr }, { status: 400 });
   }
   const includedMemberIds = (profileRows ?? [])
     .filter((row) => row.excluded_from_analytics !== true)
@@ -315,39 +458,18 @@ export async function GET(request: Request) {
 
   // 2. Parallel fetch of attempts / sessions / stage events.
   const [attemptsRes, sessionsRes, stageRes] = await Promise.all([
-    admin
-      .from("attempts")
-      .select(
-        "user_id,question_id,mode,is_correct,time_spent_sec,answered_at,client_attempt_id,assignment_id",
-      )
-      .in("user_id", includedMemberIds)
-      .gte("answered_at", fromIso)
-      .lte("answered_at", toIso)
-      .limit(200_000),
-    admin
-      .from("analytics_sessions")
-      .select("id,user_id,mode,started_at,ended_at,device_type,browser,os")
-      .in("user_id", includedMemberIds)
-      .gte("started_at", fromIso)
-      .lte("started_at", toIso)
-      .limit(50_000),
-    admin
-      .from("analytics_events")
-      .select("user_id,event_type,mode,occurred_at")
-      .in("user_id", includedMemberIds)
-      .in("event_type", ["stage_started", "stage_completed", "stage_abandoned"])
-      .gte("occurred_at", fromIso)
-      .lte("occurred_at", toIso)
-      .limit(100_000),
+    fetchAttempts(admin, includedMemberIds, fromIso, toIso),
+    fetchSessions(admin, includedMemberIds, fromIso, toIso),
+    fetchStageEvents(admin, includedMemberIds, fromIso, toIso),
   ]);
 
   for (const res of [attemptsRes, sessionsRes, stageRes]) {
-    if (res.error) {
-      return NextResponse.json({ error: res.error.message }, { status: 400 });
+    if (res.error !== null) {
+      return NextResponse.json({ error: res.error }, { status: 400 });
     }
   }
 
-  const attempts = (attemptsRes.data ?? []) as AttemptRow[];
+  const attempts = dedupeAssignmentExamAttempts((attemptsRes.data ?? []) as AttemptRow[]);
   const sessions = (sessionsRes.data ?? []) as SessionRow[];
   const stageEvents = (stageRes.data ?? []) as StageEventRow[];
 

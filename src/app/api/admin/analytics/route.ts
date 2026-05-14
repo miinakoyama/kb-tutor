@@ -28,6 +28,18 @@ type ProfileRow = {
   email: string | null;
 };
 
+type SchoolMemberRow = {
+  school_id: string;
+  student_user_id: string;
+};
+
+type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
+
+const PAGE_SIZE = 1000;
+const JSON_ROW_LIMIT = 500;
+const IN_FILTER_CHUNK_SIZE = 200;
+const ALLOWED_MODE_FILTERS = new Set(["practice", "exam", "review"]);
+
 function escapeCsvValue(value: string | number | boolean | null): string {
   const text = value === null ? "" : String(value);
   if (text.includes(",") || text.includes('"') || text.includes("\n")) {
@@ -60,6 +72,130 @@ async function requireAdmin() {
   return { ok: true as const, userId: user.id };
 }
 
+function chunkArray<T>(values: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < values.length; i += size) {
+    chunks.push(values.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function parseModeFilter(value: string | null): string | null {
+  if (!value || value === "all") return null;
+  return ALLOWED_MODE_FILTERS.has(value) ? value : null;
+}
+
+async function fetchSchoolMembers(
+  admin: SupabaseAdminClient,
+  schoolIdFilters: string[],
+): Promise<{ data: SchoolMemberRow[]; error: string | null }> {
+  const data: SchoolMemberRow[] = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = admin
+      .from("school_members")
+      .select("school_id,student_user_id")
+      .range(from, from + PAGE_SIZE - 1);
+    if (schoolIdFilters.length > 0) {
+      query = query.in("school_id", schoolIdFilters);
+    }
+
+    const { data: page, error } = await query;
+    if (error) return { data: [], error: error.message };
+    const rows = (page ?? []) as SchoolMemberRow[];
+    data.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+
+  return { data, error: null };
+}
+
+async function fetchExcludedProfileIds(
+  admin: SupabaseAdminClient,
+  studentIds: string[],
+): Promise<{ data: Set<string>; error: string | null }> {
+  const excluded = new Set<string>();
+
+  for (const chunk of chunkArray(studentIds, IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("profiles")
+        .select("id")
+        .in("id", chunk)
+        .eq("excluded_from_analytics", true)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) return { data: new Set(), error: error.message };
+      const rows = (data ?? []) as Array<{ id: string }>;
+      rows.forEach((row) => excluded.add(String(row.id)));
+      if (rows.length < PAGE_SIZE) break;
+    }
+  }
+
+  return { data: excluded, error: null };
+}
+
+async function fetchAttempts(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+  from: Date,
+  to: Date,
+  modeFilter: string | null,
+): Promise<{ data: AttemptRow[]; error: string | null }> {
+  const data: AttemptRow[] = [];
+
+  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+      let query = admin
+        .from("attempts")
+        .select(
+          "user_id,question_id,assignment_id,mode,selected_option_id,is_correct,standard_id,standard_label,time_spent_sec,answered_at",
+        )
+        .in("user_id", chunk)
+        .gte("answered_at", from.toISOString())
+        .lte("answered_at", to.toISOString())
+        .order("answered_at", { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (modeFilter) {
+        query = query.eq("mode", modeFilter);
+      }
+
+      const { data: page, error } = await query;
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as AttemptRow[];
+      data.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+    }
+  }
+
+  data.sort((a, b) => Date.parse(b.answered_at) - Date.parse(a.answered_at));
+  return { data, error: null };
+}
+
+async function fetchProfiles(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+): Promise<{ data: ProfileRow[]; error: string | null }> {
+  const data: ProfileRow[] = [];
+  if (userIds.length === 0) return { data, error: null };
+
+  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data: page, error } = await admin
+        .from("profiles")
+        .select("id,student_id,display_name,email")
+        .in("id", chunk)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as ProfileRow[];
+      data.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
+}
+
 export async function GET(request: Request) {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
@@ -67,20 +203,18 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const format = url.searchParams.get("format");
   const schoolIdFilters = parseSchoolIds(url);
-  const modeFilter = url.searchParams.get("mode");
+  const modeFilter = parseModeFilter(url.searchParams.get("mode"));
   const studentFilter = url.searchParams.get("student");
   const { from, to } = parseAnalyticsWindow(url, { defaultDays: 30 });
 
   const admin = createSupabaseAdminClient();
 
-  let memberQuery = admin.from("school_members").select("school_id,student_user_id");
-  if (schoolIdFilters.length > 0) {
-    memberQuery = memberQuery.in("school_id", schoolIdFilters);
-  }
-
-  const { data: membershipRows, error: membershipError } = await memberQuery;
+  const { data: membershipRows, error: membershipError } = await fetchSchoolMembers(
+    admin,
+    schoolIdFilters,
+  );
   if (membershipError) {
-    return NextResponse.json({ error: membershipError.message }, { status: 400 });
+    return NextResponse.json({ error: membershipError }, { status: 400 });
   }
 
   const rows = membershipRows ?? [];
@@ -121,15 +255,11 @@ export async function GET(request: Request) {
     });
   }
 
-  const { data: excludedProfileRows, error: excludedProfileError } = await admin
-    .from("profiles")
-    .select("id")
-    .in("id", studentIds)
-    .eq("excluded_from_analytics", true);
+  const { data: excludedUserIds, error: excludedProfileError } =
+    await fetchExcludedProfileIds(admin, studentIds);
   if (excludedProfileError) {
-    return NextResponse.json({ error: excludedProfileError.message }, { status: 400 });
+    return NextResponse.json({ error: excludedProfileError }, { status: 400 });
   }
-  const excludedUserIds = new Set((excludedProfileRows ?? []).map((row) => String(row.id)));
   const includedStudentIds = studentIds.filter((userId) => !excludedUserIds.has(userId));
   const filteredMembershipRows = rows.filter(
     (row) => !excludedUserIds.has(String(row.student_user_id)),
@@ -171,24 +301,16 @@ export async function GET(request: Request) {
     });
   }
 
-  let attemptsQuery = admin
-    .from("attempts")
-    .select(
-      "user_id,question_id,assignment_id,mode,selected_option_id,is_correct,standard_id,standard_label,time_spent_sec,answered_at",
-    )
-    .in("user_id", includedStudentIds)
-    .gte("answered_at", from.toISOString())
-    .lte("answered_at", to.toISOString())
-    .order("answered_at", { ascending: false });
-
-  if (modeFilter) {
-    attemptsQuery = attemptsQuery.eq("mode", modeFilter);
-  }
-
-  const { data: attemptRows, error: attemptError } = await attemptsQuery.limit(format === "csv" ? 1000000 : 500);
+  const { data: attemptRows, error: attemptError } = await fetchAttempts(
+    admin,
+    includedStudentIds,
+    from,
+    to,
+    modeFilter,
+  );
 
   if (attemptError) {
-    return NextResponse.json({ error: attemptError.message }, { status: 400 });
+    return NextResponse.json({ error: attemptError }, { status: 400 });
   }
 
   const attempts = dedupeAssignmentExamAttempts((attemptRows ?? []) as AttemptRow[]);
@@ -197,13 +319,13 @@ export async function GET(request: Request) {
     : attempts;
 
   const uniqueProfileIds = Array.from(new Set(filteredByStudent.map((row) => row.user_id)));
-  const { data: profileRows, error: profileError } = await admin
-    .from("profiles")
-    .select("id,student_id,display_name,email")
-    .in("id", uniqueProfileIds);
+  const { data: profileRows, error: profileError } = await fetchProfiles(
+    admin,
+    uniqueProfileIds,
+  );
 
   if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 400 });
+    return NextResponse.json({ error: profileError }, { status: 400 });
   }
 
   const profileMap = new Map((profileRows as ProfileRow[]).map((row) => [row.id, row]));
@@ -275,6 +397,7 @@ export async function GET(request: Request) {
     });
   }
 
+  const visibleRows = enrichedRows.slice(0, JSON_ROW_LIMIT);
   const attemptsCount = enrichedRows.length;
   const correctCount = enrichedRows.filter((row) => row.isCorrect).length;
   const measuredRows = enrichedRows.filter(
@@ -294,6 +417,6 @@ export async function GET(request: Request) {
       from: from.toISOString(),
       to: to.toISOString(),
     },
-    rows: enrichedRows,
+    rows: visibleRows,
   });
 }
