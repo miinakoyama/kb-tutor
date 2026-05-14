@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
   const assignmentIds = (assignmentsData ?? []).map((a) => a.id);
   const [
     { data: snapshotRows, error: snapshotError },
-    { data: attemptRows, error: attemptError },
+    { data: assignmentCountRows, error: assignmentCountError },
     { data: targetRows, error: targetError },
   ] = await Promise.all([
     assignmentIds.length > 0
@@ -116,15 +116,14 @@ export async function GET(request: NextRequest) {
           .in("assignment_id", assignmentIds)
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
     assignmentIds.length > 0
-      ? admin
-          .from("attempts")
-          .select("assignment_id,user_id")
-          .in("assignment_id", assignmentIds)
+      ? admin.rpc("assignment_manage_counts", {
+          p_assignment_ids: assignmentIds,
+        })
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
     assignmentIds.length > 0
       ? admin
           .from("assignment_targets")
-          .select("assignment_id,student_user_id")
+          .select("assignment_id,student_user_id,last_completed_at")
           .in("assignment_id", assignmentIds)
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
   ]);
@@ -132,16 +131,13 @@ export async function GET(request: NextRequest) {
   if (snapshotError) {
     return NextResponse.json({ error: snapshotError.message }, { status: 400 });
   }
-  if (attemptError) {
-    return NextResponse.json({ error: attemptError.message }, { status: 400 });
+  if (assignmentCountError) {
+    return NextResponse.json({ error: assignmentCountError.message }, { status: 400 });
   }
   if (targetError) {
     return NextResponse.json({ error: targetError.message }, { status: 400 });
   }
 
-  const attemptUserIds = Array.from(
-    new Set((attemptRows ?? []).map((row) => String(row.user_id))),
-  );
   const memberUserIds = Array.from(
     new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
   );
@@ -149,7 +145,7 @@ export async function GET(request: NextRequest) {
     new Set((targetRows ?? []).map((row) => String(row.student_user_id))),
   );
   const profileIdsForExclusion = Array.from(
-    new Set([...attemptUserIds, ...memberUserIds, ...targetUserIds]),
+    new Set([...memberUserIds, ...targetUserIds]),
   );
   const excludedUserIds = new Set<string>();
   if (profileIdsForExclusion.length > 0) {
@@ -194,9 +190,15 @@ export async function GET(request: NextRequest) {
   }
 
   const schoolMemberCount = new Map<string, number>();
+  const memberIdsBySchool = new Map<string, Set<string>>();
   for (const row of memberRows ?? []) {
-    if (excludedUserIds.has(String(row.student_user_id))) continue;
+    const studentUserId = String(row.student_user_id);
+    if (excludedUserIds.has(studentUserId)) continue;
     schoolMemberCount.set(row.school_id, (schoolMemberCount.get(row.school_id) ?? 0) + 1);
+    if (!memberIdsBySchool.has(row.school_id)) {
+      memberIdsBySchool.set(row.school_id, new Set());
+    }
+    memberIdsBySchool.get(row.school_id)?.add(studentUserId);
   }
 
   const snapshotCountByAssignment = new Map<string, number>();
@@ -212,16 +214,11 @@ export async function GET(request: NextRequest) {
   }
 
   const attemptCountByAssignment = new Map<string, number>();
-  const respondentsByAssignment = new Map<string, Set<string>>();
-  for (const row of attemptRows ?? []) {
-    const id = row.assignment_id as string | null;
-    if (!id) continue;
-    if (excludedUserIds.has(String(row.user_id))) continue;
-    attemptCountByAssignment.set(id, (attemptCountByAssignment.get(id) ?? 0) + 1);
-    if (!respondentsByAssignment.has(id)) {
-      respondentsByAssignment.set(id, new Set());
-    }
-    respondentsByAssignment.get(id)!.add(String(row.user_id));
+  const respondentCountByAssignment = new Map<string, number>();
+  for (const row of assignmentCountRows ?? []) {
+    const assignmentId = String(row.assignment_id);
+    attemptCountByAssignment.set(assignmentId, Number(row.attempt_count) || 0);
+    respondentCountByAssignment.set(assignmentId, Number(row.respondent_count) || 0);
   }
 
   return NextResponse.json({
@@ -236,7 +233,7 @@ export async function GET(request: NextRequest) {
       snapshot_count: snapshotCountByAssignment.get(assignment.id) ?? 0,
       source_type: sourceTypeByAssignment.get(assignment.id) ?? null,
       attempt_count: attemptCountByAssignment.get(assignment.id) ?? 0,
-      respondent_count: respondentsByAssignment.get(assignment.id)?.size ?? 0,
+      respondent_count: respondentCountByAssignment.get(assignment.id) ?? 0,
     })),
     question_sets: accessibleSetsResult.rows.map((row) => ({
       id: row.id,

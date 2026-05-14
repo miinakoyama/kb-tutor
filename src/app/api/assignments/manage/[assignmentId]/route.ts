@@ -6,6 +6,7 @@ import {
   type AssignmentMode,
   type AssignmentSourceType,
   type Requester,
+  fetchAllSupabaseRows,
   getRequester,
   getScopedSchoolIds,
 } from "@/lib/assignments/manage-helpers";
@@ -136,10 +137,21 @@ export async function GET(
       .from("assignment_targets")
       .select("student_user_id,last_completed_at")
       .eq("assignment_id", assignmentId),
-    admin
-      .from("attempts")
-      .select("user_id,question_id,is_correct,answered_at")
-      .eq("assignment_id", assignmentId),
+    fetchAllSupabaseRows<{
+      id: string;
+      user_id: string;
+      question_id: string | null;
+      is_correct: boolean | null;
+      answered_at: string | null;
+    }>((from, to) =>
+      admin
+        .from("attempts")
+        .select("id,user_id,question_id,is_correct,answered_at")
+        .eq("assignment_id", assignmentId)
+        .order("answered_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
     admin
       .from("schools")
       .select("id,name")
@@ -201,48 +213,32 @@ export async function GET(
     }
   }
 
-  const filteredAttemptRows = (attemptRows ?? []).filter(
-    (row) => !excludedUserIds.has(String(row.user_id)),
-  );
-
-  const respondents = new Set<string>();
-  let correctAttempts = 0;
-  for (const row of filteredAttemptRows) {
-    respondents.add(String(row.user_id));
-    if (row.is_correct) correctAttempts += 1;
-  }
-
   // The student roster shown in the management view is the union of:
   //   - current school members (source of truth for who currently sees the
   //     assignment — school-membership drives visibility on the student side,
   //     so we want all of them to appear here even if they joined after
   //     creation and have no assignment_targets row yet)
   //   - any user_id that has an assignment_target row (historical targets)
-  //   - any user_id that has submitted attempts for this assignment
-  // The latter two keep former-member history visible when they have work
-  // attached to this assignment.
+  // The target rows keep former-member history visible while avoiding trust in
+  // client-supplied assignment_id values on unrelated attempts.
   const currentMemberIds = new Set(
     (memberRows ?? []).map((row) => String(row.student_user_id)),
   );
-  const targetStudentIds = (targetRows ?? []).map((row) =>
-    String(row.student_user_id),
+  const targetStudentIdSet = new Set(
+    (targetRows ?? []).map((row) => String(row.student_user_id)),
   );
-  const attemptStudentIds = (attemptRows ?? []).map((row) =>
-    String(row.user_id),
-  );
-  const allStudentIds = [
+  const profileLookupIds = [
     ...new Set([
       ...currentMemberIds,
-      ...targetStudentIds,
-      ...attemptStudentIds,
+      ...targetStudentIdSet,
     ]),
   ].filter((id) => !excludedUserIds.has(id));
   const { data: profileRows, error: profileError } =
-    allStudentIds.length > 0
+    profileLookupIds.length > 0
       ? await admin
           .from("profiles")
           .select("id,student_id,display_name")
-          .in("id", allStudentIds)
+          .in("id", profileLookupIds)
       : { data: [], error: null };
   if (profileError) {
     return NextResponse.json({ error: profileError.message }, { status: 400 });
@@ -262,6 +258,34 @@ export async function GET(
       },
     ]),
   );
+  const isKnownStudent = (userId: string) =>
+    currentMemberIds.has(userId) || targetStudentIdSet.has(userId);
+  const filteredAttemptRows = (attemptRows ?? []).filter((row) => {
+    const userId = String(row.user_id);
+    return !excludedUserIds.has(userId) && isKnownStudent(userId);
+  });
+  const allStudentIds = [
+    ...new Set([
+      ...currentMemberIds,
+      ...targetStudentIdSet,
+    ]),
+  ].filter((id) => !excludedUserIds.has(id));
+
+  const respondents = new Set<string>();
+  let correctAttempts = 0;
+  for (const row of filteredAttemptRows) {
+    respondents.add(String(row.user_id));
+    if (row.is_correct) correctAttempts += 1;
+  }
+  for (const row of targetRows ?? []) {
+    const studentUserId = String(row.student_user_id);
+    if (excludedUserIds.has(studentUserId) || !isKnownStudent(studentUserId)) {
+      continue;
+    }
+    if (typeof row.last_completed_at === "string") {
+      respondents.add(studentUserId);
+    }
+  }
 
   const lastCompletedByStudent = new Map<string, string | null>();
   for (const row of targetRows ?? []) {
@@ -272,7 +296,7 @@ export async function GET(
   }
 
   const answeredByStudent = new Map<string, Set<string>>();
-  for (const row of attemptRows ?? []) {
+  for (const row of filteredAttemptRows) {
     const studentUserId = String(row.user_id);
     const lastCompletedAt = lastCompletedByStudent.get(studentUserId) ?? null;
     if (lastCompletedAt) {

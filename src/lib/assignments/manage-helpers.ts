@@ -30,6 +30,40 @@ export interface AccessibleQuestionSetRow {
   owned_by_requester: boolean;
 }
 
+const SUPABASE_PAGE_SIZE = 1000;
+
+interface SupabaseQueryError {
+  message: string;
+}
+
+interface SupabaseRowsPage<T> {
+  data: T[] | null;
+  error: SupabaseQueryError | null;
+}
+
+export async function fetchAllSupabaseRows<T>(
+  makeQuery: (
+    from: number,
+    to: number,
+  ) => PromiseLike<SupabaseRowsPage<T>>,
+): Promise<{ data: T[]; error: SupabaseQueryError | null }> {
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const to = from + SUPABASE_PAGE_SIZE - 1;
+    const { data, error } = await makeQuery(from, to);
+    if (error) {
+      return { data: rows, error };
+    }
+
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < SUPABASE_PAGE_SIZE) {
+      return { data: rows, error: null };
+    }
+  }
+}
+
 /**
  * Best-effort compensation for a partially-created assignment.
  *
