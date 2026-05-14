@@ -14,6 +14,10 @@ export interface MockSupabaseConfig {
   user?: User | null;
   authError?: MockError | null;
   tables?: Record<string, MockTableBehavior>;
+  rpcs?: Record<
+    string,
+    (args: Record<string, unknown>) => Promise<{ data: unknown; error: MockError | null }>
+  >;
 }
 
 interface OrderClause {
@@ -205,6 +209,13 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
       })),
     },
     from: vi.fn((tableName: string) => builderFor(tableName)),
+    rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+      const handler = config.rpcs?.[name];
+      if (!handler) {
+        return { data: null, error: { message: `RPC not mocked: ${name}` } };
+      }
+      return handler(args);
+    }),
   } as unknown as SupabaseClient;
 
   return { client, tables };

@@ -28,6 +28,56 @@ function toHttpError(status: number, error: string) {
   return NextResponse.json({ error }, { status });
 }
 
+async function resolveAuthorizedAssignmentId(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  userId: string,
+  assignmentId: string | null | undefined,
+): Promise<{ assignmentId: string | null; error: string | null }> {
+  const normalizedAssignmentId = assignmentId?.trim();
+  if (!normalizedAssignmentId) {
+    return { assignmentId: null, error: null };
+  }
+
+  const { data: assignment, error: assignmentError } = await admin
+    .from("assignments")
+    .select("id,school_id")
+    .eq("id", normalizedAssignmentId)
+    .maybeSingle();
+  if (assignmentError) {
+    return { assignmentId: null, error: assignmentError.message };
+  }
+  if (!assignment) {
+    return { assignmentId: null, error: null };
+  }
+
+  const [{ data: targetRow, error: targetError }, { data: memberRow, error: memberError }] =
+    await Promise.all([
+      admin
+        .from("assignment_targets")
+        .select("assignment_id")
+        .eq("assignment_id", normalizedAssignmentId)
+        .eq("student_user_id", userId)
+        .maybeSingle(),
+      admin
+        .from("school_members")
+        .select("school_id")
+        .eq("school_id", assignment.school_id)
+        .eq("student_user_id", userId)
+        .maybeSingle(),
+    ]);
+  if (targetError) {
+    return { assignmentId: null, error: targetError.message };
+  }
+  if (memberError) {
+    return { assignmentId: null, error: memberError.message };
+  }
+
+  return {
+    assignmentId: targetRow || memberRow ? normalizedAssignmentId : null,
+    error: null,
+  };
+}
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -60,6 +110,15 @@ export async function POST(request: Request) {
       : new Date().toISOString();
 
   const admin = createSupabaseAdminClient();
+  const assignmentResolution = await resolveAuthorizedAssignmentId(
+    admin,
+    user.id,
+    body.assignmentId,
+  );
+  if (assignmentResolution.error) {
+    return toHttpError(400, assignmentResolution.error);
+  }
+
   const payload = {
     user_id: user.id,
     client_attempt_id: body.clientAttemptId,
@@ -78,7 +137,7 @@ export async function POST(request: Request) {
       typeof body.timeSpentSec === "number" && Number.isFinite(body.timeSpentSec)
         ? Math.max(0, Math.round(body.timeSpentSec))
         : null,
-    assignment_id: body.assignmentId ?? null,
+    assignment_id: assignmentResolution.assignmentId,
     answered_at: answeredAt,
   };
 

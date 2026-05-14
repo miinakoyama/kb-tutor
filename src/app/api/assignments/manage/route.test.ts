@@ -43,6 +43,24 @@ function makeUser(id: string): User {
   } as User;
 }
 
+function assignmentCountsRpc(
+  rows: Array<{
+    assignment_id: string;
+    attempt_count: number;
+    respondent_count: number;
+  }>,
+) {
+  return async (args: Record<string, unknown>) => {
+    const ids = Array.isArray(args.p_assignment_ids)
+      ? new Set(args.p_assignment_ids.map(String))
+      : new Set<string>();
+    return {
+      data: rows.filter((row) => ids.has(row.assignment_id)),
+      error: null,
+    };
+  };
+}
+
 describe("GET /api/assignments/manage", () => {
   it("allows a teacher to load questions for a school-linked set created by someone else", async () => {
     const { client: serverClient } = createMockSupabaseClient({
@@ -100,6 +118,9 @@ describe("GET /api/assignments/manage", () => {
             },
           ],
         },
+      },
+      rpcs: {
+        assignment_manage_counts: assignmentCountsRpc([]),
       },
     });
     mockState.serverClient = serverClient;
@@ -168,6 +189,9 @@ describe("GET /api/assignments/manage", () => {
             { set_id: "shared-set" },
           ],
         },
+      },
+      rpcs: {
+        assignment_manage_counts: assignmentCountsRpc([]),
       },
     });
     mockState.serverClient = serverClient;
@@ -287,6 +311,15 @@ describe("GET /api/assignments/manage", () => {
         school_question_sets: { rows: [] },
         generated_questions: { rows: [] },
       },
+      rpcs: {
+        assignment_manage_counts: assignmentCountsRpc([
+          {
+            assignment_id: "assignment-1",
+            attempt_count: 2,
+            respondent_count: 2,
+          },
+        ]),
+      },
     });
     mockState.serverClient = serverClient;
     mockState.adminClient = adminClient;
@@ -304,7 +337,7 @@ describe("GET /api/assignments/manage", () => {
     expect(body.assignments[0].attempt_count).toBe(2);
   });
 
-  it("paginates assignment attempts before computing answered badges", async () => {
+  it("uses database aggregated counts for large assignment attempt sets", async () => {
     const studentIds = Array.from({ length: 1005 }, (_, index) => `student-${index}`);
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser("teacher-1"),
@@ -371,6 +404,15 @@ describe("GET /api/assignments/manage", () => {
         generated_question_sets: { rows: [] },
         school_question_sets: { rows: [] },
         generated_questions: { rows: [] },
+      },
+      rpcs: {
+        assignment_manage_counts: assignmentCountsRpc([
+          {
+            assignment_id: "assignment-1",
+            attempt_count: 1005,
+            respondent_count: 1005,
+          },
+        ]),
       },
     });
     mockState.serverClient = serverClient;

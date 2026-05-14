@@ -5,7 +5,6 @@ import type { Question } from "@/types/question";
 import {
   type AssignmentMode,
   type AssignmentSourceType,
-  fetchAllSupabaseRows,
   fetchAccessibleQuestionSets,
   getRequester,
   getScopedSchoolIds,
@@ -107,7 +106,7 @@ export async function GET(request: NextRequest) {
   const assignmentIds = (assignmentsData ?? []).map((a) => a.id);
   const [
     { data: snapshotRows, error: snapshotError },
-    { data: attemptRows, error: attemptError },
+    { data: assignmentCountRows, error: assignmentCountError },
     { data: targetRows, error: targetError },
   ] = await Promise.all([
     assignmentIds.length > 0
@@ -117,18 +116,9 @@ export async function GET(request: NextRequest) {
           .in("assignment_id", assignmentIds)
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
     assignmentIds.length > 0
-      ? fetchAllSupabaseRows<{
-          assignment_id: string | null;
-          user_id: string;
-          question_id: string | null;
-          answered_at: string | null;
-        }>((from, to) =>
-          admin
-            .from("attempts")
-            .select("assignment_id,user_id,question_id,answered_at")
-            .in("assignment_id", assignmentIds)
-            .range(from, to),
-        )
+      ? admin.rpc("assignment_manage_counts", {
+          p_assignment_ids: assignmentIds,
+        })
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
     assignmentIds.length > 0
       ? admin
@@ -141,16 +131,13 @@ export async function GET(request: NextRequest) {
   if (snapshotError) {
     return NextResponse.json({ error: snapshotError.message }, { status: 400 });
   }
-  if (attemptError) {
-    return NextResponse.json({ error: attemptError.message }, { status: 400 });
+  if (assignmentCountError) {
+    return NextResponse.json({ error: assignmentCountError.message }, { status: 400 });
   }
   if (targetError) {
     return NextResponse.json({ error: targetError.message }, { status: 400 });
   }
 
-  const attemptUserIds = Array.from(
-    new Set((attemptRows ?? []).map((row) => String(row.user_id))),
-  );
   const memberUserIds = Array.from(
     new Set((memberRows ?? []).map((row) => String(row.student_user_id))),
   );
@@ -158,14 +145,13 @@ export async function GET(request: NextRequest) {
     new Set((targetRows ?? []).map((row) => String(row.student_user_id))),
   );
   const profileIdsForExclusion = Array.from(
-    new Set([...attemptUserIds, ...memberUserIds, ...targetUserIds]),
+    new Set([...memberUserIds, ...targetUserIds]),
   );
   const excludedUserIds = new Set<string>();
-  const studentRoleUserIds = new Set<string>();
   if (profileIdsForExclusion.length > 0) {
     const { data: excludedRows, error: excludedError } = await admin
       .from("profiles")
-      .select("id,role,excluded_from_analytics")
+      .select("id")
       .in("id", profileIdsForExclusion)
       .eq("excluded_from_analytics", true);
     if (excludedError) {
@@ -173,18 +159,6 @@ export async function GET(request: NextRequest) {
     }
     for (const row of excludedRows ?? []) {
       excludedUserIds.add(String(row.id));
-    }
-
-    const { data: studentRows, error: studentError } = await admin
-      .from("profiles")
-      .select("id,role")
-      .in("id", profileIdsForExclusion)
-      .eq("role", "student");
-    if (studentError) {
-      return NextResponse.json({ error: studentError.message }, { status: 400 });
-    }
-    for (const row of studentRows ?? []) {
-      studentRoleUserIds.add(String(row.id));
     }
   }
 
@@ -229,9 +203,6 @@ export async function GET(request: NextRequest) {
 
   const snapshotCountByAssignment = new Map<string, number>();
   const sourceTypeByAssignment = new Map<string, string>();
-  const assignmentById = new Map(
-    (assignmentsData ?? []).map((assignment) => [String(assignment.id), assignment]),
-  );
   for (const row of snapshotRows ?? []) {
     snapshotCountByAssignment.set(
       row.assignment_id,
@@ -242,67 +213,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const lastCompletedByAssignmentStudent = new Map<string, Map<string, string | null>>();
-  const targetIdsByAssignment = new Map<string, Set<string>>();
-  for (const row of targetRows ?? []) {
-    const assignmentId = String(row.assignment_id);
-    const studentUserId = String(row.student_user_id);
-    if (excludedUserIds.has(studentUserId)) continue;
-    if (!lastCompletedByAssignmentStudent.has(assignmentId)) {
-      lastCompletedByAssignmentStudent.set(assignmentId, new Map());
-    }
-    lastCompletedByAssignmentStudent
-      .get(assignmentId)
-      ?.set(
-        studentUserId,
-        typeof row.last_completed_at === "string" ? row.last_completed_at : null,
-      );
-    if (!targetIdsByAssignment.has(assignmentId)) {
-      targetIdsByAssignment.set(assignmentId, new Set());
-    }
-    targetIdsByAssignment.get(assignmentId)?.add(studentUserId);
-  }
-
   const attemptCountByAssignment = new Map<string, number>();
-  const activeRespondentsByAssignment = new Map<string, Set<string>>();
-  for (const row of attemptRows ?? []) {
-    const id = row.assignment_id as string | null;
-    if (!id) continue;
-    const userId = String(row.user_id);
-    if (excludedUserIds.has(userId)) continue;
-
-    const assignment = assignmentById.get(id);
-    if (!assignment) continue;
-    const isKnownStudent =
-      memberIdsBySchool.get(String(assignment.school_id))?.has(userId) ||
-      targetIdsByAssignment.get(id)?.has(userId) ||
-      studentRoleUserIds.has(userId);
-    if (!isKnownStudent) continue;
-    attemptCountByAssignment.set(id, (attemptCountByAssignment.get(id) ?? 0) + 1);
-
-    const lastCompletedAt =
-      lastCompletedByAssignmentStudent.get(id)?.get(userId) ?? null;
-    if (lastCompletedAt) {
-      const answeredAt =
-        typeof row.answered_at === "string" ? row.answered_at : null;
-      if (!answeredAt) continue;
-      if (new Date(answeredAt).getTime() <= new Date(lastCompletedAt).getTime()) {
-        continue;
-      }
-    }
-    if (!activeRespondentsByAssignment.has(id)) {
-      activeRespondentsByAssignment.set(id, new Set());
-    }
-    activeRespondentsByAssignment.get(id)?.add(userId);
-  }
-  for (const [assignmentId, byStudent] of lastCompletedByAssignmentStudent) {
-    for (const [studentUserId, lastCompletedAt] of byStudent) {
-      if (!lastCompletedAt) continue;
-      if (!activeRespondentsByAssignment.has(assignmentId)) {
-        activeRespondentsByAssignment.set(assignmentId, new Set());
-      }
-      activeRespondentsByAssignment.get(assignmentId)?.add(studentUserId);
-    }
+  const respondentCountByAssignment = new Map<string, number>();
+  for (const row of assignmentCountRows ?? []) {
+    const assignmentId = String(row.assignment_id);
+    attemptCountByAssignment.set(assignmentId, Number(row.attempt_count) || 0);
+    respondentCountByAssignment.set(assignmentId, Number(row.respondent_count) || 0);
   }
 
   return NextResponse.json({
@@ -317,7 +233,7 @@ export async function GET(request: NextRequest) {
       snapshot_count: snapshotCountByAssignment.get(assignment.id) ?? 0,
       source_type: sourceTypeByAssignment.get(assignment.id) ?? null,
       attempt_count: attemptCountByAssignment.get(assignment.id) ?? 0,
-      respondent_count: activeRespondentsByAssignment.get(assignment.id)?.size ?? 0,
+      respondent_count: respondentCountByAssignment.get(assignment.id) ?? 0,
     })),
     question_sets: accessibleSetsResult.rows.map((row) => ({
       id: row.id,

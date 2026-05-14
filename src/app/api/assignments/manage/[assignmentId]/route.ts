@@ -138,6 +138,7 @@ export async function GET(
       .select("student_user_id,last_completed_at")
       .eq("assignment_id", assignmentId),
     fetchAllSupabaseRows<{
+      id: string;
       user_id: string;
       question_id: string | null;
       is_correct: boolean | null;
@@ -145,8 +146,10 @@ export async function GET(
     }>((from, to) =>
       admin
         .from("attempts")
-        .select("user_id,question_id,is_correct,answered_at")
+        .select("id,user_id,question_id,is_correct,answered_at")
         .eq("assignment_id", assignmentId)
+        .order("answered_at", { ascending: true })
+        .order("id", { ascending: true })
         .range(from, to),
     ),
     admin
@@ -216,30 +219,25 @@ export async function GET(
   //     so we want all of them to appear here even if they joined after
   //     creation and have no assignment_targets row yet)
   //   - any user_id that has an assignment_target row (historical targets)
-  //   - any user_id that has submitted attempts for this assignment
-  // The latter two keep former-member history visible when they have work
-  // attached to this assignment.
+  // The target rows keep former-member history visible while avoiding trust in
+  // client-supplied assignment_id values on unrelated attempts.
   const currentMemberIds = new Set(
     (memberRows ?? []).map((row) => String(row.student_user_id)),
   );
   const targetStudentIdSet = new Set(
     (targetRows ?? []).map((row) => String(row.student_user_id)),
   );
-  const attemptStudentIds = (attemptRows ?? []).map((row) =>
-    String(row.user_id),
-  );
   const profileLookupIds = [
     ...new Set([
       ...currentMemberIds,
       ...targetStudentIdSet,
-      ...attemptStudentIds,
     ]),
   ].filter((id) => !excludedUserIds.has(id));
   const { data: profileRows, error: profileError } =
     profileLookupIds.length > 0
       ? await admin
           .from("profiles")
-          .select("id,student_id,display_name,role")
+          .select("id,student_id,display_name")
           .in("id", profileLookupIds)
       : { data: [], error: null };
   if (profileError) {
@@ -248,7 +246,7 @@ export async function GET(
 
   const profileById = new Map<
     string,
-    { student_id: string | null; display_name: string | null; role: string | null }
+    { student_id: string | null; display_name: string | null }
   >(
     (profileRows ?? []).map((profile) => [
       String(profile.id),
@@ -257,14 +255,11 @@ export async function GET(
           typeof profile.student_id === "string" ? profile.student_id : null,
         display_name:
           typeof profile.display_name === "string" ? profile.display_name : null,
-        role: typeof profile.role === "string" ? profile.role : null,
       },
     ]),
   );
   const isKnownStudent = (userId: string) =>
-    currentMemberIds.has(userId) ||
-    targetStudentIdSet.has(userId) ||
-    profileById.get(userId)?.role === "student";
+    currentMemberIds.has(userId) || targetStudentIdSet.has(userId);
   const filteredAttemptRows = (attemptRows ?? []).filter((row) => {
     const userId = String(row.user_id);
     return !excludedUserIds.has(userId) && isKnownStudent(userId);
@@ -273,7 +268,6 @@ export async function GET(
     ...new Set([
       ...currentMemberIds,
       ...targetStudentIdSet,
-      ...attemptStudentIds.filter((id) => !excludedUserIds.has(id) && isKnownStudent(id)),
     ]),
   ].filter((id) => !excludedUserIds.has(id));
 
@@ -302,7 +296,7 @@ export async function GET(
   }
 
   const answeredByStudent = new Map<string, Set<string>>();
-  for (const row of attemptRows ?? []) {
+  for (const row of filteredAttemptRows) {
     const studentUserId = String(row.user_id);
     const lastCompletedAt = lastCompletedByStudent.get(studentUserId) ?? null;
     if (lastCompletedAt) {
