@@ -6,6 +6,12 @@ import {
   parseAnalyticsWindow,
   parseSchoolIds,
 } from "@/lib/analytics/admin-filters";
+import {
+  ANALYTICS_IN_FILTER_CHUNK_SIZE,
+  ANALYTICS_PAGE_SIZE,
+  appendPage,
+  chunkArray,
+} from "@/lib/analytics/pagination";
 
 // Event types we surface in the Feature Usage dashboard. All rows outside this
 // set are ignored at the SQL layer so we do not pay to transfer attempt /
@@ -34,9 +40,8 @@ type EventRow = {
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
-const PAGE_SIZE = 1000;
-const IN_FILTER_CHUNK_SIZE = 200;
 const ALLOWED_MODE_FILTERS = new Set(["practice", "exam", "review"]);
+const MAX_FEATURE_EVENT_ROWS = 100_000;
 
 type Counter = { n: number; users: Set<string> };
 
@@ -63,14 +68,6 @@ function getBoolean(payload: Record<string, unknown> | null, key: string): boole
   return typeof value === "boolean" ? value : null;
 }
 
-function chunkArray<T>(values: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < values.length; i += size) {
-    chunks.push(values.slice(i, i + size));
-  }
-  return chunks;
-}
-
 function parseModeFilter(value: string | null): string | null {
   if (!value || value === "all") return null;
   return ALLOWED_MODE_FILTERS.has(value) ? value : null;
@@ -85,15 +82,16 @@ async function fetchFeatureEvents(
 ): Promise<{ data: EventRow[]; error: string | null }> {
   const data: EventRow[] = [];
 
-  for (let from = 0; ; from += PAGE_SIZE) {
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
     let query = admin
       .from("analytics_events")
       .select("event_type,user_id,question_id,mode,occurred_at,payload")
-      .in("event_type", FEATURE_EVENT_TYPES as unknown as string[])
+      .in("event_type", [...FEATURE_EVENT_TYPES])
       .gte("occurred_at", fromIso)
       .lte("occurred_at", toIso)
       .order("occurred_at", { ascending: false })
-      .range(from, from + PAGE_SIZE - 1);
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
     if (schoolIds.length > 0) {
       query = query.in("school_id", schoolIds);
     }
@@ -104,8 +102,9 @@ async function fetchFeatureEvents(
     const { data: page, error } = await query;
     if (error) return { data: [], error: error.message };
     const rows = (page ?? []) as EventRow[];
-    data.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
+    const capError = appendPage(data, rows, MAX_FEATURE_EVENT_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
   }
 
   return { data, error: null };
@@ -117,18 +116,19 @@ async function fetchExcludedProfileIds(
 ): Promise<{ data: Set<string>; error: string | null }> {
   const excluded = new Set<string>();
 
-  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
-    for (let from = 0; ; from += PAGE_SIZE) {
+  for (const chunk of chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
       const { data, error } = await admin
         .from("profiles")
         .select("id")
         .in("id", chunk)
         .eq("excluded_from_analytics", true)
-        .range(from, from + PAGE_SIZE - 1);
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
       if (error) return { data: new Set(), error: error.message };
       const rows = (data ?? []) as Array<{ id: string }>;
       rows.forEach((row) => excluded.add(String(row.id)));
-      if (rows.length < PAGE_SIZE) break;
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
     }
   }
 
@@ -168,7 +168,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const { from, to } = parseAnalyticsWindow(url, { defaultDays: 30 });
   const schoolIds = parseSchoolIds(url);
-  const modeFilter = parseModeFilter(url.searchParams.get("mode"));
+  const modeRaw = url.searchParams.get("mode");
+  if (modeRaw && modeRaw !== "all" && !ALLOWED_MODE_FILTERS.has(modeRaw)) {
+    return NextResponse.json({ error: `Invalid mode: ${modeRaw}` }, { status: 400 });
+  }
+  const modeFilter = parseModeFilter(modeRaw);
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 

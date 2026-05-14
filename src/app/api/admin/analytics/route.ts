@@ -7,6 +7,12 @@ import {
   parseSchoolIds,
 } from "@/lib/analytics/admin-filters";
 import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
+import {
+  ANALYTICS_IN_FILTER_CHUNK_SIZE,
+  ANALYTICS_PAGE_SIZE,
+  appendPage,
+  chunkArray,
+} from "@/lib/analytics/pagination";
 
 type AttemptRow = {
   user_id: string;
@@ -35,9 +41,8 @@ type SchoolMemberRow = {
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
-const PAGE_SIZE = 1000;
 const JSON_ROW_LIMIT = 500;
-const IN_FILTER_CHUNK_SIZE = 200;
+const MAX_ATTEMPT_ROWS = 100_000;
 const ALLOWED_MODE_FILTERS = new Set(["practice", "exam", "review"]);
 
 function escapeCsvValue(value: string | number | boolean | null): string {
@@ -72,14 +77,6 @@ async function requireAdmin() {
   return { ok: true as const, userId: user.id };
 }
 
-function chunkArray<T>(values: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < values.length; i += size) {
-    chunks.push(values.slice(i, i + size));
-  }
-  return chunks;
-}
-
 function parseModeFilter(value: string | null): string | null {
   if (!value || value === "all") return null;
   return ALLOWED_MODE_FILTERS.has(value) ? value : null;
@@ -91,11 +88,13 @@ async function fetchSchoolMembers(
 ): Promise<{ data: SchoolMemberRow[]; error: string | null }> {
   const data: SchoolMemberRow[] = [];
 
-  for (let from = 0; ; from += PAGE_SIZE) {
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
     let query = admin
       .from("school_members")
       .select("school_id,student_user_id")
-      .range(from, from + PAGE_SIZE - 1);
+      .order("school_id", { ascending: true })
+      .order("student_user_id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
     if (schoolIdFilters.length > 0) {
       query = query.in("school_id", schoolIdFilters);
     }
@@ -104,7 +103,7 @@ async function fetchSchoolMembers(
     if (error) return { data: [], error: error.message };
     const rows = (page ?? []) as SchoolMemberRow[];
     data.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
   }
 
   return { data, error: null };
@@ -116,18 +115,19 @@ async function fetchExcludedProfileIds(
 ): Promise<{ data: Set<string>; error: string | null }> {
   const excluded = new Set<string>();
 
-  for (const chunk of chunkArray(studentIds, IN_FILTER_CHUNK_SIZE)) {
-    for (let from = 0; ; from += PAGE_SIZE) {
+  for (const chunk of chunkArray(studentIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
       const { data, error } = await admin
         .from("profiles")
         .select("id")
         .in("id", chunk)
         .eq("excluded_from_analytics", true)
-        .range(from, from + PAGE_SIZE - 1);
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
       if (error) return { data: new Set(), error: error.message };
       const rows = (data ?? []) as Array<{ id: string }>;
       rows.forEach((row) => excluded.add(String(row.id)));
-      if (rows.length < PAGE_SIZE) break;
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
     }
   }
 
@@ -143,8 +143,8 @@ async function fetchAttempts(
 ): Promise<{ data: AttemptRow[]; error: string | null }> {
   const data: AttemptRow[] = [];
 
-  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
-    for (let offset = 0; ; offset += PAGE_SIZE) {
+  for (const chunk of chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let offset = 0; ; offset += ANALYTICS_PAGE_SIZE) {
       let query = admin
         .from("attempts")
         .select(
@@ -154,7 +154,8 @@ async function fetchAttempts(
         .gte("answered_at", from.toISOString())
         .lte("answered_at", to.toISOString())
         .order("answered_at", { ascending: false })
-        .range(offset, offset + PAGE_SIZE - 1);
+        .order("id", { ascending: true })
+        .range(offset, offset + ANALYTICS_PAGE_SIZE - 1);
 
       if (modeFilter) {
         query = query.eq("mode", modeFilter);
@@ -163,8 +164,9 @@ async function fetchAttempts(
       const { data: page, error } = await query;
       if (error) return { data: [], error: error.message };
       const rows = (page ?? []) as AttemptRow[];
-      data.push(...rows);
-      if (rows.length < PAGE_SIZE) break;
+      const capError = appendPage(data, rows, MAX_ATTEMPT_ROWS);
+      if (capError) return { data: [], error: capError };
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
     }
   }
 
@@ -179,17 +181,18 @@ async function fetchProfiles(
   const data: ProfileRow[] = [];
   if (userIds.length === 0) return { data, error: null };
 
-  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
-    for (let from = 0; ; from += PAGE_SIZE) {
+  for (const chunk of chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
       const { data: page, error } = await admin
         .from("profiles")
         .select("id,student_id,display_name,email")
         .in("id", chunk)
-        .range(from, from + PAGE_SIZE - 1);
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
       if (error) return { data: [], error: error.message };
       const rows = (page ?? []) as ProfileRow[];
       data.push(...rows);
-      if (rows.length < PAGE_SIZE) break;
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
     }
   }
 
@@ -203,7 +206,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const format = url.searchParams.get("format");
   const schoolIdFilters = parseSchoolIds(url);
-  const modeFilter = parseModeFilter(url.searchParams.get("mode"));
+  const modeRaw = url.searchParams.get("mode");
+  if (modeRaw && modeRaw !== "all" && !ALLOWED_MODE_FILTERS.has(modeRaw)) {
+    return NextResponse.json({ error: `Invalid mode: ${modeRaw}` }, { status: 400 });
+  }
+  const modeFilter = parseModeFilter(modeRaw);
   const studentFilter = url.searchParams.get("student");
   const { from, to } = parseAnalyticsWindow(url, { defaultDays: 30 });
 

@@ -6,6 +6,12 @@ import {
   parseAnalyticsWindow,
   parseSchoolIds,
 } from "@/lib/analytics/admin-filters";
+import {
+  ANALYTICS_IN_FILTER_CHUNK_SIZE,
+  ANALYTICS_PAGE_SIZE,
+  appendPage,
+  chunkArray,
+} from "@/lib/analytics/pagination";
 
 // Insights API — answers the four product research questions at a glance:
 //   Q2: Does scaffolding actually correct errors? (practice first vs final)
@@ -75,8 +81,10 @@ type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 // Minimum practice errors a student must accumulate before we count them as
 // "should have ended up in review mode".
 const REVIEW_ERROR_THRESHOLD = 2;
-const PAGE_SIZE = 1000;
-const IN_FILTER_CHUNK_SIZE = 200;
+const MAX_INSIGHTS_SESSION_ROWS = 50_000;
+const MAX_INSIGHTS_CONFIDENCE_ROWS = 100_000;
+const MAX_INSIGHTS_HINT_ROWS = 100_000;
+const MAX_INSIGHTS_ATTEMPT_EVENT_ROWS = 100_000;
 
 async function requireAdmin() {
   const requester = await createSupabaseServerClient();
@@ -114,30 +122,23 @@ function mean(values: number[]): number | null {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
-function chunkArray<T>(values: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < values.length; i += size) {
-    chunks.push(values.slice(i, i + size));
-  }
-  return chunks;
-}
-
 async function fetchSchoolMemberUserIds(
   admin: SupabaseAdminClient,
   schoolIds: string[],
 ): Promise<{ data: string[]; error: string | null }> {
   const ids = new Set<string>();
 
-  for (let from = 0; ; from += PAGE_SIZE) {
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
     const { data, error } = await admin
       .from("school_members")
       .select("student_user_id")
       .in("school_id", schoolIds)
-      .range(from, from + PAGE_SIZE - 1);
+      .order("student_user_id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
     if (error) return { data: [], error: error.message };
     const rows = data ?? [];
     rows.forEach((row) => ids.add(String(row.student_user_id)));
-    if (rows.length < PAGE_SIZE) break;
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
   }
 
   return { data: Array.from(ids), error: null };
@@ -150,16 +151,17 @@ async function fetchExcludedProfileIds(
   const excluded = new Set<string>();
   const chunks =
     userIds && userIds.length > 0
-      ? chunkArray(userIds, IN_FILTER_CHUNK_SIZE)
+      ? chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)
       : [null];
 
   for (const chunk of chunks) {
-    for (let from = 0; ; from += PAGE_SIZE) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
       let query = admin
         .from("profiles")
         .select("id")
         .eq("excluded_from_analytics", true)
-        .range(from, from + PAGE_SIZE - 1);
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
       if (chunk) {
         query = query.in("id", chunk);
       }
@@ -168,7 +170,7 @@ async function fetchExcludedProfileIds(
       if (error) return { data: new Set(), error: error.message };
       const rows = (data ?? []) as ExcludedProfileRow[];
       rows.forEach((row) => excluded.add(row.id));
-      if (rows.length < PAGE_SIZE) break;
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
     }
   }
 
@@ -183,14 +185,16 @@ async function fetchSessionDurationSources(
 ): Promise<{ data: SessionDurationSourceRow[]; error: string | null }> {
   const data: SessionDurationSourceRow[] = [];
 
-  for (let from = 0; ; from += PAGE_SIZE) {
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
     let query = admin
       .from("analytics_sessions")
       .select("user_id,started_at,ended_at,mode")
       .gte("started_at", fromIso)
       .lte("started_at", toIso)
       .not("ended_at", "is", null)
-      .range(from, from + PAGE_SIZE - 1);
+      .order("started_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
     if (schoolIds.length > 0) {
       query = query.in("school_id", schoolIds);
     }
@@ -198,8 +202,9 @@ async function fetchSessionDurationSources(
     const { data: page, error } = await query;
     if (error) return { data: [], error: error.message };
     const rows = (page ?? []) as SessionDurationSourceRow[];
-    data.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
+    const capError = appendPage(data, rows, MAX_INSIGHTS_SESSION_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
   }
 
   return { data, error: null };
@@ -224,14 +229,16 @@ async function fetchConfidenceEvents(
 ): Promise<{ data: ConfidenceEvent[]; error: string | null }> {
   const data: ConfidenceEvent[] = [];
 
-  for (let from = 0; ; from += PAGE_SIZE) {
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
     let query = admin
       .from("analytics_events")
       .select("user_id,payload")
       .eq("event_type", "confidence_submitted")
       .gte("occurred_at", fromIso)
       .lte("occurred_at", toIso)
-      .range(from, from + PAGE_SIZE - 1);
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
     if (schoolIds.length > 0) {
       query = query.in("school_id", schoolIds);
     }
@@ -239,8 +246,9 @@ async function fetchConfidenceEvents(
     const { data: page, error } = await query;
     if (error) return { data: [], error: error.message };
     const rows = (page ?? []) as ConfidenceEvent[];
-    data.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
+    const capError = appendPage(data, rows, MAX_INSIGHTS_CONFIDENCE_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
   }
 
   return { data, error: null };
@@ -254,14 +262,16 @@ async function fetchHintOpens(
 ): Promise<{ data: HintOpen[]; error: string | null }> {
   const data: HintOpen[] = [];
 
-  for (let from = 0; ; from += PAGE_SIZE) {
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
     let query = admin
       .from("analytics_events")
       .select("user_id,question_id")
       .eq("event_type", "hint_opened")
       .gte("occurred_at", fromIso)
       .lte("occurred_at", toIso)
-      .range(from, from + PAGE_SIZE - 1);
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
     if (schoolIds.length > 0) {
       query = query.in("school_id", schoolIds);
     }
@@ -269,8 +279,9 @@ async function fetchHintOpens(
     const { data: page, error } = await query;
     if (error) return { data: [], error: error.message };
     const rows = (page ?? []) as HintOpen[];
-    data.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
+    const capError = appendPage(data, rows, MAX_INSIGHTS_HINT_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
   }
 
   return { data, error: null };
@@ -284,14 +295,16 @@ async function fetchAttemptEvents(
 ): Promise<{ data: AttemptEvent[]; error: string | null }> {
   const data: AttemptEvent[] = [];
 
-  for (let from = 0; ; from += PAGE_SIZE) {
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
     let query = admin
       .from("analytics_events")
       .select("user_id,question_id,payload")
       .eq("event_type", "attempt_submitted")
       .gte("occurred_at", fromIso)
       .lte("occurred_at", toIso)
-      .range(from, from + PAGE_SIZE - 1);
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
     if (schoolIds.length > 0) {
       query = query.in("school_id", schoolIds);
     }
@@ -299,8 +312,9 @@ async function fetchAttemptEvents(
     const { data: page, error } = await query;
     if (error) return { data: [], error: error.message };
     const rows = (page ?? []) as AttemptEvent[];
-    data.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
+    const capError = appendPage(data, rows, MAX_INSIGHTS_ATTEMPT_EVENT_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
   }
 
   return { data, error: null };
@@ -312,17 +326,18 @@ async function fetchProfiles(
 ): Promise<{ data: ProfileRow[]; error: string | null }> {
   const data: ProfileRow[] = [];
 
-  for (const chunk of chunkArray(userIds, IN_FILTER_CHUNK_SIZE)) {
-    for (let from = 0; ; from += PAGE_SIZE) {
+  for (const chunk of chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
       const { data: page, error } = await admin
         .from("profiles")
         .select("id,display_name,student_id")
         .in("id", chunk)
-        .range(from, from + PAGE_SIZE - 1);
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
       if (error) return { data: [], error: error.message };
       const rows = (page ?? []) as ProfileRow[];
       data.push(...rows);
-      if (rows.length < PAGE_SIZE) break;
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
     }
   }
 
