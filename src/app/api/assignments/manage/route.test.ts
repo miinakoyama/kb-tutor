@@ -187,4 +187,205 @@ describe("GET /api/assignments/manage", () => {
       "owned-set",
     ]);
   });
+
+  it("counts answered badges from student progress instead of every assignment attempt user", async () => {
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("teacher-1"),
+      tables: {
+        profiles: {
+          rows: [{ id: "teacher-1", role: "teacher" }],
+        },
+      },
+    });
+    const { client: adminClient } = createMockSupabaseClient({
+      tables: {
+        school_teachers: {
+          rows: [{ school_id: "school-1", teacher_user_id: "teacher-1" }],
+        },
+        schools: {
+          rows: [{ id: "school-1", name: "Demo High School", teacher_user_id: null }],
+        },
+        assignments: {
+          rows: [
+            {
+              id: "assignment-1",
+              title: "Quiz",
+              school_id: "school-1",
+              due_date: null,
+              module_ids: [1],
+              topics: ["Genetics"],
+              target_minutes: 20,
+              created_at: "2026-05-01T00:00:00.000Z",
+              created_by: "teacher-1",
+              mode: "practice",
+              randomize_order: true,
+              max_questions: null,
+              review_topics: null,
+              review_standards: null,
+              instructions: null,
+            },
+          ],
+        },
+        school_members: {
+          rows: [
+            { school_id: "school-1", student_user_id: "student-completed" },
+            { school_id: "school-1", student_user_id: "student-active" },
+          ],
+        },
+        assignment_targets: {
+          rows: [
+            {
+              assignment_id: "assignment-1",
+              student_user_id: "student-completed",
+              last_completed_at: "2026-05-03T10:00:00.000Z",
+            },
+            {
+              assignment_id: "assignment-1",
+              student_user_id: "student-active",
+              last_completed_at: null,
+            },
+          ],
+        },
+        attempts: {
+          rows: [
+            {
+              assignment_id: "assignment-1",
+              user_id: "student-completed",
+              question_id: "q1",
+              answered_at: "2026-05-02T10:00:00.000Z",
+            },
+            {
+              assignment_id: "assignment-1",
+              user_id: "student-active",
+              question_id: "q1",
+              answered_at: "2026-05-04T10:00:00.000Z",
+            },
+            {
+              assignment_id: "assignment-1",
+              user_id: "teacher-1",
+              question_id: "q1",
+              answered_at: "2026-05-04T11:00:00.000Z",
+            },
+          ],
+        },
+        profiles: {
+          rows: [
+            { id: "student-completed", role: "student", excluded_from_analytics: false },
+            { id: "student-active", role: "student", excluded_from_analytics: false },
+            { id: "teacher-1", role: "teacher", excluded_from_analytics: false },
+          ],
+        },
+        assignment_question_snapshots: {
+          rows: [
+            {
+              assignment_id: "assignment-1",
+              source_type: "manual",
+            },
+          ],
+        },
+        generated_question_sets: { rows: [] },
+        school_question_sets: { rows: [] },
+        generated_questions: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+    mockState.role = "teacher";
+
+    const response = await GET(
+      new Request("http://localhost/api/assignments/manage") as never,
+    );
+    const body = (await response.json()) as {
+      assignments: Array<{ respondent_count: number; attempt_count: number }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.assignments[0].respondent_count).toBe(2);
+    expect(body.assignments[0].attempt_count).toBe(2);
+  });
+
+  it("paginates assignment attempts before computing answered badges", async () => {
+    const studentIds = Array.from({ length: 1005 }, (_, index) => `student-${index}`);
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("teacher-1"),
+      tables: {
+        profiles: {
+          rows: [{ id: "teacher-1", role: "teacher" }],
+        },
+      },
+    });
+    const { client: adminClient } = createMockSupabaseClient({
+      tables: {
+        school_teachers: {
+          rows: [{ school_id: "school-1", teacher_user_id: "teacher-1" }],
+        },
+        schools: {
+          rows: [{ id: "school-1", name: "Demo High School", teacher_user_id: null }],
+        },
+        assignments: {
+          rows: [
+            {
+              id: "assignment-1",
+              title: "Quiz",
+              school_id: "school-1",
+              due_date: null,
+              module_ids: [1],
+              topics: ["Genetics"],
+              target_minutes: 20,
+              created_at: "2026-05-01T00:00:00.000Z",
+              created_by: "teacher-1",
+              mode: "practice",
+              randomize_order: true,
+              max_questions: null,
+              review_topics: null,
+              review_standards: null,
+              instructions: null,
+            },
+          ],
+        },
+        school_members: {
+          rows: studentIds.map((studentId) => ({
+            school_id: "school-1",
+            student_user_id: studentId,
+          })),
+        },
+        assignment_targets: { rows: [] },
+        attempts: {
+          rows: studentIds.map((studentId) => ({
+            assignment_id: "assignment-1",
+            user_id: studentId,
+            question_id: "q1",
+            answered_at: "2026-05-04T10:00:00.000Z",
+          })),
+        },
+        profiles: {
+          rows: studentIds.map((studentId) => ({
+            id: studentId,
+            role: "student",
+            excluded_from_analytics: false,
+          })),
+        },
+        assignment_question_snapshots: {
+          rows: [{ assignment_id: "assignment-1", source_type: "manual" }],
+        },
+        generated_question_sets: { rows: [] },
+        school_question_sets: { rows: [] },
+        generated_questions: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+    mockState.role = "teacher";
+
+    const response = await GET(
+      new Request("http://localhost/api/assignments/manage") as never,
+    );
+    const body = (await response.json()) as {
+      assignments: Array<{ respondent_count: number; attempt_count: number }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.assignments[0].respondent_count).toBe(1005);
+    expect(body.assignments[0].attempt_count).toBe(1005);
+  });
 });

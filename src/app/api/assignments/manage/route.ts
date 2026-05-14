@@ -5,6 +5,7 @@ import type { Question } from "@/types/question";
 import {
   type AssignmentMode,
   type AssignmentSourceType,
+  fetchAllSupabaseRows,
   fetchAccessibleQuestionSets,
   getRequester,
   getScopedSchoolIds,
@@ -116,15 +117,23 @@ export async function GET(request: NextRequest) {
           .in("assignment_id", assignmentIds)
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
     assignmentIds.length > 0
-      ? admin
-          .from("attempts")
-          .select("assignment_id,user_id")
-          .in("assignment_id", assignmentIds)
+      ? fetchAllSupabaseRows<{
+          assignment_id: string | null;
+          user_id: string;
+          question_id: string | null;
+          answered_at: string | null;
+        }>((from, to) =>
+          admin
+            .from("attempts")
+            .select("assignment_id,user_id,question_id,answered_at")
+            .in("assignment_id", assignmentIds)
+            .range(from, to),
+        )
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
     assignmentIds.length > 0
       ? admin
           .from("assignment_targets")
-          .select("assignment_id,student_user_id")
+          .select("assignment_id,student_user_id,last_completed_at")
           .in("assignment_id", assignmentIds)
       : Promise.resolve({ data: [], error: null as null | { message: string } }),
   ]);
@@ -152,10 +161,11 @@ export async function GET(request: NextRequest) {
     new Set([...attemptUserIds, ...memberUserIds, ...targetUserIds]),
   );
   const excludedUserIds = new Set<string>();
+  const studentRoleUserIds = new Set<string>();
   if (profileIdsForExclusion.length > 0) {
     const { data: excludedRows, error: excludedError } = await admin
       .from("profiles")
-      .select("id")
+      .select("id,role,excluded_from_analytics")
       .in("id", profileIdsForExclusion)
       .eq("excluded_from_analytics", true);
     if (excludedError) {
@@ -163,6 +173,18 @@ export async function GET(request: NextRequest) {
     }
     for (const row of excludedRows ?? []) {
       excludedUserIds.add(String(row.id));
+    }
+
+    const { data: studentRows, error: studentError } = await admin
+      .from("profiles")
+      .select("id,role")
+      .in("id", profileIdsForExclusion)
+      .eq("role", "student");
+    if (studentError) {
+      return NextResponse.json({ error: studentError.message }, { status: 400 });
+    }
+    for (const row of studentRows ?? []) {
+      studentRoleUserIds.add(String(row.id));
     }
   }
 
@@ -194,13 +216,22 @@ export async function GET(request: NextRequest) {
   }
 
   const schoolMemberCount = new Map<string, number>();
+  const memberIdsBySchool = new Map<string, Set<string>>();
   for (const row of memberRows ?? []) {
-    if (excludedUserIds.has(String(row.student_user_id))) continue;
+    const studentUserId = String(row.student_user_id);
+    if (excludedUserIds.has(studentUserId)) continue;
     schoolMemberCount.set(row.school_id, (schoolMemberCount.get(row.school_id) ?? 0) + 1);
+    if (!memberIdsBySchool.has(row.school_id)) {
+      memberIdsBySchool.set(row.school_id, new Set());
+    }
+    memberIdsBySchool.get(row.school_id)?.add(studentUserId);
   }
 
   const snapshotCountByAssignment = new Map<string, number>();
   const sourceTypeByAssignment = new Map<string, string>();
+  const assignmentById = new Map(
+    (assignmentsData ?? []).map((assignment) => [String(assignment.id), assignment]),
+  );
   for (const row of snapshotRows ?? []) {
     snapshotCountByAssignment.set(
       row.assignment_id,
@@ -211,17 +242,67 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const lastCompletedByAssignmentStudent = new Map<string, Map<string, string | null>>();
+  const targetIdsByAssignment = new Map<string, Set<string>>();
+  for (const row of targetRows ?? []) {
+    const assignmentId = String(row.assignment_id);
+    const studentUserId = String(row.student_user_id);
+    if (excludedUserIds.has(studentUserId)) continue;
+    if (!lastCompletedByAssignmentStudent.has(assignmentId)) {
+      lastCompletedByAssignmentStudent.set(assignmentId, new Map());
+    }
+    lastCompletedByAssignmentStudent
+      .get(assignmentId)
+      ?.set(
+        studentUserId,
+        typeof row.last_completed_at === "string" ? row.last_completed_at : null,
+      );
+    if (!targetIdsByAssignment.has(assignmentId)) {
+      targetIdsByAssignment.set(assignmentId, new Set());
+    }
+    targetIdsByAssignment.get(assignmentId)?.add(studentUserId);
+  }
+
   const attemptCountByAssignment = new Map<string, number>();
-  const respondentsByAssignment = new Map<string, Set<string>>();
+  const activeRespondentsByAssignment = new Map<string, Set<string>>();
   for (const row of attemptRows ?? []) {
     const id = row.assignment_id as string | null;
     if (!id) continue;
-    if (excludedUserIds.has(String(row.user_id))) continue;
+    const userId = String(row.user_id);
+    if (excludedUserIds.has(userId)) continue;
+
+    const assignment = assignmentById.get(id);
+    if (!assignment) continue;
+    const isKnownStudent =
+      memberIdsBySchool.get(String(assignment.school_id))?.has(userId) ||
+      targetIdsByAssignment.get(id)?.has(userId) ||
+      studentRoleUserIds.has(userId);
+    if (!isKnownStudent) continue;
     attemptCountByAssignment.set(id, (attemptCountByAssignment.get(id) ?? 0) + 1);
-    if (!respondentsByAssignment.has(id)) {
-      respondentsByAssignment.set(id, new Set());
+
+    const lastCompletedAt =
+      lastCompletedByAssignmentStudent.get(id)?.get(userId) ?? null;
+    if (lastCompletedAt) {
+      const answeredAt =
+        typeof row.answered_at === "string" ? row.answered_at : null;
+      if (!answeredAt) continue;
+      if (new Date(answeredAt).getTime() <= new Date(lastCompletedAt).getTime()) {
+        continue;
+      }
     }
-    respondentsByAssignment.get(id)!.add(String(row.user_id));
+    if (!activeRespondentsByAssignment.has(id)) {
+      activeRespondentsByAssignment.set(id, new Set());
+    }
+    activeRespondentsByAssignment.get(id)?.add(userId);
+  }
+  for (const [assignmentId, byStudent] of lastCompletedByAssignmentStudent) {
+    for (const [studentUserId, lastCompletedAt] of byStudent) {
+      if (!lastCompletedAt) continue;
+      if (!activeRespondentsByAssignment.has(assignmentId)) {
+        activeRespondentsByAssignment.set(assignmentId, new Set());
+      }
+      activeRespondentsByAssignment.get(assignmentId)?.add(studentUserId);
+    }
   }
 
   return NextResponse.json({
@@ -236,7 +317,7 @@ export async function GET(request: NextRequest) {
       snapshot_count: snapshotCountByAssignment.get(assignment.id) ?? 0,
       source_type: sourceTypeByAssignment.get(assignment.id) ?? null,
       attempt_count: attemptCountByAssignment.get(assignment.id) ?? 0,
-      respondent_count: respondentsByAssignment.get(assignment.id)?.size ?? 0,
+      respondent_count: activeRespondentsByAssignment.get(assignment.id)?.size ?? 0,
     })),
     question_sets: accessibleSetsResult.rows.map((row) => ({
       id: row.id,

@@ -73,17 +73,22 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
     const filters: Array<(row: Record<string, unknown>) => boolean> = [];
     const orderClauses: OrderClause[] = [];
     let updatePatch: Record<string, unknown> | null = null;
+    let rangeClause: { from: number; to: number } | null = null;
 
     const filteredRows = () => {
       const matched = behavior.rows.filter((row) => filters.every((f) => f(row)));
-      if (orderClauses.length === 0) return matched;
-      return [...matched].sort((left, right) => {
+      const ordered =
+        orderClauses.length === 0
+          ? matched
+          : [...matched].sort((left, right) => {
         for (const clause of orderClauses) {
           const compared = compareValues(left[clause.column], right[clause.column]);
           if (compared !== 0) return clause.ascending ? compared : -compared;
         }
         return 0;
       });
+      if (!rangeClause) return ordered;
+      return ordered.slice(rangeClause.from, rangeClause.to + 1);
     };
 
     const builder: Record<string, unknown> = {
@@ -118,6 +123,10 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
           column,
           ascending: options?.ascending !== false,
         });
+        return builder;
+      }),
+      range: vi.fn((from: number, to: number) => {
+        rangeClause = { from, to };
         return builder;
       }),
       maybeSingle: vi.fn(async () => {

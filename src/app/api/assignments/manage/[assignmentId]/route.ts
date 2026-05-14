@@ -6,6 +6,7 @@ import {
   type AssignmentMode,
   type AssignmentSourceType,
   type Requester,
+  fetchAllSupabaseRows,
   getRequester,
   getScopedSchoolIds,
 } from "@/lib/assignments/manage-helpers";
@@ -136,10 +137,18 @@ export async function GET(
       .from("assignment_targets")
       .select("student_user_id,last_completed_at")
       .eq("assignment_id", assignmentId),
-    admin
-      .from("attempts")
-      .select("user_id,question_id,is_correct,answered_at")
-      .eq("assignment_id", assignmentId),
+    fetchAllSupabaseRows<{
+      user_id: string;
+      question_id: string | null;
+      is_correct: boolean | null;
+      answered_at: string | null;
+    }>((from, to) =>
+      admin
+        .from("attempts")
+        .select("user_id,question_id,is_correct,answered_at")
+        .eq("assignment_id", assignmentId)
+        .range(from, to),
+    ),
     admin
       .from("schools")
       .select("id,name")
@@ -201,17 +210,6 @@ export async function GET(
     }
   }
 
-  const filteredAttemptRows = (attemptRows ?? []).filter(
-    (row) => !excludedUserIds.has(String(row.user_id)),
-  );
-
-  const respondents = new Set<string>();
-  let correctAttempts = 0;
-  for (const row of filteredAttemptRows) {
-    respondents.add(String(row.user_id));
-    if (row.is_correct) correctAttempts += 1;
-  }
-
   // The student roster shown in the management view is the union of:
   //   - current school members (source of truth for who currently sees the
   //     assignment — school-membership drives visibility on the student side,
@@ -224,25 +222,25 @@ export async function GET(
   const currentMemberIds = new Set(
     (memberRows ?? []).map((row) => String(row.student_user_id)),
   );
-  const targetStudentIds = (targetRows ?? []).map((row) =>
-    String(row.student_user_id),
+  const targetStudentIdSet = new Set(
+    (targetRows ?? []).map((row) => String(row.student_user_id)),
   );
   const attemptStudentIds = (attemptRows ?? []).map((row) =>
     String(row.user_id),
   );
-  const allStudentIds = [
+  const profileLookupIds = [
     ...new Set([
       ...currentMemberIds,
-      ...targetStudentIds,
+      ...targetStudentIdSet,
       ...attemptStudentIds,
     ]),
   ].filter((id) => !excludedUserIds.has(id));
   const { data: profileRows, error: profileError } =
-    allStudentIds.length > 0
+    profileLookupIds.length > 0
       ? await admin
           .from("profiles")
-          .select("id,student_id,display_name")
-          .in("id", allStudentIds)
+          .select("id,student_id,display_name,role")
+          .in("id", profileLookupIds)
       : { data: [], error: null };
   if (profileError) {
     return NextResponse.json({ error: profileError.message }, { status: 400 });
@@ -250,7 +248,7 @@ export async function GET(
 
   const profileById = new Map<
     string,
-    { student_id: string | null; display_name: string | null }
+    { student_id: string | null; display_name: string | null; role: string | null }
   >(
     (profileRows ?? []).map((profile) => [
       String(profile.id),
@@ -259,9 +257,41 @@ export async function GET(
           typeof profile.student_id === "string" ? profile.student_id : null,
         display_name:
           typeof profile.display_name === "string" ? profile.display_name : null,
+        role: typeof profile.role === "string" ? profile.role : null,
       },
     ]),
   );
+  const isKnownStudent = (userId: string) =>
+    currentMemberIds.has(userId) ||
+    targetStudentIdSet.has(userId) ||
+    profileById.get(userId)?.role === "student";
+  const filteredAttemptRows = (attemptRows ?? []).filter((row) => {
+    const userId = String(row.user_id);
+    return !excludedUserIds.has(userId) && isKnownStudent(userId);
+  });
+  const allStudentIds = [
+    ...new Set([
+      ...currentMemberIds,
+      ...targetStudentIdSet,
+      ...attemptStudentIds.filter((id) => !excludedUserIds.has(id) && isKnownStudent(id)),
+    ]),
+  ].filter((id) => !excludedUserIds.has(id));
+
+  const respondents = new Set<string>();
+  let correctAttempts = 0;
+  for (const row of filteredAttemptRows) {
+    respondents.add(String(row.user_id));
+    if (row.is_correct) correctAttempts += 1;
+  }
+  for (const row of targetRows ?? []) {
+    const studentUserId = String(row.student_user_id);
+    if (excludedUserIds.has(studentUserId) || !isKnownStudent(studentUserId)) {
+      continue;
+    }
+    if (typeof row.last_completed_at === "string") {
+      respondents.add(studentUserId);
+    }
+  }
 
   const lastCompletedByStudent = new Map<string, string | null>();
   for (const row of targetRows ?? []) {
