@@ -143,9 +143,11 @@ function TeacherDashboardContent() {
           `/api/teacher-dashboard?${params.toString()}`,
           { cache: "no-store", signal: controller.signal },
         );
-        if (response.ok && isCurrent) {
+        if (response.ok) {
           const json = (await response.json()) as DashboardPayload;
-          setData(json);
+          if (isCurrent) {
+            setData(json);
+          }
         }
       } catch (error) {
         if (
