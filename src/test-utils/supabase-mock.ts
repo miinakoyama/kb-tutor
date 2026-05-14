@@ -14,6 +14,10 @@ export interface MockSupabaseConfig {
   user?: User | null;
   authError?: MockError | null;
   tables?: Record<string, MockTableBehavior>;
+  rpcs?: Record<
+    string,
+    (args: Record<string, unknown>) => Promise<{ data: unknown; error: MockError | null }>
+  >;
 }
 
 interface OrderClause {
@@ -73,17 +77,22 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
     const filters: Array<(row: Record<string, unknown>) => boolean> = [];
     const orderClauses: OrderClause[] = [];
     let updatePatch: Record<string, unknown> | null = null;
+    let rangeClause: { from: number; to: number } | null = null;
 
     const filteredRows = () => {
       const matched = behavior.rows.filter((row) => filters.every((f) => f(row)));
-      if (orderClauses.length === 0) return matched;
-      return [...matched].sort((left, right) => {
+      const ordered =
+        orderClauses.length === 0
+          ? matched
+          : [...matched].sort((left, right) => {
         for (const clause of orderClauses) {
           const compared = compareValues(left[clause.column], right[clause.column]);
           if (compared !== 0) return clause.ascending ? compared : -compared;
         }
         return 0;
       });
+      if (!rangeClause) return ordered;
+      return ordered.slice(rangeClause.from, rangeClause.to + 1);
     };
 
     const builder: Record<string, unknown> = {
@@ -118,6 +127,10 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
           column,
           ascending: options?.ascending !== false,
         });
+        return builder;
+      }),
+      range: vi.fn((from: number, to: number) => {
+        rangeClause = { from, to };
         return builder;
       }),
       maybeSingle: vi.fn(async () => {
@@ -196,6 +209,13 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
       })),
     },
     from: vi.fn((tableName: string) => builderFor(tableName)),
+    rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+      const handler = config.rpcs?.[name];
+      if (!handler) {
+        return { data: null, error: { message: `RPC not mocked: ${name}` } };
+      }
+      return handler(args);
+    }),
   } as unknown as SupabaseClient;
 
   return { client, tables };

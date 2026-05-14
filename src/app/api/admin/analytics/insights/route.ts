@@ -6,6 +6,12 @@ import {
   parseAnalyticsWindow,
   parseSchoolIds,
 } from "@/lib/analytics/admin-filters";
+import {
+  ANALYTICS_IN_FILTER_CHUNK_SIZE,
+  ANALYTICS_PAGE_SIZE,
+  appendPage,
+  chunkArray,
+} from "@/lib/analytics/pagination";
 
 // Insights API — answers the four product research questions at a glance:
 //   Q2: Does scaffolding actually correct errors? (practice first vs final)
@@ -70,10 +76,15 @@ type ProfileRow = {
   student_id: string | null;
 };
 type ExcludedProfileRow = { id: string };
+type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
 // Minimum practice errors a student must accumulate before we count them as
 // "should have ended up in review mode".
 const REVIEW_ERROR_THRESHOLD = 2;
+const MAX_INSIGHTS_SESSION_ROWS = 50_000;
+const MAX_INSIGHTS_CONFIDENCE_ROWS = 100_000;
+const MAX_INSIGHTS_HINT_ROWS = 100_000;
+const MAX_INSIGHTS_ATTEMPT_EVENT_ROWS = 100_000;
 
 async function requireAdmin() {
   const requester = await createSupabaseServerClient();
@@ -109,6 +120,228 @@ function median(sorted: number[]): number | null {
 function mean(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+async function fetchSchoolMemberUserIds(
+  admin: SupabaseAdminClient,
+  schoolIds: string[],
+): Promise<{ data: string[]; error: string | null }> {
+  const ids = new Set<string>();
+
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+    const { data, error } = await admin
+      .from("school_members")
+      .select("student_user_id")
+      .in("school_id", schoolIds)
+      .order("student_user_id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+    if (error) return { data: [], error: error.message };
+    const rows = data ?? [];
+    rows.forEach((row) => ids.add(String(row.student_user_id)));
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
+  }
+
+  return { data: Array.from(ids), error: null };
+}
+
+async function fetchExcludedProfileIds(
+  admin: SupabaseAdminClient,
+  userIds?: string[],
+): Promise<{ data: Set<string>; error: string | null }> {
+  const excluded = new Set<string>();
+  const chunks =
+    userIds && userIds.length > 0
+      ? chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)
+      : [null];
+
+  for (const chunk of chunks) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+      let query = admin
+        .from("profiles")
+        .select("id")
+        .eq("excluded_from_analytics", true)
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+      if (chunk) {
+        query = query.in("id", chunk);
+      }
+
+      const { data, error } = await query;
+      if (error) return { data: new Set(), error: error.message };
+      const rows = (data ?? []) as ExcludedProfileRow[];
+      rows.forEach((row) => excluded.add(row.id));
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
+    }
+  }
+
+  return { data: excluded, error: null };
+}
+
+async function fetchSessionDurationSources(
+  admin: SupabaseAdminClient,
+  fromIso: string,
+  toIso: string,
+  schoolIds: string[],
+): Promise<{ data: SessionDurationSourceRow[]; error: string | null }> {
+  const data: SessionDurationSourceRow[] = [];
+
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+    let query = admin
+      .from("analytics_sessions")
+      .select("user_id,started_at,ended_at,mode")
+      .gte("started_at", fromIso)
+      .lte("started_at", toIso)
+      .not("ended_at", "is", null)
+      .order("started_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+    if (schoolIds.length > 0) {
+      query = query.in("school_id", schoolIds);
+    }
+
+    const { data: page, error } = await query;
+    if (error) return { data: [], error: error.message };
+    const rows = (page ?? []) as SessionDurationSourceRow[];
+    const capError = appendPage(data, rows, MAX_INSIGHTS_SESSION_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
+  }
+
+  return { data, error: null };
+}
+
+type AttemptEvent = {
+  user_id: string;
+  question_id: string | null;
+  payload: Record<string, unknown> | null;
+};
+type HintOpen = { user_id: string; question_id: string | null };
+type ConfidenceEvent = {
+  user_id: string;
+  payload: Record<string, unknown> | null;
+};
+
+async function fetchConfidenceEvents(
+  admin: SupabaseAdminClient,
+  fromIso: string,
+  toIso: string,
+  schoolIds: string[],
+): Promise<{ data: ConfidenceEvent[]; error: string | null }> {
+  const data: ConfidenceEvent[] = [];
+
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+    let query = admin
+      .from("analytics_events")
+      .select("user_id,payload")
+      .eq("event_type", "confidence_submitted")
+      .gte("occurred_at", fromIso)
+      .lte("occurred_at", toIso)
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+    if (schoolIds.length > 0) {
+      query = query.in("school_id", schoolIds);
+    }
+
+    const { data: page, error } = await query;
+    if (error) return { data: [], error: error.message };
+    const rows = (page ?? []) as ConfidenceEvent[];
+    const capError = appendPage(data, rows, MAX_INSIGHTS_CONFIDENCE_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
+  }
+
+  return { data, error: null };
+}
+
+async function fetchHintOpens(
+  admin: SupabaseAdminClient,
+  fromIso: string,
+  toIso: string,
+  schoolIds: string[],
+): Promise<{ data: HintOpen[]; error: string | null }> {
+  const data: HintOpen[] = [];
+
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+    let query = admin
+      .from("analytics_events")
+      .select("user_id,question_id")
+      .eq("event_type", "hint_opened")
+      .gte("occurred_at", fromIso)
+      .lte("occurred_at", toIso)
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+    if (schoolIds.length > 0) {
+      query = query.in("school_id", schoolIds);
+    }
+
+    const { data: page, error } = await query;
+    if (error) return { data: [], error: error.message };
+    const rows = (page ?? []) as HintOpen[];
+    const capError = appendPage(data, rows, MAX_INSIGHTS_HINT_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
+  }
+
+  return { data, error: null };
+}
+
+async function fetchAttemptEvents(
+  admin: SupabaseAdminClient,
+  fromIso: string,
+  toIso: string,
+  schoolIds: string[],
+): Promise<{ data: AttemptEvent[]; error: string | null }> {
+  const data: AttemptEvent[] = [];
+
+  for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+    let query = admin
+      .from("analytics_events")
+      .select("user_id,question_id,payload")
+      .eq("event_type", "attempt_submitted")
+      .gte("occurred_at", fromIso)
+      .lte("occurred_at", toIso)
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+    if (schoolIds.length > 0) {
+      query = query.in("school_id", schoolIds);
+    }
+
+    const { data: page, error } = await query;
+    if (error) return { data: [], error: error.message };
+    const rows = (page ?? []) as AttemptEvent[];
+    const capError = appendPage(data, rows, MAX_INSIGHTS_ATTEMPT_EVENT_ROWS);
+    if (capError) return { data: [], error: capError };
+    if (rows.length < ANALYTICS_PAGE_SIZE) break;
+  }
+
+  return { data, error: null };
+}
+
+async function fetchProfiles(
+  admin: SupabaseAdminClient,
+  userIds: string[],
+): Promise<{ data: ProfileRow[]; error: string | null }> {
+  const data: ProfileRow[] = [];
+
+  for (const chunk of chunkArray(userIds, ANALYTICS_IN_FILTER_CHUNK_SIZE)) {
+    for (let from = 0; ; from += ANALYTICS_PAGE_SIZE) {
+      const { data: page, error } = await admin
+        .from("profiles")
+        .select("id,display_name,student_id")
+        .in("id", chunk)
+        .order("id", { ascending: true })
+        .range(from, from + ANALYTICS_PAGE_SIZE - 1);
+      if (error) return { data: [], error: error.message };
+      const rows = (page ?? []) as ProfileRow[];
+      data.push(...rows);
+      if (rows.length < ANALYTICS_PAGE_SIZE) break;
+    }
+  }
+
+  return { data, error: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -182,76 +415,29 @@ export async function GET(request: Request) {
   let scopedUserSet: Set<string> | null = null;
   const excludedUserSet = new Set<string>();
   if (schoolIds.length > 0) {
-    const { data: memberRows, error: memberError } = await admin
-      .from("school_members")
-      .select("student_user_id")
-      .in("school_id", schoolIds);
-    if (memberError) {
-      return NextResponse.json({ error: memberError.message }, { status: 400 });
-    }
-    const scopedUserIds = Array.from(
-      (memberRows ?? []).map((row) => String(row.student_user_id)),
+    const { data: scopedUserIds, error: memberError } = await fetchSchoolMemberUserIds(
+      admin,
+      schoolIds,
     );
+    if (memberError) {
+      return NextResponse.json({ error: memberError }, { status: 400 });
+    }
     if (scopedUserIds.length > 0) {
-      const { data: excludedRows, error: excludedError } = await admin
-        .from("profiles")
-        .select("id")
-        .in("id", scopedUserIds)
-        .eq("excluded_from_analytics", true);
+      const { data: scopedExcludedUserIds, error: excludedError } =
+        await fetchExcludedProfileIds(admin, scopedUserIds);
       if (excludedError) {
-        return NextResponse.json({ error: excludedError.message }, { status: 400 });
+        return NextResponse.json({ error: excludedError }, { status: 400 });
       }
-      for (const row of (excludedRows ?? []) as ExcludedProfileRow[]) {
-        excludedUserSet.add(row.id);
-      }
+      scopedExcludedUserIds.forEach((userId) => excludedUserSet.add(userId));
     }
     scopedUserSet = new Set(scopedUserIds.filter((userId) => !excludedUserSet.has(userId)));
   } else {
-    const { data: excludedRows, error: excludedError } = await admin
-      .from("profiles")
-      .select("id")
-      .eq("excluded_from_analytics", true);
+    const { data: allExcludedUserIds, error: excludedError } =
+      await fetchExcludedProfileIds(admin);
     if (excludedError) {
-      return NextResponse.json({ error: excludedError.message }, { status: 400 });
+      return NextResponse.json({ error: excludedError }, { status: 400 });
     }
-    for (const row of (excludedRows ?? []) as ExcludedProfileRow[]) {
-      excludedUserSet.add(row.id);
-    }
-  }
-
-  let confidenceQuery = admin
-    .from("analytics_events")
-    .select("user_id,payload")
-    .eq("event_type", "confidence_submitted")
-    .gte("occurred_at", fromIso)
-    .lte("occurred_at", toIso)
-    .limit(100_000);
-  let hintOpensQuery = admin
-    .from("analytics_events")
-    .select("user_id,question_id")
-    .eq("event_type", "hint_opened")
-    .gte("occurred_at", fromIso)
-    .lte("occurred_at", toIso)
-    .limit(100_000);
-  let attemptEventsQuery = admin
-    .from("analytics_events")
-    .select("user_id,question_id,payload")
-    .eq("event_type", "attempt_submitted")
-    .gte("occurred_at", fromIso)
-    .lte("occurred_at", toIso)
-    .limit(200_000);
-  let sessionDurationQuery = admin
-    .from("analytics_sessions")
-    .select("user_id,started_at,ended_at,mode")
-    .gte("started_at", fromIso)
-    .lte("started_at", toIso)
-    .not("ended_at", "is", null)
-    .limit(100_000);
-  if (schoolIds.length > 0) {
-    confidenceQuery = confidenceQuery.in("school_id", schoolIds);
-    hintOpensQuery = hintOpensQuery.in("school_id", schoolIds);
-    attemptEventsQuery = attemptEventsQuery.in("school_id", schoolIds);
-    sessionDurationQuery = sessionDurationQuery.in("school_id", schoolIds);
+    allExcludedUserIds.forEach((userId) => excludedUserSet.add(userId));
   }
 
   const [
@@ -270,10 +456,10 @@ export async function GET(request: Request) {
     admin.rpc("insights_review_dwell", rpcArgs),
     admin.rpc("insights_review_entered_users", rpcArgs),
     admin.rpc("insights_stage_counts", rpcArgs),
-    sessionDurationQuery,
-    confidenceQuery,
-    hintOpensQuery,
-    attemptEventsQuery,
+    fetchSessionDurationSources(admin, fromIso, toIso, schoolIds),
+    fetchConfidenceEvents(admin, fromIso, toIso, schoolIds),
+    fetchHintOpens(admin, fromIso, toIso, schoolIds),
+    fetchAttemptEvents(admin, fromIso, toIso, schoolIds),
   ]);
 
   const firstError = [
@@ -288,7 +474,11 @@ export async function GET(request: Request) {
     attemptEventsRes,
   ].find((r) => r.error);
   if (firstError?.error) {
-    return NextResponse.json({ error: firstError.error.message }, { status: 400 });
+    const message =
+      typeof firstError.error === "string"
+        ? firstError.error
+        : firstError.error.message;
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const practiceRowsAll = (practiceRes.data ?? []) as PracticeSummaryRow[];
@@ -416,10 +606,13 @@ export async function GET(request: Request) {
 
   let profileMap = new Map<string, ProfileRow>();
   if (userIds.size > 0) {
-    const { data: profileRows } = await admin
-      .from("profiles")
-      .select("id,display_name,student_id")
-      .in("id", Array.from(userIds));
+    const { data: profileRows, error: profileError } = await fetchProfiles(
+      admin,
+      Array.from(userIds),
+    );
+    if (profileError) {
+      return NextResponse.json({ error: profileError }, { status: 400 });
+    }
     profileMap = new Map(
       (profileRows as ProfileRow[] | null | undefined ?? []).map((row) => [row.id, row]),
     );
@@ -604,17 +797,6 @@ export async function GET(request: Request) {
     .slice(0, 50);
 
   // ---- Hint Dependency & Confidence Calibration (new) ------------------
-  type AttemptEvent = {
-    user_id: string;
-    question_id: string | null;
-    payload: Record<string, unknown> | null;
-  };
-  type HintOpen = { user_id: string; question_id: string | null };
-  type ConfidenceEvent = {
-    user_id: string;
-    payload: Record<string, unknown> | null;
-  };
-
   const attemptEvents = ((attemptEventsRes.data ?? []) as AttemptEvent[]).filter(
     (row) => isInScope(row.user_id),
   );
