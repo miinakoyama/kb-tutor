@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { AlertCircle, CheckCircle2, Search, Timer } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, Search, Timer } from "lucide-react";
 import { StudentAvatar } from "@/components/StudentAvatar";
 import {
   filterAssignmentProgressRowsByQuery,
@@ -13,6 +13,7 @@ import {
   type AssignmentProgressSummary,
   type StudentAssignmentProgress,
 } from "@/lib/analytics/assignment-progress";
+import { downloadAssignmentProgressCsv } from "@/lib/csv/assignment-progress";
 
 const SORT_OPTIONS: { value: AssignmentProgressRowSortKey; label: string }[] = [
   {
@@ -155,6 +156,15 @@ export function AssignmentProgressPanel({
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              onClick={() => downloadAssignmentProgressCsv(data, visibleRows)}
+              disabled={visibleRows.length === 0}
+              className="inline-flex h-[38px] items-center justify-center gap-2 rounded-lg border border-[#16a34a] px-3 text-sm font-medium text-[#166534] transition-colors hover:bg-[#16a34a]/10 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-gray/40 disabled:hover:bg-transparent"
+            >
+              <Download className="h-4 w-4" />
+              Download CSV
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
