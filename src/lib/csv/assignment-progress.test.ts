@@ -255,6 +255,28 @@ describe("buildAssignmentProgressCsv", () => {
     );
   });
 
+  it("quotes non-formula text values containing carriage returns", () => {
+    const data: AssignmentProgressResponse = {
+      assignments: [],
+      rows: [
+        {
+          studentId: "student-1",
+          studentIdCode: "S\r001",
+          label: "Alex\rStudent",
+          classId: "school-1",
+          completedCount: 0,
+          inProgressCount: 0,
+          notStartedCount: 0,
+          progress: {},
+        },
+      ],
+    };
+
+    const csv = buildAssignmentProgressCsv(data);
+
+    expect(csv).toContain('student-1,"S\r001","Alex\rStudent",school-1');
+  });
+
   it("disambiguates duplicate assignment title headers without raw ids", () => {
     const data: AssignmentProgressResponse = {
       assignments: [

@@ -19,7 +19,12 @@ function escapeCsvValue(value: CsvValue): string {
   if (startsWithSpreadsheetFormula(text)) {
     text = `'${text}`;
   }
-  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
+  if (
+    text.includes(",") ||
+    text.includes('"') ||
+    text.includes("\n") ||
+    text.includes("\r")
+  ) {
     return `"${text.replace(/"/g, '""')}"`;
   }
   return text;
