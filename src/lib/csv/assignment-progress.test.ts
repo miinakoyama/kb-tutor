@@ -165,4 +165,93 @@ describe("buildAssignmentProgressCsv", () => {
     expect(csv).toContain("student-1,S-001,Student 1");
     expect(csv).toContain("student-150,S-150,Student 150");
   });
+
+  it("neutralizes formula-leading text values", () => {
+    const data: AssignmentProgressResponse = {
+      assignments: [
+        {
+          assignmentId: "as-1",
+          title: "=Formula Assignment",
+          dueDate: null,
+          mode: "practice",
+          totalTargets: 1,
+          completedCount: 0,
+          inProgressCount: 0,
+          notStartedCount: 1,
+        },
+      ],
+      rows: [
+        {
+          studentId: "student-1",
+          studentIdCode: "+S-001",
+          label: "@Student",
+          classId: "-school-1",
+          completedCount: 0,
+          inProgressCount: 0,
+          notStartedCount: 1,
+          progress: {
+            "as-1": {
+              assignmentId: "as-1",
+              status: "not_started",
+              lastCompletedAt: null,
+              answeredCount: 0,
+              totalQuestions: 5,
+            },
+          },
+        },
+      ],
+    };
+
+    const csv = buildAssignmentProgressCsv(data);
+
+    expect(csv).toContain("'=Formula Assignment status");
+    expect(csv).toContain("student-1,'+S-001,'@Student,'-school-1");
+  });
+
+  it("disambiguates duplicate assignment title headers without raw ids", () => {
+    const data: AssignmentProgressResponse = {
+      assignments: [
+        {
+          assignmentId: "as-1",
+          title: "Unit Review",
+          dueDate: "2026-05-20T00:00:00.000Z",
+          mode: "practice",
+          totalTargets: 1,
+          completedCount: 0,
+          inProgressCount: 0,
+          notStartedCount: 1,
+        },
+        {
+          assignmentId: "as-2",
+          title: "Unit Review",
+          dueDate: "2026-05-21T00:00:00.000Z",
+          mode: "exam",
+          totalTargets: 1,
+          completedCount: 0,
+          inProgressCount: 0,
+          notStartedCount: 1,
+        },
+        {
+          assignmentId: "as-3",
+          title: "Unit Review",
+          dueDate: "2026-05-21T00:00:00.000Z",
+          mode: "exam",
+          totalTargets: 1,
+          completedCount: 0,
+          inProgressCount: 0,
+          notStartedCount: 1,
+        },
+      ],
+      rows: [],
+    };
+
+    const [header] = buildAssignmentProgressCsv(data).split("\n");
+
+    expect(header).toContain("Unit Review - practice - 2026-05-20 status");
+    expect(header).toContain("Unit Review - exam - 2026-05-21 status");
+    expect(header).toContain("Unit Review - exam - 2026-05-21 #2 status");
+    expect(header).not.toContain("as-1");
+    expect(header).not.toContain("as-2");
+    expect(header).not.toContain("as-3");
+  });
 });

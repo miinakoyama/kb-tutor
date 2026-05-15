@@ -4,10 +4,14 @@ import type {
 } from "@/lib/analytics/assignment-progress";
 
 type CsvValue = string | number | null;
+const FORMULA_PREFIXES = new Set(["=", "+", "-", "@"]);
 
 function escapeCsvValue(value: CsvValue): string {
   if (value === null) return "";
-  const text = String(value);
+  let text = String(value);
+  if (FORMULA_PREFIXES.has(text.charAt(0))) {
+    text = `'${text}`;
+  }
   if (text.includes(",") || text.includes('"') || text.includes("\n")) {
     return `"${text.replace(/"/g, '""')}"`;
   }
@@ -31,6 +35,38 @@ function downloadCsv(content: string, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
+function formatDueDateForHeader(dueDate: string | null): string {
+  if (!dueDate) return "no due date";
+  const parsed = new Date(dueDate);
+  if (Number.isNaN(parsed.getTime())) return dueDate;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function buildAssignmentColumnPrefixes(
+  assignments: AssignmentProgressResponse["assignments"],
+): Map<string, string> {
+  const titleCounts = new Map<string, number>();
+  for (const assignment of assignments) {
+    titleCounts.set(assignment.title, (titleCounts.get(assignment.title) ?? 0) + 1);
+  }
+
+  const prefixCounts = new Map<string, number>();
+  const prefixes = new Map<string, string>();
+  for (const assignment of assignments) {
+    const duplicateTitle = (titleCounts.get(assignment.title) ?? 0) > 1;
+    const basePrefix = duplicateTitle
+      ? `${assignment.title} - ${assignment.mode ?? "unknown mode"} - ${formatDueDateForHeader(assignment.dueDate)}`
+      : assignment.title;
+    const seen = prefixCounts.get(basePrefix) ?? 0;
+    prefixCounts.set(basePrefix, seen + 1);
+    prefixes.set(
+      assignment.assignmentId,
+      seen === 0 ? basePrefix : `${basePrefix} #${seen + 1}`,
+    );
+  }
+  return prefixes;
+}
+
 export function buildAssignmentProgressCsv(
   data: AssignmentProgressResponse,
   rows: StudentProgressRow[] = data.rows,
@@ -44,8 +80,9 @@ export function buildAssignmentProgressCsv(
     "in_progress_count",
     "not_started_count",
   ];
+  const assignmentPrefixes = buildAssignmentColumnPrefixes(data.assignments);
   const assignmentHeader = data.assignments.flatMap((assignment) => {
-    const prefix = assignment.title;
+    const prefix = assignmentPrefixes.get(assignment.assignmentId) ?? assignment.title;
     return [
       `${prefix} status`,
       `${prefix} answered_count`,
