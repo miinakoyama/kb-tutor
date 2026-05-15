@@ -208,6 +208,53 @@ describe("buildAssignmentProgressCsv", () => {
     expect(csv).toContain("student-1,'+S-001,'@Student,'-school-1");
   });
 
+  it("neutralizes formula-leading text after leading whitespace or controls", () => {
+    const data: AssignmentProgressResponse = {
+      assignments: [
+        {
+          assignmentId: "as-1",
+          title: "\t=HYPERLINK(\"https://example.com\")",
+          dueDate: null,
+          mode: "practice",
+          totalTargets: 1,
+          completedCount: 0,
+          inProgressCount: 0,
+          notStartedCount: 1,
+        },
+      ],
+      rows: [
+        {
+          studentId: "student-1",
+          studentIdCode: "\r=HYPERLINK(\"https://example.com\")",
+          label: " \t+SUM(1,1)",
+          classId: "\u0000@cmd",
+          completedCount: 0,
+          inProgressCount: 0,
+          notStartedCount: 1,
+          progress: {
+            "as-1": {
+              assignmentId: "as-1",
+              status: "not_started",
+              lastCompletedAt: null,
+              answeredCount: 0,
+              totalQuestions: 5,
+            },
+          },
+        },
+      ],
+    };
+
+    const csv = buildAssignmentProgressCsv(data);
+    const lines = csv.split("\n");
+
+    expect(lines[0]).toContain(
+      '"\'\t=HYPERLINK(""https://example.com"") status"',
+    );
+    expect(lines[1]).toContain(
+      'student-1,"\'\r=HYPERLINK(""https://example.com"")","\' \t+SUM(1,1)",\'\u0000@cmd',
+    );
+  });
+
   it("disambiguates duplicate assignment title headers without raw ids", () => {
     const data: AssignmentProgressResponse = {
       assignments: [

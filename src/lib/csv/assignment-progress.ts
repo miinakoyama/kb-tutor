@@ -5,11 +5,18 @@ import type {
 
 type CsvValue = string | number | null;
 const FORMULA_PREFIXES = new Set(["=", "+", "-", "@"]);
+const LEADING_WHITESPACE_OR_CONTROL = /^[\s\u0000-\u001f\u007f]*/u;
+
+function startsWithSpreadsheetFormula(text: string): boolean {
+  const firstVisibleIndex = text.match(LEADING_WHITESPACE_OR_CONTROL)?.[0]
+    .length ?? 0;
+  return FORMULA_PREFIXES.has(text.charAt(firstVisibleIndex));
+}
 
 function escapeCsvValue(value: CsvValue): string {
   if (value === null) return "";
   let text = String(value);
-  if (FORMULA_PREFIXES.has(text.charAt(0))) {
+  if (startsWithSpreadsheetFormula(text)) {
     text = `'${text}`;
   }
   if (text.includes(",") || text.includes('"') || text.includes("\n")) {
