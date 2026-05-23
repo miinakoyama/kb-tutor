@@ -14,6 +14,8 @@ import {
   Users,
 } from "lucide-react";
 import { StudentAvatar } from "@/components/StudentAvatar";
+import { InfoPopover } from "@/components/InfoPopover";
+import { PerformanceThresholdsCard } from "@/components/PerformanceThresholdsCard";
 import {
   downloadStandardMetricsCsv,
   downloadStudentMetricsCsv,
@@ -24,12 +26,36 @@ import type {
   DashboardSummary,
   ModeMetrics,
 } from "@/lib/analytics/teacher-dashboard-server";
+import {
+  DEFAULT_PERFORMANCE_THRESHOLDS,
+  type PerformanceThresholds,
+} from "@/lib/analytics/constants";
+import {
+  BAND_LABELS,
+  BAND_TONES,
+  describeStandardBands,
+  describeStudentBands,
+  findStandardBand,
+  findStudentBand,
+  type BandDescriptor,
+} from "@/lib/analytics/band-display";
 type RangeKey = "7d" | "30d" | "all";
 type ModeKey = "compare" | "practice" | "exam" | "review";
 type AttemptModeKey = "practice" | "exam" | "review";
 type SourceKey = "assigned" | "self" | "all";
-type StudentStatusFilter = "all" | "struggling" | "watch" | "on_track" | "low_and_fast";
-type StandardStatusFilter = "all" | "needs_review" | "watch" | "on_track";
+type StudentStatusFilter =
+  | "all"
+  | "below_basic"
+  | "basic"
+  | "proficient"
+  | "advanced"
+  | "low_and_fast";
+type StandardStatusFilter =
+  | "all"
+  | "below_basic"
+  | "basic"
+  | "proficient"
+  | "advanced";
 
 interface ClassOption {
   id: string;
@@ -50,6 +76,9 @@ interface DashboardPayload {
   byStandard: StandardRow[];
   byStudent: StudentRow[];
   lowAndFastCount: number;
+  thresholds: PerformanceThresholds;
+  defaults: PerformanceThresholds;
+  thresholdsAreCustom: boolean;
 }
 
 const RANGE_OPTIONS: { value: RangeKey; label: string }[] = [
@@ -104,11 +133,20 @@ const EMPTY_PAYLOAD: DashboardPayload = {
     avgTimeSec: 0,
     totalAnswered: 0,
     totalCorrect: 0,
-    breakdown: { onTrack: 0, watch: 0, struggling: 0, notStarted: 0 },
+    breakdown: {
+      advanced: 0,
+      proficient: 0,
+      basic: 0,
+      belowBasic: 0,
+      notStarted: 0,
+    },
   },
   byStandard: [],
   byStudent: [],
   lowAndFastCount: 0,
+  thresholds: DEFAULT_PERFORMANCE_THRESHOLDS,
+  defaults: DEFAULT_PERFORMANCE_THRESHOLDS,
+  thresholdsAreCustom: false,
 };
 
 export default function TeacherDashboardPage() {
@@ -235,6 +273,19 @@ function TeacherDashboardContent() {
         <p>{modeHelper}</p>
       </div>
 
+      <PerformanceThresholdsCard
+        thresholds={data.thresholds}
+        defaults={data.defaults}
+        isCustom={data.thresholdsAreCustom}
+        onChange={(next, isCustom) =>
+          setData((prev) => ({
+            ...prev,
+            thresholds: next,
+            thresholdsAreCustom: isCustom,
+          }))
+        }
+      />
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <KpiCard
           label="Active Students"
@@ -243,9 +294,23 @@ function TeacherDashboardContent() {
           icon={CheckCircle2}
           accentClass="text-[#16a34a]"
           bgClass="bg-[#16a34a]/10"
+          info={
+            <>
+              <p className="font-semibold text-slate-gray">
+                How is active students computed?
+              </p>
+              <p className="mt-1">
+                <span className="font-mono">
+                  students_with_attempts ÷ students_in_class × 100
+                </span>
+                . A student counts as &quot;active&quot; if they have at
+                least one attempt in the selected date range and mode.
+              </p>
+            </>
+          }
         />
         {mode === "compare" ? (
-          <ModeAccuracyCard summary={data.summary} />
+          <ModeAccuracyCard summary={data.summary} thresholds={data.thresholds} />
         ) : (
           <KpiCard
             label="Overall Accuracy"
@@ -258,6 +323,18 @@ function TeacherDashboardContent() {
             icon={TrendingUp}
             accentClass="text-[#1d4ed8]"
             bgClass="bg-[#2563eb]/10"
+            info={
+              <>
+                <p className="font-semibold text-slate-gray">How is accuracy computed?</p>
+                <p className="mt-1">
+                  <span className="font-mono">
+                    accuracy = correct ÷ answered × 100
+                  </span>{" "}
+                  across all attempts in the active filters. Rounded to the
+                  nearest whole percent.
+                </p>
+              </>
+            }
           />
         )}
         <KpiCard
@@ -267,8 +344,20 @@ function TeacherDashboardContent() {
           icon={Timer}
           accentClass="text-[#b45309]"
           bgClass="bg-[#f59e0b]/10"
+          info={
+            <>
+              <p className="font-semibold text-slate-gray">
+                How is avg time computed?
+              </p>
+              <p className="mt-1">
+                Mean dwell time per question over the active filters.
+                Attempts older than the time-tracking rollout (no
+                recorded dwell) are excluded.
+              </p>
+            </>
+          }
         />
-        <StudentBreakdownCard summary={data.summary} />
+        <StudentBreakdownCard summary={data.summary} thresholds={data.thresholds} />
       </section>
 
       <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mb-6">
@@ -287,34 +376,31 @@ function TeacherDashboardContent() {
               active={standardFilter === "all"}
               onClick={() => setStandardFilter("all")}
             />
-            <StatusChip
-              label="Needs review"
-              tone="rose"
-              active={standardFilter === "needs_review"}
-              onClick={() => setStandardFilter("needs_review")}
-              count={
-                data.byStandard.filter((row) => row.status === "needs_review")
-                  .length
-              }
-            />
-            <StatusChip
-              label="Watch"
-              tone="amber"
-              active={standardFilter === "watch"}
-              onClick={() => setStandardFilter("watch")}
-              count={
-                data.byStandard.filter((row) => row.status === "watch").length
-              }
-            />
-            <StatusChip
-              label="On track"
-              tone="emerald"
-              active={standardFilter === "on_track"}
-              onClick={() => setStandardFilter("on_track")}
-              count={
-                data.byStandard.filter((row) => row.status === "on_track").length
-              }
-            />
+            {(["below_basic", "basic", "proficient", "advanced"] as const).map(
+              (key) => {
+                const band = findStandardBand(key, data.thresholds);
+                return (
+                  <StatusChip
+                    key={key}
+                    label={band.label}
+                    bandKey={key}
+                    active={standardFilter === key}
+                    onClick={() => setStandardFilter(key)}
+                    count={
+                      data.byStandard.filter((row) => row.status === key).length
+                    }
+                    tooltip={
+                      <>
+                        <p className="font-semibold text-slate-gray">
+                          {band.label} ({band.range})
+                        </p>
+                        <p className="mt-1">{band.meaning}</p>
+                      </>
+                    }
+                  />
+                );
+              },
+            )}
             <button
               onClick={() => downloadStandardMetricsCsv(filteredStandards)}
               className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
@@ -339,10 +425,34 @@ function TeacherDashboardContent() {
                     <th className="px-3 py-3 text-center">Review</th>
                   </>
                 ) : (
-                  <th className="px-3 py-3">Accuracy</th>
+                  <th className="px-3 py-3">
+                    <span className="inline-flex items-center gap-1.5">
+                      Accuracy
+                      <InfoPopover label="How is accuracy computed?" align="start">
+                        <p className="font-semibold text-slate-gray">
+                          Per-standard accuracy
+                        </p>
+                        <p className="mt-1">
+                          <span className="font-mono">
+                            correct ÷ attempted × 100
+                          </span>{" "}
+                          across every attempt on this standard for the
+                          visible roster. Bar color matches the
+                          status band on the right.
+                        </p>
+                      </InfoPopover>
+                    </span>
+                  </th>
                 )}
                 <th className="px-3 py-3">Avg time</th>
-                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3">
+                  <span className="inline-flex items-center gap-1.5">
+                    Status
+                    <InfoPopover label="How are standard bands computed?" align="end" width="wide">
+                      <BandLegend bands={describeStandardBands(data.thresholds)} />
+                    </InfoPopover>
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -380,13 +490,22 @@ function TeacherDashboardContent() {
                     {mode === "compare" ? (
                       <>
                         <td className="px-3 py-3">
-                          <ModeAccuracyCell metrics={row.byMode?.practice} />
+                          <ModeAccuracyCell
+                            metrics={row.byMode?.practice}
+                            thresholds={data.thresholds}
+                          />
                         </td>
                         <td className="px-3 py-3">
-                          <ModeAccuracyCell metrics={row.byMode?.exam} />
+                          <ModeAccuracyCell
+                            metrics={row.byMode?.exam}
+                            thresholds={data.thresholds}
+                          />
                         </td>
                         <td className="px-3 py-3">
-                          <ModeAccuracyCell metrics={row.byMode?.review} />
+                          <ModeAccuracyCell
+                            metrics={row.byMode?.review}
+                            thresholds={data.thresholds}
+                          />
                         </td>
                       </>
                     ) : (
@@ -401,7 +520,12 @@ function TeacherDashboardContent() {
                       </span>
                     </td>
                     <td className="px-5 py-3">
-                      <StandardStatusBadge status={row.status} />
+                      <StandardStatusBadge
+                        status={row.status}
+                        accuracy={row.accuracy}
+                        attempted={row.attempted}
+                        thresholds={data.thresholds}
+                      />
                     </td>
                   </tr>
                 ))
@@ -436,33 +560,56 @@ function TeacherDashboardContent() {
               onClick={() => setStudentFilter("all")}
             />
             <StatusChip
-              label="Low + fast"
-              tone="rose"
+              label="Clicking w/o engaging"
+              bandKey="below_basic"
               active={studentFilter === "low_and_fast"}
               onClick={() => setStudentFilter("low_and_fast")}
               count={data.lowAndFastCount}
+              tooltip={
+                <>
+                  <p className="font-semibold text-slate-gray">
+                    Clicking without engaging
+                  </p>
+                  <p className="mt-1">
+                    Flag for students who answer fast and wrong.
+                    Triggers when <span className="font-mono">≥ 10</span>{" "}
+                    attempts, accuracy{" "}
+                    <span className="font-mono">&lt; 50%</span>, and
+                    average time per question{" "}
+                    <span className="font-mono">&lt; 30s</span>.
+                  </p>
+                </>
+              }
             />
-            <StatusChip
-              label="Struggling"
-              tone="rose"
-              active={studentFilter === "struggling"}
-              onClick={() => setStudentFilter("struggling")}
-              count={data.summary.breakdown.struggling}
-            />
-            <StatusChip
-              label="Watch"
-              tone="amber"
-              active={studentFilter === "watch"}
-              onClick={() => setStudentFilter("watch")}
-              count={data.summary.breakdown.watch}
-            />
-            <StatusChip
-              label="On track"
-              tone="emerald"
-              active={studentFilter === "on_track"}
-              onClick={() => setStudentFilter("on_track")}
-              count={data.summary.breakdown.onTrack}
-            />
+            {(["below_basic", "basic", "proficient", "advanced"] as const).map(
+              (key) => {
+                const band = findStudentBand(key, data.thresholds);
+                const counts: Record<typeof key, number> = {
+                  below_basic: data.summary.breakdown.belowBasic,
+                  basic: data.summary.breakdown.basic,
+                  proficient: data.summary.breakdown.proficient,
+                  advanced: data.summary.breakdown.advanced,
+                };
+                return (
+                  <StatusChip
+                    key={key}
+                    label={band.label}
+                    bandKey={key}
+                    active={studentFilter === key}
+                    onClick={() => setStudentFilter(key)}
+                    count={counts[key]}
+                    tooltip={
+                      <>
+                        <p className="font-semibold text-slate-gray">
+                          {band.label} ({band.range})
+                        </p>
+                        <p className="mt-1">{band.meaning}</p>
+                      </>
+                    }
+                  />
+                );
+              },
+            )}
             <button
               onClick={() => downloadStudentMetricsCsv(filteredStudentRows)}
               className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a] px-3 py-1.5 text-sm font-medium text-[#166534] hover:bg-[#16a34a]/10 transition-colors"
@@ -480,9 +627,33 @@ function TeacherDashboardContent() {
                 <th className="px-5 py-3">Student</th>
                 <th className="px-3 py-3 text-right">Attempted</th>
                 <th className="px-3 py-3 text-right">Correct</th>
-                <th className="px-3 py-3">Accuracy</th>
+                <th className="px-3 py-3">
+                  <span className="inline-flex items-center gap-1.5">
+                    Accuracy
+                    <InfoPopover label="How is per-student accuracy computed?" align="start">
+                      <p className="font-semibold text-slate-gray">
+                        Per-student accuracy
+                      </p>
+                      <p className="mt-1">
+                        <span className="font-mono">
+                          correct ÷ attempted × 100
+                        </span>{" "}
+                        across this student&apos;s attempts in the
+                        active filters, rounded to the nearest whole
+                        percent.
+                      </p>
+                    </InfoPopover>
+                  </span>
+                </th>
                 <th className="px-3 py-3">Avg time</th>
-                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3">
+                  <span className="inline-flex items-center gap-1.5">
+                    Status
+                    <InfoPopover label="How are student bands computed?" align="end" width="wide">
+                      <BandLegend bands={describeStudentBands(data.thresholds)} />
+                    </InfoPopover>
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -528,13 +699,19 @@ function TeacherDashboardContent() {
                       <AccuracyValue
                         value={row.accuracy}
                         hasAttempts={row.attempted > 0}
+                        thresholds={data.thresholds}
                       />
                     </td>
                     <td className="px-3 py-3 text-slate-gray/70">
                       {row.attempted > 0 ? `${row.averageTimeSec}s` : "—"}
                     </td>
                     <td className="px-5 py-3">
-                      <StudentStatusBadge status={row.status} />
+                      <StudentStatusBadge
+                        status={row.status}
+                        accuracy={row.accuracy}
+                        attempted={row.attempted}
+                        thresholds={data.thresholds}
+                      />
                     </td>
                   </tr>
                 ))
@@ -732,6 +909,7 @@ function KpiCard({
   icon: Icon,
   accentClass,
   bgClass,
+  info,
 }: {
   label: string;
   value: string;
@@ -739,12 +917,18 @@ function KpiCard({
   icon: ComponentType<{ className?: string }>;
   accentClass: string;
   bgClass: string;
+  info?: ReactNode;
 }) {
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
           {label}
+          {info && (
+            <InfoPopover label={`How is ${label} computed?`} align="start">
+              {info}
+            </InfoPopover>
+          )}
         </p>
         <span
           className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${bgClass}`}
@@ -758,19 +942,41 @@ function KpiCard({
   );
 }
 
-function ModeAccuracyCard({ summary }: { summary: DashboardSummary }) {
+function ModeAccuracyCard({
+  summary,
+  thresholds,
+}: {
+  summary: DashboardSummary;
+  thresholds: PerformanceThresholds;
+}) {
   const byMode = summary.byMode;
   const toneClass = (accuracy: number, hasAttempts: boolean) => {
     if (!hasAttempts) return "text-slate-gray/40";
-    if (accuracy >= 70) return "text-emerald-700";
-    if (accuracy >= 55) return "text-amber-700";
+    if (accuracy >= thresholds.standard.advancedMin) return "text-emerald-800";
+    if (accuracy >= thresholds.standard.proficientMin) return "text-emerald-700";
+    if (accuracy >= thresholds.standard.basicMin) return "text-amber-700";
     return "text-rose-700";
   };
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between mb-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
           Accuracy by Mode
+          <InfoPopover label="How is per-mode accuracy computed?" align="start" width="wide">
+            <p className="font-semibold text-slate-gray">
+              Per-mode accuracy
+            </p>
+            <p className="mt-1">
+              For each mode,{" "}
+              <span className="font-mono">
+                correct ÷ attempted × 100
+              </span>{" "}
+              across attempts in that mode. Colors mirror the
+              standard bands ({thresholds.standard.basicMin}% /{" "}
+              {thresholds.standard.proficientMin}% /{" "}
+              {thresholds.standard.advancedMin}%).
+            </p>
+          </InfoPopover>
         </p>
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb]/10">
           <TrendingUp className="h-4 w-4 text-[#1d4ed8]" />
@@ -813,19 +1019,49 @@ function ModeAccuracyCard({ summary }: { summary: DashboardSummary }) {
   );
 }
 
-function StudentBreakdownCard({ summary }: { summary: DashboardSummary }) {
+function StudentBreakdownCard({
+  summary,
+  thresholds,
+}: {
+  summary: DashboardSummary;
+  thresholds: PerformanceThresholds;
+}) {
   const { breakdown, studentsTotal } = summary;
   const segments = [
-    { label: "On track", value: breakdown.onTrack, color: "#16a34a" },
-    { label: "Watch", value: breakdown.watch, color: "#f59e0b" },
-    { label: "Struggling", value: breakdown.struggling, color: "#f43f5e" },
-    { label: "Not started", value: breakdown.notStarted, color: "#cbd5e1" },
+    {
+      label: BAND_LABELS.advanced,
+      value: breakdown.advanced,
+      color: BAND_TONES.advanced.swatch,
+    },
+    {
+      label: BAND_LABELS.proficient,
+      value: breakdown.proficient,
+      color: BAND_TONES.proficient.swatch,
+    },
+    {
+      label: BAND_LABELS.basic,
+      value: breakdown.basic,
+      color: BAND_TONES.basic.swatch,
+    },
+    {
+      label: BAND_LABELS.below_basic,
+      value: breakdown.belowBasic,
+      color: BAND_TONES.below_basic.swatch,
+    },
+    {
+      label: BAND_LABELS.not_started,
+      value: breakdown.notStarted,
+      color: BAND_TONES.not_started.swatch,
+    },
   ];
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
           Student Breakdown
+          <InfoPopover label="How are student bands computed?" align="start" width="wide">
+            <BandLegend bands={describeStudentBands(thresholds)} />
+          </InfoPopover>
         </p>
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#16a34a]/10">
           <Users className="h-4 w-4 text-[#16a34a]" />
@@ -913,37 +1149,30 @@ function StatusChip({
   label,
   active,
   onClick,
-  tone = "slate",
+  bandKey,
   count,
+  tooltip,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
-  tone?: "slate" | "emerald" | "amber" | "rose";
+  bandKey?: "advanced" | "proficient" | "basic" | "below_basic" | "not_started";
   count?: number;
+  tooltip?: ReactNode;
 }) {
-  const toneClass: Record<string, string> = {
-    slate:
-      "border-slate-300 text-slate-gray bg-white hover:bg-slate-100",
-    emerald:
-      "border-emerald-200 text-emerald-700 bg-white hover:bg-emerald-50",
-    amber: "border-amber-200 text-amber-700 bg-white hover:bg-amber-50",
-    rose: "border-rose-200 text-rose-700 bg-white hover:bg-rose-50",
-  };
-  const activeClass: Record<string, string> = {
-    slate: "bg-slate-900 text-white border-slate-900",
-    emerald: "bg-emerald-600 text-white border-emerald-600",
-    amber: "bg-amber-500 text-white border-amber-500",
-    rose: "bg-rose-600 text-white border-rose-600",
-  };
-  return (
+  const slateIdle =
+    "border-slate-300 text-slate-gray bg-white hover:bg-slate-100";
+  const slateActive = "bg-slate-900 text-white border-slate-900";
+  const tone = bandKey ? BAND_TONES[bandKey] : null;
+  const className = `inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/40 focus-visible:ring-offset-1 ${
+    active ? tone?.chipActive ?? slateActive : tone?.chipIdle ?? slateIdle
+  }`;
+  const button = (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/40 focus-visible:ring-offset-1 ${
-        active ? activeClass[tone] : toneClass[tone]
-      }`}
+      className={className}
     >
       {label}
       {typeof count === "number" && (
@@ -957,6 +1186,15 @@ function StatusChip({
       )}
     </button>
   );
+  if (!tooltip) return button;
+  return (
+    <span className="relative inline-flex items-center gap-1">
+      {button}
+      <InfoPopover label={`${label} band definition`} align="center">
+        {tooltip}
+      </InfoPopover>
+    </span>
+  );
 }
 
 function AccuracyBar({
@@ -966,27 +1204,15 @@ function AccuracyBar({
   value: number;
   status: StandardRow["status"];
 }) {
-  const colorMap: Record<StandardRow["status"], string> = {
-    on_track: "bg-emerald-500",
-    watch: "bg-amber-500",
-    needs_review: "bg-rose-500",
-    not_started: "bg-slate-300",
-  };
-  const textMap: Record<StandardRow["status"], string> = {
-    on_track: "text-emerald-700",
-    watch: "text-amber-700",
-    needs_review: "text-rose-700",
-    not_started: "text-slate-400",
-  };
   return (
     <div className="flex items-center gap-2 min-w-[140px]">
       <div className="h-1.5 flex-1 rounded-full bg-slate-100">
         <div
-          className={`h-full rounded-full ${colorMap[status]}`}
+          className={`h-full rounded-full ${BAND_TONES[status].bar}`}
           style={{ width: `${value}%` }}
         />
       </div>
-      <span className={`text-sm font-semibold ${textMap[status]}`}>
+      <span className={`text-sm font-semibold ${BAND_TONES[status].text}`}>
         {status === "not_started" ? "—" : `${value}%`}
       </span>
     </div>
@@ -996,21 +1222,32 @@ function AccuracyBar({
 function AccuracyValue({
   value,
   hasAttempts,
+  thresholds,
 }: {
   value: number;
   hasAttempts: boolean;
+  thresholds: PerformanceThresholds;
 }) {
   if (!hasAttempts) return <span className="text-slate-gray/40">—</span>;
+  const s = thresholds.student;
   const tone =
-    value >= 70
-      ? "text-emerald-700"
-      : value >= 50
-        ? "text-amber-700"
-        : "text-rose-700";
+    value >= s.advancedMin
+      ? "text-emerald-800"
+      : value >= s.proficientMin
+        ? "text-emerald-700"
+        : value >= s.basicMin
+          ? "text-amber-700"
+          : "text-rose-700";
   return <span className={`font-semibold ${tone}`}>{value}%</span>;
 }
 
-function ModeAccuracyCell({ metrics }: { metrics: ModeMetrics | undefined }) {
+function ModeAccuracyCell({
+  metrics,
+  thresholds,
+}: {
+  metrics: ModeMetrics | undefined;
+  thresholds: PerformanceThresholds;
+}) {
   if (!metrics || metrics.attempted === 0) {
     return (
       <div className="flex flex-col items-center text-slate-gray/40">
@@ -1019,12 +1256,15 @@ function ModeAccuracyCell({ metrics }: { metrics: ModeMetrics | undefined }) {
       </div>
     );
   }
+  const s = thresholds.standard;
   const tone =
-    metrics.accuracy >= 70
-      ? "text-emerald-700"
-      : metrics.accuracy >= 55
-        ? "text-amber-700"
-        : "text-rose-700";
+    metrics.accuracy >= s.advancedMin
+      ? "text-emerald-800"
+      : metrics.accuracy >= s.proficientMin
+        ? "text-emerald-700"
+        : metrics.accuracy >= s.basicMin
+          ? "text-amber-700"
+          : "text-rose-700";
   return (
     <div className="flex flex-col items-center">
       <span className={`text-sm font-semibold ${tone}`}>
@@ -1041,48 +1281,114 @@ function ModeAccuracyCell({ metrics }: { metrics: ModeMetrics | undefined }) {
   );
 }
 
-function StandardStatusBadge({ status }: { status: StandardRow["status"] }) {
-  const label: Record<StandardRow["status"], string> = {
-    on_track: "On track",
-    watch: "Watch",
-    needs_review: "Needs review",
-    not_started: "Not started",
-  };
-  const tone: Record<StandardRow["status"], string> = {
-    on_track: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    watch: "bg-amber-50 text-amber-700 border-amber-200",
-    needs_review: "bg-rose-50 text-rose-700 border-rose-200",
-    not_started: "bg-slate-50 text-slate-500 border-slate-200",
-  };
+function StatusBadgeBase({
+  band,
+  accuracy,
+  attempted,
+  icon,
+}: {
+  band: BandDescriptor;
+  accuracy: number;
+  attempted: number;
+  icon?: ReactNode;
+}) {
+  const tone = BAND_TONES[band.key];
   return (
-    <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
-    >
-      {status === "needs_review" && <BookOpen className="w-3 h-3 flex-shrink-0" />}
-      {label[status]}
+    <span className="inline-flex items-center gap-1">
+      <span
+        className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone.badge}`}
+      >
+        {icon}
+        {band.label}
+      </span>
+      <InfoPopover label={`${band.label} band definition`} align="end" width="wide">
+        <p className="font-semibold text-slate-gray">
+          {band.label} ({band.range})
+        </p>
+        <p className="mt-1">{band.meaning}</p>
+        {attempted > 0 && (
+          <p className="mt-2 text-slate-gray/80">
+            This row:{" "}
+            <span className="font-mono">
+              accuracy = {accuracy}% over {attempted} attempts
+            </span>
+            .
+          </p>
+        )}
+      </InfoPopover>
     </span>
   );
 }
 
-function StudentStatusBadge({ status }: { status: StudentRow["status"] }) {
-  const label: Record<StudentRow["status"], string> = {
-    on_track: "On track",
-    watch: "Watch",
-    struggling: "Struggling",
-    not_started: "Not started",
-  };
-  const tone: Record<StudentRow["status"], string> = {
-    on_track: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    watch: "bg-amber-50 text-amber-700 border-amber-200",
-    struggling: "bg-rose-50 text-rose-700 border-rose-200",
-    not_started: "bg-slate-50 text-slate-500 border-slate-200",
-  };
+function StandardStatusBadge({
+  status,
+  accuracy,
+  attempted,
+  thresholds,
+}: {
+  status: StandardRow["status"];
+  accuracy: number;
+  attempted: number;
+  thresholds: PerformanceThresholds;
+}) {
+  const band = findStandardBand(status, thresholds);
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
-    >
-      {label[status]}
-    </span>
+    <StatusBadgeBase
+      band={band}
+      accuracy={accuracy}
+      attempted={attempted}
+      icon={
+        status === "below_basic" ? (
+          <BookOpen className="w-3 h-3 flex-shrink-0" />
+        ) : undefined
+      }
+    />
+  );
+}
+
+function StudentStatusBadge({
+  status,
+  accuracy,
+  attempted,
+  thresholds,
+}: {
+  status: StudentRow["status"];
+  accuracy: number;
+  attempted: number;
+  thresholds: PerformanceThresholds;
+}) {
+  const band = findStudentBand(status, thresholds);
+  return (
+    <StatusBadgeBase band={band} accuracy={accuracy} attempted={attempted} />
+  );
+}
+
+function BandLegend({ bands }: { bands: BandDescriptor[] }) {
+  return (
+    <div>
+      <p className="font-semibold text-slate-gray">Performance bands</p>
+      <p className="mt-1">Each row is classified by its accuracy:</p>
+      <ul className="mt-2 space-y-1.5">
+        {bands.map((band) => (
+          <li key={band.key} className="flex items-start gap-2">
+            <span
+              className="mt-0.5 inline-block h-2.5 w-2.5 flex-shrink-0 rounded-sm"
+              style={{ backgroundColor: BAND_TONES[band.key].swatch }}
+            />
+            <span>
+              <span className="font-semibold text-slate-gray">
+                {band.label}
+              </span>{" "}
+              <span className="font-mono text-slate-gray/70">
+                ({band.range})
+              </span>
+              <br />
+              <span className="text-slate-gray/80">{band.meaning}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

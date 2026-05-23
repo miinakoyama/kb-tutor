@@ -48,15 +48,15 @@ describe("buildDashboardResponse", () => {
 
   it("computes accuracy, average time, and student status buckets", () => {
     const attempts: AttemptRecord[] = [
-      // Alex: 10 attempts, 8 correct, 60s average -> on_track
+      // Alex: 10 attempts, 8 correct (80%), 60s average -> proficient
       ...Array.from({ length: 10 }, (_, index) =>
         attempt("s1", "BIO.1.1", index < 8, 60),
       ),
-      // Jamie: 10 attempts, 3 correct, 20s average -> low+fast, struggling
+      // Jamie: 10 attempts, 3 correct (30%), 20s average -> low+fast, below_basic
       ...Array.from({ length: 10 }, (_, index) =>
         attempt("s2", "BIO.1.2", index < 3, 20),
       ),
-      // Maya: 10 attempts, 6 correct, 90s average -> watch
+      // Maya: 10 attempts, 6 correct (60%), 90s average -> basic
       ...Array.from({ length: 10 }, (_, index) =>
         attempt("s3", "BIO.1.1", index < 6, 90),
       ),
@@ -78,19 +78,55 @@ describe("buildDashboardResponse", () => {
     const byStudent = Object.fromEntries(
       result.byStudent.map((row) => [row.studentId, row]),
     );
-    expect(byStudent.s1.status).toBe("on_track");
-    expect(byStudent.s2.status).toBe("struggling");
+    expect(byStudent.s1.status).toBe("proficient");
+    expect(byStudent.s2.status).toBe("below_basic");
     expect(byStudent.s2.isLowAndFast).toBe(true);
-    expect(byStudent.s3.status).toBe("watch");
+    expect(byStudent.s3.status).toBe("basic");
     expect(byStudent.s4.status).toBe("not_started");
     expect(result.lowAndFastCount).toBe(1);
 
     expect(result.summary.breakdown).toEqual({
-      onTrack: 1,
-      watch: 1,
-      struggling: 1,
+      advanced: 0,
+      proficient: 1,
+      basic: 1,
+      belowBasic: 1,
       notStarted: 1,
     });
+  });
+
+  it("classifies students above 85% accuracy as advanced", () => {
+    const attempts: AttemptRecord[] = Array.from({ length: 10 }, (_, index) =>
+      attempt("s1", "BIO.1.1", index < 9, 60),
+    );
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+    const row = result.byStudent.find((r) => r.studentId === "s1");
+    expect(row?.status).toBe("advanced");
+    expect(result.summary.breakdown.advanced).toBe(1);
+  });
+
+  it("respects custom thresholds when provided", () => {
+    const attempts: AttemptRecord[] = Array.from({ length: 10 }, (_, index) =>
+      attempt("s1", "BIO.1.1", index < 6, 60),
+    );
+    // With defaults 60% would be "basic" (50 <= 60 < 70). Tighten thresholds
+    // so 60% should fall into "below_basic" instead.
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+      thresholds: {
+        student: { basicMin: 70, proficientMin: 80, advancedMin: 90 },
+        standard: { basicMin: 70, proficientMin: 80, advancedMin: 90 },
+      },
+    });
+    const row = result.byStudent.find((r) => r.studentId === "s1");
+    expect(row?.accuracy).toBe(60);
+    expect(row?.status).toBe("below_basic");
+    expect(result.thresholds.student.basicMin).toBe(70);
   });
 
   it("filters attempts by topic and returns available topics", () => {
@@ -319,7 +355,7 @@ describe("buildDashboardResponse", () => {
     expect(result.summary.byMode).toBeUndefined();
   });
 
-  it("classifies standards with needs_review when accuracy is very low", () => {
+  it("classifies standards as below_basic when accuracy is very low", () => {
     const attempts: AttemptRecord[] = [
       ...Array.from({ length: 10 }, (_, index) =>
         attempt("s1", "BIO.1.3", index < 4, 70),
@@ -333,7 +369,7 @@ describe("buildDashboardResponse", () => {
     });
 
     const row = result.byStandard.find((item) => item.standardId === "BIO.1.3");
-    expect(row?.status).toBe("needs_review");
+    expect(row?.status).toBe("below_basic");
     expect(row?.accuracy).toBe(40);
   });
 });

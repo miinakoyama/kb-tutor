@@ -3,20 +3,29 @@
  * and detecting low-engagement ("clicking without engaging") patterns.
  *
  * Centralizing these values makes it easy for product to adjust the
- * cutoffs without hunting through aggregation code.
+ * default cutoffs without hunting through aggregation code. Teachers
+ * can also override these defaults from the Teacher Dashboard; per-user
+ * overrides are stored in `teacher_performance_thresholds` and merged
+ * on top of the defaults at request time.
+ *
+ * Bands align with the Pennsylvania Keystone Biology performance
+ * levels: Below Basic, Basic, Proficient, Advanced. See
+ * `docs/performance-bands.md` for the full definitions and formulas.
  */
 
-/** Minimum accuracy (%) to be classified as "on track". */
-export const STUDENT_ON_TRACK_MIN_ACCURACY = 70;
+/** Lower-bound (inclusive) of the Advanced band for a single student. */
+export const STUDENT_ADVANCED_MIN_ACCURACY = 85;
+/** Lower-bound (inclusive) of the Proficient band for a single student. */
+export const STUDENT_PROFICIENT_MIN_ACCURACY = 70;
+/** Lower-bound (inclusive) of the Basic band for a single student. Below this is "below basic". */
+export const STUDENT_BASIC_MIN_ACCURACY = 50;
 
-/** Minimum accuracy (%) to be classified as "watch" (below on_track). */
-export const STUDENT_WATCH_MIN_ACCURACY = 50;
-
-/** Minimum accuracy (%) for a standard to be classified as "on track". */
-export const STANDARD_ON_TRACK_MIN_ACCURACY = 70;
-
-/** Minimum accuracy (%) for a standard to be classified as "watch". */
-export const STANDARD_WATCH_MIN_ACCURACY = 55;
+/** Lower-bound (inclusive) of the Advanced band for a standard rollup. */
+export const STANDARD_ADVANCED_MIN_ACCURACY = 85;
+/** Lower-bound (inclusive) of the Proficient band for a standard rollup. */
+export const STANDARD_PROFICIENT_MIN_ACCURACY = 70;
+/** Lower-bound (inclusive) of the Basic band for a standard rollup. Below this is "below basic". */
+export const STANDARD_BASIC_MIN_ACCURACY = 55;
 
 /**
  * "Low + fast" (a.k.a. clicking-without-engaging) thresholds.
@@ -28,3 +37,114 @@ export const STANDARD_WATCH_MIN_ACCURACY = 55;
 export const LOW_AND_FAST_MIN_ATTEMPTS = 10;
 export const LOW_AND_FAST_MAX_ACCURACY = 50;
 export const LOW_AND_FAST_MAX_AVG_TIME_SEC = 30;
+
+/**
+ * Default thresholds bundle. The shape mirrors the per-teacher overrides
+ * stored in the DB so callers can do a single merge and pass the result
+ * to the classifier.
+ */
+export interface PerformanceThresholds {
+  student: {
+    advancedMin: number;
+    proficientMin: number;
+    basicMin: number;
+  };
+  standard: {
+    advancedMin: number;
+    proficientMin: number;
+    basicMin: number;
+  };
+}
+
+export const DEFAULT_PERFORMANCE_THRESHOLDS: PerformanceThresholds = {
+  student: {
+    advancedMin: STUDENT_ADVANCED_MIN_ACCURACY,
+    proficientMin: STUDENT_PROFICIENT_MIN_ACCURACY,
+    basicMin: STUDENT_BASIC_MIN_ACCURACY,
+  },
+  standard: {
+    advancedMin: STANDARD_ADVANCED_MIN_ACCURACY,
+    proficientMin: STANDARD_PROFICIENT_MIN_ACCURACY,
+    basicMin: STANDARD_BASIC_MIN_ACCURACY,
+  },
+};
+
+/**
+ * Merge user-supplied (potentially partial) thresholds on top of the
+ * defaults and clamp every value to [0, 100]. Returns a fully-populated
+ * `PerformanceThresholds`. Out-of-order values are not auto-corrected
+ * here; the API layer is responsible for rejecting invalid input.
+ */
+export function resolvePerformanceThresholds(
+  override: Partial<{
+    student: Partial<PerformanceThresholds["student"]>;
+    standard: Partial<PerformanceThresholds["standard"]>;
+  }> | null,
+): PerformanceThresholds {
+  const clamp = (value: number, fallback: number): number => {
+    if (!Number.isFinite(value)) return fallback;
+    return Math.max(0, Math.min(100, Math.round(value)));
+  };
+  const studentDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.student;
+  const standardDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.standard;
+  return {
+    student: {
+      advancedMin: clamp(
+        override?.student?.advancedMin ?? studentDefaults.advancedMin,
+        studentDefaults.advancedMin,
+      ),
+      proficientMin: clamp(
+        override?.student?.proficientMin ?? studentDefaults.proficientMin,
+        studentDefaults.proficientMin,
+      ),
+      basicMin: clamp(
+        override?.student?.basicMin ?? studentDefaults.basicMin,
+        studentDefaults.basicMin,
+      ),
+    },
+    standard: {
+      advancedMin: clamp(
+        override?.standard?.advancedMin ?? standardDefaults.advancedMin,
+        standardDefaults.advancedMin,
+      ),
+      proficientMin: clamp(
+        override?.standard?.proficientMin ?? standardDefaults.proficientMin,
+        standardDefaults.proficientMin,
+      ),
+      basicMin: clamp(
+        override?.standard?.basicMin ?? standardDefaults.basicMin,
+        standardDefaults.basicMin,
+      ),
+    },
+  };
+}
+
+/**
+ * Validate that bands are monotonically non-decreasing and within
+ * [0, 100]. Returns the first violation as a human-readable message, or
+ * `null` when the bundle is valid.
+ */
+export function validatePerformanceThresholds(
+  thresholds: PerformanceThresholds,
+): string | null {
+  const groups: { scope: "student" | "standard"; values: PerformanceThresholds["student"] }[] = [
+    { scope: "student", values: thresholds.student },
+    { scope: "standard", values: thresholds.standard },
+  ];
+  for (const { scope, values } of groups) {
+    const { basicMin, proficientMin, advancedMin } = values;
+    for (const [name, v] of [
+      ["basic", basicMin],
+      ["proficient", proficientMin],
+      ["advanced", advancedMin],
+    ] as const) {
+      if (!Number.isFinite(v) || v < 0 || v > 100) {
+        return `${scope} ${name} threshold must be between 0 and 100.`;
+      }
+    }
+    if (!(basicMin <= proficientMin && proficientMin <= advancedMin)) {
+      return `${scope} thresholds must satisfy basic ≤ proficient ≤ advanced.`;
+    }
+  }
+  return null;
+}
