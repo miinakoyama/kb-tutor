@@ -14,6 +14,9 @@ import {
   RefreshCcw,
   BookOpen,
   X,
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import type { AnswerRecord, ConfidenceLevel, GlossaryTerm, Question } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
@@ -103,6 +106,9 @@ export function AdaptivePracticeMode({
   const [finalAnswers, setFinalAnswers] = useState<Record<number, AnswerRecord>>({});
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
   const [showSummary, setShowSummary] = useState(false);
+  const [summaryReviewIndex, setSummaryReviewIndex] = useState<number | null>(
+    null,
+  );
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
@@ -821,13 +827,90 @@ export function AdaptivePracticeMode({
   }
 
   if (showSummary) {
+    if (summaryReviewIndex !== null) {
+      const reviewQuestion = sessionQuestions[summaryReviewIndex];
+      const reviewAnswer = finalAnswers[summaryReviewIndex];
+      if (!reviewQuestion) {
+        // Defensive: a stale index shouldn't happen, but fall back to list.
+        setSummaryReviewIndex(null);
+      } else {
+        const answerForPanel: AnswerRecord = reviewAnswer ?? {
+          selectedOptionId: reviewQuestion.correctOptionId,
+          isCorrect: false,
+        };
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-3xl mx-auto"
+          >
+            <button
+              onClick={() => setSummaryReviewIndex(null)}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+            >
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
+                <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+              </span>
+              Back to results
+            </button>
+            <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm">
+              <p className="text-sm text-slate-gray/60 mb-3">
+                Question {summaryReviewIndex + 1}
+              </p>
+              <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
+                {reviewQuestion.text}
+              </p>
+              <div className="space-y-2.5">
+                {reviewQuestion.options.map((opt) => {
+                  const isSelected = answerForPanel.selectedOptionId === opt.id;
+                  const isCorrect = opt.id === reviewQuestion.correctOptionId;
+                  const wrongSelection = isSelected && !isCorrect;
+                  return (
+                    <div
+                      key={opt.id}
+                      className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
+                        isCorrect
+                          ? "border-[#16a34a]/40 bg-[#16a34a]/5"
+                          : wrongSelection
+                            ? "border-red-300 bg-red-50"
+                            : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <div className="mt-0.5 flex-shrink-0">
+                        {isCorrect ? (
+                          <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
+                        ) : wrongSelection ? (
+                          <XCircle className="w-4 h-4 text-red-400" />
+                        ) : (
+                          <span className="inline-block w-4 h-4" />
+                        )}
+                      </div>
+                      <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
+                        {opt.text}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              <FeedbackPanel
+                question={reviewQuestion}
+                answer={answerForPanel}
+                showKeyKnowledge
+                showMisconception
+              />
+            </div>
+          </motion.div>
+        );
+      }
+    }
+
     const correctCount = Object.values(finalAnswers).filter((answer) => answer.isCorrect).length;
     const scorePercent = Math.round((correctCount / totalQuestions) * 100);
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-lg mx-auto space-y-4"
+        className="max-w-3xl mx-auto space-y-4 pb-8"
       >
         <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm text-center">
           {topicName && <p className="text-sm text-slate-gray/70 mb-2">{topicName}</p>}
@@ -839,6 +922,51 @@ export function AdaptivePracticeMode({
             {correctCount} of {totalQuestions} final answers correct
           </p>
         </div>
+
+        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 shadow-sm">
+          <h3 className="text-base font-semibold text-slate-gray mb-3">
+            Review Questions
+          </h3>
+          <div className="space-y-2">
+            {sessionQuestions.map((q, index) => {
+              const answer = finalAnswers[index];
+              const hasAnswer = !!answer;
+              const isCorrect = !!answer?.isCorrect;
+              return (
+                <button
+                  key={`${q.id}-${index}`}
+                  onClick={() => setSummaryReviewIndex(index)}
+                  className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-slate-gray/5 ${
+                    isCorrect
+                      ? "border-[#16a34a]/20"
+                      : hasAnswer
+                        ? "border-red-200"
+                        : "border-slate-gray/10"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-medium text-slate-gray/50 mt-0.5 w-5 flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <p className="flex-1 text-sm text-slate-gray line-clamp-1">
+                      {q.text}
+                    </p>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {isCorrect ? (
+                        <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
+                      ) : hasAnswer ? (
+                        <XCircle className="w-4 h-4 text-red-400" />
+                      ) : (
+                        <span className="text-xs text-slate-gray/40">—</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="flex gap-3 justify-center">
           <button
             onClick={() => {
@@ -848,6 +976,7 @@ export function AdaptivePracticeMode({
               setFinalAnswers({});
               setSelectedOptionId(null);
               setShowSummary(false);
+              setSummaryReviewIndex(null);
               setCompletionReported(false);
               resetAttemptDwell();
             }}
