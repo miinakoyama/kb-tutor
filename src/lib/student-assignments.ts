@@ -28,6 +28,10 @@ export type StudentAssignmentListItem = {
   randomize_order: boolean;
   max_questions: number | null;
   instructions: string | null;
+  /** null means unlimited retries; otherwise the cap set by the teacher. */
+  max_attempts: number | null;
+  /** Number of full runs the student has already completed (drives Attempt X/Y). */
+  completed_attempts: number;
   status: StudentAssignmentStatus;
   last_completed_at: string | null;
   progress: StudentAssignmentProgress;
@@ -47,7 +51,7 @@ function toAssignmentMode(value: unknown): AssignmentMode {
 
 type AssignmentBaseFields = Omit<
   StudentAssignmentListItem,
-  "status" | "last_completed_at" | "progress"
+  "status" | "last_completed_at" | "progress" | "completed_attempts"
 >;
 
 function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
@@ -67,6 +71,10 @@ function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
     instructions:
       typeof row.instructions === "string" && row.instructions.length > 0
         ? row.instructions
+        : null,
+    max_attempts:
+      typeof row.max_attempts === "number" && row.max_attempts > 0
+        ? row.max_attempts
         : null,
   };
 }
@@ -113,7 +121,7 @@ async function fetchAssignmentList(
   const { data: assignmentRows, error: assignmentsError } = await admin
     .from("assignments")
     .select(
-      "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,instructions,created_at",
+      "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,instructions,max_attempts,created_at",
     )
     .in("school_id", schoolIds)
     .order("created_at", { ascending: false });
@@ -132,6 +140,7 @@ async function fetchAssignmentList(
     { data: targetRows, error: targetsError },
     { data: snapshotRows, error: snapshotError },
     { data: attemptRows, error: attemptError },
+    { data: completionRows, error: completionError },
   ] = await Promise.all([
     admin
       .from("assignment_targets")
@@ -147,6 +156,11 @@ async function fetchAssignmentList(
       .select("assignment_id,question_id,answered_at")
       .eq("user_id", studentUserId)
       .in("assignment_id", orderedIds),
+    admin
+      .from("assignment_completions")
+      .select("assignment_id")
+      .eq("student_user_id", studentUserId)
+      .in("assignment_id", orderedIds),
   ]);
 
   if (targetsError) {
@@ -158,12 +172,24 @@ async function fetchAssignmentList(
   if (attemptError) {
     return { assignments: [], error: attemptError.message };
   }
+  if (completionError) {
+    return { assignments: [], error: completionError.message };
+  }
 
   const lastCompletedByAssignment = new Map<string, string | null>();
   for (const row of targetRows ?? []) {
     lastCompletedByAssignment.set(
       String(row.assignment_id),
       (row.last_completed_at as string | null | undefined) ?? null,
+    );
+  }
+
+  const completedAttemptsByAssignment = new Map<string, number>();
+  for (const row of completionRows ?? []) {
+    const id = String(row.assignment_id);
+    completedAttemptsByAssignment.set(
+      id,
+      (completedAttemptsByAssignment.get(id) ?? 0) + 1,
     );
   }
 
@@ -222,6 +248,12 @@ async function fetchAssignmentList(
         status,
         last_completed_at: lastCompletedAt,
         progress,
+        completed_attempts:
+          completedAttemptsByAssignment.get(id) ??
+          // Pre-history-table assignments may have a last_completed_at
+          // without any rows in assignment_completions; treat that as one
+          // completion so the count stays consistent with the badge.
+          (lastCompletedAt ? 1 : 0),
       };
     })
     .filter((a): a is StudentAssignmentListItem => a != null);

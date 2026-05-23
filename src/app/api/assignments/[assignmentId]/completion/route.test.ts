@@ -246,6 +246,140 @@ describe("POST /api/assignments/[assignmentId]/completion", () => {
     expect(body.all_assignments_completed).toBe(false);
   });
 
+  it("records an assignment_completions row and increments attempt_number", async () => {
+    vi.setSystemTime(new Date("2026-04-22T14:30:00.000Z"));
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser(),
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [
+            {
+              id: "as_1",
+              school_id: "school-1",
+              created_at: "2026-04-01T09:00:00.000Z",
+              max_attempts: null,
+            },
+          ],
+        },
+        assignment_targets: {
+          rows: [
+            {
+              assignment_id: "as_1",
+              student_user_id: "student-1",
+              created_at: "2026-04-01T09:00:00.000Z",
+              last_completed_at: null,
+            },
+          ],
+        },
+        school_members: {
+          rows: [{ school_id: "school-1", student_user_id: "student-1" }],
+        },
+        attempts: {
+          rows: [
+            {
+              assignment_id: "as_1",
+              user_id: "student-1",
+              answered_at: "2026-04-22T14:10:00.000Z",
+            },
+          ],
+        },
+        assignment_completions: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(requestMock(), contextFor("as_1"));
+    const body = (await response.json()) as {
+      ok: boolean;
+      attempt_number: number;
+      max_attempts: number | null;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.attempt_number).toBe(1);
+    expect(body.max_attempts).toBe(null);
+    expect(tables.assignment_completions.rows).toHaveLength(1);
+    expect(tables.assignment_completions.rows[0]).toMatchObject({
+      assignment_id: "as_1",
+      student_user_id: "student-1",
+      attempt_number: 1,
+      started_at: "2026-04-22T14:10:00.000Z",
+      completed_at: "2026-04-22T14:30:00.000Z",
+    });
+  });
+
+  it("rejects completion with 409 when max_attempts has already been used", async () => {
+    vi.setSystemTime(new Date("2026-04-22T17:00:00.000Z"));
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser(),
+    });
+    const { client: adminClient } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [
+            {
+              id: "as_1",
+              school_id: "school-1",
+              created_at: "2026-04-01T09:00:00.000Z",
+              max_attempts: 2,
+            },
+          ],
+        },
+        assignment_targets: {
+          rows: [
+            {
+              assignment_id: "as_1",
+              student_user_id: "student-1",
+              created_at: "2026-04-01T09:00:00.000Z",
+              last_completed_at: "2026-04-20T09:00:00.000Z",
+            },
+          ],
+        },
+        school_members: {
+          rows: [{ school_id: "school-1", student_user_id: "student-1" }],
+        },
+        attempts: { rows: [] },
+        assignment_completions: {
+          rows: [
+            {
+              assignment_id: "as_1",
+              student_user_id: "student-1",
+              attempt_number: 1,
+              started_at: "2026-04-10T00:00:00.000Z",
+              completed_at: "2026-04-15T00:00:00.000Z",
+            },
+            {
+              assignment_id: "as_1",
+              student_user_id: "student-1",
+              attempt_number: 2,
+              started_at: "2026-04-16T00:00:00.000Z",
+              completed_at: "2026-04-20T09:00:00.000Z",
+            },
+          ],
+        },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(requestMock(), contextFor("as_1"));
+    const body = (await response.json()) as {
+      error: string;
+      code?: string;
+      max_attempts?: number;
+      completed_attempts?: number;
+    };
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("max_attempts_exceeded");
+    expect(body.max_attempts).toBe(2);
+    expect(body.completed_attempts).toBe(2);
+  });
+
   it("returns 500 when assignment.created_at is missing during backfill insert", async () => {
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser(),

@@ -4,14 +4,21 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { countIncompleteEnrolledAssignmentsForStudent } from "@/lib/assignment-school-completion";
 
 /**
- * Mark the current student's assignment_target as completed. Called by the
+ * Mark the current student's assignment_target as completed and record an
+ * `assignment_completions` row so the run can be browsed later. Called by the
  * client when the student reaches the summary (i.e. finishes every question
  * in a practice/exam session, or finishes a review run).
  *
- * The value is stored per (assignment_id, student_user_id) in
- * assignment_targets.last_completed_at and is used for:
- *   - showing a "Completed" badge on the student's assignment list
- *   - scoping the resume-answered map so that Restart yields a fresh session
+ * Side-effects in order:
+ *   1. Validate access (existing assignment_targets row OR school membership).
+ *   2. Compute the next attempt_number for (assignment, student) by counting
+ *      existing `assignment_completions` rows. Enforce `assignments.max_attempts`
+ *      if set — if the next attempt would exceed the cap, reject with 409.
+ *   3. Insert the new `assignment_completions` row, using the first
+ *      post-prior-completion attempt as `started_at` (or assignment creation
+ *      time as a fallback for sessions with no recorded attempts).
+ *   4. Update `assignment_targets.last_completed_at` so the existing resume
+ *      and "Completed" surfaces keep working.
  */
 export async function POST(
   _request: NextRequest,
@@ -36,11 +43,9 @@ export async function POST(
 
   const admin = createSupabaseAdminClient();
 
-  // Resolve the assignment so we can authorize students who weren't
-  // originally targeted but joined the school afterwards.
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
-    .select("id,school_id,created_at")
+    .select("id,school_id,created_at,max_attempts")
     .eq("id", normalizedAssignmentId)
     .maybeSingle();
   if (assignmentError) {
@@ -52,7 +57,7 @@ export async function POST(
 
   const { data: targetRow, error: targetError } = await admin
     .from("assignment_targets")
-    .select("assignment_id")
+    .select("assignment_id,last_completed_at")
     .eq("assignment_id", normalizedAssignmentId)
     .eq("student_user_id", user.id)
     .maybeSingle();
@@ -60,11 +65,16 @@ export async function POST(
     return NextResponse.json({ error: targetError.message }, { status: 400 });
   }
 
+  // Snapshot the prior completion timestamp BEFORE we overwrite it. We use
+  // this value below to derive `started_at` for the new completion row and to
+  // scope the "first attempt in this run" lookup. Reading `targetRow.last_completed_at`
+  // again after the update would only ever return the value we just wrote.
+  const priorLastCompletedAt =
+    (targetRow?.last_completed_at as string | null | undefined) ?? null;
+
   const completedAt = new Date().toISOString();
 
   if (!targetRow) {
-    // Authorize via school membership, then create the target row so we
-    // have a place to record last_completed_at.
     const { data: memberRow, error: memberError } = await admin
       .from("school_members")
       .select("school_id")
@@ -78,11 +88,6 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Split from the old upsert: when backfilling a missing target row for a
-    // late-joined student, pin created_at to the assignment's own created_at
-    // instead of letting Postgres default to now(). Otherwise the
-    // notification timeline would treat the first completion as the moment
-    // the assignment was assigned, which is semantically wrong.
     const assignmentCreatedAt = assignment.created_at as string | null;
     if (!assignmentCreatedAt) {
       return NextResponse.json(
@@ -112,14 +117,100 @@ export async function POST(
     }
   }
 
-  const { total, incomplete, error: countError } =
+  // Determine attempt_number for the new completion row by counting how many
+  // completions already exist for this (student, assignment). We do this
+  // *before* enforcing max_attempts so a student gets the same answer
+  // whether their previous-attempt totals are exactly at the cap or beyond
+  // it (e.g. an admin lowered the cap after the fact).
+  const { count: priorCompletions, error: countError } = await admin
+    .from("assignment_completions")
+    .select("id", { count: "exact", head: true })
+    .eq("assignment_id", normalizedAssignmentId)
+    .eq("student_user_id", user.id);
+  if (countError) {
+    return NextResponse.json({ error: countError.message }, { status: 400 });
+  }
+  const attemptNumber = (priorCompletions ?? 0) + 1;
+  const maxAttempts =
+    typeof assignment.max_attempts === "number" && assignment.max_attempts > 0
+      ? assignment.max_attempts
+      : null;
+  if (maxAttempts !== null && attemptNumber > maxAttempts) {
+    return NextResponse.json(
+      {
+        error: "Maximum attempts exceeded for this assignment.",
+        code: "max_attempts_exceeded",
+        max_attempts: maxAttempts,
+        completed_attempts: priorCompletions ?? 0,
+      },
+      { status: 409 },
+    );
+  }
+
+  // started_at = earliest attempt after the prior completion (so the run's
+  // duration window is meaningful). For the very first completion, fall back
+  // to the assignment's created_at — that's the earliest "the student could
+  // have started" timestamp we have. We deliberately do NOT use the prior
+  // last_completed_at value as started_at because that's BEFORE the run
+  // started (see priorLastCompletedAt snapshot above).
+  let startedAt: string | null = null;
+  {
+    let attemptsQuery = admin
+      .from("attempts")
+      .select("answered_at")
+      .eq("assignment_id", normalizedAssignmentId)
+      .eq("user_id", user.id);
+    if (priorLastCompletedAt) {
+      attemptsQuery = attemptsQuery.gt("answered_at", priorLastCompletedAt);
+    }
+    attemptsQuery = attemptsQuery
+      .order("answered_at", { ascending: true })
+      .limit(1);
+    const { data: firstAttempt, error: firstAttemptError } = await attemptsQuery;
+    if (firstAttemptError) {
+      return NextResponse.json(
+        { error: firstAttemptError.message },
+        { status: 400 },
+      );
+    }
+    if (firstAttempt && firstAttempt.length > 0) {
+      startedAt = String(firstAttempt[0].answered_at);
+    } else {
+      // Empty session (e.g. a review run with no missed questions in scope).
+      // Use prior completion if present, otherwise the assignment's birth.
+      startedAt =
+        priorLastCompletedAt ??
+        (assignment.created_at as string | null) ??
+        completedAt;
+    }
+  }
+
+  const { error: completionInsertError } = await admin
+    .from("assignment_completions")
+    .insert({
+      assignment_id: normalizedAssignmentId,
+      student_user_id: user.id,
+      attempt_number: attemptNumber,
+      started_at: startedAt,
+      completed_at: completedAt,
+    });
+  if (completionInsertError) {
+    return NextResponse.json(
+      { error: completionInsertError.message },
+      { status: 400 },
+    );
+  }
+
+  const { total, incomplete, error: allCountError } =
     await countIncompleteEnrolledAssignmentsForStudent(admin, user.id);
   const allAssignmentsCompleted =
-    !countError && total > 0 && incomplete === 0;
+    !allCountError && total > 0 && incomplete === 0;
 
   return NextResponse.json({
     ok: true,
     last_completed_at: completedAt,
+    attempt_number: attemptNumber,
+    max_attempts: maxAttempts,
     all_assignments_completed: allAssignmentsCompleted,
   });
 }

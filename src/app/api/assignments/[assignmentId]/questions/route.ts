@@ -48,7 +48,7 @@ export async function GET(
   const admin = createSupabaseAdminClient();
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
-    .select("id,school_id,mode,randomize_order")
+    .select("id,school_id,mode,randomize_order,max_attempts")
     .eq("id", normalizedAssignmentId)
     .maybeSingle();
   if (assignmentError) {
@@ -116,6 +116,39 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Enforce max_attempts before serving any questions. We *allow* the
+  // student to keep working on their current in-progress run (no
+  // last_completed_at yet means the run started before any cap change), but
+  // block a fresh restart once they've already completed `max_attempts`
+  // runs. The completion API has the same check as defense in depth.
+  const maxAttempts =
+    typeof assignment.max_attempts === "number" && assignment.max_attempts > 0
+      ? assignment.max_attempts
+      : null;
+  let completedAttempts = 0;
+  if (maxAttempts !== null) {
+    const { count: prior, error: priorError } = await admin
+      .from("assignment_completions")
+      .select("id", { count: "exact", head: true })
+      .eq("assignment_id", normalizedAssignmentId)
+      .eq("student_user_id", requester.id);
+    if (priorError) {
+      return NextResponse.json({ error: priorError.message }, { status: 400 });
+    }
+    completedAttempts = prior ?? 0;
+    if (completedAttempts >= maxAttempts && lastCompletedAt) {
+      return NextResponse.json(
+        {
+          error: "Maximum attempts reached for this assignment.",
+          code: "max_attempts_exceeded",
+          max_attempts: maxAttempts,
+          completed_attempts: completedAttempts,
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   const assignmentMode =
     assignment.mode === "practice" ||
     assignment.mode === "exam" ||
@@ -179,5 +212,7 @@ export async function GET(
     randomize_order: randomizeOrder,
     answered,
     last_completed_at: lastCompletedAt,
+    max_attempts: maxAttempts,
+    completed_attempts: completedAttempts,
   });
 }
