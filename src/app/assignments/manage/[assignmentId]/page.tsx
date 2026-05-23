@@ -43,6 +43,7 @@ interface AssignmentDetail {
   review_topics: string[] | null;
   review_standards: string[] | null;
   instructions: string | null;
+  max_attempts: number | null;
 }
 
 interface SnapshotEntry {
@@ -183,6 +184,9 @@ function AssignmentDetailContent({
   const [instructions, setInstructions] = useState(
     assignment.instructions ?? "",
   );
+  const [maxAttempts, setMaxAttempts] = useState(
+    assignment.max_attempts != null ? String(assignment.max_attempts) : "",
+  );
   const [metaSaving, setMetaSaving] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
 
@@ -195,14 +199,25 @@ function AssignmentDetailContent({
       ? new Date(assignment.due_date).toISOString()
       : null;
     const storedInstructions = assignment.instructions ?? "";
+    const storedMaxAttempts =
+      assignment.max_attempts != null ? String(assignment.max_attempts) : "";
     return (
       title.trim() !== assignment.title ||
       formIso !== storedIso ||
       Number(targetMinutes) !== assignment.target_minutes ||
       randomizeOrder !== (assignment.randomize_order !== false) ||
-      instructions !== storedInstructions
+      instructions !== storedInstructions ||
+      maxAttempts.trim() !== storedMaxAttempts
     );
-  }, [title, dueDate, targetMinutes, randomizeOrder, instructions, assignment]);
+  }, [
+    title,
+    dueDate,
+    targetMinutes,
+    randomizeOrder,
+    instructions,
+    maxAttempts,
+    assignment,
+  ]);
 
   const saveMeta = async () => {
     setMetaSaving(true);
@@ -210,6 +225,19 @@ function AssignmentDetailContent({
     setMessage(null);
     try {
       const trimmedInstructions = instructions.trim();
+      const trimmedMaxAttempts = maxAttempts.trim();
+      let parsedMaxAttempts: number | null = null;
+      if (trimmedMaxAttempts.length > 0) {
+        const value = Number(trimmedMaxAttempts);
+        if (!Number.isFinite(value) || value < 1 || value > 100) {
+          setMetaError(
+            "Max attempts must be a positive integer between 1 and 100.",
+          );
+          setMetaSaving(false);
+          return;
+        }
+        parsedMaxAttempts = Math.round(value);
+      }
       const response = await fetch(`/api/assignments/manage/${assignmentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -220,6 +248,7 @@ function AssignmentDetailContent({
           randomizeOrder,
           instructions:
             trimmedInstructions.length > 0 ? trimmedInstructions : null,
+          maxAttempts: parsedMaxAttempts,
         }),
       });
       const payload = (await response.json()) as { error?: string };
@@ -395,6 +424,26 @@ function AssignmentDetailContent({
               <span className="text-xs text-slate-gray/70">
                 Each student sees questions in a different deterministic order.
               </span>
+            </span>
+          </label>
+
+          <label className="block text-sm text-slate-gray md:col-span-2">
+            <span className="block mb-1 font-medium">
+              Max attempts per student (optional)
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={maxAttempts}
+              onChange={(event) => setMaxAttempts(event.target.value)}
+              placeholder="Unlimited"
+              className="w-full md:w-48 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            />
+            <span className="block mt-1 text-xs text-slate-gray/70">
+              Leave blank to allow unlimited retries. Reducing this below an
+              existing student&apos;s completion count blocks future restarts
+              but does not invalidate prior work.
             </span>
           </label>
 
