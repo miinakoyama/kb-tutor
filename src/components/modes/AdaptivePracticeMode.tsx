@@ -33,6 +33,7 @@ import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
+import { NextSessionCTA } from "@/components/shared/NextSessionCTA";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const DEFAULT_QUESTION_COUNT = 10;
@@ -967,31 +968,46 @@ export function AdaptivePracticeMode({
           </div>
         </div>
 
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={() => {
-              setCurrentIndex(0);
-              setAttemptsByIndex({});
-              setRetryReadyByIndex({});
-              setFinalAnswers({});
-              setSelectedOptionId(null);
-              setShowSummary(false);
-              setSummaryReviewIndex(null);
-              setCompletionReported(false);
-              resetAttemptDwell();
-            }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-            {mode === "review" ? "Review Again" : "Try Again"}
-          </button>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors"
-          >
-            <Home className="w-4 h-4" />
-            Home
-          </Link>
+        {/*
+          Action stack on the summary screen.
+
+          The primary CTA is "Next" (NextSessionCTA): it points the student
+          at the most urgent remaining assignment, or Self Practice if every
+          assignment is done. It is the only filled-green button here so it
+          owns visual hierarchy, signaling "this is the way forward".
+
+          Try Again ('do the same set again') and Home ('stop for now') are
+          intentionally demoted to outlined / muted styles — they are still
+          one click away but no longer compete with the forward path.
+        */}
+        <div className="flex flex-col items-center gap-3">
+          <NextSessionCTA excludeAssignmentId={assignmentId} />
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              onClick={() => {
+                setCurrentIndex(0);
+                setAttemptsByIndex({});
+                setRetryReadyByIndex({});
+                setFinalAnswers({});
+                setSelectedOptionId(null);
+                setShowSummary(false);
+                setSummaryReviewIndex(null);
+                setCompletionReported(false);
+                resetAttemptDwell();
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[#16a34a]/30 text-[#14532d] font-medium hover:bg-[#16a34a]/5 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              {mode === "review" ? "Review Again" : "Try Again"}
+            </button>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors"
+            >
+              <Home className="w-4 h-4" />
+              Home
+            </Link>
+          </div>
         </div>
       </motion.div>
     );

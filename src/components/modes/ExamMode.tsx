@@ -40,6 +40,7 @@ import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
+import { NextSessionCTA } from "@/components/shared/NextSessionCTA";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
@@ -726,6 +727,7 @@ export function ExamMode({
         totalQuestions={totalQuestions}
         elapsedMs={elapsedMs}
         topicName={topicName}
+        assignmentId={assignmentId}
         onReview={(index) => {
           setReviewIndex(index);
           setPhase("review");
@@ -1369,6 +1371,7 @@ function ExamResults({
   totalQuestions,
   elapsedMs,
   topicName,
+  assignmentId,
   onReview,
   onRetry,
 }: {
@@ -1378,6 +1381,12 @@ function ExamResults({
   totalQuestions: number;
   elapsedMs: number;
   topicName?: string;
+  /**
+   * Optional — when this results screen is shown after finishing an
+   * assignment, pass it so the "Next" CTA can exclude that assignment
+   * from its suggestion candidates.
+   */
+  assignmentId?: string;
   onReview: (index: number) => void;
   onRetry: () => void;
 }) {
@@ -1480,20 +1489,33 @@ function ExamResults({
         </div>
       </div>
 
-      <div className="flex gap-3 justify-center">
-        <button
-          onClick={onRetry}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-          Try Again
-        </button>
-        <Link
-          href="/"
-          className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-[#16a34a] text-[#14532d] font-medium hover:bg-[#16a34a]/10 transition-colors"
-        >
-          Back to Home
-        </Link>
+      {/*
+        Same action hierarchy as the Practice / Review summary:
+          1. NextSessionCTA owns the primary filled-green styling and points
+             at the most urgent unfinished assignment, or Self Practice when
+             everything is done. This is what we want students to actually
+             do next.
+          2. Try Again ('redo this exam') and Back to Home ('stop') are
+             demoted to outlined / muted styles so they don't fight the
+             forward path for attention.
+      */}
+      <div className="flex flex-col items-center gap-3">
+        <NextSessionCTA excludeAssignmentId={assignmentId} />
+        <div className="flex flex-wrap gap-3 justify-center">
+          <button
+            onClick={onRetry}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[#16a34a]/30 text-[#14532d] font-medium hover:bg-[#16a34a]/5 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Try Again
+          </button>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors"
+          >
+            Back to Home
+          </Link>
+        </div>
       </div>
     </motion.div>
   );
