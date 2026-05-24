@@ -317,7 +317,7 @@ describe("POST /api/assignments/[assignmentId]/completion", () => {
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser(),
     });
-    const { client: adminClient } = createMockSupabaseClient({
+    const { client: adminClient, tables } = createMockSupabaseClient({
       tables: {
         assignments: {
           rows: [
@@ -378,6 +378,13 @@ describe("POST /api/assignments/[assignmentId]/completion", () => {
     expect(body.code).toBe("max_attempts_exceeded");
     expect(body.max_attempts).toBe(2);
     expect(body.completed_attempts).toBe(2);
+    // A rejected completion must NOT advance the student's
+    // last_completed_at, and no new assignment_completions row should be
+    // inserted. Otherwise a 409 would still corrupt retry/history state.
+    expect(tables.assignment_targets.rows[0].last_completed_at).toBe(
+      "2026-04-20T09:00:00.000Z",
+    );
+    expect(tables.assignment_completions.rows).toHaveLength(2);
   });
 
   it("returns 500 when assignment.created_at is missing during backfill insert", async () => {

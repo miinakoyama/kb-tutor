@@ -93,6 +93,29 @@ export async function GET(
 
   const attemptRows = attempts ?? [];
 
+  // For practice/exam assignments the total is the number of snapshot
+  // questions, NOT just the count of distinct answered questions in the
+  // window. Otherwise an exam submitted with unanswered items would
+  // report e.g. 8/8 in this list view while the detail view (which is
+  // driven by the snapshot) shows 8/10 — students would see an
+  // inflated percentage on the history page until they drilled in.
+  // Review mode has no snapshot, so we keep the per-run answered count.
+  const assignmentMode = String(assignment.mode ?? "practice");
+  let snapshotQuestionCount = 0;
+  if (assignmentMode !== "review") {
+    const { count: snapshotCount, error: snapshotCountError } = await admin
+      .from("assignment_question_snapshots")
+      .select("question_id", { count: "exact", head: true })
+      .eq("assignment_id", normalizedAssignmentId);
+    if (snapshotCountError) {
+      return NextResponse.json(
+        { error: snapshotCountError.message },
+        { status: 400 },
+      );
+    }
+    snapshotQuestionCount = snapshotCount ?? 0;
+  }
+
   type Summary = { correct: number; total: number };
   const summaries: Summary[] = completionRows.map(() => ({ correct: 0, total: 0 }));
 
@@ -127,7 +150,18 @@ export async function GET(
     for (const entry of latestByQuestion.values()) {
       if (entry.isCorrect) correct += 1;
     }
-    summaries[i] = { correct, total: latestByQuestion.size };
+    // For practice/exam: prefer the snapshot count so unanswered
+    // questions are still part of the denominator. Fall back to the
+    // window-answered count when the snapshot is empty (legacy data),
+    // which preserves the prior behavior for that edge case.
+    const windowTotal = latestByQuestion.size;
+    const total =
+      assignmentMode === "review"
+        ? windowTotal
+        : snapshotQuestionCount > 0
+          ? snapshotQuestionCount
+          : windowTotal;
+    summaries[i] = { correct, total };
   }
 
   const maxAttempts =

@@ -117,10 +117,18 @@ export async function GET(
   }
 
   // Enforce max_attempts before serving any questions. We *allow* the
-  // student to keep working on their current in-progress run (no
-  // last_completed_at yet means the run started before any cap change), but
-  // block a fresh restart once they've already completed `max_attempts`
-  // runs. The completion API has the same check as defense in depth.
+  // student to keep working on their current in-progress run (so a
+  // teacher lowering the cap mid-session doesn't strand them), but block
+  // a fresh restart once they've already completed `max_attempts` runs.
+  // The completion API enforces the same cap as defense in depth.
+  //
+  // "In-progress" means there is at least one row in `attempts` answered
+  // strictly after `last_completed_at` — i.e. the student has already
+  // started a new run that hasn't been finalized via the completion API.
+  // We cannot rely on `last_completed_at === null` alone because that
+  // flag stays non-null forever after the very first completion; without
+  // the attempts probe, a returning student who is mid-second-run would
+  // be incorrectly 403'd the moment the teacher tightened the cap.
   const maxAttempts =
     typeof assignment.max_attempts === "number" && assignment.max_attempts > 0
       ? assignment.max_attempts
@@ -137,15 +145,33 @@ export async function GET(
     }
     completedAttempts = prior ?? 0;
     if (completedAttempts >= maxAttempts && lastCompletedAt) {
-      return NextResponse.json(
-        {
-          error: "Maximum attempts reached for this assignment.",
-          code: "max_attempts_exceeded",
-          max_attempts: maxAttempts,
-          completed_attempts: completedAttempts,
-        },
-        { status: 403 },
-      );
+      let hasInProgressRun = false;
+      const { data: inProgressRows, error: inProgressError } = await admin
+        .from("attempts")
+        .select("answered_at")
+        .eq("assignment_id", normalizedAssignmentId)
+        .eq("user_id", requester.id)
+        .gt("answered_at", lastCompletedAt)
+        .limit(1);
+      if (inProgressError) {
+        return NextResponse.json(
+          { error: inProgressError.message },
+          { status: 400 },
+        );
+      }
+      hasInProgressRun = (inProgressRows ?? []).length > 0;
+
+      if (!hasInProgressRun) {
+        return NextResponse.json(
+          {
+            error: "Maximum attempts reached for this assignment.",
+            code: "max_attempts_exceeded",
+            max_attempts: maxAttempts,
+            completed_attempts: completedAttempts,
+          },
+          { status: 403 },
+        );
+      }
     }
   }
 

@@ -9,16 +9,21 @@ import { countIncompleteEnrolledAssignmentsForStudent } from "@/lib/assignment-s
  * client when the student reaches the summary (i.e. finishes every question
  * in a practice/exam session, or finishes a review run).
  *
- * Side-effects in order:
+ * Side-effects in order. Note this ordering is load-bearing: the cap
+ * check runs BEFORE we mutate `assignment_targets.last_completed_at`, so
+ * a rejected completion (e.g. 409 max_attempts_exceeded) never advances
+ * the student's "completed" timestamp.
  *   1. Validate access (existing assignment_targets row OR school membership).
  *   2. Compute the next attempt_number for (assignment, student) by counting
- *      existing `assignment_completions` rows. Enforce `assignments.max_attempts`
- *      if set — if the next attempt would exceed the cap, reject with 409.
+ *      existing `assignment_completions` rows (and back-filling a synthetic
+ *      legacy row for pre-history-table completions). Enforce
+ *      `assignments.max_attempts` if set — if the next attempt would
+ *      exceed the cap, reject with 409 BEFORE writing any new state.
  *   3. Insert the new `assignment_completions` row, using the first
  *      post-prior-completion attempt as `started_at` (or assignment creation
  *      time as a fallback for sessions with no recorded attempts).
- *   4. Update `assignment_targets.last_completed_at` so the existing resume
- *      and "Completed" surfaces keep working.
+ *   4. Insert/update `assignment_targets.last_completed_at` so the existing
+ *      resume and "Completed" surfaces keep working.
  */
 export async function POST(
   _request: NextRequest,
@@ -74,6 +79,11 @@ export async function POST(
 
   const completedAt = new Date().toISOString();
 
+  // Access check: caller must either already have an assignment_targets
+  // row for this assignment OR be a current member of the assignment's
+  // school. We deliberately do NOT mutate target state here yet — that
+  // is deferred until after the max_attempts cap check below so a 409
+  // rejection cannot advance `last_completed_at` for the student.
   if (!targetRow) {
     const { data: memberRow, error: memberError } = await admin
       .from("school_members")
@@ -87,33 +97,15 @@ export async function POST(
     if (!memberRow) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-
-    const assignmentCreatedAt = assignment.created_at as string | null;
-    if (!assignmentCreatedAt) {
+    // Pre-validate the precondition needed to insert a fresh
+    // assignment_targets row below. Doing this up-front avoids the
+    // dangling state of an inserted assignment_completions row paired
+    // with no assignment_targets row when `created_at` is missing.
+    if (!assignment.created_at) {
       return NextResponse.json(
         { error: "Assignment is missing created_at" },
         { status: 500 },
       );
-    }
-    const { error: insertError } = await admin
-      .from("assignment_targets")
-      .insert({
-        assignment_id: normalizedAssignmentId,
-        student_user_id: user.id,
-        created_at: assignmentCreatedAt,
-        last_completed_at: completedAt,
-      });
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 400 });
-    }
-  } else {
-    const { error: updateError } = await admin
-      .from("assignment_targets")
-      .update({ last_completed_at: completedAt })
-      .eq("assignment_id", normalizedAssignmentId)
-      .eq("student_user_id", user.id);
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 400 });
     }
   }
 
@@ -122,7 +114,7 @@ export async function POST(
   // *before* enforcing max_attempts so a student gets the same answer
   // whether their previous-attempt totals are exactly at the cap or beyond
   // it (e.g. an admin lowered the cap after the fact).
-  const { count: existingCompletions, error: countError } = await admin
+  const { count: rawCompletionsCount, error: countError } = await admin
     .from("assignment_completions")
     .select("id", { count: "exact", head: true })
     .eq("assignment_id", normalizedAssignmentId)
@@ -139,9 +131,12 @@ export async function POST(
   // (e.g. max_attempts = 1 would still let a legacy student submit a
   // brand new "attempt 1"). Insert a synthetic row representing that
   // pre-history completion so the count, the cap check, and the per-
-  // attempt history view all agree.
-  let priorCompletions = existingCompletions ?? 0;
-  if (priorCompletions === 0 && priorLastCompletedAt) {
+  // attempt history view all agree. The backfill is independent of the
+  // current submission: it represents a completion that already
+  // happened, so we keep it even if the cap check below rejects the
+  // new attempt.
+  let effectivePriorCompletions = rawCompletionsCount ?? 0;
+  if (effectivePriorCompletions === 0 && priorLastCompletedAt) {
     const { error: backfillError } = await admin
       .from("assignment_completions")
       .insert({
@@ -165,21 +160,23 @@ export async function POST(
         );
       }
     }
-    priorCompletions = 1;
+    effectivePriorCompletions = 1;
   }
 
-  const attemptNumber = priorCompletions + 1;
+  const attemptNumber = effectivePriorCompletions + 1;
   const maxAttempts =
     typeof assignment.max_attempts === "number" && assignment.max_attempts > 0
       ? assignment.max_attempts
       : null;
   if (maxAttempts !== null && attemptNumber > maxAttempts) {
+    // Reject BEFORE touching assignment_targets.last_completed_at so the
+    // student's completion timestamp is not advanced for a denied run.
     return NextResponse.json(
       {
         error: "Maximum attempts exceeded for this assignment.",
         code: "max_attempts_exceeded",
         max_attempts: maxAttempts,
-        completed_attempts: priorCompletions,
+        completed_attempts: effectivePriorCompletions,
       },
       { status: 409 },
     );
@@ -237,6 +234,38 @@ export async function POST(
       { error: completionInsertError.message },
       { status: 400 },
     );
+  }
+
+  // Persist the new `last_completed_at` only now that the cap check has
+  // passed AND the immutable completion row has been recorded. This
+  // ordering ensures that a 409 (or any earlier failure) cannot leave the
+  // student's target pointing at a "completed" timestamp for a run that
+  // was actually denied or never persisted.
+  if (!targetRow) {
+    // Membership and `created_at` were both verified above before any
+    // writes, so this insert is safe to issue now that the completion
+    // row exists.
+    const assignmentCreatedAt = assignment.created_at as string;
+    const { error: insertError } = await admin
+      .from("assignment_targets")
+      .insert({
+        assignment_id: normalizedAssignmentId,
+        student_user_id: user.id,
+        created_at: assignmentCreatedAt,
+        last_completed_at: completedAt,
+      });
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 400 });
+    }
+  } else {
+    const { error: updateError } = await admin
+      .from("assignment_targets")
+      .update({ last_completed_at: completedAt })
+      .eq("assignment_id", normalizedAssignmentId)
+      .eq("student_user_id", user.id);
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 400 });
+    }
   }
 
   const { total, incomplete, error: allCountError } =
