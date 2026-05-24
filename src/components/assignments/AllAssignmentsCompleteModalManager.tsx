@@ -19,13 +19,41 @@ type CompletionStatusResponse = {
   all_assignments_completed?: unknown;
 };
 
+// Pages where the "all assignments complete, go to Self Practice" modal is
+// suppressed. The modal exists to *push* the student toward Self Practice;
+// if they are already on the Self Practice page itself (or arrived there
+// via the post-session NextSessionCTA), surfacing the same suggestion on
+// top of it is redundant and confusing.
+const SUPPRESS_MODAL_PATHS = new Set<string>([
+  "/login",
+  "/login/staff",
+  "/self-practice",
+]);
+
+function shouldSuppressForPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return SUPPRESS_MODAL_PATHS.has(pathname);
+}
+
 export function AllAssignmentsCompleteModalManager() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const alreadyShownForCurrentCompletionRef = useRef(false);
+  // Read at emit-time inside the subscribe-driven listener so a stale
+  // closure cannot reopen the modal once the student navigates somewhere
+  // we suppress it on. Updated on every render below.
+  const pathnameRef = useRef<string | null>(pathname);
 
   const syncFromServer = useCallback(async () => {
-    if (pathname === "/login" || pathname === "/login/staff") return;
+    // Note: we deliberately do NOT bail out early on suppressed paths.
+    // We still need to fetch and persist the latest incomplete count so
+    // that previousIncomplete stays in sync — otherwise a student who
+    // completes their last assignment on a suppressed route (e.g.
+    // lands on /self-practice and reloads) would keep a stale "> 0"
+    // stored count, and the modal could later open on a non-suppressed
+    // page for the *same* completion event. We only skip opening the
+    // modal UI itself on suppressed paths.
+    const suppressOpen = shouldSuppressForPath(pathname);
 
     try {
       const res = await fetch("/api/assignments/completion-status", {
@@ -48,7 +76,7 @@ export function AllAssignmentsCompleteModalManager() {
       const previousIncomplete = readStoredIncompleteAssignmentCount(
         body.student_user_id,
       );
-      const shouldOpen = shouldOpenAllAssignmentsCompleteModal({
+      const wouldOpen = shouldOpenAllAssignmentsCompleteModal({
         previousIncomplete,
         currentIncomplete,
         totalAssignments,
@@ -56,15 +84,19 @@ export function AllAssignmentsCompleteModalManager() {
         alreadyShownForCurrentCompletion:
           alreadyShownForCurrentCompletionRef.current,
       });
-      if (shouldOpen) {
+      const openedModalNow = wouldOpen && !suppressOpen;
+      if (openedModalNow) {
         setOpen(true);
       }
+      // When suppressed, treat the completion as already-shown so the
+      // modal won't reopen for the same completion event after the
+      // student navigates to a non-suppressed page.
       alreadyShownForCurrentCompletionRef.current =
         computeNextShownForCurrentCompletion({
           currentIncomplete,
           alreadyShownForCurrentCompletion:
             alreadyShownForCurrentCompletionRef.current,
-          openedModalNow: shouldOpen,
+          openedModalNow: wouldOpen,
         });
 
       writeStoredIncompleteAssignmentCount(
@@ -77,11 +109,27 @@ export function AllAssignmentsCompleteModalManager() {
   }, [pathname]);
 
   useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  useEffect(() => {
     void syncFromServer();
   }, [syncFromServer]);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllAssignmentsCompleted(() => {
+      // Honor the same suppression as syncFromServer: a learner who is
+      // already on Self Practice (e.g. arrived via NextSessionCTA right
+      // after the final completion) doesn't need a second "go to Self
+      // Practice" prompt on top of the page they're already on.
+      if (shouldSuppressForPath(pathnameRef.current)) {
+        // Still record that the modal "would have shown" for this
+        // completion so subsequent syncFromServer calls (which might run
+        // when the learner navigates elsewhere later) don't reopen it
+        // for the same completion event.
+        alreadyShownForCurrentCompletionRef.current = true;
+        return;
+      }
       alreadyShownForCurrentCompletionRef.current = true;
       setOpen(true);
     });
