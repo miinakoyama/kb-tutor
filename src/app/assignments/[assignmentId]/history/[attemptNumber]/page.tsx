@@ -79,7 +79,7 @@ export default function AssignmentAttemptDetailPage() {
 
   if (isLoading) {
     return (
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 text-center text-slate-gray/70">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-center text-slate-gray/70">
         <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" />
         Loading attempt...
       </main>
@@ -88,7 +88,7 @@ export default function AssignmentAttemptDetailPage() {
 
   if (error || !data) {
     return (
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-4">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-4">
         <Link
           href={`/assignments/${encodeURIComponent(assignmentId)}/history`}
           className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"
@@ -122,7 +122,7 @@ export default function AssignmentAttemptDetailPage() {
       isCorrect: !!activeItem.answer?.isCorrect,
     };
     return (
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 lg:py-10 space-y-4">
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-4">
           <button
             onClick={() => setActiveIndex(null)}
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors"
@@ -185,7 +185,7 @@ export default function AssignmentAttemptDetailPage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 lg:py-10 space-y-6">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6">
       <Link
         href={`/assignments/${encodeURIComponent(assignmentId)}/history`}
         className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"

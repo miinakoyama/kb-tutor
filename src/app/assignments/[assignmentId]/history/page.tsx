@@ -66,7 +66,7 @@ export default function AssignmentHistoryPage() {
 
   if (isLoading) {
     return (
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 text-center text-slate-gray/70">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-center text-slate-gray/70">
         <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" />
         Loading attempt history...
       </main>
@@ -75,7 +75,7 @@ export default function AssignmentHistoryPage() {
 
   if (error || !data) {
     return (
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-4">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-4">
         <Link
           href="/assignments"
           className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"
@@ -92,7 +92,7 @@ export default function AssignmentHistoryPage() {
   const { assignment, attempts } = data;
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 lg:py-10 space-y-6">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6">
       <Link
         href="/assignments"
         className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"
@@ -111,7 +111,7 @@ export default function AssignmentHistoryPage() {
         <p className="text-xs text-slate-gray/60">
           {assignment.max_attempts != null
             ? `Attempts used: ${attempts.length} / ${assignment.max_attempts}`
-            : `Attempts used: ${attempts.length}`}
+            : `Attempts used: ${attempts.length} / ∞`}
         </p>
       </header>
 

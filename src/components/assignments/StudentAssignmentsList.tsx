@@ -24,7 +24,7 @@ interface StudentAssignmentsListProps {
   loadError: string | null;
 }
 
-type TabKey = "active" | "completed";
+type TabKey = "incomplete" | "completed";
 
 function estimateQuestionCount(targetMinutes: number): number {
   return Math.max(6, Math.min(40, Math.round(targetMinutes / 1.8)));
@@ -62,16 +62,16 @@ export function StudentAssignmentsList({
   assignments,
   loadError,
 }: StudentAssignmentsListProps) {
-  const [tab, setTab] = useState<TabKey>("active");
+  const [tab, setTab] = useState<TabKey>("incomplete");
 
   const partitioned = useMemo(() => {
-    const active: StudentAssignmentListItem[] = [];
+    const incomplete: StudentAssignmentListItem[] = [];
     const completed: StudentAssignmentListItem[] = [];
     for (const a of assignments) {
       if (a.status === "completed") completed.push(a);
-      else active.push(a);
+      else incomplete.push(a);
     }
-    active.sort((a, b) => dueDateSortKey(a) - dueDateSortKey(b));
+    incomplete.sort((a, b) => dueDateSortKey(a) - dueDateSortKey(b));
     completed.sort((a, b) => {
       const aT = a.last_completed_at
         ? new Date(a.last_completed_at).getTime()
@@ -81,11 +81,11 @@ export function StudentAssignmentsList({
         : 0;
       return bT - aT;
     });
-    return { active, completed };
+    return { incomplete, completed };
   }, [assignments]);
 
   const visibleList =
-    tab === "active" ? partitioned.active : partitioned.completed;
+    tab === "incomplete" ? partitioned.incomplete : partitioned.completed;
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -112,10 +112,10 @@ export function StudentAssignmentsList({
         className="inline-flex items-center gap-1 rounded-lg bg-slate-100 p-1 mb-4"
       >
         <TabButton
-          active={tab === "active"}
-          label="Active"
-          count={partitioned.active.length}
-          onClick={() => setTab("active")}
+          active={tab === "incomplete"}
+          label="Incomplete"
+          count={partitioned.incomplete.length}
+          onClick={() => setTab("incomplete")}
         />
         <TabButton
           active={tab === "completed"}
@@ -128,8 +128,8 @@ export function StudentAssignmentsList({
       {visibleList.length === 0 ? (
         <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
           <p className="text-slate-gray">
-            {tab === "active"
-              ? "No active assignments right now."
+            {tab === "incomplete"
+              ? "No incomplete assignments right now."
               : "No completed assignments yet."}
           </p>
         </section>
@@ -211,7 +211,7 @@ function AssignmentCard({
 
   return (
     <article className="rounded-2xl border border-[#16a34a]/25 bg-white p-5 sm:p-6 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <AssignmentModeBadge mode={assignment.mode} />
@@ -267,21 +267,21 @@ function AssignmentCard({
           )}
         </div>
 
-        <div className="flex flex-col items-stretch sm:items-end gap-2 sm:min-w-[10rem]">
+        <div className="flex flex-col gap-2 w-full sm:w-[11.5rem] flex-shrink-0">
           {isRestartBlocked ? (
             <span
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 text-slate-500 text-sm font-medium cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 min-h-[44px] rounded-lg bg-slate-100 text-slate-500 text-sm font-medium cursor-not-allowed"
               title={`You have used all ${assignment.max_attempts} attempts.`}
             >
-              <Lock className="w-4 h-4" />
+              <Lock className="w-4 h-4 flex-shrink-0" />
               No retries left
             </span>
           ) : (
             <Link
               href={href}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#16a34a] text-white text-sm font-medium hover:bg-[#15803d] transition-colors"
+              className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 min-h-[44px] rounded-lg bg-[#16a34a] text-white text-sm font-medium hover:bg-[#15803d] transition-colors"
             >
-              <CtaIcon className="w-4 h-4" />
+              <CtaIcon className="w-4 h-4 flex-shrink-0" />
               {ctaLabel}
             </Link>
           )}
@@ -293,9 +293,9 @@ function AssignmentCard({
             // would land on an empty history page.
             <Link
               href={historyHref}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-gray/20 text-slate-gray text-xs font-medium hover:bg-slate-gray/5 transition-colors"
+              className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 min-h-[44px] rounded-lg border border-slate-gray/20 text-slate-gray text-sm font-medium hover:bg-slate-gray/5 transition-colors"
             >
-              <History className="w-3.5 h-3.5" />
+              <History className="w-4 h-4 flex-shrink-0" />
               Past attempts ({assignment.recorded_completion_count})
             </Link>
           )}
@@ -326,7 +326,7 @@ function AttemptsBadge({
     }
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-gray bg-slate-100 px-2 py-1 rounded-full">
-        Attempt {currentAttempt}
+        Attempt {currentAttempt} / ∞
       </span>
     );
   }
@@ -369,7 +369,7 @@ function StatusBadge({ status }: { status: StudentAssignmentStatus }) {
 }
 
 function ctaLabelFor(status: StudentAssignmentStatus): string {
-  if (status === "completed") return "Restart";
+  if (status === "completed") return "Retry";
   if (status === "in_progress") return "Continue";
   return "Start";
 }
