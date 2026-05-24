@@ -304,6 +304,125 @@ export async function getStudentAssignmentList(
 }
 
 /**
+ * Suggestion shown by the "Next" CTA on practice/exam summary screens.
+ *
+ * - `assignment` — there is at least one incomplete assignment for the student.
+ *   The CTA links the student straight into that assignment's practice URL.
+ * - `self_practice` — all of the student's assignments are done (or the
+ *   student has no assignments at all). The CTA encourages Self Practice.
+ *
+ * Picked by {@link pickNextStudentAction}.
+ */
+export type NextStudentAction =
+  | {
+      type: "assignment";
+      assignment: StudentAssignmentListItem;
+    }
+  | { type: "self_practice" };
+
+interface PickNextActionOptions {
+  /**
+   * Assignment the student just finished. Excluded from candidates so the
+   * CTA never suggests "next: the assignment you just finished" right after
+   * its completion screen.
+   */
+  excludeAssignmentId?: string | null;
+  /**
+   * Wall clock used to decide overdue ordering. Defaults to `Date.now()`;
+   * exposed for testability.
+   */
+  now?: Date;
+}
+
+/**
+ * Decide what the student should do after finishing the current session.
+ *
+ * Ordering rules (highest priority first):
+ *   1. Incomplete assignments are ranked by due date:
+ *      - Already-overdue assignments come first (treated as most urgent).
+ *      - Then the earliest non-past due date.
+ *      - Then assignments without a due date.
+ *      - Ties are broken by assignment id for determinism.
+ *   2. If there are no incomplete assignments to suggest, fall back to
+ *      Self Practice — the student should keep building reps anyway.
+ *
+ * This function is pure (no I/O, no `Date.now()`) so it's straightforward to
+ * unit-test against fixed clocks.
+ */
+export function pickNextStudentAction(
+  assignments: StudentAssignmentListItem[],
+  options: PickNextActionOptions = {},
+): NextStudentAction {
+  const now = options.now ?? new Date();
+  const nowMs = now.getTime();
+  const excludeId = options.excludeAssignmentId?.trim() || null;
+
+  const candidates = assignments.filter((a) => {
+    if (a.status === "completed") return false;
+    if (excludeId && a.id === excludeId) return false;
+    return true;
+  });
+
+  if (candidates.length === 0) {
+    return { type: "self_practice" };
+  }
+
+  const parseDue = (value: string | null | undefined): number | null => {
+    if (!value) return null;
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  };
+
+  type Bucket = "overdue" | "due" | "no_due";
+  const bucketOf = (a: StudentAssignmentListItem): Bucket => {
+    const ms = parseDue(a.due_date);
+    if (ms === null) return "no_due";
+    return ms < nowMs ? "overdue" : "due";
+  };
+  const bucketRank: Record<Bucket, number> = {
+    overdue: 0,
+    due: 1,
+    no_due: 2,
+  };
+
+  // For overdue items, the MOST recently overdue (closest to now) is the
+  // most actionable; deeply overdue items may be stale. For not-yet-due
+  // items, the SOONEST due date is the most urgent. We model this by
+  // sorting overdue descending, due-not-yet ascending — both expressed by
+  // comparing absolute "distance from now".
+  const sorted = [...candidates].sort((a, b) => {
+    const bucketDiff = bucketRank[bucketOf(a)] - bucketRank[bucketOf(b)];
+    if (bucketDiff !== 0) return bucketDiff;
+
+    const aDue = parseDue(a.due_date);
+    const bDue = parseDue(b.due_date);
+
+    if (aDue !== null && bDue !== null) {
+      // Same bucket here (we know bucketDiff === 0), so we only need to
+      // inspect one side.
+      if (bucketOf(a) === "overdue") {
+        // Recently overdue first — that means the LARGER (closer to now)
+        // timestamp wins.
+        if (aDue !== bDue) return bDue - aDue;
+      } else {
+        // Soonest non-past due first — smaller timestamp wins.
+        if (aDue !== bDue) return aDue - bDue;
+      }
+    } else if (aDue !== null) {
+      // Shouldn't happen given equal buckets, but defensively keep dated
+      // items ahead of undated ties.
+      return -1;
+    } else if (bDue !== null) {
+      return 1;
+    }
+
+    return a.id.localeCompare(b.id);
+  });
+
+  return { type: "assignment", assignment: sorted[0] };
+}
+
+/**
  * Deterministic 32-bit hash, used as a seed for per-student shuffle.
  */
 function hashStringToInt(value: string): number {

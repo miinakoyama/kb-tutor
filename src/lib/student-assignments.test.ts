@@ -4,7 +4,9 @@ import type { Question } from "@/types/question";
 import {
   deterministicShuffle,
   getStudentAssignmentList,
+  pickNextStudentAction,
   resolveReviewQuestionsForAssignment,
+  type StudentAssignmentListItem,
 } from "@/lib/student-assignments";
 
 const adminClientState = vi.hoisted(() => ({
@@ -418,5 +420,193 @@ describe("getStudentAssignmentList", () => {
     const result = await getStudentAssignmentList(supabase, "student-1");
     expect(result.assignments[0].status).toBe("completed");
     expect(result.assignments[0].progress.answered).toBe(0);
+  });
+});
+
+function makePickAssignment(
+  overrides: Partial<StudentAssignmentListItem> & {
+    id: string;
+    status: StudentAssignmentListItem["status"];
+  },
+): StudentAssignmentListItem {
+  return {
+    id: overrides.id,
+    title: overrides.title ?? `Assignment ${overrides.id}`,
+    due_date: overrides.due_date ?? null,
+    topics: overrides.topics ?? ["Genetics"],
+    target_minutes: overrides.target_minutes ?? 20,
+    mode: overrides.mode ?? "practice",
+    randomize_order: overrides.randomize_order ?? true,
+    max_questions: overrides.max_questions ?? null,
+    instructions: overrides.instructions ?? null,
+    max_attempts: overrides.max_attempts ?? null,
+    completed_attempts: overrides.completed_attempts ?? 0,
+    status: overrides.status,
+    last_completed_at: overrides.last_completed_at ?? null,
+    progress: overrides.progress ?? { answered: 0, total: 10 },
+  };
+}
+
+const PICK_NOW = new Date("2026-06-01T12:00:00.000Z");
+
+describe("pickNextStudentAction", () => {
+  it("returns self_practice when the student has no assignments", () => {
+    const action = pickNextStudentAction([], { now: PICK_NOW });
+    expect(action).toEqual({ type: "self_practice" });
+  });
+
+  it("returns self_practice when every assignment is already completed", () => {
+    const completed = makePickAssignment({
+      id: "as_done",
+      status: "completed",
+      last_completed_at: "2026-05-25T00:00:00.000Z",
+    });
+    const action = pickNextStudentAction([completed], { now: PICK_NOW });
+    expect(action).toEqual({ type: "self_practice" });
+  });
+
+  it("picks the only incomplete assignment when there is one", () => {
+    const next = makePickAssignment({
+      id: "as_open",
+      status: "not_started",
+      due_date: "2026-06-10T00:00:00.000Z",
+    });
+    const action = pickNextStudentAction([next], { now: PICK_NOW });
+    expect(action.type).toBe("assignment");
+    if (action.type !== "assignment") return;
+    expect(action.assignment.id).toBe("as_open");
+  });
+
+  it("prefers an overdue assignment over an upcoming one", () => {
+    const overdue = makePickAssignment({
+      id: "as_overdue",
+      status: "in_progress",
+      due_date: "2026-05-25T00:00:00.000Z",
+    });
+    const upcoming = makePickAssignment({
+      id: "as_future",
+      status: "not_started",
+      due_date: "2026-06-08T00:00:00.000Z",
+    });
+    const action = pickNextStudentAction([upcoming, overdue], { now: PICK_NOW });
+    expect(action.type).toBe("assignment");
+    if (action.type !== "assignment") return;
+    expect(action.assignment.id).toBe("as_overdue");
+  });
+
+  it("among multiple overdue assignments, picks the one closest to now (most recently overdue)", () => {
+    const recentlyOverdue = makePickAssignment({
+      id: "as_recent",
+      status: "in_progress",
+      due_date: "2026-05-31T00:00:00.000Z",
+    });
+    const deeplyOverdue = makePickAssignment({
+      id: "as_stale",
+      status: "in_progress",
+      due_date: "2026-04-01T00:00:00.000Z",
+    });
+    const action = pickNextStudentAction(
+      [deeplyOverdue, recentlyOverdue],
+      { now: PICK_NOW },
+    );
+    expect(action.type).toBe("assignment");
+    if (action.type !== "assignment") return;
+    expect(action.assignment.id).toBe("as_recent");
+  });
+
+  it("among upcoming assignments, picks the soonest due date", () => {
+    const soon = makePickAssignment({
+      id: "as_soon",
+      status: "not_started",
+      due_date: "2026-06-03T00:00:00.000Z",
+    });
+    const later = makePickAssignment({
+      id: "as_later",
+      status: "not_started",
+      due_date: "2026-06-15T00:00:00.000Z",
+    });
+    const action = pickNextStudentAction([later, soon], { now: PICK_NOW });
+    expect(action.type).toBe("assignment");
+    if (action.type !== "assignment") return;
+    expect(action.assignment.id).toBe("as_soon");
+  });
+
+  it("prefers dated assignments over undated ones", () => {
+    const dated = makePickAssignment({
+      id: "as_dated",
+      status: "not_started",
+      due_date: "2026-07-01T00:00:00.000Z",
+    });
+    const undated = makePickAssignment({
+      id: "as_undated",
+      status: "not_started",
+      due_date: null,
+    });
+    const action = pickNextStudentAction([undated, dated], { now: PICK_NOW });
+    expect(action.type).toBe("assignment");
+    if (action.type !== "assignment") return;
+    expect(action.assignment.id).toBe("as_dated");
+  });
+
+  it("falls back to undated incomplete assignments when there are no dated ones", () => {
+    const a = makePickAssignment({ id: "as_a", status: "not_started" });
+    const b = makePickAssignment({ id: "as_b", status: "in_progress" });
+    const action = pickNextStudentAction([b, a], { now: PICK_NOW });
+    expect(action.type).toBe("assignment");
+    if (action.type !== "assignment") return;
+    // Deterministic tie-break by id.
+    expect(action.assignment.id).toBe("as_a");
+  });
+
+  it("excludes the just-finished assignment from candidates", () => {
+    const justFinished = makePickAssignment({
+      id: "as_just",
+      status: "in_progress",
+      due_date: "2026-05-30T00:00:00.000Z",
+    });
+    const other = makePickAssignment({
+      id: "as_other",
+      status: "not_started",
+      due_date: "2026-06-15T00:00:00.000Z",
+    });
+    const action = pickNextStudentAction([justFinished, other], {
+      now: PICK_NOW,
+      excludeAssignmentId: "as_just",
+    });
+    expect(action.type).toBe("assignment");
+    if (action.type !== "assignment") return;
+    expect(action.assignment.id).toBe("as_other");
+  });
+
+  it("falls back to self_practice when excluding the only incomplete assignment", () => {
+    const lone = makePickAssignment({
+      id: "as_lone",
+      status: "in_progress",
+      due_date: "2026-06-10T00:00:00.000Z",
+    });
+    const action = pickNextStudentAction([lone], {
+      now: PICK_NOW,
+      excludeAssignmentId: "as_lone",
+    });
+    expect(action).toEqual({ type: "self_practice" });
+  });
+
+  it("ignores invalid due_date strings (treats them as no due date)", () => {
+    const malformed = makePickAssignment({
+      id: "as_bad",
+      status: "not_started",
+      due_date: "not-a-date",
+    });
+    const dated = makePickAssignment({
+      id: "as_dated",
+      status: "not_started",
+      due_date: "2026-06-15T00:00:00.000Z",
+    });
+    const action = pickNextStudentAction([malformed, dated], { now: PICK_NOW });
+    expect(action.type).toBe("assignment");
+    if (action.type !== "assignment") return;
+    // The dated assignment outranks the malformed one because the malformed
+    // value is treated as "no_due" — a lower priority bucket than "due".
+    expect(action.assignment.id).toBe("as_dated");
   });
 });
