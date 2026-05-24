@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getStudentAssignmentList,
@@ -13,7 +14,14 @@ import {
  * after finishing the current session.
  *
  * Response shape:
- *   - { type: "assignment", assignment: { id, title, mode, due_date, target_minutes, max_questions, topics } }
+ *   - {
+ *       type: "assignment",
+ *       assignment: {
+ *         id, title, mode, due_date, target_minutes, max_questions, topics,
+ *         status: "not_started" | "in_progress" | "completed",
+ *       },
+ *     }
+ *     (`status` drives the CTA verb — "Continue" vs "Start" — on the client.)
  *   - { type: "self_practice" }
  *
  * Query params:
@@ -21,9 +29,11 @@ import {
  *     just completed. Excluded so the CTA never says "next: the assignment
  *     you just finished" immediately after its completion screen.
  *
- * Access: only students get a useful answer. Teachers/admins receive
- * `{ type: "self_practice" }` so the CTA degrades gracefully if it ever
- * renders for a non-student context.
+ * Access: only students get a useful answer. Teachers / admins (and any
+ * non-student authenticated account that might still have lingering
+ * school_members.student_user_id rows) receive `{ type: "self_practice" }`
+ * so the CTA degrades gracefully and the endpoint never leaks assignment
+ * suggestions outside the student role boundary.
  */
 export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
@@ -32,6 +42,19 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Enforce the documented role contract before loading assignment data.
+  // A non-student account with stray school_members rows must not get a
+  // concrete assignment recommendation from this endpoint.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const role = await resolveRoleWithServerFallback(user, profile?.role);
+  if (role !== "student") {
+    return NextResponse.json({ type: "self_practice" });
   }
 
   const excludeAssignmentId =

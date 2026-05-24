@@ -45,7 +45,15 @@ export function AllAssignmentsCompleteModalManager() {
   const pathnameRef = useRef<string | null>(pathname);
 
   const syncFromServer = useCallback(async () => {
-    if (shouldSuppressForPath(pathname)) return;
+    // Note: we deliberately do NOT bail out early on suppressed paths.
+    // We still need to fetch and persist the latest incomplete count so
+    // that previousIncomplete stays in sync — otherwise a student who
+    // completes their last assignment on a suppressed route (e.g.
+    // lands on /self-practice and reloads) would keep a stale "> 0"
+    // stored count, and the modal could later open on a non-suppressed
+    // page for the *same* completion event. We only skip opening the
+    // modal UI itself on suppressed paths.
+    const suppressOpen = shouldSuppressForPath(pathname);
 
     try {
       const res = await fetch("/api/assignments/completion-status", {
@@ -68,7 +76,7 @@ export function AllAssignmentsCompleteModalManager() {
       const previousIncomplete = readStoredIncompleteAssignmentCount(
         body.student_user_id,
       );
-      const shouldOpen = shouldOpenAllAssignmentsCompleteModal({
+      const wouldOpen = shouldOpenAllAssignmentsCompleteModal({
         previousIncomplete,
         currentIncomplete,
         totalAssignments,
@@ -76,15 +84,19 @@ export function AllAssignmentsCompleteModalManager() {
         alreadyShownForCurrentCompletion:
           alreadyShownForCurrentCompletionRef.current,
       });
-      if (shouldOpen) {
+      const openedModalNow = wouldOpen && !suppressOpen;
+      if (openedModalNow) {
         setOpen(true);
       }
+      // When suppressed, treat the completion as already-shown so the
+      // modal won't reopen for the same completion event after the
+      // student navigates to a non-suppressed page.
       alreadyShownForCurrentCompletionRef.current =
         computeNextShownForCurrentCompletion({
           currentIncomplete,
           alreadyShownForCurrentCompletion:
             alreadyShownForCurrentCompletionRef.current,
-          openedModalNow: shouldOpen,
+          openedModalNow: wouldOpen,
         });
 
       writeStoredIncompleteAssignmentCount(

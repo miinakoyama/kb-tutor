@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles } from "lucide-react";
 
 /**
  * NextSessionCTA — primary action shown on practice / exam / review summary
@@ -124,9 +124,12 @@ export function NextSessionCTA({ excludeAssignmentId }: NextSessionCTAProps) {
     return (
       <div
         className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a]/20 text-[#14532d]/70 text-sm font-medium min-h-[44px]"
-        aria-hidden
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
       >
-        Loading next step…
+        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+        <span>Loading next step…</span>
       </div>
     );
   }
@@ -154,9 +157,9 @@ export function NextSessionCTA({ excludeAssignmentId }: NextSessionCTAProps) {
   return (
     <Link
       href={buildPracticeHref(data.assignment)}
-      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a] text-white text-sm font-semibold hover:bg-[#15803d] transition-colors min-h-[44px] shadow-sm max-w-full"
+      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a] text-white text-sm font-semibold hover:bg-[#15803d] transition-colors min-h-[44px] shadow-sm max-w-full min-w-0"
     >
-      <span className="truncate">
+      <span className="truncate min-w-0 flex-1">
         {verb} next: {data.assignment.title}
       </span>
       <ArrowRight className="w-4 h-4 flex-shrink-0" />
