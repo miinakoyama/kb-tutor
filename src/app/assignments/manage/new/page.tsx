@@ -199,11 +199,19 @@ function CreateAssignmentContent() {
       let parsedMaxAttempts: number | null = null;
       if (trimmedMaxAttempts.length > 0) {
         const value = Number(trimmedMaxAttempts);
-        if (!Number.isFinite(value) || value < 1 || value > 100) {
+        // Match the integer-only DB/API contract — otherwise the teacher
+        // types e.g. "1.6" and we silently round, saving a value they
+        // didn't actually enter.
+        if (
+          !Number.isFinite(value) ||
+          !Number.isInteger(value) ||
+          value < 1 ||
+          value > 100
+        ) {
           setFormError("Max attempts must be a positive integer between 1 and 100.");
           return;
         }
-        parsedMaxAttempts = Math.round(value);
+        parsedMaxAttempts = value;
       }
       const body: Record<string, unknown> = {
         title: cleanTitle,

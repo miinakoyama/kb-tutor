@@ -32,6 +32,15 @@ export type StudentAssignmentListItem = {
   max_attempts: number | null;
   /** Number of full runs the student has already completed (drives Attempt X/Y). */
   completed_attempts: number;
+  /**
+   * Count of real `assignment_completions` rows for this student. Unlike
+   * `completed_attempts`, this is NOT synthesized from
+   * `assignment_targets.last_completed_at`, so it is zero for legacy
+   * pre-history-table completions. Use this (not `completed_attempts`)
+   * when deciding whether the "Past attempts" history link should appear,
+   * because the history endpoint can only surface rows from this table.
+   */
+  recorded_completion_count: number;
   status: StudentAssignmentStatus;
   last_completed_at: string | null;
   progress: StudentAssignmentProgress;
@@ -51,7 +60,11 @@ function toAssignmentMode(value: unknown): AssignmentMode {
 
 type AssignmentBaseFields = Omit<
   StudentAssignmentListItem,
-  "status" | "last_completed_at" | "progress" | "completed_attempts"
+  | "status"
+  | "last_completed_at"
+  | "progress"
+  | "completed_attempts"
+  | "recorded_completion_count"
 >;
 
 function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
@@ -243,17 +256,19 @@ async function fetchAssignmentList(
         lastCompletedAt,
         answeredCount: answeredSet.size,
       });
+      const recordedCount = completedAttemptsByAssignment.get(id) ?? 0;
       return {
         ...base,
         status,
         last_completed_at: lastCompletedAt,
         progress,
         completed_attempts:
-          completedAttemptsByAssignment.get(id) ??
+          recordedCount ||
           // Pre-history-table assignments may have a last_completed_at
           // without any rows in assignment_completions; treat that as one
           // completion so the count stays consistent with the badge.
           (lastCompletedAt ? 1 : 0),
+        recorded_completion_count: recordedCount,
       };
     })
     .filter((a): a is StudentAssignmentListItem => a != null);

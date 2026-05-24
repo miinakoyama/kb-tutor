@@ -441,6 +441,8 @@ function makePickAssignment(
     instructions: overrides.instructions ?? null,
     max_attempts: overrides.max_attempts ?? null,
     completed_attempts: overrides.completed_attempts ?? 0,
+    recorded_completion_count:
+      overrides.recorded_completion_count ?? overrides.completed_attempts ?? 0,
     status: overrides.status,
     last_completed_at: overrides.last_completed_at ?? null,
     progress: overrides.progress ?? { answered: 0, total: 10 },

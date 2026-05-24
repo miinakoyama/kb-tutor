@@ -66,6 +66,17 @@ export default function AssignmentAttemptDetailPage() {
     void load();
   }, [load]);
 
+  // Defensive reset for a stale active index after `items` changes
+  // (e.g. a refetch returned fewer items). Doing this in an effect
+  // instead of inline during render avoids React warnings about
+  // setting state while rendering, and the consequent re-render loops.
+  useEffect(() => {
+    if (activeIndex === null) return;
+    if (!data || !data.items[activeIndex]) {
+      setActiveIndex(null);
+    }
+  }, [activeIndex, data]);
+
   if (isLoading) {
     return (
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 text-center text-slate-gray/70">
@@ -97,20 +108,20 @@ export default function AssignmentAttemptDetailPage() {
       ? Math.round((summary.correct / summary.total) * 100)
       : 0;
 
-  if (activeIndex !== null) {
-    const activeItem = items[activeIndex];
-    if (!activeItem) {
-      setActiveIndex(null);
-    } else {
-      // FeedbackPanel requires a non-null selectedOptionId so its option lookup
-      // works. Coerce a missing answer (or `selectedOptionId === null`) to the
-      // empty string — FeedbackPanel falls back to the correct option for
-      // rendering in that case.
-      const answer = {
-        selectedOptionId: activeItem.answer?.selectedOptionId ?? "",
-        isCorrect: !!activeItem.answer?.isCorrect,
-      };
-      return (
+  const activeItem = activeIndex !== null ? items[activeIndex] : undefined;
+  // When activeIndex is stale (out of bounds), fall through to the list
+  // view here; the effect above resets the index to null on the next
+  // tick. We deliberately do NOT call setActiveIndex during render.
+  if (activeIndex !== null && activeItem) {
+    // FeedbackPanel requires a non-null selectedOptionId so its option lookup
+    // works. Coerce a missing answer (or `selectedOptionId === null`) to the
+    // empty string — FeedbackPanel falls back to the correct option for
+    // rendering in that case.
+    const answer = {
+      selectedOptionId: activeItem.answer?.selectedOptionId ?? "",
+      isCorrect: !!activeItem.answer?.isCorrect,
+    };
+    return (
         <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 lg:py-10 space-y-4">
           <button
             onClick={() => setActiveIndex(null)}
@@ -171,7 +182,6 @@ export default function AssignmentAttemptDetailPage() {
           </div>
         </main>
       );
-    }
   }
 
   return (

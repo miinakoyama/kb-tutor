@@ -285,13 +285,18 @@ function AssignmentCard({
               {ctaLabel}
             </Link>
           )}
-          {assignment.completed_attempts > 0 && (
+          {assignment.recorded_completion_count > 0 && (
+            // Intentionally gated on `recorded_completion_count` (real
+            // assignment_completions rows), NOT `completed_attempts`. The
+            // latter can be synthesized to 1 for legacy completions that
+            // pre-date the history table; clicking through in that case
+            // would land on an empty history page.
             <Link
               href={historyHref}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-gray/20 text-slate-gray text-xs font-medium hover:bg-slate-gray/5 transition-colors"
             >
               <History className="w-3.5 h-3.5" />
-              Past attempts ({assignment.completed_attempts})
+              Past attempts ({assignment.recorded_completion_count})
             </Link>
           )}
         </div>

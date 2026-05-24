@@ -110,6 +110,17 @@ export function AdaptivePracticeMode({
   const [summaryReviewIndex, setSummaryReviewIndex] = useState<number | null>(
     null,
   );
+  // Defensive reset: if sessionQuestions shrinks (or otherwise changes)
+  // while a per-question review pane is open, drop the now-invalid index.
+  // Doing this in an effect (not inline during render) avoids the React
+  // "Cannot update a component while rendering a different component"
+  // warning and any associated re-render loop.
+  useEffect(() => {
+    if (summaryReviewIndex === null) return;
+    if (!sessionQuestions[summaryReviewIndex]) {
+      setSummaryReviewIndex(null);
+    }
+  }, [summaryReviewIndex, sessionQuestions]);
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
@@ -828,18 +839,22 @@ export function AdaptivePracticeMode({
   }
 
   if (showSummary) {
-    if (summaryReviewIndex !== null) {
-      const reviewQuestion = sessionQuestions[summaryReviewIndex];
+    const reviewQuestion =
+      summaryReviewIndex !== null
+        ? sessionQuestions[summaryReviewIndex]
+        : undefined;
+    // If we have a non-null index but it no longer maps to a real question
+    // (e.g. sessionQuestions changed underfoot), fall through to render the
+    // summary list. The effect below resets the stale index — doing it
+    // inline via setState would set state during render and trigger React
+    // warnings / re-render loops.
+    if (summaryReviewIndex !== null && reviewQuestion) {
       const reviewAnswer = finalAnswers[summaryReviewIndex];
-      if (!reviewQuestion) {
-        // Defensive: a stale index shouldn't happen, but fall back to list.
-        setSummaryReviewIndex(null);
-      } else {
-        const answerForPanel: AnswerRecord = reviewAnswer ?? {
-          selectedOptionId: reviewQuestion.correctOptionId,
-          isCorrect: false,
-        };
-        return (
+      const answerForPanel: AnswerRecord = reviewAnswer ?? {
+        selectedOptionId: reviewQuestion.correctOptionId,
+        isCorrect: false,
+      };
+      return (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -902,7 +917,6 @@ export function AdaptivePracticeMode({
             </div>
           </motion.div>
         );
-      }
     }
 
     const correctCount = Object.values(finalAnswers).filter((answer) => answer.isCorrect).length;

@@ -122,7 +122,7 @@ export async function POST(
   // *before* enforcing max_attempts so a student gets the same answer
   // whether their previous-attempt totals are exactly at the cap or beyond
   // it (e.g. an admin lowered the cap after the fact).
-  const { count: priorCompletions, error: countError } = await admin
+  const { count: existingCompletions, error: countError } = await admin
     .from("assignment_completions")
     .select("id", { count: "exact", head: true })
     .eq("assignment_id", normalizedAssignmentId)
@@ -130,7 +130,45 @@ export async function POST(
   if (countError) {
     return NextResponse.json({ error: countError.message }, { status: 400 });
   }
-  const attemptNumber = (priorCompletions ?? 0) + 1;
+
+  // Legacy backfill: students who completed this assignment before the
+  // `assignment_completions` table existed have a non-null
+  // `assignment_targets.last_completed_at` but zero history rows. Without
+  // this, max_attempts enforcement would treat them as having zero prior
+  // attempts and silently grant an extra run beyond the configured cap
+  // (e.g. max_attempts = 1 would still let a legacy student submit a
+  // brand new "attempt 1"). Insert a synthetic row representing that
+  // pre-history completion so the count, the cap check, and the per-
+  // attempt history view all agree.
+  let priorCompletions = existingCompletions ?? 0;
+  if (priorCompletions === 0 && priorLastCompletedAt) {
+    const { error: backfillError } = await admin
+      .from("assignment_completions")
+      .insert({
+        assignment_id: normalizedAssignmentId,
+        student_user_id: user.id,
+        attempt_number: 1,
+        started_at: priorLastCompletedAt,
+        completed_at: priorLastCompletedAt,
+      });
+    if (backfillError) {
+      // A concurrent backfill from another request may already have
+      // written this exact legacy row; the (assignment_id,
+      // student_user_id, attempt_number) unique constraint surfaces that
+      // as Postgres error 23505, which is safe to swallow — both writers
+      // converge on the same state.
+      const code = (backfillError as { code?: string }).code;
+      if (code !== "23505") {
+        return NextResponse.json(
+          { error: backfillError.message },
+          { status: 400 },
+        );
+      }
+    }
+    priorCompletions = 1;
+  }
+
+  const attemptNumber = priorCompletions + 1;
   const maxAttempts =
     typeof assignment.max_attempts === "number" && assignment.max_attempts > 0
       ? assignment.max_attempts
@@ -141,7 +179,7 @@ export async function POST(
         error: "Maximum attempts exceeded for this assignment.",
         code: "max_attempts_exceeded",
         max_attempts: maxAttempts,
-        completed_attempts: priorCompletions ?? 0,
+        completed_attempts: priorCompletions,
       },
       { status: 409 },
     );
