@@ -113,14 +113,13 @@ export default function AssignmentAttemptDetailPage() {
   // view here; the effect above resets the index to null on the next
   // tick. We deliberately do NOT call setActiveIndex during render.
   if (activeIndex !== null && activeItem) {
-    // FeedbackPanel requires a non-null selectedOptionId so its option lookup
-    // works. Coerce a missing answer (or `selectedOptionId === null`) to the
-    // empty string — FeedbackPanel falls back to the correct option for
-    // rendering in that case.
-    const answer = {
-      selectedOptionId: activeItem.answer?.selectedOptionId ?? "",
-      isCorrect: !!activeItem.answer?.isCorrect,
-    };
+    const submittedAnswer =
+      activeItem.answer?.selectedOptionId != null
+        ? {
+            selectedOptionId: activeItem.answer.selectedOptionId,
+            isCorrect: activeItem.answer.isCorrect,
+          }
+        : null;
     return (
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-4">
           <button
@@ -173,12 +172,36 @@ export default function AssignmentAttemptDetailPage() {
                 );
               })}
             </div>
-            <FeedbackPanel
-              question={activeItem.question}
-              answer={answer}
-              showKeyKnowledge
-              showMisconception
-            />
+            {submittedAnswer ? (
+              <FeedbackPanel
+                question={activeItem.question}
+                answer={submittedAnswer}
+                showKeyKnowledge
+                showMisconception
+              />
+            ) : (
+              <div className="mt-5 space-y-3">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                  <p className="text-sm font-semibold text-slate-gray mb-1">
+                    No answer submitted
+                  </p>
+                  <p className="text-sm text-slate-gray/70 leading-relaxed">
+                    This question was left unanswered in this attempt. The
+                    correct option is highlighted above for review.
+                  </p>
+                </div>
+                {activeItem.question.keyKnowledge && (
+                  <div className="p-3 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a] mb-1">
+                      Key Idea
+                    </p>
+                    <p className="text-sm text-slate-gray leading-relaxed">
+                      {activeItem.question.keyKnowledge}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </main>
       );

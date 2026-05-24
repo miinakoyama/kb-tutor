@@ -191,10 +191,9 @@ function AssignmentCard({
   const href = buildPracticeHref(assignment);
   const historyHref = `/assignments/${encodeURIComponent(assignment.id)}/history`;
 
-  // Restart is blocked once a student has finished `max_attempts` full runs.
-  // While a run is in progress (status !== "completed"), Continue is always
-  // allowed even when at the cap — the cap counts completed runs, not
-  // mid-flight ones.
+  // Retry is blocked once a student has finished `max_attempts` full runs.
+  // While a run is in progress, Continue is always allowed even when at the
+  // cap — the cap counts completed runs, not mid-flight ones.
   const attemptsCapped =
     assignment.max_attempts != null &&
     assignment.completed_attempts >= assignment.max_attempts;

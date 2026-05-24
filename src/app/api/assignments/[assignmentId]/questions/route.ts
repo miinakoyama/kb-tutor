@@ -143,7 +143,14 @@ export async function GET(
     if (priorError) {
       return NextResponse.json({ error: priorError.message }, { status: 400 });
     }
+    // Legacy completions that predate `assignment_completions` still have
+    // assignment_targets.last_completed_at. Count that as one completed run
+    // for the pre-question cap gate so students do not receive questions for
+    // a retry that will only be rejected later by the completion endpoint.
     completedAttempts = prior ?? 0;
+    if (completedAttempts === 0 && lastCompletedAt) {
+      completedAttempts = 1;
+    }
     if (completedAttempts >= maxAttempts && lastCompletedAt) {
       let hasInProgressRun = false;
       const { data: inProgressRows, error: inProgressError } = await admin

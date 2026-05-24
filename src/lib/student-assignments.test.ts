@@ -421,6 +421,64 @@ describe("getStudentAssignmentList", () => {
     expect(result.assignments[0].status).toBe("completed");
     expect(result.assignments[0].progress.answered).toBe(0);
   });
+
+  it("marks a completed assignment in progress when a newer retry has answers", async () => {
+    const supabase = makeSupabaseMock({
+      school_members: [
+        {
+          school_id: "school-1",
+          student_user_id: "student-1",
+        },
+      ],
+      assignment_targets: [
+        {
+          assignment_id: "as_1",
+          student_user_id: "student-1",
+          created_at: "2026-04-01T10:00:00.000Z",
+          last_completed_at: "2026-04-10T10:00:00.000Z",
+        },
+      ],
+      assignments: [
+        {
+          id: "as_1",
+          school_id: "school-1",
+          created_at: "2026-04-01T09:00:00.000Z",
+          title: "Quiz",
+          due_date: null,
+          module_ids: [1],
+          topics: ["Genetics"],
+          target_minutes: 20,
+          mode: "practice",
+          randomize_order: true,
+          max_questions: null,
+        },
+      ],
+      assignment_question_snapshots: [
+        { assignment_id: "as_1", question_id: "q1" },
+        { assignment_id: "as_1", question_id: "q2" },
+      ],
+      attempts: [
+        {
+          assignment_id: "as_1",
+          question_id: "q1",
+          user_id: "student-1",
+          answered_at: "2026-04-11T10:00:00.000Z",
+        },
+      ],
+      assignment_completions: [
+        {
+          assignment_id: "as_1",
+          student_user_id: "student-1",
+          attempt_number: 1,
+        },
+      ],
+    });
+
+    const result = await getStudentAssignmentList(supabase, "student-1");
+    expect(result.assignments[0].status).toBe("in_progress");
+    expect(result.assignments[0].progress.answered).toBe(1);
+    expect(result.assignments[0].completed_attempts).toBe(1);
+  });
 });
 
 function makePickAssignment(

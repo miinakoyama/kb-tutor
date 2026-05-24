@@ -298,8 +298,11 @@ function computeStatus(args: {
   lastCompletedAt: string | null;
   answeredCount: number;
 }): StudentAssignmentStatus {
-  if (args.lastCompletedAt) return "completed";
+  // A completed assignment can later have a new run in progress. Attempts are
+  // counted strictly after last_completed_at above, so answeredCount > 0 here
+  // means "resume this newer run", not "old completed work".
   if (args.answeredCount > 0) return "in_progress";
+  if (args.lastCompletedAt) return "completed";
   return "not_started";
 }
 
