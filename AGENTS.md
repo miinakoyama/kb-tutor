@@ -110,3 +110,29 @@ Write all user-facing strings in English. Do not use Japanese or any other langu
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side admin key (never expose to client) |
 | `NEXT_PUBLIC_GEMINI_API_KEY` | Gemini API key |
+
+## Cursor Cloud specific instructions
+
+### Services
+
+| Service | How to start | Port |
+|---------|-------------|------|
+| Next.js dev server | `npm run dev` | 3000 |
+
+Supabase is a hosted service (not local); the required env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) are injected as secrets. `NEXT_PUBLIC_GEMINI_API_KEY` is optional — AI question generation routes will fail gracefully without it.
+
+### Running the app
+
+- `npm run dev` starts on port 3000. The login page is at `/login`.
+- No Docker, Redis, or local Supabase instance is needed — the app connects to a hosted Supabase project.
+
+### Testing
+
+- `npm test` runs Vitest (unit tests). All tests mock Supabase; no live DB needed.
+- `npm run lint` runs ESLint with zero config flags.
+- One pre-existing flaky test (`src/lib/storage.test.ts` — "returns wrong-attempt counts per question") may time out intermittently; this is not caused by env setup.
+
+### Notes
+
+- Node.js 22.x is used. The project uses `package-lock.json` (npm).
+- There is no `.env` file committed; environment variables come from Cursor Cloud secrets.
