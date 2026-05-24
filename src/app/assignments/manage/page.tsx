@@ -30,6 +30,7 @@ interface AssignmentRow {
   mode?: AssignmentMode | null;
   randomize_order?: boolean | null;
   max_questions?: number | null;
+  max_attempts?: number | null;
   review_topics?: string[] | null;
   review_standards?: string[] | null;
   attempt_count?: number;
@@ -227,6 +228,9 @@ function AssignmentManagementContent() {
     }
     if (assignment.randomize_order !== false) {
       parts.push("Random order");
+    }
+    if (typeof assignment.max_attempts === "number") {
+      parts.push(`Max ${assignment.max_attempts} attempt${assignment.max_attempts === 1 ? "" : "s"}`);
     }
     return parts;
   }

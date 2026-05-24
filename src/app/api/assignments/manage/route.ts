@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     admin
       .from("assignments")
       .select(
-        "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards,instructions",
+        "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards,instructions,max_attempts",
       )
       .in("school_id", schoolIds)
       .order("created_at", { ascending: false }),
@@ -266,6 +266,7 @@ export async function POST(request: Request) {
     mode?: AssignmentMode;
     randomizeOrder?: boolean;
     instructions?: string | null;
+    maxAttempts?: number | null;
     sourceType?: AssignmentSourceType;
     existingSetId?: string;
     selectedQuestions?: Array<{ setId: string; questionIds: string[] }>;
@@ -293,6 +294,29 @@ export async function POST(request: Request) {
   const rawInstructions =
     typeof body.instructions === "string" ? body.instructions.trim() : "";
   const instructions = rawInstructions.length > 0 ? rawInstructions : null;
+  // `null` (or omitted) means unlimited retries — the existing default.
+  // Any positive integer caps the number of full runs a student can submit.
+  //
+  // Mirror PATCH's validation contract: any explicit-but-invalid value
+  // (0, negative, non-finite, wrong type) is rejected with 400 rather
+  // than silently coerced to null. Otherwise a malformed client payload
+  // would create an uncapped assignment without surfacing an error and
+  // diverge from PATCH's behavior.
+  let maxAttempts: number | null = null;
+  if (body.maxAttempts !== undefined && body.maxAttempts !== null) {
+    if (
+      typeof body.maxAttempts === "number" &&
+      Number.isFinite(body.maxAttempts) &&
+      body.maxAttempts >= 1
+    ) {
+      maxAttempts = Math.min(100, Math.max(1, Math.round(body.maxAttempts)));
+    } else {
+      return NextResponse.json(
+        { error: "maxAttempts must be a positive integer or null." },
+        { status: 400 },
+      );
+    }
+  }
 
   if (!title || !schoolId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -386,6 +410,7 @@ export async function POST(request: Request) {
     review_topics: mode === "review" ? reviewTopics : null,
     review_standards: mode === "review" ? reviewStandards : null,
     instructions,
+    max_attempts: maxAttempts,
   });
   if (assignmentError) {
     return NextResponse.json({ error: assignmentError.message }, { status: 400 });

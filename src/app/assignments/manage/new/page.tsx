@@ -65,6 +65,9 @@ function CreateAssignmentContent() {
   const [instructions, setInstructions] = useState("");
   const [mode, setMode] = useState<AssignmentMode>("practice");
   const [randomizeOrder, setRandomizeOrder] = useState(true);
+  // Empty string means "unlimited retries" — the default. Any positive
+  // integer caps full-run completions per student.
+  const [maxAttempts, setMaxAttempts] = useState("");
   const [sourceType, setSourceType] = useState<QuestionSourceType>("existing_set");
   const [selection, setSelection] = useState<QuestionSetSelection[]>([]);
   const [manualDrafts, setManualDrafts] = useState<ManualQuestionDraft[]>([]);
@@ -192,6 +195,24 @@ function CreateAssignmentContent() {
       }
 
       const trimmedInstructions = instructions.trim();
+      const trimmedMaxAttempts = maxAttempts.trim();
+      let parsedMaxAttempts: number | null = null;
+      if (trimmedMaxAttempts.length > 0) {
+        const value = Number(trimmedMaxAttempts);
+        // Match the integer-only DB/API contract — otherwise the teacher
+        // types e.g. "1.6" and we silently round, saving a value they
+        // didn't actually enter.
+        if (
+          !Number.isFinite(value) ||
+          !Number.isInteger(value) ||
+          value < 1 ||
+          value > 100
+        ) {
+          setFormError("Max attempts must be a positive integer between 1 and 100.");
+          return;
+        }
+        parsedMaxAttempts = value;
+      }
       const body: Record<string, unknown> = {
         title: cleanTitle,
         schoolId: selectedSchoolId,
@@ -201,6 +222,7 @@ function CreateAssignmentContent() {
         randomizeOrder,
         instructions:
           trimmedInstructions.length > 0 ? trimmedInstructions : null,
+        maxAttempts: parsedMaxAttempts,
       };
 
       if (mode === "review") {
@@ -277,6 +299,7 @@ function CreateAssignmentContent() {
       instructions,
       mode,
       randomizeOrder,
+      maxAttempts,
       reviewScope,
       sourceType,
       selection,
@@ -461,6 +484,25 @@ function CreateAssignmentContent() {
               <span className="text-xs text-slate-gray/70">
                 When enabled, each student sees questions in their own deterministic order.
               </span>
+            </span>
+          </label>
+
+          <label className="block text-sm text-slate-gray">
+            <span className="block mb-1 font-medium">
+              Max attempts per student (optional)
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={maxAttempts}
+              onChange={(event) => setMaxAttempts(event.target.value)}
+              placeholder="Unlimited"
+              className="w-full md:w-48 rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+            />
+            <span className="block mt-1 text-xs text-slate-gray/70">
+              Leave blank to allow unlimited retries. Otherwise, students can
+              complete this assignment at most this many times.
             </span>
           </label>
         </section>

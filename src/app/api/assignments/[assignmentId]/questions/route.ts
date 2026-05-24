@@ -48,7 +48,7 @@ export async function GET(
   const admin = createSupabaseAdminClient();
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
-    .select("id,school_id,mode,randomize_order")
+    .select("id,school_id,mode,randomize_order,max_attempts")
     .eq("id", normalizedAssignmentId)
     .maybeSingle();
   if (assignmentError) {
@@ -116,6 +116,72 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Enforce max_attempts before serving any questions. We *allow* the
+  // student to keep working on their current in-progress run (so a
+  // teacher lowering the cap mid-session doesn't strand them), but block
+  // a fresh restart once they've already completed `max_attempts` runs.
+  // The completion API enforces the same cap as defense in depth.
+  //
+  // "In-progress" means there is at least one row in `attempts` answered
+  // strictly after `last_completed_at` — i.e. the student has already
+  // started a new run that hasn't been finalized via the completion API.
+  // We cannot rely on `last_completed_at === null` alone because that
+  // flag stays non-null forever after the very first completion; without
+  // the attempts probe, a returning student who is mid-second-run would
+  // be incorrectly 403'd the moment the teacher tightened the cap.
+  const maxAttempts =
+    typeof assignment.max_attempts === "number" && assignment.max_attempts > 0
+      ? assignment.max_attempts
+      : null;
+  let completedAttempts = 0;
+  if (maxAttempts !== null) {
+    const { count: prior, error: priorError } = await admin
+      .from("assignment_completions")
+      .select("id", { count: "exact", head: true })
+      .eq("assignment_id", normalizedAssignmentId)
+      .eq("student_user_id", requester.id);
+    if (priorError) {
+      return NextResponse.json({ error: priorError.message }, { status: 400 });
+    }
+    // Legacy completions that predate `assignment_completions` still have
+    // assignment_targets.last_completed_at. Count that as one completed run
+    // for the pre-question cap gate so students do not receive questions for
+    // a retry that will only be rejected later by the completion endpoint.
+    completedAttempts = prior ?? 0;
+    if (completedAttempts === 0 && lastCompletedAt) {
+      completedAttempts = 1;
+    }
+    if (completedAttempts >= maxAttempts && lastCompletedAt) {
+      let hasInProgressRun = false;
+      const { data: inProgressRows, error: inProgressError } = await admin
+        .from("attempts")
+        .select("answered_at")
+        .eq("assignment_id", normalizedAssignmentId)
+        .eq("user_id", requester.id)
+        .gt("answered_at", lastCompletedAt)
+        .limit(1);
+      if (inProgressError) {
+        return NextResponse.json(
+          { error: inProgressError.message },
+          { status: 400 },
+        );
+      }
+      hasInProgressRun = (inProgressRows ?? []).length > 0;
+
+      if (!hasInProgressRun) {
+        return NextResponse.json(
+          {
+            error: "Maximum attempts reached for this assignment.",
+            code: "max_attempts_exceeded",
+            max_attempts: maxAttempts,
+            completed_attempts: completedAttempts,
+          },
+          { status: 403 },
+        );
+      }
+    }
+  }
+
   const assignmentMode =
     assignment.mode === "practice" ||
     assignment.mode === "exam" ||
@@ -179,5 +245,7 @@ export async function GET(
     randomize_order: randomizeOrder,
     answered,
     last_completed_at: lastCompletedAt,
+    max_attempts: maxAttempts,
+    completed_attempts: completedAttempts,
   });
 }
