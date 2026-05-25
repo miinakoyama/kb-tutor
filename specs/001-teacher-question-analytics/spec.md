@@ -8,6 +8,12 @@
 
 **Input**: User description: "Teacher-facing question analytics: per-standard drill-down, per-student progression, per-question stats, sample question button"
 
+## Clarifications
+
+### Session 2026-05-25
+
+- Q: For the "Sample question" button (FR-044), what is the selection logic? → A: The teacher chooses the selection mode from three presets — `random`, `high-accuracy first` (warm-up: confidence-building items), and `low-accuracy first` (focus question: items the class is currently struggling with). `random` is the default. The chosen mode persists across "Show another" clicks within the same modal session.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Drill into a standard to inspect every attempted question (Priority: P1)
@@ -147,11 +153,13 @@ students.
 ### User Story 4 - Get a sample question for any standard from the dashboard (Priority: P2)
 
 Next to each standard row on the Teacher Dashboard there is a "Sample question"
-button. Clicking it shows a sample question from that standard that the teacher
-can read aloud or project as a class warm-up / focus question, mirroring how the
-state's CDT supplies sample items per standard. The shown question is text the
-teacher can copy or save; she can request a different sample if the first one
-isn't a good fit.
+button. Clicking it opens a modal that surfaces one question from that standard.
+The teacher can choose the **selection mode** for the sample — `Random`,
+`High accuracy first` (good for warm-ups / confidence-building), or
+`Low accuracy first` (good for focus questions / class-wide remediation) —
+mirroring how the state's CDT supplies sample items per standard. The shown
+question is text the teacher can copy or project; she can request a different
+sample of the same mode if the first one isn't a good fit.
 
 **Why this priority**: Independently useful classroom workflow that does not
 block any other story. P2 because it is a discrete UI affordance, not a deep
@@ -170,13 +178,30 @@ project the question.
    **When** the teacher clicks "Sample question" on a standard row,
    **Then** a modal/sheet opens showing one question tagged with that standard,
    including stem, options, and the correct option marked for the teacher.
+   The modal defaults to `Random` selection mode.
 2. **Given** the sample-question modal is open,
+   **When** the teacher switches the selection mode to `High accuracy first`,
+   **Then** the displayed question changes to the question tagged with that
+   standard that has the highest in-scope accuracy among the teacher's students
+   (ties broken by attempt count, then by question id for determinism).
+3. **Given** the sample-question modal is open,
+   **When** the teacher switches the selection mode to `Low accuracy first`,
+   **Then** the displayed question changes to the question with the lowest
+   in-scope accuracy (same tie-break order).
+4. **Given** the sample-question modal is open in any selection mode,
    **When** the teacher clicks "Show another",
-   **Then** a different question (when available) is shown; if no more questions
-   exist, the button is disabled with a message.
-3. **Given** the standard has no questions in the question bank,
+   **Then** a different question (next in the current mode's order, when
+   available) is shown; if no more questions exist for that mode, the button is
+   disabled with a message ("No more questions for this mode").
+5. **Given** the standard has no questions in the question bank,
    **When** the teacher clicks "Sample question",
    **Then** the modal shows an empty state explaining no sample is available.
+6. **Given** the selection mode is `High accuracy first` or `Low accuracy first`
+   and some questions in the bank have zero in-scope attempts,
+   **When** the teacher iterates through the modal,
+   **Then** those unattempted questions are shown *after* every attempted
+   question has been shown for that mode, so accuracy-based ordering remains
+   meaningful while still letting the teacher reach un-tried questions.
 
 ---
 
@@ -304,15 +329,26 @@ project the question.
   one question whose `standard_id` matches the row's standard, including stem,
   options, and the correct option marked for the teacher.
 - **FR-042**: The modal MUST include a "Show another" action that returns a
-  different question from the bank (when more exist) and disables itself once
-  the bank is exhausted for that standard.
+  different question from the bank (next in the current mode's order, when
+  more exist) and disables itself once the bank is exhausted for the current
+  mode and standard.
 - **FR-043**: When the question bank for that standard is empty, the modal MUST
   show an empty state ("No sample question available for this standard").
-- **FR-044**: The sample-question selection algorithm MUST [NEEDS CLARIFICATION:
-  selection logic — random across all questions tagged with the standard, or
-  prefer questions with high accuracy in scope (so they work as confidence-
-  building warm-ups), or prefer questions that have not yet been assigned to
-  the class?]
+- **FR-044**: The modal MUST expose a selection-mode picker with three options:
+  `Random` (default), `High accuracy first`, and `Low accuracy first`. Switching
+  the mode MUST immediately update the displayed question to the first item
+  under the new mode's ordering.
+- **FR-045**: The `High accuracy first` and `Low accuracy first` orderings MUST
+  be computed from in-scope attempts (the same scope as the dashboard: the
+  teacher's students, honoring active filters). Tie-breakers MUST be applied in
+  this order: (1) higher in-scope attempt count first (more data = more
+  trustworthy ordering), (2) lexicographic question id (for full determinism).
+- **FR-046**: For accuracy-based modes, questions with zero in-scope attempts
+  MUST be placed at the end of the ordering, not interleaved, so the modal
+  remains usable even for standards where most bank questions are untouched.
+- **FR-047**: The chosen selection mode MUST persist for the lifetime of the
+  modal session (i.e., across "Show another" clicks). It is not required to
+  persist across modal close/reopen.
 
 #### Cross-cutting
 
