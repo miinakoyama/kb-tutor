@@ -13,6 +13,7 @@
 ### Session 2026-05-25
 
 - Q: For the "Sample question" button (FR-044), what is the selection logic? → A: The teacher chooses the selection mode from three presets — `random`, `high-accuracy first` (warm-up: confidence-building items), and `low-accuracy first` (focus question: items the class is currently struggling with). `random` is the default. The chosen mode persists across "Show another" clicks within the same modal session.
+- Q: For the Standard drill-down (FR-054), should the list include unattempted bank questions? → A: Attempted questions only (one row per question, `attempts ≥ 1` in scope). Untouched bank questions surface via the Sample-question modal and the question manager, not via the standard drill-down.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -364,11 +365,14 @@ project the question.
 - **FR-053**: All new endpoints MUST use the same exam-attempt deduping
   (`dedupeAssignmentExamAttempts`) as `/api/teacher-dashboard` so totals match
   the parent dashboard.
-- **FR-054**: The System MUST [NEEDS CLARIFICATION: when a teacher drills into
-  a standard, are "all questions for this class's students" the same as
-  "all questions tagged with the standard in the bank" — i.e., should the
-  drill-down also list bank questions that were never attempted by this class
-  (with N=0), or only attempted ones?]
+- **FR-054**: When a teacher drills into a standard from the dashboard, the
+  Standard detail view MUST list **only questions with at least one in-scope
+  attempt** (one row per question). Bank questions that this teacher's students
+  have never attempted MUST NOT appear in the list. This keeps the view faithful
+  to the teacher's intent ("the 296 questions attempted for Standard A") and
+  avoids diluting the color-coded view with rows that carry no signal. Untouched
+  bank questions remain reachable via the "Sample question" modal (Story 4) and
+  via the question manager surface (Story 3).
 
 ### Key Entities *(include if feature involves data)*
 

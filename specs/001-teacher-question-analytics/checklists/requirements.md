@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -32,9 +32,13 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
-- Two open `[NEEDS CLARIFICATION]` markers remain (FR-044 and FR-054); these are
-  the highest-impact open questions and should be answered via `/speckit-clarify`
-  before planning.
+- All initial `[NEEDS CLARIFICATION]` markers resolved during `/speckit-clarify`
+  session 2026-05-25:
+  - FR-044: Sample-question selection logic → teacher-selectable mode
+    (`random` / `high-accuracy first` / `low-accuracy first`), default
+    `random`.
+  - FR-054: Standard drill-down scope → attempted questions only, one row
+    per question, `attempts ≥ 1`.
 - Mild caveats noted (not failures, but documented here for transparency):
   - Spec mentions concrete table/column names (`attempts`, `school_teachers`,
     `generated_questions`, etc.) and the existing route `/api/teacher-dashboard`
