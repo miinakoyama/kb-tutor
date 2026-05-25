@@ -135,18 +135,18 @@ export default function ProgressPage() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-8">
+      <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-8">
         My Progress
       </h1>
 
       <div className="space-y-8">
         {errorMessage && (
-          <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-            <p className="text-sm text-red-700">{errorMessage}</p>
+          <section className="rounded-lg border border-error-border bg-error-light px-4 py-3">
+            <p className="text-sm text-error">{errorMessage}</p>
           </section>
         )}
 
-        <section className="rounded-lg border border-leaf/30 bg-white p-6 shadow-sm">
+        <section className="rounded-lg border border-leaf/30 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-4 flex items-center gap-2">
             <Flame className="w-5 h-5 text-orange-500" />
             Learning Streak
@@ -159,14 +159,14 @@ export default function ProgressPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-leaf/30 bg-white p-6 shadow-sm">
+        <section className="rounded-lg border border-leaf/30 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-2">
             Topic Mastery
           </h2>
           <p className="text-sm text-slate-gray/80 mb-4">
             Mastery by module/category topics.
           </p>
-          <p className="text-xs text-slate-gray/70 mb-3">
+          <p className="text-xs text-muted-foreground mb-3">
             {isLoading
               ? "Loading progress..."
               : `${attemptedTopicCount}/${masteryData.length} topics have attempt data (estimated until enough attempts).`}
@@ -224,7 +224,7 @@ export default function ProgressPage() {
                 </RadarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full w-full animate-pulse rounded-xl bg-slate-100" />
+              <div className="h-full w-full animate-pulse rounded-xl bg-surface-muted" />
             )}
           </div>
         </section>

@@ -44,31 +44,31 @@ export default async function NotificationsPage() {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <NotificationsMarkRead />
       <section className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
           Notifications
         </h1>
-        <p className="text-slate-gray/70">
+        <p className="text-muted-foreground">
           Recent updates from assignments and deadlines.
         </p>
       </section>
 
       {notificationsError && (
-        <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4">
-          <p className="text-sm text-red-700">
+        <section className="rounded-lg border border-error-border bg-error-light px-4 py-3 mb-4">
+          <p className="text-sm text-error">
             Failed to load notifications. Please refresh and try again.
           </p>
         </section>
       )}
 
       {notifications.length === 0 ? (
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-5 sm:p-6 shadow-sm">
+        <section className="rounded-xl border border-primary/30 bg-surface p-5 sm:p-6 shadow-sm">
           <div className="flex items-start gap-3">
-            <Lightbulb className="w-5 h-5 text-[#16a34a] mt-0.5" />
+            <Lightbulb className="w-5 h-5 text-primary mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-slate-gray mb-1">
                 No new notifications
               </p>
-              <p className="text-sm text-slate-gray/70">
+              <p className="text-sm text-muted-foreground">
                 {FALLBACK_MESSAGES[0]}
               </p>
             </div>
@@ -79,20 +79,20 @@ export default async function NotificationsPage() {
           {notifications.map((item) => (
             <article
               key={item.id}
-              className="rounded-xl border border-[#16a34a]/20 bg-white p-4 sm:p-5 shadow-sm"
+              className="rounded-xl border border-primary/20 bg-surface p-4 sm:p-5 shadow-sm"
             >
               <div className="flex items-start gap-3">
-                <Bell className="w-5 h-5 text-[#16a34a] mt-0.5" />
+                <Bell className="w-5 h-5 text-primary mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm text-slate-gray leading-relaxed">
                     {item.message}
                   </p>
-                  <p className="text-xs text-slate-gray/50 mt-2">
+                  <p className="text-xs text-muted-foreground mt-2">
                     {formatCreatedAt(item.createdAt)}
                   </p>
                 </div>
                 {!item.read && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#16a34a]/10 text-[#166534]">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-forest">
                     New
                   </span>
                 )}

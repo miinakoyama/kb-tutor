@@ -86,7 +86,7 @@ export function SchoolFilter({ value, onChange }: SchoolFilterProps) {
           <button
             type="button"
             onClick={() => onChange(allSchoolIds)}
-            className="text-xs text-[#166534] hover:underline"
+            className="text-xs text-forest hover:underline"
             disabled={schools.length === 0}
           >
             Select all
@@ -94,13 +94,13 @@ export function SchoolFilter({ value, onChange }: SchoolFilterProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <div className="rounded-lg border border-border-default bg-surface px-3 py-2">
         {loading ? (
-          <p className="text-xs text-slate-gray/70">Loading schools...</p>
+          <p className="text-xs text-muted-foreground">Loading schools...</p>
         ) : error ? (
-          <p className="text-xs text-red-700">{error}</p>
+          <p className="text-xs text-error">{error}</p>
         ) : schools.length === 0 ? (
-          <p className="text-xs text-slate-gray/70">No schools found.</p>
+          <p className="text-xs text-muted-foreground">No schools found.</p>
         ) : (
           <div className="grid gap-1 max-h-28 overflow-auto pr-1">
             {schools.map((school) => {
@@ -123,7 +123,7 @@ export function SchoolFilter({ value, onChange }: SchoolFilterProps) {
         )}
       </div>
 
-      <p className="mt-1 text-xs text-slate-gray/60">{summaryLabel}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{summaryLabel}</p>
     </div>
   );
 }

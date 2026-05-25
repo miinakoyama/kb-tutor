@@ -102,7 +102,7 @@ function render(status: SyncStatus): {
           <button
             type="button"
             onClick={() => void retryAllPending()}
-            className="ml-1 rounded-full border border-amber-300 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 hover:bg-white"
+            className="ml-1 rounded-full border border-amber-300 bg-surface/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 hover:bg-surface"
           >
             Retry now
           </button>
@@ -111,7 +111,7 @@ function render(status: SyncStatus): {
     }
     case "offline":
       return {
-        tone: "border-slate-300 bg-slate-100/95 text-slate-700",
+        tone: "border-slate-300 bg-surface-muted/95 text-foreground",
         icon: <CloudOff className="size-3.5" aria-hidden />,
         label: `Offline — will sync ${status.queuedCount} item${
           status.queuedCount === 1 ? "" : "s"
@@ -130,14 +130,14 @@ function render(status: SyncStatus): {
             <button
               type="button"
               onClick={() => void retryAllPending()}
-              className="ml-1 rounded-full border border-violet-300 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-800 hover:bg-white"
+              className="ml-1 rounded-full border border-violet-300 bg-surface/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-800 hover:bg-surface"
             >
               Retry
             </button>
             <button
               type="button"
               onClick={() => discardFailedPending()}
-              className="ml-1 rounded-full border border-violet-200 bg-white/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 hover:bg-white"
+              className="ml-1 rounded-full border border-violet-200 bg-surface/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 hover:bg-surface"
             >
               Dismiss
             </button>

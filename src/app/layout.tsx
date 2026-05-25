@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { AppChrome } from "@/components/AppChrome";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { APPEARANCE_STORAGE_KEY } from "@/lib/appearance-settings";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -27,6 +29,8 @@ export const metadata: Metadata = {
     "A learning tutor for high school students preparing for the Pennsylvania Keystone Biology Exam.",
 };
 
+const themeInitScript = `(function(){try{var k=${JSON.stringify(APPEARANCE_STORAGE_KEY)};var s=localStorage.getItem(k);var m=s==="light"||s==="dark"||s==="system"?s:"system";var d=m==="dark"||(m==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){var d=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",!!d);}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -38,8 +42,16 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${outfit.variable}`}
     >
-      <body suppressHydrationWarning className="antialiased font-sans min-h-screen bg-sand-beige">
-        <AppChrome>{children}</AppChrome>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body
+        suppressHydrationWarning
+        className="antialiased font-sans min-h-screen bg-background text-foreground"
+      >
+        <ThemeProvider>
+          <AppChrome>{children}</AppChrome>
+        </ThemeProvider>
       </body>
     </html>
   );

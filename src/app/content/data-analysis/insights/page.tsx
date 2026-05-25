@@ -202,14 +202,14 @@ export default function InsightsPage() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
           Data Analysis — Insights
         </h1>
       </header>
 
       <DataAnalysisTabs active="insights" />
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
         <DateRangePicker value={range} onChange={setRange} />
         <div className="mt-4 max-w-xl">
           <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
@@ -217,7 +217,7 @@ export default function InsightsPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -225,7 +225,7 @@ export default function InsightsPage() {
           <button
             onClick={() => data && downloadInsightsCsv(data, range)}
             disabled={!data}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
             Download summary CSV
@@ -234,13 +234,13 @@ export default function InsightsPage() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
           {error}
         </p>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-gray/70">Loading insights...</p>
+        <p className="text-sm text-muted-foreground">Loading insights...</p>
       ) : data ? (
         <div className="space-y-8">
           <ScaffoldingSection data={data.scaffolding} />
@@ -251,7 +251,7 @@ export default function InsightsPage() {
           <CompletionSection data={data.completion} />
         </div>
       ) : (
-        <p className="text-sm text-slate-gray/70">No data for the selected window.</p>
+        <p className="text-sm text-muted-foreground">No data for the selected window.</p>
       )}
     </main>
   );
@@ -360,7 +360,7 @@ function PracticeVsExamSection({ data }: { data: InsightsResponse["practiceVsExa
         />
       }
     >
-      <p className="text-sm text-slate-gray/70 mb-4">
+      <p className="text-sm text-muted-foreground mb-4">
         A large positive gap suggests students can solve the standard in Practice (with scaffolding)
         but not in Exam (no scaffolding) — i.e. they rely on scaffolding rather than understanding.
       </p>
@@ -566,9 +566,9 @@ function QuestionSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-5 sm:p-6 shadow-sm">
+    <section className="rounded-xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm">
       <header className="mb-4">
-        <h2 className="text-xl font-semibold text-[#14532d]">{title}</h2>
+        <h2 className="text-xl font-semibold text-heading">{title}</h2>
       </header>
       <div className="mb-5">{leadAnswer}</div>
       {children}
@@ -589,15 +589,15 @@ function LeadAnswer({
 }) {
   const toneClass =
     tone === "good"
-      ? "text-[#16a34a]"
+      ? "text-primary"
       : tone === "warn"
         ? "text-amber-600"
-        : "text-[#14532d]";
+        : "text-heading";
   return (
-    <div className="rounded-xl bg-[#f0fdf4] border border-[#16a34a]/20 px-4 py-3">
+    <div className="rounded-xl bg-primary-light border border-primary/20 px-4 py-3">
       <p className={`text-3xl sm:text-4xl font-bold tabular-nums ${toneClass}`}>{metric}</p>
       <p className="text-sm text-slate-gray mt-1">{label}</p>
-      {sublabel && <p className="text-xs text-slate-gray/70 mt-1">{sublabel}</p>}
+      {sublabel && <p className="text-xs text-muted-foreground mt-1">{sublabel}</p>}
     </div>
   );
 }
@@ -612,13 +612,13 @@ function SubsectionHeader({
   return (
     <div className="mt-5 mb-2">
       <h3 className="text-sm font-semibold text-slate-gray">{title}</h3>
-      {subtitle && <p className="text-xs text-slate-gray/60 mt-0.5">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
     </div>
   );
 }
 
 function EmptyHint({ text }: { text: string }) {
-  return <p className="text-sm text-slate-gray/60 italic">{text}</p>;
+  return <p className="text-sm text-muted-foreground italic">{text}</p>;
 }
 
 function MetricCard({
@@ -634,15 +634,15 @@ function MetricCard({
 }) {
   const ring =
     tone === "good"
-      ? "border-[#16a34a]/30 bg-[#f0fdf4]"
+      ? "border-primary/30 bg-primary-light"
       : tone === "warn"
         ? "border-amber-200 bg-amber-50"
-        : "border-slate-200 bg-white";
+        : "border-border-default bg-surface";
   return (
     <article className={`rounded-xl border ${ring} p-4 shadow-sm`}>
-      <p className="text-xs uppercase tracking-wide text-slate-gray/70">{label}</p>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold text-slate-gray tabular-nums">{value}</p>
-      {hint && <p className="text-xs text-slate-gray/60 mt-0.5">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
     </article>
   );
 }
@@ -652,13 +652,13 @@ function NumCell({ value }: { value: string | number }) {
 }
 
 function UpliftCell({ value }: { value: number }) {
-  const tone = value > 0.1 ? "text-[#16a34a]" : value < 0 ? "text-red-600" : "text-slate-gray/70";
+  const tone = value > 0.1 ? "text-primary" : value < 0 ? "text-error" : "text-muted-foreground";
   return <span className={`tabular-nums font-medium ${tone}`}>{pctSigned(value)}</span>;
 }
 
 function GapCell({ value }: { value: number }) {
   const tone =
-    value > 0.25 ? "text-amber-700" : value > 0.1 ? "text-slate-gray" : "text-[#16a34a]";
+    value > 0.25 ? "text-amber-700" : value > 0.1 ? "text-slate-gray" : "text-primary";
   return <span className={`tabular-nums font-medium ${tone}`}>{pctSigned(value)}</span>;
 }
 
@@ -673,7 +673,7 @@ function Table({
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-slate-500">
+          <tr className="border-b border-border-default text-left text-muted-foreground">
             {headers.map((h) => (
               <th key={h} className="px-2 py-2 font-medium">
                 {h}
@@ -683,7 +683,7 @@ function Table({
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-slate-100">
+            <tr key={i} className="border-b border-border-subtle">
               {row.map((cell, j) => (
                 <td key={j} className="px-2 py-2">
                   {cell}
@@ -754,7 +754,7 @@ function HintDependencySection({
           tone="neutral"
         />
       </div>
-      <p className="text-xs text-slate-gray/70 leading-relaxed">
+      <p className="text-xs text-muted-foreground leading-relaxed">
         Dependency index near 1 means the scaffolding lifts students to about
         the same level as those who didn&apos;t need it — a useful nudge.
         Significantly above 1 means the hint is doing most of the work, which
@@ -828,7 +828,7 @@ function ConfidenceCalibrationSection({
           })}
         />
       )}
-      <p className="text-xs text-slate-gray/70 leading-relaxed mt-3">
+      <p className="text-xs text-muted-foreground leading-relaxed mt-3">
         A calibrated learner is mostly correct when they rate themselves &quot;Sure&quot;
         and more often wrong when &quot;Not sure&quot;. Overconfident-wrong is the
         dangerous quadrant — it points to misconceptions the learner doesn&apos;t
@@ -857,7 +857,7 @@ function Scatter({
   }
 
   return (
-    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+    <div className="mt-2 rounded-xl border border-border-default bg-surface-muted/50 p-4">
       <div
         className="relative"
         style={{ height: "260px" }}
@@ -866,18 +866,18 @@ function Scatter({
         {/* Axes */}
         <div className="absolute bottom-0 left-0 right-0 h-px bg-slate-300" />
         <div className="absolute bottom-0 top-0 left-0 w-px bg-slate-300" />
-        <span className="absolute -left-1 top-0 text-[10px] text-slate-gray/70">
+        <span className="absolute -left-1 top-0 text-[10px] text-muted-foreground">
           {fmtMinutes(maxMinutes)}
         </span>
-        <span className="absolute -left-1 bottom-2 text-[10px] text-slate-gray/70">0</span>
-        <span className="absolute right-0 -bottom-4 text-[10px] text-slate-gray/70">
+        <span className="absolute -left-1 bottom-2 text-[10px] text-muted-foreground">0</span>
+        <span className="absolute right-0 -bottom-4 text-[10px] text-muted-foreground">
           {maxErrors} errors
         </span>
-        <span className="absolute left-1 -bottom-4 text-[10px] text-slate-gray/70">0</span>
+        <span className="absolute left-1 -bottom-4 text-[10px] text-muted-foreground">0</span>
         {points.map((p) => {
           const x = (p.practiceErrors / maxErrors) * 100;
           const y = (p.reviewMinutes / maxMinutes) * 100;
-          const tone = p.enteredReview ? "bg-[#16a34a]" : "bg-red-500";
+          const tone = p.enteredReview ? "bg-primary" : "bg-error-light0";
           return (
             <div
               key={p.userId}
@@ -894,16 +894,16 @@ function Scatter({
           );
         })}
       </div>
-      <div className="mt-6 flex items-center gap-4 text-xs text-slate-gray/70">
+      <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-full bg-[#16a34a]" />
+          <span className="inline-block w-2 h-2 rounded-full bg-primary" />
           Entered review
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
+          <span className="inline-block w-2 h-2 rounded-full bg-error-light0" />
           Did not enter
         </span>
-        <span className="text-slate-gray/50">X: practice errors · Y: review minutes</span>
+        <span className="text-muted-foreground">X: practice errors · Y: review minutes</span>
       </div>
     </div>
   );

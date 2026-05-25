@@ -17,7 +17,7 @@
 
 **Purpose**: Database schema change required for cross-device persistence (US3)
 
-- [ ] T001 Add `appearance_mode` column migration in `supabase/migrations/YYYYMMDDHHMMSS_user_settings_appearance_mode.sql` per `specs/001-dark-mode/data-model.md`
+- [X] T001 Add `appearance_mode` column migration in `supabase/migrations/YYYYMMDDHHMMSS_user_settings_appearance_mode.sql` per `specs/001-dark-mode/data-model.md`
 
 ---
 
@@ -27,12 +27,12 @@
 
 **⚠️ CRITICAL**: No user story phase can begin until this phase is complete
 
-- [ ] T002 Implement appearance preference module (`normalizeAppearanceMode`, `getStoredAppearanceMode`, `setStoredAppearanceMode`, `saveAppearanceModeToDb`, `syncAppearanceFromDb`, `migrateAppearanceOnce`, `resolveTheme`) in `src/lib/appearance-settings.ts` per `specs/001-dark-mode/contracts/appearance-preference.md`
-- [ ] T003 Add Vitest unit tests for normalization, defaults, invalid values, and `resolveTheme` in `src/lib/appearance-settings.test.ts`
-- [ ] T004 Define light/dark CSS variable tokens, `.dark` overrides, and Tailwind dark variant in `src/app/globals.css` per `specs/001-dark-mode/contracts/theme-resolution.md`
-- [ ] T005 Create `ThemeProvider` with theme context, DOM class application, and `prefers-color-scheme` listener in `src/components/ThemeProvider.tsx`
-- [ ] T006 Add inline FOUC-prevention script and wrap app with `ThemeProvider` in `src/app/layout.tsx`
-- [ ] T007 Register `migrateAppearanceOnce()` in `src/components/MigrationBootstrap.tsx`
+- [X] T002 Implement appearance preference module (`normalizeAppearanceMode`, `getStoredAppearanceMode`, `setStoredAppearanceMode`, `saveAppearanceModeToDb`, `syncAppearanceFromDb`, `migrateAppearanceOnce`, `resolveTheme`) in `src/lib/appearance-settings.ts` per `specs/001-dark-mode/contracts/appearance-preference.md`
+- [X] T003 Add Vitest unit tests for normalization, defaults, invalid values, and `resolveTheme` in `src/lib/appearance-settings.test.ts`
+- [X] T004 Define light/dark CSS variable tokens, `.dark` overrides, and Tailwind dark variant in `src/app/globals.css` per `specs/001-dark-mode/contracts/theme-resolution.md`
+- [X] T005 Create `ThemeProvider` with theme context, DOM class application, and `prefers-color-scheme` listener in `src/components/ThemeProvider.tsx`
+- [X] T006 Add inline FOUC-prevention script and wrap app with `ThemeProvider` in `src/app/layout.tsx`
+- [X] T007 Register `migrateAppearanceOnce()` in `src/components/MigrationBootstrap.tsx`
 
 **Checkpoint**: Theme resolves and applies on page load; preference module tested — user story work can begin
 
@@ -46,11 +46,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T008 [P] [US2] Replace hardcoded light-only colors with semantic tokens in `src/components/AppChrome.tsx`
-- [ ] T009 [P] [US2] Replace hardcoded light-only colors with semantic tokens in `src/components/Sidebar.tsx`
-- [ ] T010 [P] [US2] Replace hardcoded light-only colors with semantic tokens in `src/app/login/page.tsx`
-- [ ] T011 [P] [US2] Replace hardcoded light-only colors with semantic tokens in `src/app/login/staff/page.tsx`
-- [ ] T012 [US2] Update root body background class in `src/app/layout.tsx` to use theme-aware token instead of hardcoded `bg-sand-beige`
+- [X] T008 [P] [US2] Replace hardcoded light-only colors with semantic tokens in `src/components/AppChrome.tsx`
+- [X] T009 [P] [US2] Replace hardcoded light-only colors with semantic tokens in `src/components/Sidebar.tsx`
+- [X] T010 [P] [US2] Replace hardcoded light-only colors with semantic tokens in `src/app/login/page.tsx`
+- [X] T011 [P] [US2] Replace hardcoded light-only colors with semantic tokens in `src/app/login/staff/page.tsx`
+- [X] T012 [US2] Update root body background class in `src/app/layout.tsx` to use theme-aware token instead of hardcoded `bg-sand-beige`
 
 **Checkpoint**: Login and app shell readable in both resolved themes; first-visit System default verified
 
@@ -64,21 +64,21 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Add Appearance section with segmented System/Light/Dark control wired to `ThemeProvider` in `src/app/settings/page.tsx`
-- [ ] T014 [P] [US1] Migrate student home surface colors in `src/app/page.tsx` and `src/components/HomePageContent.tsx`
-- [ ] T015 [P] [US1] Migrate practice flow colors in `src/app/practice/page.tsx`, `src/components/PracticePageClient.tsx`, `src/components/MCQEngine.tsx`, and `src/components/ModeSelector.tsx`
-- [ ] T016 [P] [US1] Migrate review/adaptive mode colors in `src/components/modes/ReviewMode.tsx` and `src/components/modes/AdaptivePracticeMode.tsx`
-- [ ] T017 [P] [US1] Migrate exam mode colors in `src/app/exam/page.tsx` and `src/components/modes/ExamMode.tsx`
-- [ ] T018 [P] [US1] Migrate student utility pages in `src/app/progress/page.tsx`, `src/app/bookmarks/page.tsx`, `src/app/notifications/page.tsx`, and `src/app/self-practice/page.tsx`
-- [ ] T019 [P] [US1] Migrate self-practice and assignment student components in `src/components/SelfPracticePlanner.tsx`, `src/components/assignments/StudentAssignmentsList.tsx`, `src/components/assignments/ReviewScopePicker.tsx`, `src/components/assignments/QuestionDetails.tsx`, and `src/components/assignments/AssignmentProgressPanel.tsx`
-- [ ] T020 [P] [US1] Migrate teacher dashboard colors in `src/app/teacher-dashboard/page.tsx`
-- [ ] T021 [P] [US1] Migrate assignment management pages in `src/app/assignments/page.tsx`, `src/app/assignments/manage/page.tsx`, `src/app/assignments/manage/new/page.tsx`, `src/app/assignments/manage/[assignmentId]/page.tsx`, `src/app/assignments/[assignmentId]/history/page.tsx`, and `src/app/assignments/[assignmentId]/history/[attemptNumber]/page.tsx`
-- [ ] T022 [P] [US1] Migrate assignment editor components in `src/components/assignments/ManualQuestionEditor.tsx`, `src/components/assignments/ExistingSetPicker.tsx`, and `src/components/assignments/AllAssignmentsCompleteSelfPracticeModal.tsx`
-- [ ] T023 [P] [US1] Migrate admin content shell in `src/app/content/layout.tsx` and `src/app/content/page.tsx`
-- [ ] T024 [P] [US1] Migrate admin content pages in `src/app/content/questions/page.tsx`, `src/app/content/questions/[setId]/page.tsx`, `src/app/content/questions/new/manual/page.tsx`, `src/app/content/accounts/page.tsx`, `src/app/content/schools/page.tsx`, and `src/app/content/mass-production/page.tsx`
-- [ ] T025 [P] [US1] Migrate admin data-analysis pages in `src/app/content/data-analysis/page.tsx`, `src/app/content/data-analysis/tabs.tsx`, `src/app/content/data-analysis/students/page.tsx`, `src/app/content/data-analysis/questions/page.tsx`, `src/app/content/data-analysis/insights/page.tsx`, `src/app/content/data-analysis/feature-usage/page.tsx`, `src/app/content/data-analysis/date-range.tsx`, and `src/app/content/data-analysis/school-filter.tsx`
-- [ ] T026 [P] [US1] Migrate shared practice UI in `src/components/shared/QuestionDisplay.tsx`, `src/components/shared/OptionButton.tsx`, `src/components/shared/PracticeHeader.tsx`, `src/components/shared/FeedbackPanel.tsx`, `src/components/shared/ExamNavigator.tsx`, `src/components/shared/GlossaryPanel.tsx`, `src/components/shared/GlossaryPopover.tsx`, `src/components/shared/ReadAloudButton.tsx`, `src/components/shared/Timer.tsx`, `src/components/shared/ConfidenceCheck.tsx`, `src/components/shared/FeatureSpotlight.tsx`, and `src/components/shared/NextSessionCTA.tsx`
-- [ ] T027 [P] [US1] Migrate remaining shared components in `src/components/FeedbackDisplay.tsx`, `src/components/FirstLoginOnboarding.tsx`, `src/components/SyncStatusIndicator.tsx`, `src/components/TopicNavigation.tsx`, `src/components/StudentAvatar.tsx`, and `src/components/mass-production/QuestionPreviewCard.tsx`, `src/components/mass-production/QuestionEditModal.tsx`
+- [X] T013 [US1] Add Appearance section with segmented System/Light/Dark control wired to `ThemeProvider` in `src/app/settings/page.tsx`
+- [X] T014 [P] [US1] Migrate student home surface colors in `src/app/page.tsx` and `src/components/HomePageContent.tsx`
+- [X] T015 [P] [US1] Migrate practice flow colors in `src/app/practice/page.tsx`, `src/components/PracticePageClient.tsx`, `src/components/MCQEngine.tsx`, and `src/components/ModeSelector.tsx`
+- [X] T016 [P] [US1] Migrate review/adaptive mode colors in `src/components/modes/ReviewMode.tsx` and `src/components/modes/AdaptivePracticeMode.tsx`
+- [X] T017 [P] [US1] Migrate exam mode colors in `src/app/exam/page.tsx` and `src/components/modes/ExamMode.tsx`
+- [X] T018 [P] [US1] Migrate student utility pages in `src/app/progress/page.tsx`, `src/app/bookmarks/page.tsx`, `src/app/notifications/page.tsx`, and `src/app/self-practice/page.tsx`
+- [X] T019 [P] [US1] Migrate self-practice and assignment student components in `src/components/SelfPracticePlanner.tsx`, `src/components/assignments/StudentAssignmentsList.tsx`, `src/components/assignments/ReviewScopePicker.tsx`, `src/components/assignments/QuestionDetails.tsx`, and `src/components/assignments/AssignmentProgressPanel.tsx`
+- [X] T020 [P] [US1] Migrate teacher dashboard colors in `src/app/teacher-dashboard/page.tsx`
+- [X] T021 [P] [US1] Migrate assignment management pages in `src/app/assignments/page.tsx`, `src/app/assignments/manage/page.tsx`, `src/app/assignments/manage/new/page.tsx`, `src/app/assignments/manage/[assignmentId]/page.tsx`, `src/app/assignments/[assignmentId]/history/page.tsx`, and `src/app/assignments/[assignmentId]/history/[attemptNumber]/page.tsx`
+- [X] T022 [P] [US1] Migrate assignment editor components in `src/components/assignments/ManualQuestionEditor.tsx`, `src/components/assignments/ExistingSetPicker.tsx`, and `src/components/assignments/AllAssignmentsCompleteSelfPracticeModal.tsx`
+- [X] T023 [P] [US1] Migrate admin content shell in `src/app/content/layout.tsx` and `src/app/content/page.tsx`
+- [X] T024 [P] [US1] Migrate admin content pages in `src/app/content/questions/page.tsx`, `src/app/content/questions/[setId]/page.tsx`, `src/app/content/questions/new/manual/page.tsx`, `src/app/content/accounts/page.tsx`, `src/app/content/schools/page.tsx`, and `src/app/content/mass-production/page.tsx`
+- [X] T025 [P] [US1] Migrate admin data-analysis pages in `src/app/content/data-analysis/page.tsx`, `src/app/content/data-analysis/tabs.tsx`, `src/app/content/data-analysis/students/page.tsx`, `src/app/content/data-analysis/questions/page.tsx`, `src/app/content/data-analysis/insights/page.tsx`, `src/app/content/data-analysis/feature-usage/page.tsx`, `src/app/content/data-analysis/date-range.tsx`, and `src/app/content/data-analysis/school-filter.tsx`
+- [X] T026 [P] [US1] Migrate shared practice UI in `src/components/shared/QuestionDisplay.tsx`, `src/components/shared/OptionButton.tsx`, `src/components/shared/PracticeHeader.tsx`, `src/components/shared/FeedbackPanel.tsx`, `src/components/shared/ExamNavigator.tsx`, `src/components/shared/GlossaryPanel.tsx`, `src/components/shared/GlossaryPopover.tsx`, `src/components/shared/ReadAloudButton.tsx`, `src/components/shared/Timer.tsx`, `src/components/shared/ConfidenceCheck.tsx`, `src/components/shared/FeatureSpotlight.tsx`, and `src/components/shared/NextSessionCTA.tsx`
+- [X] T027 [P] [US1] Migrate remaining shared components in `src/components/FeedbackDisplay.tsx`, `src/components/FirstLoginOnboarding.tsx`, `src/components/SyncStatusIndicator.tsx`, `src/components/TopicNavigation.tsx`, `src/components/StudentAvatar.tsx`, and `src/components/mass-production/QuestionPreviewCard.tsx`, `src/components/mass-production/QuestionEditModal.tsx`
 
 **Checkpoint**: Settings control works; all primary surfaces readable in light and dark resolved themes
 
@@ -92,8 +92,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Load and sync appearance from DB on Settings mount via `syncAppearanceFromDb()` in `src/app/settings/page.tsx`
-- [ ] T029 [US3] Ensure `migrateAppearanceOnce()` pushes local preference to DB and `syncAppearanceFromDb()` repopulates localStorage after storage clear in `src/lib/appearance-settings.ts` and `src/components/MigrationBootstrap.tsx`
+- [X] T028 [US3] Load and sync appearance from DB on Settings mount via `syncAppearanceFromDb()` in `src/app/settings/page.tsx`
+- [X] T029 [US3] Ensure `migrateAppearanceOnce()` pushes local preference to DB and `syncAppearanceFromDb()` repopulates localStorage after storage clear in `src/lib/appearance-settings.ts` and `src/components/MigrationBootstrap.tsx`
 
 **Checkpoint**: Cross-session and cross-device persistence verified per US3 acceptance scenarios
 
@@ -103,10 +103,10 @@
 
 **Purpose**: Diagram/chart legibility, QA, and quality gates
 
-- [ ] T030 [P] Add dark-mode KaTeX and diagram contrast overrides in `src/app/globals.css` and migrate diagram components in `src/components/diagrams/BarChartDiagram.tsx`, `src/components/diagrams/LineChartDiagram.tsx`, `src/components/diagrams/FlowchartDiagram.tsx`, `src/components/diagrams/SvgDiagram.tsx`, and `src/components/diagrams/TableDiagram.tsx`
-- [ ] T031 [P] Pass theme-aware stroke/fill colors to Recharts instances in `src/app/teacher-dashboard/page.tsx` and admin data-analysis chart pages under `src/app/content/data-analysis/`
-- [ ] T032 Run manual QA checklist in `specs/001-dark-mode/quickstart.md` and fix any contrast or legibility issues found
-- [ ] T033 Run `npm run lint` and `npm test`; fix any failures introduced by dark mode changes
+- [X] T030 [P] Add dark-mode KaTeX and diagram contrast overrides in `src/app/globals.css` and migrate diagram components in `src/components/diagrams/BarChartDiagram.tsx`, `src/components/diagrams/LineChartDiagram.tsx`, `src/components/diagrams/FlowchartDiagram.tsx`, `src/components/diagrams/SvgDiagram.tsx`, and `src/components/diagrams/TableDiagram.tsx`
+- [X] T031 [P] Pass theme-aware stroke/fill colors to Recharts instances in `src/app/teacher-dashboard/page.tsx` and admin data-analysis chart pages under `src/app/content/data-analysis/`
+- [X] T032 Run manual QA checklist in `specs/001-dark-mode/quickstart.md` and fix any contrast or legibility issues found
+- [X] T033 Run `npm run lint` and `npm test`; fix any failures introduced by dark mode changes
 
 ---
 

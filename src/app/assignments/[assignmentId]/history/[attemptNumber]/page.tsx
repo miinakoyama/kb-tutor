@@ -79,7 +79,7 @@ export default function AssignmentAttemptDetailPage() {
 
   if (isLoading) {
     return (
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-center text-slate-gray/70">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-center text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" />
         Loading attempt...
       </main>
@@ -91,11 +91,11 @@ export default function AssignmentAttemptDetailPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-4">
         <Link
           href={`/assignments/${encodeURIComponent(assignmentId)}/history`}
-          className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
         >
           <ArrowLeft className="w-4 h-4" /> Back to past attempts
         </Link>
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-error-border bg-error-light px-4 py-3 text-sm text-error">
           {error ?? "Attempt not found."}
         </div>
       </main>
@@ -124,15 +124,15 @@ export default function AssignmentAttemptDetailPage() {
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-4">
           <button
             onClick={() => setActiveIndex(null)}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors"
           >
-            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-              <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+              <ArrowLeft className="w-4 h-4 text-heading" />
             </span>
             Back to attempt
           </button>
-          <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm">
-            <p className="text-sm text-slate-gray/60 mb-3">
+          <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+            <p className="text-sm text-muted-foreground mb-3">
               Question {activeIndex + 1}
             </p>
             <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
@@ -150,15 +150,15 @@ export default function AssignmentAttemptDetailPage() {
                     key={opt.id}
                     className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
                       isCorrect
-                        ? "border-[#16a34a]/40 bg-[#16a34a]/5"
+                        ? "border-primary/40 bg-primary/5"
                         : wrongSelection
-                          ? "border-red-300 bg-red-50"
-                          : "border-slate-200 bg-white"
+                          ? "border-error-border bg-error-light"
+                          : "border-border-default bg-surface"
                     }`}
                   >
                     <div className="mt-0.5 flex-shrink-0">
                       {isCorrect ? (
-                        <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
+                        <CheckCircle2 className="w-4 h-4 text-primary" />
                       ) : wrongSelection ? (
                         <XCircle className="w-4 h-4 text-red-400" />
                       ) : (
@@ -181,18 +181,18 @@ export default function AssignmentAttemptDetailPage() {
               />
             ) : (
               <div className="mt-5 space-y-3">
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
                   <p className="text-sm font-semibold text-slate-gray mb-1">
                     No answer submitted
                   </p>
-                  <p className="text-sm text-slate-gray/70 leading-relaxed">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
                     This question was left unanswered in this attempt. The
                     correct option is highlighted above for review.
                   </p>
                 </div>
                 {activeItem.question.keyKnowledge && (
-                  <div className="p-3 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a] mb-1">
+                  <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
                       Key Idea
                     </p>
                     <p className="text-sm text-slate-gray leading-relaxed">
@@ -211,24 +211,24 @@ export default function AssignmentAttemptDetailPage() {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6">
       <Link
         href={`/assignments/${encodeURIComponent(assignmentId)}/history`}
-        className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
       >
         <ArrowLeft className="w-4 h-4" /> Back to past attempts
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">
           Attempt {attempt.attempt_number}
         </h1>
-        <p className="text-slate-gray/70 text-sm">{assignment.title}</p>
-        <p className="text-xs text-slate-gray/60">
+        <p className="text-muted-foreground text-sm">{assignment.title}</p>
+        <p className="text-xs text-muted-foreground">
           Completed {new Date(attempt.completed_at).toLocaleString()}
         </p>
       </header>
 
-      <section className="rounded-xl border border-[#16a34a]/30 bg-white p-5 shadow-sm text-center">
-        <p className="text-4xl font-bold text-[#16a34a] mb-1">{percent}%</p>
-        <p className="text-sm text-slate-gray/60">
+      <section className="rounded-xl border border-primary/30 bg-surface p-5 shadow-sm text-center">
+        <p className="text-4xl font-bold text-primary mb-1">{percent}%</p>
+        <p className="text-sm text-muted-foreground">
           {summary.correct} of {summary.total} correct
           {summary.answered < summary.total && (
             <> &middot; {summary.total - summary.answered} unanswered</>
@@ -236,12 +236,12 @@ export default function AssignmentAttemptDetailPage() {
         </p>
       </section>
 
-      <section className="rounded-xl border border-[#16a34a]/30 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-primary/30 bg-surface p-4 shadow-sm">
         <h2 className="text-base font-semibold text-slate-gray mb-3">
           Questions
         </h2>
         {items.length === 0 ? (
-          <p className="text-sm text-slate-gray/70">
+          <p className="text-sm text-muted-foreground">
             No question records available for this attempt.
           </p>
         ) : (
@@ -253,16 +253,16 @@ export default function AssignmentAttemptDetailPage() {
                 <button
                   key={`${item.question.id}-${index}`}
                   onClick={() => setActiveIndex(index)}
-                  className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-slate-gray/5 ${
+                  className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-foreground/5 ${
                     isCorrect
-                      ? "border-[#16a34a]/20"
+                      ? "border-primary/20"
                       : hasAnswer
-                        ? "border-red-200"
-                        : "border-slate-gray/10"
+                        ? "border-error-border"
+                        : "border-border-subtle"
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <span className="text-xs font-medium text-slate-gray/50 mt-0.5 w-5 flex-shrink-0">
+                    <span className="text-xs font-medium text-muted-foreground mt-0.5 w-5 flex-shrink-0">
                       {index + 1}
                     </span>
                     <p className="flex-1 text-sm text-slate-gray line-clamp-1">
@@ -270,11 +270,11 @@ export default function AssignmentAttemptDetailPage() {
                     </p>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {isCorrect ? (
-                        <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
+                        <CheckCircle2 className="w-4 h-4 text-primary" />
                       ) : hasAnswer ? (
                         <XCircle className="w-4 h-4 text-red-400" />
                       ) : (
-                        <span className="text-xs text-slate-gray/40">—</span>
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </div>
                   </div>

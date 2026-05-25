@@ -99,14 +99,14 @@ function StudentsInner() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
           Data Analysis
         </h1>
       </header>
 
       <DataAnalysisTabs active="students" />
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
         <DateRangePicker value={range} onChange={setRange} />
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -116,7 +116,7 @@ function StudentsInner() {
             <select
               value={mode}
               onChange={(event) => setMode(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              className="w-full rounded-lg border border-border-default px-3 py-2"
             >
               <option value="all">All modes</option>
               <option value="practice">Practice</option>
@@ -131,7 +131,7 @@ function StudentsInner() {
               value={student}
               onChange={(event) => setStudent(event.target.value)}
               placeholder="Filter by student user id"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              className="w-full rounded-lg border border-border-default px-3 py-2"
             />
           </label>
         </div>
@@ -139,14 +139,14 @@ function StudentsInner() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
           <a
             href={csvHref}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-green-50 transition-colors"
           >
             <Download className="w-4 h-4" />
             Download CSV
@@ -155,7 +155,7 @@ function StudentsInner() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
           {error}
         </p>
       )}
@@ -168,16 +168,16 @@ function StudentsInner() {
         <MetricCard label="Avg time / question" value={`${summary?.averageTimeSec ?? 0}s`} />
       </section>
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
+      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
         {loading ? (
-          <p className="text-sm text-slate-gray/70">Loading analytics data...</p>
+          <p className="text-sm text-muted-foreground">Loading analytics data...</p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-slate-gray/70">No attempt data for the selected filters.</p>
+          <p className="text-sm text-muted-foreground">No attempt data for the selected filters.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-500">
+                <tr className="border-b border-border-default text-left text-muted-foreground">
                   <th className="px-2 py-2 font-medium">Answered At</th>
                   <th className="px-2 py-2 font-medium">School</th>
                   <th className="px-2 py-2 font-medium">Student</th>
@@ -190,14 +190,14 @@ function StudentsInner() {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={`${row.studentUserId}-${row.questionId}-${row.answeredAt}`} className="border-b border-slate-100">
-                    <td className="px-2 py-2 whitespace-nowrap text-slate-gray/70">
+                  <tr key={`${row.studentUserId}-${row.questionId}-${row.answeredAt}`} className="border-b border-border-subtle">
+                    <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">
                       {new Date(row.answeredAt).toLocaleString()}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap">{row.schoolId}</td>
                     <td className="px-2 py-2 min-w-[220px]">
                       <p className="font-medium text-slate-gray">{row.studentName || "-"}</p>
-                      <p className="text-xs text-slate-gray/70">{row.studentId || row.studentUserId}</p>
+                      <p className="text-xs text-muted-foreground">{row.studentId || row.studentUserId}</p>
                     </td>
                     <td className="px-2 py-2 capitalize">{row.mode}</td>
                     <td className="px-2 py-2 text-slate-gray/80">{row.questionId}</td>
@@ -206,7 +206,7 @@ function StudentsInner() {
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
                           row.isCorrect
                             ? "bg-green-50 text-green-700 border border-green-200"
-                            : "bg-red-50 text-red-700 border border-red-200"
+                            : "bg-error-light text-error border border-error-border"
                         }`}
                       >
                         {row.isCorrect ? "Correct" : "Incorrect"}
@@ -231,8 +231,8 @@ function StudentsInner() {
 
 function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs uppercase tracking-wide text-slate-gray/60">{label}</p>
+    <article className="rounded-xl border border-border-default bg-surface p-4 shadow-sm">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold text-slate-gray">{value}</p>
     </article>
   );

@@ -8,6 +8,8 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
+import { useTheme } from "@/components/ThemeProvider";
+import { getChartThemeColors } from "@/lib/chart-theme";
 import type { ChartData } from "@/types/question";
 
 interface BarChartDiagramProps {
@@ -15,15 +17,17 @@ interface BarChartDiagramProps {
 }
 
 export function BarChartDiagram({ data }: BarChartDiagramProps) {
+  const { resolvedTheme } = useTheme();
+  const colors = getChartThemeColors(resolvedTheme);
   const chartData = data.data.map((d) => ({
     label: d.label || d.x,
     value: d.y,
   }));
 
   return (
-    <div className="w-full bg-white p-4 border border-gray-300 rounded">
+    <div className="w-full bg-surface p-4 border border-border-default rounded">
       {data.title && (
-        <h3 className="text-center text-sm font-bold text-black mb-2">
+        <h3 className="text-center text-sm font-bold text-foreground mb-2">
           {data.title}
         </h3>
       )}
@@ -32,23 +36,23 @@ export function BarChartDiagram({ data }: BarChartDiagramProps) {
           data={chartData}
           margin={{ top: 12, right: 24, left: 48, bottom: 32 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#999" />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 12, fill: "#000" }}
-            stroke="#000"
+            tick={{ fontSize: 12, fill: colors.axis }}
+            stroke={colors.axis}
             label={{
               value: data.xAxisLabel,
               position: "bottom",
               offset: 12,
               fontSize: 12,
-              fill: "#000",
+              fill: colors.axis,
             }}
           />
           <YAxis
             width={72}
-            tick={{ fontSize: 12, fill: "#000" }}
-            stroke="#000"
+            tick={{ fontSize: 12, fill: colors.axis }}
+            stroke={colors.axis}
             label={{
               value: data.yAxisLabel,
               angle: -90,
@@ -57,11 +61,16 @@ export function BarChartDiagram({ data }: BarChartDiagramProps) {
               dx: -8,
               dy: 0,
               fontSize: 12,
-              fill: "#000",
+              fill: colors.axis,
               style: { textAnchor: "middle" },
             }}
           />
-          <Bar dataKey="value" fill="#888" stroke="#000" strokeWidth={1} />
+          <Bar
+            dataKey="value"
+            fill={colors.primary}
+            stroke={colors.axis}
+            strokeWidth={1}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

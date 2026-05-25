@@ -90,10 +90,10 @@ export default function FeatureUsagePage() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
           Data Analysis
         </h1>
-        <p className="text-slate-gray/70 max-w-3xl">
+        <p className="text-muted-foreground max-w-3xl">
           Tracks primarily user-initiated support actions (glossary, read-aloud, bookmarks, confidence).
           Auto-shown hint/feedback events are intentionally excluded.
         </p>
@@ -101,7 +101,7 @@ export default function FeatureUsagePage() {
 
       <DataAnalysisTabs active="feature-usage" />
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
         <DateRangePicker value={range} onChange={setRange} />
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
@@ -110,7 +110,7 @@ export default function FeatureUsagePage() {
             <select
               value={mode}
               onChange={(event) => setMode(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              className="w-full rounded-lg border border-border-default px-3 py-2"
             >
               <option value="all">All modes</option>
               <option value="practice">Practice</option>
@@ -121,7 +121,7 @@ export default function FeatureUsagePage() {
           <div className="flex items-end flex-wrap gap-2">
             <button
               onClick={() => void fetchData()}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
@@ -129,7 +129,7 @@ export default function FeatureUsagePage() {
             <button
               onClick={() => data && downloadFeatureUsageCsv(data, range)}
               disabled={!data}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="w-4 h-4" />
               Download CSV
@@ -139,7 +139,7 @@ export default function FeatureUsagePage() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
           {error}
         </p>
       )}
@@ -151,7 +151,7 @@ export default function FeatureUsagePage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-gray/70">Loading feature usage...</p>
+        <p className="text-sm text-muted-foreground">Loading feature usage...</p>
       ) : data ? (
         <div className="space-y-6">
           <OverviewStrip data={data} />
@@ -160,7 +160,7 @@ export default function FeatureUsagePage() {
           <ConfidenceSection data={data.confidence} />
         </div>
       ) : (
-        <p className="text-sm text-slate-gray/70">No feature usage events in the selected window.</p>
+        <p className="text-sm text-muted-foreground">No feature usage events in the selected window.</p>
       )}
     </main>
   );
@@ -204,10 +204,10 @@ function GlossarySection({ data }: { data: FeatureUsageResponse["glossary"] }) {
   const allSources = [...sources, ...extraSources];
 
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d] mb-3">Glossary usage</h2>
+    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-heading mb-3">Glossary usage</h2>
       {total === 0 ? (
-        <p className="text-sm text-slate-gray/70">No glossary opens in this window.</p>
+        <p className="text-sm text-muted-foreground">No glossary opens in this window.</p>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-3 mb-5">
@@ -223,7 +223,7 @@ function GlossarySection({ data }: { data: FeatureUsageResponse["glossary"] }) {
 
           <h3 className="text-sm font-semibold text-slate-gray mb-2">Top terms</h3>
           {data.topTerms.length === 0 ? (
-            <p className="text-sm text-slate-gray/70">No term-level data.</p>
+            <p className="text-sm text-muted-foreground">No term-level data.</p>
           ) : (
             <ul className="divide-y divide-slate-100 text-sm">
               {data.topTerms.map((term) => (
@@ -232,9 +232,9 @@ function GlossarySection({ data }: { data: FeatureUsageResponse["glossary"] }) {
                   className="flex items-center justify-between gap-3 py-2"
                 >
                   <span className="text-slate-gray">{term.label}</span>
-                  <span className="text-slate-gray/70 tabular-nums">
+                  <span className="text-muted-foreground tabular-nums">
                     {term.n} opens
-                    <span className="text-slate-gray/50"> · {term.uniqueUsers} users</span>
+                    <span className="text-muted-foreground"> · {term.uniqueUsers} users</span>
                   </span>
                 </li>
               ))}
@@ -255,10 +255,10 @@ function TtsSection({ data }: { data: FeatureUsageResponse["tts"] }) {
   const allTargets = [...targets, ...extraTargets];
 
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d] mb-3">Read-aloud (TTS)</h2>
+    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-heading mb-3">Read-aloud (TTS)</h2>
       {total === 0 ? (
-        <p className="text-sm text-slate-gray/70">No read-aloud plays in this window.</p>
+        <p className="text-sm text-muted-foreground">No read-aloud plays in this window.</p>
       ) : (
         <div className="space-y-2">
           {allTargets.map((target) => (
@@ -289,15 +289,15 @@ function ConfidenceSection({ data }: { data: FeatureUsageResponse["confidence"] 
   );
 
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d] mb-3">Confidence × correctness</h2>
+    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-heading mb-3">Confidence × correctness</h2>
       {total === 0 ? (
-        <p className="text-sm text-slate-gray/70">No confidence ratings in this window.</p>
+        <p className="text-sm text-muted-foreground">No confidence ratings in this window.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border-default text-left text-muted-foreground">
                 <th className="px-2 py-2 font-medium">Confidence</th>
                 <th className="px-2 py-2 font-medium">Correct</th>
                 <th className="px-2 py-2 font-medium">Incorrect</th>
@@ -313,7 +313,7 @@ function ConfidenceSection({ data }: { data: FeatureUsageResponse["confidence"] 
                 const rowTotal = correct + incorrect;
                 const accuracy = rowTotal > 0 ? correct / rowTotal : 0;
                 return (
-                  <tr key={level} className="border-b border-slate-100">
+                  <tr key={level} className="border-b border-border-subtle">
                     <td className="px-2 py-2 font-medium text-slate-gray">
                       {CONFIDENCE_LABELS[level] ?? level}
                     </td>
@@ -330,7 +330,7 @@ function ConfidenceSection({ data }: { data: FeatureUsageResponse["confidence"] 
           </table>
         </div>
       )}
-      <p className="mt-3 text-xs text-slate-gray/60">
+      <p className="mt-3 text-xs text-muted-foreground">
         Calibration: compare self-reported confidence with actual correctness. Well-calibrated students
         should be mostly correct when &quot;Sure&quot; and mostly incorrect when &quot;Not sure&quot;.
       </p>
@@ -348,10 +348,10 @@ function MetricCard({
   hint?: string;
 }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs uppercase tracking-wide text-slate-gray/60">{label}</p>
+    <article className="rounded-xl border border-border-default bg-surface p-4 shadow-sm">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold text-slate-gray">{value}</p>
-      {hint && <p className="text-xs text-slate-gray/60 mt-0.5">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
     </article>
   );
 }
@@ -367,13 +367,13 @@ function CounterTile({
 }) {
   const pct = total > 0 ? Math.round((counter.n / total) * 100) : 0;
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <p className="text-xs uppercase tracking-wide text-slate-gray/60">{label}</p>
+    <article className="rounded-xl border border-border-default bg-surface p-3 shadow-sm">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold text-slate-gray tabular-nums">
         {counter.n}
-        <span className="ml-2 text-xs text-slate-gray/60 font-normal">{pct}%</span>
+        <span className="ml-2 text-xs text-muted-foreground font-normal">{pct}%</span>
       </p>
-      <p className="text-xs text-slate-gray/60">{counter.uniqueUsers} users</p>
+      <p className="text-xs text-muted-foreground">{counter.uniqueUsers} users</p>
     </article>
   );
 }
@@ -393,17 +393,17 @@ function BarRow({
     <div>
       <div className="flex items-center justify-between text-sm mb-1">
         <span className="text-slate-gray">{label}</span>
-        <span className="text-slate-gray/70 tabular-nums">
+        <span className="text-muted-foreground tabular-nums">
           {n}
-          <span className="text-slate-gray/50"> · {pct}%</span>
+          <span className="text-muted-foreground"> · {pct}%</span>
           {counter && (
-            <span className="text-slate-gray/50"> · {counter.uniqueUsers} users</span>
+            <span className="text-muted-foreground"> · {counter.uniqueUsers} users</span>
           )}
         </span>
       </div>
-      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+      <div className="h-2 rounded-full bg-surface-muted overflow-hidden">
         <div
-          className="h-full bg-[#16a34a]/70"
+          className="h-full bg-primary/70"
           style={{ width: `${Math.max(2, pct)}%` }}
         />
       </div>

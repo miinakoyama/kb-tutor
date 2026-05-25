@@ -78,11 +78,11 @@ export function FeedbackPanel({
       </div>
 
       {showKeyKnowledge && question.keyKnowledge && (
-        <div className="p-3 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/5">
+        <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
           <div className="flex items-start gap-2.5">
-            <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#16a34a]" />
+            <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a] mb-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
                 Key Idea
               </p>
               <p className="text-sm text-slate-gray leading-relaxed">

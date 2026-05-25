@@ -72,7 +72,7 @@ export function QuestionDisplay({
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.2 }}
-        className={`rounded-xl border border-[#16a34a]/30 bg-white shadow-sm ${
+        className={`rounded-xl border border-primary/30 bg-surface shadow-sm ${
           compactLayout ? "p-4 sm:p-5" : "p-4 sm:p-6"
         }`}
       >
@@ -82,7 +82,7 @@ export function QuestionDisplay({
               Question {questionNumber}
             </p>
             {questionMetaText && (
-              <p className="text-sm text-slate-gray/60">{questionMetaText}</p>
+              <p className="text-sm text-muted-foreground">{questionMetaText}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -105,7 +105,7 @@ export function QuestionDisplay({
 
         <div
           className={`prose prose-sm max-w-none text-slate-gray ${compactLayout ? "mb-4" : "mb-5"} rounded-lg transition-colors ${
-            isQuestionReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+            isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
           }`}
         >
           {renderQuestionText ? (
@@ -142,11 +142,11 @@ export function QuestionDisplay({
 
         <div
           className={`rounded-lg transition-colors mb-3 ${
-            isChoicesReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+            isChoicesReading ? "bg-primary/10 px-3 py-2" : ""
           }`}
         >
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Choices
             </p>
             {isSupported && (
@@ -194,7 +194,7 @@ export function QuestionDisplay({
         {isSupported && isAnswered && feedbackReadText && (
           <div
             className={`mt-4 mb-2 rounded-lg transition-colors ${
-              isFeedbackReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+              isFeedbackReading ? "bg-primary/10 px-3 py-2" : ""
             }`}
           >
             <ReadAloudButton
@@ -214,7 +214,7 @@ export function QuestionDisplay({
         {belowOptionsSlot}
 
         {!isAnswered && !belowOptionsSlot && (
-          <p className="mt-5 text-center text-sm text-slate-gray/50 italic">
+          <p className="mt-5 text-center text-sm text-muted-foreground italic">
             Select an answer to see feedback
           </p>
         )}

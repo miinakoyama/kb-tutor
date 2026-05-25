@@ -40,23 +40,23 @@ export function ExamNavigator({
   });
 
   return (
-    <div className="rounded-2xl border border-[#16a34a]/30 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-primary/30 bg-surface shadow-sm overflow-hidden">
       <div className="px-5 pt-5 pb-3">
         <h3 className="text-base font-semibold text-slate-gray mb-1">Questions</h3>
-        <p className="text-sm text-slate-gray/60">
+        <p className="text-sm text-muted-foreground">
           {answeredCount} answered · {unansweredCount} unanswered
         </p>
       </div>
 
-      <div className="flex border-b border-slate-gray/10 px-3">
+      <div className="flex border-b border-border-subtle px-3">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors rounded-t-lg ${
               activeTab === tab.id
-                ? "text-[#16a34a] border-b-2 border-[#16a34a]"
-                : "text-slate-gray/50 hover:text-slate-gray/70"
+                ? "text-primary border-b-2 border-primary"
+                : "text-muted-foreground hover:text-muted-foreground"
             }`}
           >
             {tab.label} ({tab.count})
@@ -80,9 +80,9 @@ export function ExamNavigator({
                 onClick={() => onNavigate(i)}
                 aria-label={ariaLabel}
                 aria-current={isCurrent ? "true" : undefined}
-                className={`relative w-full aspect-square min-h-[44px] rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#14532d]/50 flex items-center justify-center ${
+                className={`relative w-full aspect-square min-h-[44px] rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heading/50 flex items-center justify-center ${
                   isCurrent
-                    ? "ring-2 ring-[#14532d] ring-offset-1"
+                    ? "ring-2 ring-heading ring-offset-1"
                     : ""
                 }`}
                 style={{
@@ -92,7 +92,7 @@ export function ExamNavigator({
               >
                 {i + 1}
                 {answered && (
-                  <Check className="absolute -bottom-0.5 -right-0.5 w-3 h-3 text-white bg-[#14532d] rounded-full p-0.5" strokeWidth={3} />
+                  <Check className="absolute -bottom-0.5 -right-0.5 w-3 h-3 text-white bg-heading rounded-full p-0.5" strokeWidth={3} />
                 )}
                 {isFlagged && (
                   <Flag className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 text-amber-500 fill-amber-500" />

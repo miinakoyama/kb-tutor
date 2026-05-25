@@ -140,7 +140,7 @@ export function OptionButton({
                 setShowTooltip(!showTooltip);
               }
             }}
-            className="flex-shrink-0 p-2.5 rounded-full text-slate-gray/40 hover:text-slate-gray/70 hover:bg-slate-gray/10 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="flex-shrink-0 p-2.5 rounded-full text-muted-foreground hover:text-muted-foreground hover:bg-foreground/10 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label={tooltipHeading}
           >
             <Info className="w-4 h-4" />
@@ -151,9 +151,9 @@ export function OptionButton({
       {shouldShowIcon && showTooltip && (
         <div
           ref={tooltipRef}
-          className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-xl border border-slate-gray/20 bg-white shadow-lg"
+          className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-xl border border-border-default bg-surface shadow-lg"
         >
-          <p className="text-xs font-semibold text-slate-gray/60 mb-1">
+          <p className="text-xs font-semibold text-muted-foreground mb-1">
             {tooltipHeading}
           </p>
           <p className="text-sm text-slate-gray leading-relaxed">

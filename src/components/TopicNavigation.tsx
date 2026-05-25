@@ -39,18 +39,18 @@ function TopicModule({
     <div className="space-y-4">
       <button
         onClick={() => setIsExpanded((e) => !e)}
-        className="w-full flex items-center justify-between text-left px-5 py-4 rounded-xl bg-[#16a34a]/10 hover:bg-[#16a34a]/15 focus-visible:bg-[#16a34a]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 transition-colors"
+        className="w-full flex items-center justify-between text-left px-5 py-4 rounded-xl bg-primary/10 hover:bg-primary/15 focus-visible:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
       >
-        <h3 className="text-xl font-bold font-heading text-[#14532d]">{label}</h3>
+        <h3 className="text-xl font-bold font-heading text-heading">{label}</h3>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-gray/60">
+          <span className="text-sm text-muted-foreground">
             {topicCount} topics
           </span>
           <motion.span
             animate={{ rotate: isExpanded ? 180 : 0 }}
             transition={{ duration: 0.2 }}
           >
-            <ChevronDown className="w-5 h-5 text-[#16a34a]" />
+            <ChevronDown className="w-5 h-5 text-primary" />
           </motion.span>
         </div>
       </button>
@@ -80,19 +80,19 @@ function TopicCard({ topic, moduleId }: { topic: string; moduleId: number }) {
   const topicInfo = TOPIC_DATA[topic];
 
   return (
-    <div className="rounded-3xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a] transition-all flex flex-col">
-      <h4 className="text-xl font-bold font-heading text-[#14532d] mb-2">{topic}</h4>
+    <div className="rounded-3xl border border-primary/30 bg-surface p-5 shadow-sm hover:shadow-md hover:border-primary transition-all flex flex-col">
+      <h4 className="text-xl font-bold font-heading text-heading mb-2">{topic}</h4>
 
       {topicInfo && (
         <>
-          <p className="text-sm text-slate-gray/70 leading-relaxed mb-3">
+          <p className="text-sm text-muted-foreground leading-relaxed mb-3">
             {topicInfo.description}
           </p>
           <div className="flex flex-wrap gap-1.5 mb-4">
             {topicInfo.keywords.map((keyword) => (
               <span
                 key={keyword}
-                className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-gray/10 text-slate-gray/70"
+                className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-gray/10 text-muted-foreground"
               >
                 {keyword}
               </span>
@@ -104,7 +104,7 @@ function TopicCard({ topic, moduleId }: { topic: string; moduleId: number }) {
       <div className="mt-auto">
         <Link
           href={`/practice?module=${moduleId}&topic=${encodeURIComponent(topic)}`}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-white text-sm font-semibold transition-colors bg-[#16a34a] hover:bg-[#15803d] focus-visible:bg-[#15803d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 focus-visible:ring-offset-2"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-white text-sm font-semibold transition-colors bg-primary hover:bg-primary-hover focus-visible:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2"
         >
           <Play className="w-4 h-4" />
           Start Practice

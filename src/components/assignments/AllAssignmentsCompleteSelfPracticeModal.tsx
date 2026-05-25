@@ -25,23 +25,23 @@ export function AllAssignmentsCompleteSelfPracticeModal({
       aria-modal="true"
       aria-labelledby="all-assignments-complete-title"
     >
-      <div className="relative w-full max-w-md rounded-2xl border border-[#16a34a]/35 bg-white p-6 sm:p-8 shadow-xl">
+      <div className="relative w-full max-w-md rounded-2xl border border-primary/35 bg-surface p-6 sm:p-8 shadow-xl">
         <button
           type="button"
           onClick={handleClose}
-          className="absolute top-3 right-3 p-2 rounded-lg text-slate-gray/60 hover:text-slate-gray hover:bg-slate-100 transition-colors"
+          className="absolute top-3 right-3 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-muted transition-colors"
           aria-label="Close"
         >
           <X className="w-5 h-5" />
         </button>
         <div className="flex justify-center mb-4">
-          <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[#16a34a]/15 text-[#166534]">
+          <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/15 text-forest">
             <Sparkles className="w-7 h-7" aria-hidden />
           </span>
         </div>
         <h2
           id="all-assignments-complete-title"
-          className="text-xl sm:text-2xl font-bold text-center text-[#14532d] font-heading mb-3 pr-8"
+          className="text-xl sm:text-2xl font-bold text-center text-heading font-heading mb-3 pr-8"
         >
           All assignments complete
         </h2>
@@ -54,14 +54,14 @@ export function AllAssignmentsCompleteSelfPracticeModal({
           <Link
             href="/self-practice"
             onClick={handleClose}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a] text-white text-sm font-semibold hover:bg-[#15803d] transition-colors min-h-[44px]"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-hover transition-colors min-h-[44px]"
           >
             Go to Self Practice
           </Link>
           <button
             type="button"
             onClick={handleClose}
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-slate-200 text-slate-gray text-sm font-medium hover:bg-slate-50 transition-colors min-h-[44px]"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-border-default text-slate-gray text-sm font-medium hover:bg-surface-muted transition-colors min-h-[44px]"
           >
             Maybe later
           </button>

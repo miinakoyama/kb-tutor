@@ -68,10 +68,10 @@ export default function BookmarksPage() {
         <div className="mb-6">
           <div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
+              <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">
                 Bookmarks
               </h1>
-              <p className="text-sm text-slate-gray/60">
+              <p className="text-sm text-muted-foreground">
                 {bookmarkedQuestions.length} question{bookmarkedQuestions.length !== 1 ? "s" : ""} saved
               </p>
             </div>
@@ -85,12 +85,12 @@ export default function BookmarksPage() {
               <h2 className="text-xl font-semibold text-slate-gray mb-2">
                 No bookmarked questions
               </h2>
-              <p className="text-slate-gray/60 text-sm mb-6 max-w-sm">
+              <p className="text-muted-foreground text-sm mb-6 max-w-sm">
                 Bookmark questions during practice sessions to review them later.
               </p>
               <Link
                 href="/"
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors"
               >
                 <Home className="w-4 h-4" />
                 Start Practicing
@@ -105,11 +105,11 @@ export default function BookmarksPage() {
               return (
                 <div
                   key={id}
-                  className="rounded-xl border border-slate-gray/15 bg-white shadow-sm overflow-hidden"
+                  className="rounded-xl border border-border-subtle bg-surface shadow-sm overflow-hidden"
                 >
                   <div
                     onClick={() => handleToggleExpand(id)}
-                    className="w-full text-left p-5 hover:bg-slate-gray/5 transition-colors cursor-pointer"
+                    className="w-full text-left p-5 hover:bg-foreground/5 transition-colors cursor-pointer"
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -121,7 +121,7 @@ export default function BookmarksPage() {
                   >
                     <div className="flex items-start gap-4">
                       <ChevronDown
-                        className={`w-5 h-5 text-slate-gray/40 flex-shrink-0 mt-0.5 transition-transform duration-200 ${
+                        className={`w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5 transition-transform duration-200 ${
                           isExpanded ? "rotate-180" : ""
                         }`}
                       />
@@ -130,10 +130,10 @@ export default function BookmarksPage() {
                           {question.text}
                         </p>
                         <div className="flex items-center gap-3 mt-2">
-                          <span className="text-xs text-slate-gray/50 bg-slate-gray/5 px-2 py-1 rounded">
+                          <span className="text-xs text-muted-foreground bg-slate-gray/5 px-2 py-1 rounded">
                             Module {question.module}
                           </span>
-                          <span className="text-xs text-slate-gray/50">
+                          <span className="text-xs text-muted-foreground">
                             {question.topic}
                           </span>
                         </div>
@@ -143,7 +143,7 @@ export default function BookmarksPage() {
                           e.stopPropagation();
                           handleRemoveBookmark(id);
                         }}
-                        className="p-2 rounded-lg text-slate-gray/30 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                        className="p-2 rounded-lg text-slate-gray/30 hover:text-red-500 hover:bg-error-light transition-colors flex-shrink-0"
                         aria-label="Remove bookmark"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -160,10 +160,10 @@ export default function BookmarksPage() {
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                       >
-                        <div className="px-5 pb-5 border-t border-slate-gray/10">
+                        <div className="px-5 pb-5 border-t border-border-subtle">
                           <div className="mt-4 space-y-4">
                             <div>
-                              <p className="text-xs font-semibold text-slate-gray/60 uppercase tracking-wide mb-3">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                                 Options
                               </p>
                               <div className="space-y-2">
@@ -174,16 +174,16 @@ export default function BookmarksPage() {
                                       key={option.id}
                                       className={`p-3 rounded-lg border ${
                                         isCorrect
-                                          ? "border-[#16a34a]/30 bg-[#16a34a]/5"
-                                          : "border-slate-gray/10 bg-slate-gray/5"
+                                          ? "border-primary/30 bg-primary/5"
+                                          : "border-border-subtle bg-slate-gray/5"
                                       }`}
                                     >
                                       <div className="flex items-start gap-3">
                                         <span
                                           className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
                                             isCorrect
-                                              ? "bg-[#16a34a] text-white"
-                                              : "bg-slate-gray/20 text-slate-gray/70"
+                                              ? "bg-primary text-white"
+                                              : "bg-slate-gray/20 text-muted-foreground"
                                           }`}
                                         >
                                           {option.id.toUpperCase()}
@@ -197,13 +197,13 @@ export default function BookmarksPage() {
                                             {option.text}
                                           </p>
                                           {option.feedback && (
-                                            <p className="text-xs text-slate-gray/60 mt-1">
+                                            <p className="text-xs text-muted-foreground mt-1">
                                               {option.feedback}
                                             </p>
                                           )}
                                         </div>
                                         {isCorrect && (
-                                          <CheckCircle2 className="w-5 h-5 text-[#16a34a] flex-shrink-0" />
+                                          <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
                                         )}
                                       </div>
                                     </div>
@@ -229,11 +229,11 @@ export default function BookmarksPage() {
                             )}
 
                             {question.keyKnowledge && (
-                              <div className="p-4 rounded-lg bg-[#16a34a]/5 border border-[#16a34a]/20">
+                              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
                                 <div className="flex items-start gap-2">
-                                  <CheckCircle2 className="w-4 h-4 text-[#16a34a] flex-shrink-0 mt-0.5" />
+                                  <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                                   <div>
-                                    <p className="text-xs font-semibold text-[#16a34a] uppercase tracking-wide mb-1">
+                                    <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1">
                                       Key Knowledge
                                     </p>
                                     <p className="text-sm text-slate-gray">

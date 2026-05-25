@@ -78,35 +78,35 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-sand-beige px-4">
-      <section className="w-full max-w-md rounded-2xl border border-[#16a34a]/25 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-[#14532d] mb-2">Student Login</h1>
-        <p className="text-sm text-slate-gray/70 mb-6">
+    <main className="min-h-screen flex items-center justify-center bg-background px-4">
+      <section className="w-full max-w-md rounded-2xl border border-primary/25 bg-surface p-6 shadow-sm">
+        <h1 className="text-2xl font-bold text-heading mb-2">Student Login</h1>
+        <p className="text-sm text-muted-foreground mb-6">
           Select your school and enter your student ID.
         </p>
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
             <span className="text-sm font-medium text-slate-gray">School</span>
             {!schoolsLoaded ? (
-              <p className="mt-1 text-sm text-slate-gray/60">Loading schools...</p>
+              <p className="mt-1 text-sm text-muted-foreground">Loading schools...</p>
             ) : schoolLoadError ? (
               <div className="mt-1 space-y-2">
-                <p className="text-sm text-red-700">{schoolLoadError}</p>
+                <p className="text-sm text-error">{schoolLoadError}</p>
                 <button
                   type="button"
                   onClick={() => void loadSchools()}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  className="rounded-lg border border-border-default px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-muted"
                 >
                   Retry loading schools
                 </button>
               </div>
             ) : schools.length === 0 ? (
-              <p className="mt-1 text-sm text-slate-gray/60">
+              <p className="mt-1 text-sm text-muted-foreground">
                 No schools are available for student login.
               </p>
             ) : (
               <select
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-border-default px-3 py-2"
                 value={schoolId}
                 onChange={(e) => setSchoolId(e.target.value)}
                 required
@@ -125,7 +125,7 @@ export default function LoginPage() {
           <label className="block">
             <span className="text-sm font-medium text-slate-gray">Student ID</span>
             <input
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-border-default px-3 py-2"
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
               autoComplete="username"
@@ -135,9 +135,9 @@ export default function LoginPage() {
             {studentLoginNotice && (
               <div
                 role="note"
-                className="mt-3 rounded-lg border border-[#16a34a]/35 bg-[#f0fdf4] px-3 py-3 text-sm text-[#14532d] shadow-sm"
+                className="mt-3 rounded-lg border border-primary/35 bg-primary-light px-3 py-3 text-sm text-heading shadow-sm"
               >
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#15803d]/90 mb-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-hover/90 mb-1.5">
                   School notice
                 </p>
                 <p className="whitespace-pre-wrap break-words leading-relaxed">{studentLoginNotice}</p>
@@ -145,23 +145,23 @@ export default function LoginPage() {
             )}
           </label>
           {error && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error">
               {error}
             </p>
           )}
           <button
             type="submit"
             disabled={isSubmitting || !schoolId}
-            className="w-full rounded-lg bg-[#16a34a] px-4 py-2.5 text-white font-medium hover:bg-[#15803d] disabled:opacity-50"
+            className="w-full rounded-lg bg-primary px-4 py-2.5 text-white font-medium hover:bg-primary-hover disabled:opacity-50"
           >
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
-        <p className="mt-6 text-center text-sm text-slate-gray/60">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           Teacher or admin?{" "}
           <Link
             href="/login/staff"
-            className="text-[#16a34a] hover:underline font-medium"
+            className="text-primary hover:underline font-medium"
           >
             Sign in here
           </Link>

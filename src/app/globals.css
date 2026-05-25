@@ -1,35 +1,76 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f0f4f1;
   --foreground: #1f2d1f;
+  --surface: #ffffff;
+  --surface-muted: #f8faf8;
+  --heading: #14532d;
+  --forest: #166534;
+  --muted-foreground: rgba(31, 45, 31, 0.7);
   --primary: #16a34a;
   --primary-hover: #15803d;
   --primary-light: rgba(22, 163, 74, 0.1);
   --primary-border: rgba(22, 163, 74, 0.5);
   --border-default: rgba(31, 45, 31, 0.2);
+  --border-subtle: rgba(31, 45, 31, 0.1);
   --error-color: #f87171;
   --error-light: rgba(248, 113, 113, 0.1);
   --error-border: rgba(248, 113, 113, 0.3);
+  --input-bg: #ffffff;
+  --chart-grid: rgba(31, 45, 31, 0.12);
+  --chart-axis: rgba(31, 45, 31, 0.55);
 }
 
-/* KeystoneBio-inspired bright palette */
+.dark {
+  --background: #0c140e;
+  --foreground: #e8f0ea;
+  --surface: #152018;
+  --surface-muted: #1a2820;
+  --heading: #86efac;
+  --forest: #4ade80;
+  --muted-foreground: rgba(232, 240, 234, 0.68);
+  --primary: #22c55e;
+  --primary-hover: #16a34a;
+  --primary-light: rgba(34, 197, 94, 0.15);
+  --primary-border: rgba(34, 197, 94, 0.45);
+  --border-default: rgba(232, 240, 234, 0.16);
+  --border-subtle: rgba(232, 240, 234, 0.08);
+  --error-color: #fca5a5;
+  --error-light: rgba(248, 113, 113, 0.15);
+  --error-border: rgba(248, 113, 113, 0.35);
+  --input-bg: #1a2820;
+  --chart-grid: rgba(232, 240, 234, 0.12);
+  --chart-axis: rgba(232, 240, 234, 0.55);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-forest: #166534;
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-heading: var(--heading);
+  --color-forest: var(--forest);
   --color-leaf: #22863a;
   --color-mint: #34d058;
   --color-bright: #85e89d;
-  --color-sage-green: #22863a;
-  --color-sand-beige: #f0f4f1;
-  --color-slate-gray: #1f2d1f;
+  --color-sage-green: var(--forest);
+  --color-sand-beige: var(--background);
+  --color-slate-gray: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-light: var(--primary-light);
+  --color-border-default: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+  --color-input-bg: var(--input-bg);
   --color-error: var(--error-color);
   --color-error-light: var(--error-light);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-heading: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
@@ -43,4 +84,18 @@ body {
 
 .font-heading {
   font-family: var(--font-heading);
+}
+
+.dark .katex {
+  color: var(--foreground);
+}
+
+.dark .katex .mord,
+.dark .katex .mop,
+.dark .katex .mbin,
+.dark .katex .mrel,
+.dark .katex .mopen,
+.dark .katex .mclose,
+.dark .katex .mpunct {
+  color: inherit;
 }

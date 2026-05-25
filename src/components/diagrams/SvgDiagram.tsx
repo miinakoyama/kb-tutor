@@ -187,9 +187,9 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
   }, [data.svg]);
 
   return (
-    <div className="w-full bg-white p-4 border border-gray-300 rounded">
+    <div className="w-full bg-surface p-4 border border-border-default rounded">
       {data.title && (
-        <h3 className="text-center text-sm font-bold text-black mb-2">
+        <h3 className="text-center text-sm font-bold text-foreground mb-2">
           {data.title}
         </h3>
       )}
@@ -206,7 +206,7 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
             className="w-full max-w-[520px] min-w-[140px] sm:min-w-[260px] h-auto block"
           />
         ) : (
-          <div className="text-sm text-red-600">Unable to render diagram safely.</div>
+          <div className="text-sm text-error">Unable to render diagram safely.</div>
         )}
       </div>
     </div>

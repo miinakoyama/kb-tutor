@@ -52,11 +52,11 @@ interface PracticePageClientProps {
 function InvalidParamsMessage({ message }: { message: string }) {
   return (
     <div className="h-full flex items-center justify-center">
-      <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center max-w-md">
+      <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
         <p className="text-slate-gray mb-4">{message}</p>
         <Link
           href="/"
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d] focus-visible:bg-[#15803d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover focus-visible:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <Home className="w-4 h-4" />
           Back to Home
@@ -181,7 +181,7 @@ export function PracticePageClient({
   if (!isLoaded || isSnapshotLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#16a34a] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -293,16 +293,16 @@ export function PracticePageClient({
   ) {
     return (
       <div className="h-full flex items-center justify-center p-6">
-        <div className="max-w-md text-center rounded-xl border border-[#16a34a]/30 bg-white p-8 shadow-sm">
+        <div className="max-w-md text-center rounded-xl border border-primary/30 bg-surface p-8 shadow-sm">
           <p className="text-slate-gray mb-2 font-medium">No questions available</p>
-          <p className="text-sm text-slate-gray/70">
+          <p className="text-sm text-muted-foreground">
             {role === "student"
               ? "Your teacher has not published any question sets for Self Practice yet, or none match this topic. Check back later or ask your teacher."
               : "No generated question sets are loaded. Add questions from Content management or check your connection."}
           </p>
           <Link
             href="/"
-            className="inline-flex mt-6 items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d]"
+            className="inline-flex mt-6 items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover"
           >
             <Home className="w-4 h-4" />
             Back to Home

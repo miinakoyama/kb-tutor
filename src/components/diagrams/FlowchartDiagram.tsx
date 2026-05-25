@@ -88,9 +88,9 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[460px] bg-white p-4 border border-gray-300 rounded">
+    <div className="mx-auto w-full max-w-[460px] bg-surface p-4 border border-border-default rounded">
       {data.title && (
-        <h3 className="text-center text-sm font-bold text-black mb-2">
+        <h3 className="text-center text-sm font-bold text-foreground mb-2">
           {data.title}
         </h3>
       )}

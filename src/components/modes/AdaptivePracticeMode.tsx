@@ -823,13 +823,13 @@ export function AdaptivePracticeMode({
   if (sessionQuestions.length === 0 || !question) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center max-w-md">
+        <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
             No questions available for this selection yet.
           </p>
           <Link
             href="/self-practice"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d]"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover"
           >
             Back to Self Practice
           </Link>
@@ -862,15 +862,15 @@ export function AdaptivePracticeMode({
           >
             <button
               onClick={() => setSummaryReviewIndex(null)}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
             >
-              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-                <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+                <ArrowLeft className="w-4 h-4 text-heading" />
               </span>
               Back to results
             </button>
-            <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm">
-              <p className="text-sm text-slate-gray/60 mb-3">
+            <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+              <p className="text-sm text-muted-foreground mb-3">
                 Question {summaryReviewIndex + 1}
               </p>
               <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
@@ -886,15 +886,15 @@ export function AdaptivePracticeMode({
                       key={opt.id}
                       className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
                         isCorrect
-                          ? "border-[#16a34a]/40 bg-[#16a34a]/5"
+                          ? "border-primary/40 bg-primary/5"
                           : wrongSelection
-                            ? "border-red-300 bg-red-50"
-                            : "border-slate-200 bg-white"
+                            ? "border-error-border bg-error-light"
+                            : "border-border-default bg-surface"
                       }`}
                     >
                       <div className="mt-0.5 flex-shrink-0">
                         {isCorrect ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
                         ) : wrongSelection ? (
                           <XCircle className="w-4 h-4 text-red-400" />
                         ) : (
@@ -927,18 +927,18 @@ export function AdaptivePracticeMode({
         animate={{ opacity: 1, y: 0 }}
         className="max-w-3xl mx-auto space-y-4 pb-8"
       >
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm text-center">
-          {topicName && <p className="text-sm text-slate-gray/70 mb-2">{topicName}</p>}
+        <div className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
+          {topicName && <p className="text-sm text-muted-foreground mb-2">{topicName}</p>}
           <h2 className="text-2xl font-bold text-slate-gray mb-2">
             {mode === "review" ? "Review Complete" : "Session Complete"}
           </h2>
-          <p className="text-4xl font-bold text-[#16a34a] mb-1">{scorePercent}%</p>
-          <p className="text-sm text-slate-gray/60">
+          <p className="text-4xl font-bold text-primary mb-1">{scorePercent}%</p>
+          <p className="text-sm text-muted-foreground">
             {correctCount} of {totalQuestions} final answers correct
           </p>
         </div>
 
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-primary/30 bg-surface p-4 shadow-sm">
           <h3 className="text-base font-semibold text-slate-gray mb-3">
             Review Questions
           </h3>
@@ -951,16 +951,16 @@ export function AdaptivePracticeMode({
                 <button
                   key={`${q.id}-${index}`}
                   onClick={() => setSummaryReviewIndex(index)}
-                  className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-slate-gray/5 ${
+                  className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-foreground/5 ${
                     isCorrect
-                      ? "border-[#16a34a]/20"
+                      ? "border-primary/20"
                       : hasAnswer
-                        ? "border-red-200"
-                        : "border-slate-gray/10"
+                        ? "border-error-border"
+                        : "border-border-subtle"
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <span className="text-xs font-medium text-slate-gray/50 mt-0.5 w-5 flex-shrink-0">
+                    <span className="text-xs font-medium text-muted-foreground mt-0.5 w-5 flex-shrink-0">
                       {index + 1}
                     </span>
                     <p className="flex-1 text-sm text-slate-gray line-clamp-1">
@@ -968,11 +968,11 @@ export function AdaptivePracticeMode({
                     </p>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {isCorrect ? (
-                        <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
+                        <CheckCircle2 className="w-4 h-4 text-primary" />
                       ) : hasAnswer ? (
                         <XCircle className="w-4 h-4 text-red-400" />
                       ) : (
-                        <span className="text-xs text-slate-gray/40">—</span>
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </div>
                   </div>
@@ -1009,14 +1009,14 @@ export function AdaptivePracticeMode({
                 setCompletionReported(false);
                 resetAttemptDwell();
               }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[#16a34a]/30 text-[#14532d] font-medium hover:bg-[#16a34a]/5 transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-primary/30 text-heading font-medium hover:bg-primary/5 transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
               {mode === "review" ? "Review Again" : "Try Again"}
             </button>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border-default text-slate-gray font-medium hover:bg-foreground/5 transition-colors"
             >
               <Home className="w-4 h-4" />
               Home
@@ -1075,7 +1075,7 @@ export function AdaptivePracticeMode({
                   >
                     <button
                       onClick={handleGlossaryModalOpen}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#16a34a]/30 text-[#166534] bg-white hover:bg-[#16a34a]/5 transition-colors text-xs font-medium"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary/30 text-forest bg-surface hover:bg-primary/5 transition-colors text-xs font-medium"
                     >
                       <BookOpen className="w-3.5 h-3.5" />
                       Glossary
@@ -1117,12 +1117,12 @@ export function AdaptivePracticeMode({
                           onClick={handleBookmarkToggle}
                           className={`inline-flex items-center gap-1.5 text-sm transition-colors ${
                             bookmarkedQuestions.has(question.id)
-                              ? "text-[#16a34a] font-medium"
-                              : "text-slate-gray/50 hover:text-slate-gray/70"
+                              ? "text-primary font-medium"
+                              : "text-muted-foreground hover:text-muted-foreground"
                           }`}
                         >
                           <Bookmark
-                            className={`w-4 h-4 ${bookmarkedQuestions.has(question.id) ? "fill-[#16a34a]" : ""}`}
+                            className={`w-4 h-4 ${bookmarkedQuestions.has(question.id) ? "fill-primary" : ""}`}
                           />
                           {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
                         </button>
@@ -1143,11 +1143,11 @@ export function AdaptivePracticeMode({
               }
               belowOptionsSlot={
                 showScaffold && question.focusHint && !isCompleted ? (
-                  <div className="mt-4 p-3 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/5">
+                  <div className="mt-4 p-3 rounded-xl border border-primary/20 bg-primary/5">
                     <div className="flex items-start gap-2.5">
-                      <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#16a34a]" />
+                      <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a] mb-0.5">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-0.5">
                           Focus Hint
                         </p>
                         <p className="text-sm text-slate-gray/80 leading-relaxed">{question.focusHint}</p>
@@ -1160,11 +1160,11 @@ export function AdaptivePracticeMode({
           </div>
 
           <div className="flex-shrink-0 pt-2">
-            <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-2.5 border border-[#16a34a]/20">
+            <div className="flex items-center justify-between bg-surface-muted rounded-xl p-2.5 border border-primary/20">
               <button
                 onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
                 disabled={currentIndex === 0}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border-default bg-surface text-slate-gray font-medium hover:bg-foreground/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 Previous
@@ -1189,7 +1189,7 @@ export function AdaptivePracticeMode({
                   <button
                     onClick={submitAttempt}
                     disabled={!selectedOptionId}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
                   >
                     <Send className="w-3.5 h-3.5" />
                     Submit
@@ -1198,7 +1198,7 @@ export function AdaptivePracticeMode({
               ) : (
                 <button
                   onClick={handleNext}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors text-[13px]"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors text-[13px]"
                 >
                   {currentIndex === totalQuestions - 1 ? "View Results" : "Next"}
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -1247,14 +1247,14 @@ export function AdaptivePracticeMode({
         >
           <div className="mx-auto max-w-2xl h-full flex items-center justify-center">
             <div
-              className="w-full max-h-[85vh] overflow-hidden rounded-xl bg-white shadow-xl border border-[#16a34a]/20"
+              className="w-full max-h-[85vh] overflow-hidden rounded-xl bg-surface shadow-xl border border-primary/20"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-gray/10">
-                <h3 className="text-base font-semibold text-[#14532d]">Glossary</h3>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
+                <h3 className="text-base font-semibold text-heading">Glossary</h3>
                 <button
                   onClick={() => setIsGlossaryModalOpen(false)}
-                  className="p-2 rounded-lg text-slate-gray/60 hover:text-slate-gray hover:bg-slate-gray/10 transition-colors"
+                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors"
                   aria-label="Close glossary"
                 >
                   <X className="w-4 h-4" />
@@ -1265,14 +1265,14 @@ export function AdaptivePracticeMode({
                   {glossaryTerms.map((term) => (
                     <article
                       key={term.id}
-                      className="rounded-lg border border-slate-gray/15 bg-slate-50/50 p-3"
+                      className="rounded-lg border border-border-subtle bg-surface-muted/50 p-3"
                     >
                       <h4 className="text-sm font-semibold text-slate-gray">{term.term}</h4>
                       <p className="text-sm text-slate-gray/80 mt-1 leading-relaxed">
                         {term.definition}
                       </p>
                       {term.example && (
-                        <p className="text-xs text-slate-gray/60 mt-1.5 italic">
+                        <p className="text-xs text-muted-foreground mt-1.5 italic">
                           Example: {term.example}
                         </p>
                       )}

@@ -753,15 +753,15 @@ export function ExamMode({
       <div className="max-w-4xl mx-auto">
         <button
           onClick={() => setPhase("results")}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+            <ArrowLeft className="w-4 h-4 text-heading" />
           </span>
           Back to Results
         </button>
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm">
-          <p className="text-sm text-slate-gray/60 mb-3">Question {reviewIndex + 1}</p>
+        <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+          <p className="text-sm text-muted-foreground mb-3">Question {reviewIndex + 1}</p>
           {isSupported && (
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <ReadAloudButton
@@ -777,7 +777,7 @@ export function ExamMode({
           )}
           <p
             className={`text-base font-medium text-slate-gray leading-relaxed mb-4 rounded-lg transition-colors ${
-              isQuestionReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+              isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
             }`}
           >
             {q.text}
@@ -789,7 +789,7 @@ export function ExamMode({
           )}
           <div
             className={`rounded-lg transition-colors mt-4 ${
-              isChoicesReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+              isChoicesReading ? "bg-primary/10 px-3 py-2" : ""
             }`}
           >
             <div className="space-y-2.5">
@@ -830,7 +830,7 @@ export function ExamMode({
               {isSupported && reviewFeedbackText && (
                 <div
                   className={`mt-4 mb-2 rounded-lg transition-colors ${
-                    isFeedbackReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+                    isFeedbackReading ? "bg-primary/10 px-3 py-2" : ""
                   }`}
                 >
                   <ReadAloudButton
@@ -868,13 +868,13 @@ export function ExamMode({
   if (sessionQuestions.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center max-w-md">
+        <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
             No questions available for this topic yet. Please select a different topic or check back later.
           </p>
           <Link
             href="/"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-[#16a34a] hover:bg-[#15803d]"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover"
           >
             Back to Home
           </Link>
@@ -926,7 +926,7 @@ export function ExamMode({
             />
             <button
               onClick={handleSubmit}
-              className="px-5 py-2 min-h-[44px] text-sm font-semibold rounded-2xl text-white bg-[#16a34a] hover:bg-[#15803d] shadow-sm hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/60"
+              className="px-5 py-2 min-h-[44px] text-sm font-semibold rounded-2xl text-white bg-primary hover:bg-primary-hover shadow-sm hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
             >
               Submit
             </button>
@@ -943,7 +943,7 @@ export function ExamMode({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.15 }}
-              className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-5 shadow-sm"
+              className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-5 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3 mb-2">
                 <p className="text-base font-bold text-slate-gray">
@@ -963,7 +963,7 @@ export function ExamMode({
               </div>
               <p
                 className={`text-[15px] font-medium text-slate-gray leading-relaxed mb-3 whitespace-pre-wrap rounded-lg transition-colors ${
-                  isQuestionReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+                  isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
                 }`}
               >
                 {question.text}
@@ -975,7 +975,7 @@ export function ExamMode({
               )}
               <div
                 className={`rounded-lg transition-colors ${
-                  isChoicesReading ? "bg-[#16a34a]/10 px-3 py-2" : ""
+                  isChoicesReading ? "bg-primary/10 px-3 py-2" : ""
                 }`}
               >
                 <div className="space-y-2 mt-1.5">
@@ -1019,13 +1019,13 @@ export function ExamMode({
             onMouseEnter={() => setIsNavigatorHovered(true)}
             onMouseLeave={() => setIsNavigatorHovered(false)}
             onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex flex-col items-center justify-center gap-1 w-11 h-20 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex flex-col items-center justify-center gap-1 w-11 h-20 rounded-l-lg border border-r-0 border-primary/30 bg-surface/95 text-forest shadow-sm hover:bg-primary/5 transition-colors"
             aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
             data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_TOGGLE}
           >
             <ChevronLeft className={`w-4 h-4 transition-transform ${isNavigatorOpen ? "translate-x-0.5" : ""}`} />
             {unansweredLabel > 0 && (
-              <span className="inline-flex items-center justify-center min-w-4 h-4 rounded-full bg-[#16a34a]/10 text-[#166534] text-[10px] font-semibold px-1">
+              <span className="inline-flex items-center justify-center min-w-4 h-4 rounded-full bg-primary/10 text-forest text-[10px] font-semibold px-1">
                 {unansweredLabel}
               </span>
             )}
@@ -1033,7 +1033,7 @@ export function ExamMode({
         ) : (
           <button
             onClick={() => setIsNavigatorPinnedOpen((prev) => !prev)}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-[#16a34a]/30 bg-white/95 px-3 py-3 min-h-[44px] text-[#166534] shadow-sm hover:bg-[#16a34a]/5 transition-colors"
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-primary/30 bg-surface/95 px-3 py-3 min-h-[44px] text-forest shadow-sm hover:bg-primary/5 transition-colors"
             aria-label={isNavigatorOpen ? "Hide question navigator" : "Show question navigator"}
             data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NAVIGATOR_TOGGLE}
           >
@@ -1043,7 +1043,7 @@ export function ExamMode({
               <PanelRightOpen className="w-4 h-4" />
             )}
             {unansweredLabel > 0 && (
-              <span className="inline-flex items-center justify-center min-w-4 h-4 rounded-full bg-[#16a34a]/10 text-[#166534] text-[10px] font-semibold px-1">
+              <span className="inline-flex items-center justify-center min-w-4 h-4 rounded-full bg-primary/10 text-forest text-[10px] font-semibold px-1">
                 {unansweredLabel}
               </span>
             )}
@@ -1092,11 +1092,11 @@ export function ExamMode({
       </div>
 
       <div className="flex-shrink-0 pt-2">
-        <div className="flex items-center justify-between bg-[#f8faf8] rounded-xl p-2.5 border border-[#16a34a]/20">
+        <div className="flex items-center justify-between bg-surface-muted rounded-xl p-2.5 border border-primary/20">
           <button
             onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
             disabled={currentIndex === 0}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg border border-border-default bg-surface text-slate-gray font-medium hover:bg-foreground/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
             Previous
@@ -1108,7 +1108,7 @@ export function ExamMode({
             className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-[13px] font-medium transition-colors ${
               answers[currentIndex]?.flagged
                 ? "text-amber-600 bg-amber-50 border border-amber-200"
-                : "text-slate-gray/50 hover:text-slate-gray/70 border border-slate-gray/15 hover:border-slate-gray/30"
+                : "text-muted-foreground hover:text-muted-foreground border border-border-subtle hover:border-border-default"
             }`}
           >
             <Flag
@@ -1124,7 +1124,7 @@ export function ExamMode({
             }
             disabled={currentIndex === totalQuestions - 1}
             data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg text-white font-medium bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
           >
             Next
             <ChevronRight className="w-3.5 h-3.5" />
@@ -1142,15 +1142,15 @@ export function ExamMode({
           <motion.div
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative w-full max-w-md rounded-2xl border border-[#16a34a]/25 bg-white p-6 shadow-2xl"
+            className="relative w-full max-w-md rounded-2xl border border-primary/25 bg-surface p-6 shadow-2xl"
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
               Exam mode
             </p>
-            <h2 className="mt-2 text-xl font-bold text-[#14532d]">
+            <h2 className="mt-2 text-xl font-bold text-heading">
               How this session works
             </h2>
-            <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
               This is exam mode: it feels closer to a real test. You will not see
               hints or whether each answer is correct until you finish, and your
               score appears at the end. Next, we will point out a few controls
@@ -1160,14 +1160,14 @@ export function ExamMode({
               <button
                 type="button"
                 onClick={finishExamOnboarding}
-                className="text-sm font-semibold text-slate-500 hover:text-slate-700"
+                className="text-sm font-semibold text-muted-foreground hover:text-foreground"
               >
                 Skip tips
               </button>
               <button
                 type="button"
                 onClick={() => setExamOnboardingStep("next")}
-                className="rounded-lg bg-[#16a34a] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#15803d]"
+                className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover"
               >
                 Continue
               </button>
@@ -1245,17 +1245,17 @@ function ExamConfig({
       <div className="mb-6">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+          className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-4"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+            <ArrowLeft className="w-4 h-4 text-heading" />
           </span>
           Back to Home
         </Link>
-        <h1 className="text-xl sm:text-2xl font-bold font-heading text-[#14532d]">
+        <h1 className="text-xl sm:text-2xl font-bold font-heading text-heading">
           {isFullExam ? "Mock Exam" : topicName}
         </h1>
-        <p className="text-sm text-slate-gray/60 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {isFullExam
             ? "Choose the number of questions for your practice exam"
             : "Questions will be drawn from all topics"}
@@ -1269,10 +1269,10 @@ function ExamConfig({
             <button
               key={opt.count}
               onClick={() => setQuestionCount(opt.count)}
-              className={`w-full text-left p-5 rounded-3xl border bg-white shadow-sm transition-all ${
+              className={`w-full text-left p-5 rounded-3xl border bg-surface shadow-sm transition-all ${
                 isActive
-                  ? "border-[#16a34a] shadow-md"
-                  : "border-[#16a34a]/30 hover:border-[#16a34a] hover:shadow-md"
+                  ? "border-primary shadow-md"
+                  : "border-primary/30 hover:border-primary hover:shadow-md"
               }`}
             >
               <div className="flex items-center justify-between">
@@ -1280,11 +1280,11 @@ function ExamConfig({
                   <span className="text-lg font-bold text-slate-gray">
                     {opt.label}
                   </span>
-                  <p className="text-xs text-[#16a34a] font-medium">
+                  <p className="text-xs text-primary font-medium">
                     {opt.count} questions
                   </p>
                 </div>
-                <span className="text-sm text-slate-gray/50">
+                <span className="text-sm text-muted-foreground">
                   {opt.description}
                 </span>
               </div>
@@ -1295,7 +1295,7 @@ function ExamConfig({
 
       <button
         onClick={onStart}
-        className="w-full py-3 rounded-2xl text-white font-semibold bg-[#16a34a] hover:bg-[#15803d] transition-colors shadow-sm"
+        className="w-full py-3 rounded-2xl text-white font-semibold bg-primary hover:bg-primary-hover transition-colors shadow-sm"
       >
         Start Exam
       </button>
@@ -1318,11 +1318,11 @@ function ConfirmDialog({
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative bg-white rounded-xl border border-[#16a34a]/30 shadow-xl p-6 max-w-sm w-[90vw]"
+        className="relative bg-surface rounded-xl border border-primary/30 shadow-xl p-6 max-w-sm w-[90vw]"
       >
         <button
           onClick={onCancel}
-          className="absolute top-3 right-3 p-1 rounded-lg text-slate-gray/40 hover:text-slate-gray"
+          className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground hover:text-foreground"
         >
           <X className="w-4 h-4" />
         </button>
@@ -1341,20 +1341,20 @@ function ConfirmDialog({
           </div>
         )}
 
-        <p className="text-sm text-slate-gray/70 mb-5">
+        <p className="text-sm text-muted-foreground mb-5">
           Once submitted, you cannot change your answers. Are you sure?
         </p>
 
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors text-sm"
+            className="flex-1 py-2.5 rounded-lg border border-border-default text-slate-gray font-medium hover:bg-foreground/5 transition-colors text-sm"
           >
             Go Back
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors text-sm"
+            className="flex-1 py-2.5 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors text-sm"
           >
             Submit
           </button>
@@ -1401,9 +1401,9 @@ function ExamResults({
       animate={{ opacity: 1, y: 0 }}
       className="max-w-4xl mx-auto space-y-4 pb-8"
     >
-      <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm text-center">
+      <div className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
         {topicName && (
-          <p className="text-sm text-slate-gray/70 mb-2">{topicName}</p>
+          <p className="text-sm text-muted-foreground mb-2">{topicName}</p>
         )}
         <h2 className="text-2xl font-bold text-slate-gray mb-4">
           Exam Complete!
@@ -1419,26 +1419,26 @@ function ExamResults({
         <div className="flex justify-center gap-6 mt-4 text-sm">
           <div className="text-center">
             <p className="text-lg font-bold text-slate-gray">{correctCount}</p>
-            <p className="text-slate-gray/60">Correct</p>
+            <p className="text-muted-foreground">Correct</p>
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-slate-gray">
               {totalQuestions - correctCount}
             </p>
-            <p className="text-slate-gray/60">Incorrect</p>
+            <p className="text-muted-foreground">Incorrect</p>
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-slate-gray">{minutes}m</p>
-            <p className="text-slate-gray/60">Total time</p>
+            <p className="text-muted-foreground">Total time</p>
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-slate-gray">{avgSeconds}s</p>
-            <p className="text-slate-gray/60">Avg / question</p>
+            <p className="text-muted-foreground">Avg / question</p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-primary/30 bg-surface p-4 shadow-sm">
         <h3 className="text-base font-semibold text-slate-gray mb-3">
           Review Questions
         </h3>
@@ -1452,16 +1452,16 @@ function ExamResults({
               <button
                 key={index}
                 onClick={() => onReview(index)}
-                className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-slate-gray/5 ${
+                className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-foreground/5 ${
                   isCorrect
-                    ? "border-[#16a34a]/20"
+                    ? "border-primary/20"
                     : hasAnswer
-                      ? "border-red-200"
-                      : "border-slate-gray/10"
+                      ? "border-error-border"
+                      : "border-border-subtle"
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <span className="text-xs font-medium text-slate-gray/50 mt-0.5 w-5">
+                  <span className="text-xs font-medium text-muted-foreground mt-0.5 w-5">
                     {index + 1}
                   </span>
                   <p className="flex-1 text-sm text-slate-gray line-clamp-1">
@@ -1479,7 +1479,7 @@ function ExamResults({
                     ) : hasAnswer ? (
                       <XCircle className="w-4 h-4 text-red-400" />
                     ) : (
-                      <span className="text-xs text-slate-gray/40">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </div>
                 </div>
@@ -1504,14 +1504,14 @@ function ExamResults({
         <div className="flex flex-wrap gap-3 justify-center">
           <button
             onClick={onRetry}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[#16a34a]/30 text-[#14532d] font-medium hover:bg-[#16a34a]/5 transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-primary/30 text-heading font-medium hover:bg-primary/5 transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
             Try Again
           </button>
           <Link
             href="/"
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-border-default text-slate-gray font-medium hover:bg-foreground/5 transition-colors"
           >
             Back to Home
           </Link>

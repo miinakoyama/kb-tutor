@@ -21,12 +21,12 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
 
   return (
     <div
-      className={`border-t border-slate-100 bg-slate-50/80 px-3 py-3 space-y-3 ${className ?? ""}`}
+      className={`border-t border-border-subtle bg-surface-muted/80 px-3 py-3 space-y-3 ${className ?? ""}`}
     >
       {hasVisual && (
         <div className="space-y-2">
           {question.imageUrl && (
-            <div className="rounded-lg overflow-hidden border border-slate-200 bg-white">
+            <div className="rounded-lg overflow-hidden border border-border-default bg-surface">
               <Image
                 src={question.imageUrl}
                 alt="Question illustration"
@@ -46,7 +46,7 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
       )}
 
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/70 mb-1.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
           Answer options
         </p>
         <ul className="space-y-1.5">
@@ -57,16 +57,16 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
                 key={option.id}
                 className={`rounded-md border px-2.5 py-2 text-sm ${
                   isCorrect
-                    ? "border-[#16a34a]/40 bg-[#16a34a]/5"
-                    : "border-slate-200 bg-white"
+                    ? "border-primary/40 bg-primary/5"
+                    : "border-border-default bg-surface"
                 }`}
               >
                 <div className="flex items-start gap-2">
                   <span
                     className={`mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-semibold flex-shrink-0 ${
                       isCorrect
-                        ? "bg-[#16a34a] text-white"
-                        : "bg-slate-200 text-slate-600"
+                        ? "bg-primary text-white"
+                        : "bg-surface-muted text-muted-foreground"
                     }`}
                   >
                     {isCorrect ? <Check className="w-3 h-3" /> : index + 1}
@@ -74,7 +74,7 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
                   <div className="min-w-0 flex-1">
                     <p className="text-slate-gray whitespace-pre-wrap">{option.text}</p>
                     {option.feedback && (
-                      <p className="mt-1 text-xs text-slate-gray/70 whitespace-pre-wrap">
+                      <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
                         {option.feedback}
                       </p>
                     )}
@@ -87,7 +87,7 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
       </div>
 
       {hasTeacherNotes && (
-        <div className="rounded-md border border-slate-200 bg-white px-3 py-2 space-y-1.5 text-xs text-slate-gray">
+        <div className="rounded-md border border-border-default bg-surface px-3 py-2 space-y-1.5 text-xs text-slate-gray">
           {question.focusHint && (
             <p>
               <span className="font-semibold text-slate-gray/80">Focus hint:</span>{" "}
