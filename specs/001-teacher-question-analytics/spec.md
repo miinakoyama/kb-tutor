@@ -14,6 +14,7 @@
 
 - Q: For the "Sample question" button (FR-044), what is the selection logic? → A: The teacher chooses the selection mode from three presets — `random`, `high-accuracy first` (warm-up: confidence-building items), and `low-accuracy first` (focus question: items the class is currently struggling with). `random` is the default. The chosen mode persists across "Show another" clicks within the same modal session.
 - Q: For the Standard drill-down (FR-054), should the list include unattempted bank questions? → A: Attempted questions only (one row per question, `attempts ≥ 1` in scope). Untouched bank questions surface via the Sample-question modal and the question manager, not via the standard drill-down.
+- Q: Where does the per-question stats surface (FR-030) live for teachers? → A: A new teacher-accessible question detail surface (drawer / sheet / dedicated route) opened from the Standard drill-down rows and from the Student profile's answer-list rows. The existing admin-only `/content/questions` manager is **not** opened to teachers; it retains its current admin-only CRUD/mass-production scope. Admins reach the same new surface from the same entry points and can additionally toggle scope to "All schools".
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -112,42 +113,54 @@ correct selected option vs. correct option for every attempt.
 
 ---
 
-### User Story 3 - View per-question stats from the question manager (Priority: P2)
+### User Story 3 - View per-question stats from a question detail surface (Priority: P2)
 
-From the question manager (or an equivalent "look up a specific question" view),
-the teacher selects a question and sees how many times it has been asked, how
-often it was answered correctly, the answer-choice distribution, average time,
-and which standard it is tagged with. This helps her flag weak / "buggy" /
-ambiguous questions for the admin to fix.
+From either the Standard drill-down (Story 1) or the Student profile's answer
+list (Story 2), the teacher opens a question detail view (a drawer or
+dedicated page, not the admin question manager) and sees how many times the
+question has been asked in her class, how often it was answered correctly, the
+answer-choice distribution, average time, and which standard it is tagged
+with. This helps her flag weak / "buggy" / ambiguous questions for the admin
+to fix.
 
 **Why this priority**: The teacher explicitly asked for this ("if I look up a
-specific question in the manager, can I see how many times it has been asked and
-gotten correct?"). It is independently valuable but lower priority than the
-dashboard drill-downs because the same numbers are available from the
-Standard detail view (Story 1) — this story is about giving teachers a
-question-first entry point.
+specific question in the manager, can I see how many times it has been asked
+and gotten correct?"). It is independently valuable but lower priority than the
+dashboard drill-downs because the same numbers are available from the Standard
+detail view (Story 1) — this story is about giving teachers a question-first
+entry point that is read-only and safe to expose to non-admins.
 
-**Independent Test**: Can be fully tested by opening any question in the question
-manager and verifying that an analytics panel renders with attempt count,
-correct count, accuracy %, and per-option distribution scoped to the teacher's
-students.
+**Independent Test**: Can be fully tested by clicking a question row in the
+Standard drill-down or an attempt row in the Student profile and verifying that
+the question detail surface renders with attempt count, correct count, accuracy
+%, and per-option distribution scoped to the teacher's students, and that no
+admin-only mutation controls are present.
 
 **Acceptance Scenarios**:
 
-1. **Given** the teacher views a single question in the question manager (or a
-   teacher-accessible question lookup),
-   **When** the page loads,
-   **Then** an analytics panel shows: total attempts, distinct students, correct
-   count, accuracy %, average time, per-mode breakdown, and per-option pick
-   counts/percentages, all scoped to her students.
-2. **Given** the question has zero attempts in scope,
+1. **Given** the teacher is on the Standard drill-down view and clicks a
+   question row, **When** the question detail surface opens,
+   **Then** an analytics panel shows: total attempts, distinct students,
+   correct count, accuracy %, average time, per-mode breakdown, and per-option
+   pick counts/percentages, all scoped to her students.
+2. **Given** the teacher is on the Student profile view and clicks an attempt
+   row, **When** the question detail surface opens,
+   **Then** the same analytics panel is shown for the same `question_id`, with
+   counts/percentages matching what the Standard drill-down would show for the
+   same question and scope.
+3. **Given** the question has zero attempts in scope,
    **When** the panel renders,
    **Then** it shows an empty state ("No students have attempted this question
    yet") rather than misleading 0% accuracy.
-3. **Given** the teacher is an admin,
-   **When** she opens the same panel,
-   **Then** she has the option to switch the scope to "All schools" to see
-   organization-wide stats.
+4. **Given** the teacher is an admin,
+   **When** she opens the same surface,
+   **Then** she sees a scope toggle to switch between "Selected schools" and
+   "All schools" — but never lands on the admin `/content/questions` manager
+   by accident; the surface is the same read-only one teachers see.
+5. **Given** the viewer is a non-admin teacher,
+   **When** the surface renders,
+   **Then** no create/edit/delete/mass-produce/approve controls are visible
+   anywhere on the surface.
 
 ---
 
@@ -308,19 +321,29 @@ project the question.
 
 #### Per-question stats (Story 3)
 
-- **FR-030**: System MUST expose per-question analytics from a question detail
-  surface that the teacher can reach. The integration point MUST be either (a)
-  the existing `/content/questions` manager extended to allow teacher access to
-  the read-only stats panel, or (b) a new teacher-accessible question lookup
-  page reachable from the standard drill-down. The chosen integration MUST NOT
-  expose admin-only mutation actions (create/edit/delete questions) to teachers.
+- **FR-030**: System MUST expose per-question analytics through a **new
+  teacher-accessible question detail surface** (e.g., a drawer/sheet or a
+  dedicated route under the teacher dashboard). The existing admin-only
+  `/content/questions` manager MUST NOT be opened to teachers; it retains its
+  current admin-only CRUD / mass-production / approval responsibilities.
+- **FR-030a**: The question detail surface MUST be reachable from:
+  (1) each question row in the Standard drill-down (Story 1), and
+  (2) each attempt row in the Student profile's answer list (Story 2).
+  Both entry points MUST navigate to the same surface for the same
+  `question_id` so the underlying analytics are consistent.
+- **FR-030b**: The question detail surface MUST be **read-only**: it MUST NOT
+  expose create/edit/delete actions, mass-production controls, approval state
+  changes, or any other mutation affordance, regardless of the viewer's role.
+  Admins who need to edit questions MUST continue to use the existing
+  `/content/questions` manager.
 - **FR-031**: The per-question analytics panel MUST show, in scope: total
   attempts, distinct students, correct count, accuracy %, average time, per-mode
   breakdown, and per-option pick counts/percentages.
 - **FR-032**: The panel MUST present a clear "no attempts yet" empty state when
   scope yields zero attempts, instead of showing 0%.
 - **FR-033**: For admin users, the panel MUST allow toggling between
-  "Selected schools" and "All schools" scope.
+  "Selected schools" and "All schools" scope. For teacher users, the toggle
+  MUST NOT be shown — scope is locked to the teacher's schools.
 
 #### Sample question button (Story 4)
 
@@ -445,9 +468,11 @@ project the question.
   existing dashboard's filter state via URL search params. The Student profile
   view is rendered under `/teacher-dashboard/students/[studentId]`. These paths
   are illustrative; the plan phase will finalize routing.
-- Per-question stats for teachers are surfaced through a teacher-accessible
-  read-only panel; the existing admin-only `/content/questions` manager retains
-  its create/edit/delete capabilities unchanged.
+- Per-question stats for teachers are surfaced through a new read-only
+  question detail surface (drawer or dedicated route) reachable from the
+  Standard drill-down and the Student profile answer list. The existing
+  admin-only `/content/questions` manager remains admin-only and unchanged;
+  teachers never land in it.
 - The "Sample question" feature reads from the existing question bank
   (`generated_questions` joined to standards). It does **not** generate new
   questions on demand — Gemini integration is out of scope for v1.
@@ -461,3 +486,8 @@ project the question.
 - The mobile/tablet form factor is supported for read-only consumption (as on
   the existing dashboard) but heavy filtering is optimized for desktop, where
   teachers do this analysis.
+- **Delivery vehicle**: Per the user's instruction (2026-05-25), the spec
+  artifacts and the implementation MUST land in the same pull request
+  (`cursor/teacher-question-analytics-ff1f`), not in separate PRs. The
+  `/speckit-plan` → `/speckit-tasks` → `/speckit-implement` flow will continue
+  to push to this branch and update PR #72 in place.
