@@ -14,6 +14,9 @@ import {
   RefreshCcw,
   BookOpen,
   X,
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import type { AnswerRecord, ConfidenceLevel, GlossaryTerm, Question } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
@@ -30,6 +33,7 @@ import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
+import { NextSessionCTA } from "@/components/shared/NextSessionCTA";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const DEFAULT_QUESTION_COUNT = 10;
@@ -103,6 +107,20 @@ export function AdaptivePracticeMode({
   const [finalAnswers, setFinalAnswers] = useState<Record<number, AnswerRecord>>({});
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
   const [showSummary, setShowSummary] = useState(false);
+  const [summaryReviewIndex, setSummaryReviewIndex] = useState<number | null>(
+    null,
+  );
+  // Defensive reset: if sessionQuestions shrinks (or otherwise changes)
+  // while a per-question review pane is open, drop the now-invalid index.
+  // Doing this in an effect (not inline during render) avoids the React
+  // "Cannot update a component while rendering a different component"
+  // warning and any associated re-render loop.
+  useEffect(() => {
+    if (summaryReviewIndex === null) return;
+    if (!sessionQuestions[summaryReviewIndex]) {
+      setSummaryReviewIndex(null);
+    }
+  }, [summaryReviewIndex, sessionQuestions]);
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
@@ -821,13 +839,93 @@ export function AdaptivePracticeMode({
   }
 
   if (showSummary) {
+    const reviewQuestion =
+      summaryReviewIndex !== null
+        ? sessionQuestions[summaryReviewIndex]
+        : undefined;
+    // If we have a non-null index but it no longer maps to a real question
+    // (e.g. sessionQuestions changed underfoot), fall through to render the
+    // summary list. The effect below resets the stale index — doing it
+    // inline via setState would set state during render and trigger React
+    // warnings / re-render loops.
+    if (summaryReviewIndex !== null && reviewQuestion) {
+      const reviewAnswer = finalAnswers[summaryReviewIndex];
+      const answerForPanel: AnswerRecord = reviewAnswer ?? {
+        selectedOptionId: reviewQuestion.correctOptionId,
+        isCorrect: false,
+      };
+      return (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-3xl mx-auto"
+          >
+            <button
+              onClick={() => setSummaryReviewIndex(null)}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+            >
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
+                <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+              </span>
+              Back to results
+            </button>
+            <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm">
+              <p className="text-sm text-slate-gray/60 mb-3">
+                Question {summaryReviewIndex + 1}
+              </p>
+              <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
+                {reviewQuestion.text}
+              </p>
+              <div className="space-y-2.5">
+                {reviewQuestion.options.map((opt) => {
+                  const isSelected = answerForPanel.selectedOptionId === opt.id;
+                  const isCorrect = opt.id === reviewQuestion.correctOptionId;
+                  const wrongSelection = isSelected && !isCorrect;
+                  return (
+                    <div
+                      key={opt.id}
+                      className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
+                        isCorrect
+                          ? "border-[#16a34a]/40 bg-[#16a34a]/5"
+                          : wrongSelection
+                            ? "border-red-300 bg-red-50"
+                            : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <div className="mt-0.5 flex-shrink-0">
+                        {isCorrect ? (
+                          <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
+                        ) : wrongSelection ? (
+                          <XCircle className="w-4 h-4 text-red-400" />
+                        ) : (
+                          <span className="inline-block w-4 h-4" />
+                        )}
+                      </div>
+                      <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
+                        {opt.text}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              <FeedbackPanel
+                question={reviewQuestion}
+                answer={answerForPanel}
+                showKeyKnowledge
+                showMisconception
+              />
+            </div>
+          </motion.div>
+        );
+    }
+
     const correctCount = Object.values(finalAnswers).filter((answer) => answer.isCorrect).length;
     const scorePercent = Math.round((correctCount / totalQuestions) * 100);
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-lg mx-auto space-y-4"
+        className="max-w-3xl mx-auto space-y-4 pb-8"
       >
         <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm text-center">
           {topicName && <p className="text-sm text-slate-gray/70 mb-2">{topicName}</p>}
@@ -839,30 +937,91 @@ export function AdaptivePracticeMode({
             {correctCount} of {totalQuestions} final answers correct
           </p>
         </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={() => {
-              setCurrentIndex(0);
-              setAttemptsByIndex({});
-              setRetryReadyByIndex({});
-              setFinalAnswers({});
-              setSelectedOptionId(null);
-              setShowSummary(false);
-              setCompletionReported(false);
-              resetAttemptDwell();
-            }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-            {mode === "review" ? "Review Again" : "Try Again"}
-          </button>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors"
-          >
-            <Home className="w-4 h-4" />
-            Home
-          </Link>
+
+        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 shadow-sm">
+          <h3 className="text-base font-semibold text-slate-gray mb-3">
+            Review Questions
+          </h3>
+          <div className="space-y-2">
+            {sessionQuestions.map((q, index) => {
+              const answer = finalAnswers[index];
+              const hasAnswer = !!answer;
+              const isCorrect = !!answer?.isCorrect;
+              return (
+                <button
+                  key={`${q.id}-${index}`}
+                  onClick={() => setSummaryReviewIndex(index)}
+                  className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-slate-gray/5 ${
+                    isCorrect
+                      ? "border-[#16a34a]/20"
+                      : hasAnswer
+                        ? "border-red-200"
+                        : "border-slate-gray/10"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-medium text-slate-gray/50 mt-0.5 w-5 flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <p className="flex-1 text-sm text-slate-gray line-clamp-1">
+                      {q.text}
+                    </p>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {isCorrect ? (
+                        <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
+                      ) : hasAnswer ? (
+                        <XCircle className="w-4 h-4 text-red-400" />
+                      ) : (
+                        <span className="text-xs text-slate-gray/40">—</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/*
+          Action stack on the summary screen.
+
+          The primary CTA is "Next" (NextSessionCTA): it points the student
+          at the most urgent remaining assignment, or Self Practice if every
+          assignment is done. It is the only filled-green button here so it
+          owns visual hierarchy, signaling "this is the way forward".
+
+          Try Again ('do the same set again') and Home ('stop for now') are
+          intentionally demoted to outlined / muted styles — they are still
+          one click away but no longer compete with the forward path.
+        */}
+        <div className="flex flex-col items-center gap-3">
+          <NextSessionCTA excludeAssignmentId={assignmentId} />
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              onClick={() => {
+                setCurrentIndex(0);
+                setAttemptsByIndex({});
+                setRetryReadyByIndex({});
+                setFinalAnswers({});
+                setSelectedOptionId(null);
+                setShowSummary(false);
+                setSummaryReviewIndex(null);
+                setCompletionReported(false);
+                resetAttemptDwell();
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[#16a34a]/30 text-[#14532d] font-medium hover:bg-[#16a34a]/5 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              {mode === "review" ? "Review Again" : "Try Again"}
+            </button>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-gray/20 text-slate-gray font-medium hover:bg-slate-gray/5 transition-colors"
+            >
+              <Home className="w-4 h-4" />
+              Home
+            </Link>
+          </div>
         </div>
       </motion.div>
     );

@@ -78,6 +78,9 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
     const orderClauses: OrderClause[] = [];
     let updatePatch: Record<string, unknown> | null = null;
     let rangeClause: { from: number; to: number } | null = null;
+    let limitClause: number | null = null;
+    let countMode: { exact: boolean; headOnly: boolean } | null = null;
+    let deleteMode = false;
 
     const filteredRows = () => {
       const matched = behavior.rows.filter((row) => filters.every((f) => f(row)));
@@ -91,14 +94,36 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
         }
         return 0;
       });
-      if (!rangeClause) return ordered;
-      return ordered.slice(rangeClause.from, rangeClause.to + 1);
+      const ranged = rangeClause
+        ? ordered.slice(rangeClause.from, rangeClause.to + 1)
+        : ordered;
+      if (limitClause !== null) {
+        return ranged.slice(0, limitClause);
+      }
+      return ranged;
     };
 
     const builder: Record<string, unknown> = {
-      select: vi.fn(() => builder),
+      select: vi.fn(
+        (
+          _columns?: string,
+          options?: { count?: "exact" | "planned" | "estimated"; head?: boolean },
+        ) => {
+          if (options?.count) {
+            countMode = {
+              exact: options.count === "exact",
+              headOnly: options.head === true,
+            };
+          }
+          return builder;
+        },
+      ),
       eq: vi.fn((column: string, value: unknown) => {
         filters.push((row) => row[column] === value);
+        return builder;
+      }),
+      neq: vi.fn((column: string, value: unknown) => {
+        filters.push((row) => row[column] !== value);
         return builder;
       }),
       in: vi.fn((column: string, values: unknown[]) => {
@@ -114,12 +139,24 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
         );
         return builder;
       }),
+      gt: vi.fn((column: string, value: unknown) => {
+        filters.push((row) => compareValues(row[column], value) > 0);
+        return builder;
+      }),
       gte: vi.fn((column: string, value: unknown) => {
         filters.push((row) => compareValues(row[column], value) >= 0);
         return builder;
       }),
+      lt: vi.fn((column: string, value: unknown) => {
+        filters.push((row) => compareValues(row[column], value) < 0);
+        return builder;
+      }),
       lte: vi.fn((column: string, value: unknown) => {
         filters.push((row) => compareValues(row[column], value) <= 0);
+        return builder;
+      }),
+      is: vi.fn((column: string, value: unknown) => {
+        filters.push((row) => row[column] === value);
         return builder;
       }),
       order: vi.fn((column: string, options?: { ascending?: boolean }) => {
@@ -129,8 +166,16 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
         });
         return builder;
       }),
+      limit: vi.fn((count: number) => {
+        limitClause = count;
+        return builder;
+      }),
       range: vi.fn((from: number, to: number) => {
         rangeClause = { from, to };
+        return builder;
+      }),
+      delete: vi.fn(() => {
+        deleteMode = true;
         return builder;
       }),
       maybeSingle: vi.fn(async () => {
@@ -178,10 +223,30 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
 
     Object.defineProperty(builder, "then", {
       value: (
-        resolve: (value: { data: unknown; error: unknown }) => void,
+        resolve: (value: {
+          data: unknown;
+          error: unknown;
+          count?: number | null;
+        }) => void,
       ) => {
         if (behavior.error) {
-          resolve({ data: [], error: behavior.error });
+          const errorCount = countMode ? null : undefined;
+          resolve({ data: [], error: behavior.error, count: errorCount });
+          return;
+        }
+        if (deleteMode) {
+          const kept: Array<Record<string, unknown>> = [];
+          const removed: Array<Record<string, unknown>> = [];
+          for (const row of behavior.rows) {
+            if (filters.length > 0 && filters.every((f) => f(row))) {
+              removed.push(row);
+            } else {
+              kept.push(row);
+            }
+          }
+          behavior.rows.length = 0;
+          for (const row of kept) behavior.rows.push(row);
+          resolve({ data: removed, error: null });
           return;
         }
         if (updatePatch) {
@@ -194,7 +259,16 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
           resolve({ data: updatedRows, error: null });
           return;
         }
-        resolve({ data: filteredRows(), error: null });
+        const rows = filteredRows();
+        if (countMode) {
+          resolve({
+            data: countMode.headOnly ? null : rows,
+            error: null,
+            count: rows.length,
+          });
+          return;
+        }
+        resolve({ data: rows, error: null });
       },
     });
 

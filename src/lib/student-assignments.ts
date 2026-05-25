@@ -28,6 +28,19 @@ export type StudentAssignmentListItem = {
   randomize_order: boolean;
   max_questions: number | null;
   instructions: string | null;
+  /** null means unlimited retries; otherwise the cap set by the teacher. */
+  max_attempts: number | null;
+  /** Number of full runs the student has already completed (drives Attempt X/Y). */
+  completed_attempts: number;
+  /**
+   * Count of real `assignment_completions` rows for this student. Unlike
+   * `completed_attempts`, this is NOT synthesized from
+   * `assignment_targets.last_completed_at`, so it is zero for legacy
+   * pre-history-table completions. Use this (not `completed_attempts`)
+   * when deciding whether the "Past attempts" history link should appear,
+   * because the history endpoint can only surface rows from this table.
+   */
+  recorded_completion_count: number;
   status: StudentAssignmentStatus;
   last_completed_at: string | null;
   progress: StudentAssignmentProgress;
@@ -47,7 +60,11 @@ function toAssignmentMode(value: unknown): AssignmentMode {
 
 type AssignmentBaseFields = Omit<
   StudentAssignmentListItem,
-  "status" | "last_completed_at" | "progress"
+  | "status"
+  | "last_completed_at"
+  | "progress"
+  | "completed_attempts"
+  | "recorded_completion_count"
 >;
 
 function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
@@ -67,6 +84,10 @@ function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
     instructions:
       typeof row.instructions === "string" && row.instructions.length > 0
         ? row.instructions
+        : null,
+    max_attempts:
+      typeof row.max_attempts === "number" && row.max_attempts > 0
+        ? row.max_attempts
         : null,
   };
 }
@@ -113,7 +134,7 @@ async function fetchAssignmentList(
   const { data: assignmentRows, error: assignmentsError } = await admin
     .from("assignments")
     .select(
-      "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,instructions,created_at",
+      "id,title,due_date,module_ids,topics,target_minutes,mode,randomize_order,max_questions,instructions,max_attempts,created_at",
     )
     .in("school_id", schoolIds)
     .order("created_at", { ascending: false });
@@ -132,6 +153,7 @@ async function fetchAssignmentList(
     { data: targetRows, error: targetsError },
     { data: snapshotRows, error: snapshotError },
     { data: attemptRows, error: attemptError },
+    { data: completionRows, error: completionError },
   ] = await Promise.all([
     admin
       .from("assignment_targets")
@@ -147,6 +169,11 @@ async function fetchAssignmentList(
       .select("assignment_id,question_id,answered_at")
       .eq("user_id", studentUserId)
       .in("assignment_id", orderedIds),
+    admin
+      .from("assignment_completions")
+      .select("assignment_id")
+      .eq("student_user_id", studentUserId)
+      .in("assignment_id", orderedIds),
   ]);
 
   if (targetsError) {
@@ -158,12 +185,24 @@ async function fetchAssignmentList(
   if (attemptError) {
     return { assignments: [], error: attemptError.message };
   }
+  if (completionError) {
+    return { assignments: [], error: completionError.message };
+  }
 
   const lastCompletedByAssignment = new Map<string, string | null>();
   for (const row of targetRows ?? []) {
     lastCompletedByAssignment.set(
       String(row.assignment_id),
       (row.last_completed_at as string | null | undefined) ?? null,
+    );
+  }
+
+  const completedAttemptsByAssignment = new Map<string, number>();
+  for (const row of completionRows ?? []) {
+    const id = String(row.assignment_id);
+    completedAttemptsByAssignment.set(
+      id,
+      (completedAttemptsByAssignment.get(id) ?? 0) + 1,
     );
   }
 
@@ -217,11 +256,19 @@ async function fetchAssignmentList(
         lastCompletedAt,
         answeredCount: answeredSet.size,
       });
+      const recordedCount = completedAttemptsByAssignment.get(id) ?? 0;
       return {
         ...base,
         status,
         last_completed_at: lastCompletedAt,
         progress,
+        completed_attempts:
+          recordedCount ||
+          // Pre-history-table assignments may have a last_completed_at
+          // without any rows in assignment_completions; treat that as one
+          // completion so the count stays consistent with the badge.
+          (lastCompletedAt ? 1 : 0),
+        recorded_completion_count: recordedCount,
       };
     })
     .filter((a): a is StudentAssignmentListItem => a != null);
@@ -251,8 +298,11 @@ function computeStatus(args: {
   lastCompletedAt: string | null;
   answeredCount: number;
 }): StudentAssignmentStatus {
-  if (args.lastCompletedAt) return "completed";
+  // A completed assignment can later have a new run in progress. Attempts are
+  // counted strictly after last_completed_at above, so answeredCount > 0 here
+  // means "resume this newer run", not "old completed work".
   if (args.answeredCount > 0) return "in_progress";
+  if (args.lastCompletedAt) return "completed";
   return "not_started";
 }
 
@@ -269,6 +319,125 @@ export async function getStudentAssignmentList(
   studentUserId: string,
 ): Promise<StudentAssignmentListResult> {
   return fetchAssignmentList(supabase, studentUserId);
+}
+
+/**
+ * Suggestion shown by the "Next" CTA on practice/exam summary screens.
+ *
+ * - `assignment` — there is at least one incomplete assignment for the student.
+ *   The CTA links the student straight into that assignment's practice URL.
+ * - `self_practice` — all of the student's assignments are done (or the
+ *   student has no assignments at all). The CTA encourages Self Practice.
+ *
+ * Picked by {@link pickNextStudentAction}.
+ */
+export type NextStudentAction =
+  | {
+      type: "assignment";
+      assignment: StudentAssignmentListItem;
+    }
+  | { type: "self_practice" };
+
+interface PickNextActionOptions {
+  /**
+   * Assignment the student just finished. Excluded from candidates so the
+   * CTA never suggests "next: the assignment you just finished" right after
+   * its completion screen.
+   */
+  excludeAssignmentId?: string | null;
+  /**
+   * Wall clock used to decide overdue ordering. Defaults to `Date.now()`;
+   * exposed for testability.
+   */
+  now?: Date;
+}
+
+/**
+ * Decide what the student should do after finishing the current session.
+ *
+ * Ordering rules (highest priority first):
+ *   1. Incomplete assignments are ranked by due date:
+ *      - Already-overdue assignments come first (treated as most urgent).
+ *      - Then the earliest non-past due date.
+ *      - Then assignments without a due date.
+ *      - Ties are broken by assignment id for determinism.
+ *   2. If there are no incomplete assignments to suggest, fall back to
+ *      Self Practice — the student should keep building reps anyway.
+ *
+ * This function is pure (no I/O, no `Date.now()`) so it's straightforward to
+ * unit-test against fixed clocks.
+ */
+export function pickNextStudentAction(
+  assignments: StudentAssignmentListItem[],
+  options: PickNextActionOptions = {},
+): NextStudentAction {
+  const now = options.now ?? new Date();
+  const nowMs = now.getTime();
+  const excludeId = options.excludeAssignmentId?.trim() || null;
+
+  const candidates = assignments.filter((a) => {
+    if (a.status === "completed") return false;
+    if (excludeId && a.id === excludeId) return false;
+    return true;
+  });
+
+  if (candidates.length === 0) {
+    return { type: "self_practice" };
+  }
+
+  const parseDue = (value: string | null | undefined): number | null => {
+    if (!value) return null;
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  };
+
+  type Bucket = "overdue" | "due" | "no_due";
+  const bucketOf = (a: StudentAssignmentListItem): Bucket => {
+    const ms = parseDue(a.due_date);
+    if (ms === null) return "no_due";
+    return ms < nowMs ? "overdue" : "due";
+  };
+  const bucketRank: Record<Bucket, number> = {
+    overdue: 0,
+    due: 1,
+    no_due: 2,
+  };
+
+  // For overdue items, the MOST recently overdue (closest to now) is the
+  // most actionable; deeply overdue items may be stale. For not-yet-due
+  // items, the SOONEST due date is the most urgent. We model this by
+  // sorting overdue descending, due-not-yet ascending — both expressed by
+  // comparing absolute "distance from now".
+  const sorted = [...candidates].sort((a, b) => {
+    const bucketDiff = bucketRank[bucketOf(a)] - bucketRank[bucketOf(b)];
+    if (bucketDiff !== 0) return bucketDiff;
+
+    const aDue = parseDue(a.due_date);
+    const bDue = parseDue(b.due_date);
+
+    if (aDue !== null && bDue !== null) {
+      // Same bucket here (we know bucketDiff === 0), so we only need to
+      // inspect one side.
+      if (bucketOf(a) === "overdue") {
+        // Recently overdue first — that means the LARGER (closer to now)
+        // timestamp wins.
+        if (aDue !== bDue) return bDue - aDue;
+      } else {
+        // Soonest non-past due first — smaller timestamp wins.
+        if (aDue !== bDue) return aDue - bDue;
+      }
+    } else if (aDue !== null) {
+      // Shouldn't happen given equal buckets, but defensively keep dated
+      // items ahead of undated ties.
+      return -1;
+    } else if (bDue !== null) {
+      return 1;
+    }
+
+    return a.id.localeCompare(b.id);
+  });
+
+  return { type: "assignment", assignment: sorted[0] };
 }
 
 /**

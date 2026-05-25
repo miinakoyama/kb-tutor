@@ -141,6 +141,52 @@ describe("GET /api/assignments/[assignmentId]/questions", () => {
     expect(body.error).toBe("Forbidden");
   });
 
+  it("counts legacy last_completed_at as one completed attempt before serving questions", async () => {
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser(),
+      tables: { profiles: { rows: [{ id: "student-1", role: "student" }] } },
+    });
+    const { client: adminClient } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [
+            {
+              id: "as_1",
+              school_id: "school-1",
+              mode: "practice",
+              randomize_order: false,
+              max_attempts: 1,
+            },
+          ],
+        },
+        assignment_targets: {
+          rows: [
+            {
+              assignment_id: "as_1",
+              student_user_id: "student-1",
+              last_completed_at: "2026-04-03T00:00:00.000Z",
+            },
+          ],
+        },
+        assignment_completions: { rows: [] },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+    mockState.role = "student";
+
+    const response = await GET(requestMock(), contextFor("as_1"));
+    const body = (await response.json()) as {
+      code?: string;
+      completed_attempts?: number;
+    };
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("max_attempts_exceeded");
+    expect(body.completed_attempts).toBe(1);
+  });
+
   it("returns practice questions with deterministic shuffle and current-run answered map", async () => {
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser(),

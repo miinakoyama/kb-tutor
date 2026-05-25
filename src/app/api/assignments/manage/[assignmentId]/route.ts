@@ -37,6 +37,7 @@ async function loadAssignmentForRequester(
         review_topics: string[] | null;
         review_standards: string[] | null;
         instructions: string | null;
+        max_attempts: number | null;
       };
     }
   | { error: string; status: number }
@@ -44,7 +45,7 @@ async function loadAssignmentForRequester(
   const { data: assignment, error: assignmentError } = await admin
     .from("assignments")
     .select(
-      "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards,instructions",
+      "id,title,school_id,due_date,module_ids,topics,target_minutes,created_at,created_by,mode,randomize_order,max_questions,review_topics,review_standards,instructions,max_attempts",
     )
     .eq("id", assignmentId)
     .maybeSingle();
@@ -91,6 +92,10 @@ async function loadAssignmentForRequester(
       instructions:
         typeof assignment.instructions === "string"
           ? assignment.instructions
+          : null,
+      max_attempts:
+        typeof assignment.max_attempts === "number"
+          ? assignment.max_attempts
           : null,
     },
   };
@@ -392,6 +397,7 @@ interface PatchBody {
   targetMinutes?: number;
   randomizeOrder?: boolean;
   instructions?: string | null;
+  maxAttempts?: number | null;
 }
 
 const DISALLOWED_CONTENT_KEYS = [
@@ -477,6 +483,26 @@ export async function PATCH(
     } else if (typeof body.instructions === "string") {
       const trimmed = body.instructions.trim();
       updates.instructions = trimmed.length > 0 ? trimmed : null;
+    }
+  }
+
+  if ("maxAttempts" in body) {
+    if (body.maxAttempts === null || body.maxAttempts === undefined) {
+      updates.max_attempts = null;
+    } else if (
+      typeof body.maxAttempts === "number" &&
+      Number.isFinite(body.maxAttempts) &&
+      body.maxAttempts >= 1
+    ) {
+      updates.max_attempts = Math.min(
+        100,
+        Math.max(1, Math.round(body.maxAttempts)),
+      );
+    } else {
+      return NextResponse.json(
+        { error: "maxAttempts must be a positive integer or null." },
+        { status: 400 },
+      );
     }
   }
 
