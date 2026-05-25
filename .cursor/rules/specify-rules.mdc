@@ -4,5 +4,13 @@ alwaysApply: true
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+shell commands, and other important information, read the current plan:
+**specs/001-dark-mode/plan.md**
+
+Also refer to:
+- Feature spec: specs/001-dark-mode/spec.md
+- Research: specs/001-dark-mode/research.md
+- Data model: specs/001-dark-mode/data-model.md
+- Quickstart: specs/001-dark-mode/quickstart.md
+- Contracts: specs/001-dark-mode/contracts/
 <!-- SPECKIT END -->
