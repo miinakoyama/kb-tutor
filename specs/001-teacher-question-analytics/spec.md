@@ -15,6 +15,7 @@
 - Q: For the "Sample question" button (FR-044), what is the selection logic? → A: The teacher chooses the selection mode from three presets — `random`, `high-accuracy first` (warm-up: confidence-building items), and `low-accuracy first` (focus question: items the class is currently struggling with). `random` is the default. The chosen mode persists across "Show another" clicks within the same modal session.
 - Q: For the Standard drill-down (FR-054), should the list include unattempted bank questions? → A: Attempted questions only (one row per question, `attempts ≥ 1` in scope). Untouched bank questions surface via the Sample-question modal and the question manager, not via the standard drill-down.
 - Q: Where does the per-question stats surface (FR-030) live for teachers? → A: A new teacher-accessible question detail surface (drawer / sheet / dedicated route) opened from the Standard drill-down rows and from the Student profile's answer-list rows. The existing admin-only `/content/questions` manager is **not** opened to teachers; it retains its current admin-only CRUD/mass-production scope. Admins reach the same new surface from the same entry points and can additionally toggle scope to "All schools".
+- Q: What is the default rolling window for the Student profile accuracy line chart (FR-022)? → A: Last 20 attempts (attempt-count-based, not day-based). This stays stable across irregular activity (breaks, weekends, post-vacation spikes) and is 2× the FR-024 small-sample threshold so the small-sample indicator is the exception, not the norm. Cumulative view remains available as a toggle.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -303,9 +304,18 @@ project the question.
   attempts, overall accuracy, average time, and a status badge consistent with
   the dashboard's existing student status classification.
 - **FR-022**: The Student profile view MUST render a line chart of the
-  student's accuracy over time. The chart MUST support a rolling-window view
-  (default) and a cumulative view, so the teacher can see both recent trend and
-  long-run mastery.
+  student's accuracy over time. The chart MUST support two view modes:
+  (1) **Rolling-window view** (default): each data point is the rolling
+  accuracy over the most recent **N = 20 attempts** ending at that point.
+  Computed on a per-attempt basis (one point per attempt; attempts ordered by
+  `answered_at` ascending, ties broken by attempt id), so the x-axis represents
+  attempt progress, not wall-clock days.
+  (2) **Cumulative view**: each data point is the running accuracy across all
+  attempts up to that point. Useful for seeing long-run mastery and damping
+  recency noise.
+  The rolling window size MUST be a code-level constant — not user-configurable
+  via UI in v1 — so the teacher's mental model stays consistent across
+  students.
 - **FR-023**: The chart, summary counts, and answer list MUST be filterable by
   assignment and by standard. Both filters MUST default to "All".
 - **FR-024**: When the displayed sample size is below a configured threshold
@@ -473,6 +483,16 @@ project the question.
   Standard drill-down and the Student profile answer list. The existing
   admin-only `/content/questions` manager remains admin-only and unchanged;
   teachers never land in it.
+- The question detail surface displays **class-wide** stats by default
+  (consistent with the rest of the teacher dashboard's scoping). When opened
+  from the Student profile's answer list, the surface additionally shows a
+  small "This student" inline annotation (which option this specific student
+  picked, whether it was correct, when), but the headline counts / accuracy
+  / per-option distribution remain class-wide so the same question always
+  shows the same primary numbers regardless of entry point. This decision
+  was taken inside `/speckit-clarify` after Q4 without a separate question,
+  to keep the session under the 5-question budget; revisit during planning
+  if it conflicts with the chosen UI vehicle.
 - The "Sample question" feature reads from the existing question bank
   (`generated_questions` joined to standards). It does **not** generate new
   questions on demand — Gemini integration is out of scope for v1.
