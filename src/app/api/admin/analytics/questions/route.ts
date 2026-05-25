@@ -11,6 +11,7 @@ import {
   chunkArray,
 } from "@/lib/analytics/pagination";
 import { parseQuestionPreview as parseSharedQuestionPreview } from "@/lib/analytics/question-preview";
+import { percentile as sharedPercentile } from "@/lib/analytics/percentile";
 
 type QuestionStatsRow = {
   question_id: string;
@@ -159,12 +160,7 @@ function toNumber(value: number | string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function percentile(values: number[], ratio: number): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.floor((sorted.length - 1) * ratio);
-  return sorted[index] ?? null;
-}
+const percentile = sharedPercentile;
 
 /**
  * Local QuestionPreview alias is structurally compatible with the shared
