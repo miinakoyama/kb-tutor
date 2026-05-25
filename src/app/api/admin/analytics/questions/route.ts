@@ -166,11 +166,6 @@ function percentile(values: number[], ratio: number): number | null {
   return sorted[index] ?? null;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
 /**
  * Local QuestionPreview alias is structurally compatible with the shared
  * type in `src/lib/analytics/teacher-analytics-types.ts`; we keep the

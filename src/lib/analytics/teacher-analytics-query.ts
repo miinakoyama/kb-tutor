@@ -50,25 +50,6 @@ export type ParsedQueryResult =
   | { ok: true; query: TeacherAnalyticsQuery }
   | { ok: false; error: string };
 
-function pickEnum<T extends string>(
-  raw: string | null,
-  allowed: readonly T[],
-  fallback: T,
-): T {
-  return allowed.find((value) => value === raw) ?? fallback;
-}
-
-function validateEnum<T extends string>(
-  raw: string | null,
-  allowed: readonly T[],
-  name: string,
-): T | { error: string } {
-  if (raw === null || raw === "") return allowed[0];
-  const match = allowed.find((value) => value === raw);
-  if (!match) return { error: `Invalid query: ${name}` };
-  return match;
-}
-
 const SEED_PATTERN = /^[A-Za-z0-9._\-:]{4,64}$/;
 
 function pickStringParam(params: URLSearchParams, name: string): string | null {

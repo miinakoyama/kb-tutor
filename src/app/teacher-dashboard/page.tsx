@@ -364,9 +364,18 @@ function TeacherDashboardContent() {
                     className="border-t border-slate-100 hover:bg-slate-50/40"
                   >
                     <td className="px-5 py-3">
-                      <p className="font-medium text-slate-gray">
+                      <Link
+                        href={buildStandardDrillDownHref(row.standardId, {
+                          range,
+                          mode,
+                          source,
+                          classId,
+                          topic,
+                        })}
+                        className="block max-w-md font-medium text-[#166534] hover:underline"
+                      >
                         {row.standardId}
-                      </p>
+                      </Link>
                       <p className="text-xs text-slate-gray/60 line-clamp-2 max-w-md">
                         {row.standardLabel}
                       </p>
@@ -1105,4 +1114,25 @@ function avgTimeHelper(seconds: number): string {
 function activeStudentsHelper(summary: DashboardSummary, mode: ModeKey): string {
   const scope = mode === "compare" ? "any selected mode" : `${mode} mode`;
   return `${summary.studentsAttempted} of ${summary.studentsTotal} students answered in ${scope}`;
+}
+
+function buildStandardDrillDownHref(
+  standardId: string,
+  filters: {
+    range: RangeKey;
+    mode: ModeKey;
+    source: SourceKey;
+    classId: string;
+    topic: string;
+  },
+): string {
+  const params = new URLSearchParams();
+  if (filters.range !== "30d") params.set("range", filters.range);
+  if (filters.mode !== "compare") params.set("mode", filters.mode);
+  if (filters.source !== "all") params.set("source", filters.source);
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.topic) params.set("topic", filters.topic);
+  const qs = params.toString();
+  const safe = encodeURIComponent(standardId);
+  return qs ? `/teacher-dashboard/standards/${safe}?${qs}` : `/teacher-dashboard/standards/${safe}`;
 }
