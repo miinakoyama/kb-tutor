@@ -9,10 +9,12 @@ import {
   CheckCircle2,
   Download,
   Info,
+  Sparkles,
   Timer,
   TrendingUp,
   Users,
 } from "lucide-react";
+import { SampleQuestionModal } from "@/components/teacher/SampleQuestionModal";
 import { StudentAvatar } from "@/components/StudentAvatar";
 import {
   downloadStandardMetricsCsv,
@@ -126,6 +128,11 @@ function TeacherDashboardContent() {
   const [studentFilter, setStudentFilter] = useState<StudentStatusFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
+  const [sampleModalState, setSampleModalState] = useState<{
+    open: boolean;
+    standardId: string;
+    standardLabel: string;
+  }>({ open: false, standardId: "", standardLabel: "" });
 
   useEffect(() => {
     let isCurrent = true;
@@ -343,13 +350,14 @@ function TeacherDashboardContent() {
                 )}
                 <th className="px-3 py-3">Avg time</th>
                 <th className="px-5 py-3">Status</th>
+                <th className="px-3 py-3 text-right">Sample</th>
               </tr>
             </thead>
             <tbody>
               {filteredStandards.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={mode === "compare" ? 8 : 6}
+                    colSpan={mode === "compare" ? 9 : 7}
                     className="px-5 py-8 text-center text-sm text-slate-gray/60"
                   >
                     {isLoading
@@ -411,6 +419,22 @@ function TeacherDashboardContent() {
                     </td>
                     <td className="px-5 py-3">
                       <StandardStatusBadge status={row.status} />
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSampleModalState({
+                            open: true,
+                            standardId: row.standardId,
+                            standardLabel: row.standardLabel,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 rounded-md border border-[#16a34a] bg-white px-2 py-1 text-[11px] font-semibold text-[#166534] hover:bg-[#16a34a]/10 transition-colors"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Sample question
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -567,6 +591,15 @@ function TeacherDashboardContent() {
           Loading dashboard data...
         </p>
       )}
+
+      <SampleQuestionModal
+        open={sampleModalState.open}
+        standardId={sampleModalState.standardId}
+        standardLabel={sampleModalState.standardLabel}
+        onClose={() =>
+          setSampleModalState((prev) => ({ ...prev, open: false }))
+        }
+      />
     </main>
   );
 }
