@@ -516,9 +516,18 @@ function TeacherDashboardContent() {
                       <div className="flex items-center gap-3">
                         <StudentAvatar label={row.label} />
                         <div>
-                          <p className="font-medium text-slate-gray">
+                          <Link
+                            href={buildStudentProfileHref(row.studentId, {
+                              range,
+                              mode,
+                              source,
+                              classId,
+                              topic,
+                            })}
+                            className="font-medium text-[#166534] hover:underline"
+                          >
                             {row.label}
-                          </p>
+                          </Link>
                           {row.isLowAndFast && (
                             <p className="text-xs font-medium text-rose-600">
                               Clicking without engaging
@@ -1135,4 +1144,25 @@ function buildStandardDrillDownHref(
   const qs = params.toString();
   const safe = encodeURIComponent(standardId);
   return qs ? `/teacher-dashboard/standards/${safe}?${qs}` : `/teacher-dashboard/standards/${safe}`;
+}
+
+function buildStudentProfileHref(
+  studentId: string,
+  filters: {
+    range: RangeKey;
+    mode: ModeKey;
+    source: SourceKey;
+    classId: string;
+    topic: string;
+  },
+): string {
+  const params = new URLSearchParams();
+  if (filters.range !== "30d") params.set("range", filters.range);
+  if (filters.mode !== "compare") params.set("mode", filters.mode);
+  if (filters.source !== "all") params.set("source", filters.source);
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.topic) params.set("topic", filters.topic);
+  const qs = params.toString();
+  const safe = encodeURIComponent(studentId);
+  return qs ? `/teacher-dashboard/students/${safe}?${qs}` : `/teacher-dashboard/students/${safe}`;
 }
