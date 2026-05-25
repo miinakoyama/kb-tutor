@@ -205,7 +205,7 @@ function TeacherDashboardContent() {
         </h1>
         <p className="text-sm text-slate-gray/70 mt-1">
           Identify which standards need re-teaching and which students need a
-          closer look. Per-assignment completion is on{" "}
+          closer look — click a standard or student row to drill in. Per-assignment completion is on{" "}
           <Link
             href="/assignments/manage?tab=progress"
             className="font-medium text-[#16a34a] hover:underline"

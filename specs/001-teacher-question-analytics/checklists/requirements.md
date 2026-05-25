@@ -75,8 +75,20 @@ These are real decisions but better suited to `/speckit-plan`:
 
 ### Suggested next command
 
-`/speckit-plan` — all critical ambiguities resolved; safe to proceed to
-implementation planning.
+(Done.) `/speckit-implement` completed all 54 tasks across 8 phases.
+PR #72 contains the spec artifacts plus the full implementation:
+
+- 4 new GET endpoints under `/api/teacher-dashboard/**`,
+- 2 new Server Component pages under `/teacher-dashboard/**`,
+- 5 new client components under `src/components/teacher/`,
+- 7 new pure aggregation modules under `src/lib/analytics/`,
+- 2 new CSV exporters,
+- 51 new tests (177 / 178 total pass; the 1 failing is the
+  pre-existing `storage.test.ts` flake documented in `AGENTS.md`),
+- `npm run lint` clean, `npm run build` passes.
+
+T049 (manual smoke test) is deferred until the user runs the dev
+server in a browser — code is in place and ready.
 - Mild caveats noted (not failures, but documented here for transparency):
   - Spec mentions concrete table/column names (`attempts`, `school_teachers`,
     `generated_questions`, etc.) and the existing route `/api/teacher-dashboard`
