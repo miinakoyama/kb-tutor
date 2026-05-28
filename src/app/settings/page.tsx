@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  syncAppearanceFromDb,
-  type AppearanceMode,
-} from "@/lib/appearance-settings";
+import type { AppearanceMode } from "@/lib/appearance-settings";
 import { useTheme } from "@/components/ThemeProvider";
 import {
   DEFAULT_TTS_RATE,
@@ -64,7 +61,6 @@ function AppearanceControl() {
 type AppRole = "student" | "teacher" | "admin";
 
 export default function SettingsPage() {
-  const { syncAppearanceMode } = useTheme();
   const [ttsRate, setTtsRate] = useState(DEFAULT_TTS_RATE);
   const [role, setRole] = useState<AppRole>("student");
   const browserTimeZone = getBrowserTimeZone(DEFAULT_APP_TIME_ZONE);
@@ -78,8 +74,6 @@ export default function SettingsPage() {
       setTtsRate(value);
       const syncedZone = await syncTimeZoneFromDb(browserTimeZone);
       setTimeZone(syncedZone);
-      const syncedAppearance = await syncAppearanceFromDb();
-      syncAppearanceMode(syncedAppearance);
 
       try {
         const response = await fetch("/api/auth/me", {
@@ -111,7 +105,7 @@ export default function SettingsPage() {
       }
     };
     void load();
-  }, [browserTimeZone, syncAppearanceMode]);
+  }, [browserTimeZone]);
 
   const handleRateChange = (value: number) => {
     setTtsRate(value);

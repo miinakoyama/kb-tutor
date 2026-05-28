@@ -1,11 +1,28 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   APPEARANCE_STORAGE_KEY,
   DEFAULT_APPEARANCE_MODE,
   getStoredAppearanceMode,
   normalizeAppearanceMode,
   resolveTheme,
+  syncAppearanceFromDb,
 } from "@/lib/appearance-settings";
+
+const maybeSingleMock = vi.fn();
+
+vi.mock("@/lib/supabase/env", () => ({
+  hasSupabaseEnv: () => true,
+}));
+
+vi.mock("@/lib/supabase/client", () => ({
+  getSupabaseBrowserClient: () => ({
+    from: () => ({
+      select: () => ({
+        maybeSingle: maybeSingleMock,
+      }),
+    }),
+  }),
+}));
 
 describe("normalizeAppearanceMode", () => {
   it("returns valid modes unchanged", () => {
@@ -50,5 +67,28 @@ describe("getStoredAppearanceMode", () => {
   it("falls back when stored value is invalid", () => {
     window.localStorage.setItem(APPEARANCE_STORAGE_KEY, "purple");
     expect(getStoredAppearanceMode()).toBe(DEFAULT_APPEARANCE_MODE);
+  });
+});
+
+describe("syncAppearanceFromDb", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    maybeSingleMock.mockReset();
+  });
+
+  it("preserves local preference when DB appearance_mode is missing", async () => {
+    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, "dark");
+    maybeSingleMock.mockResolvedValue({ data: null });
+
+    await expect(syncAppearanceFromDb()).resolves.toBe("dark");
+    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("dark");
+  });
+
+  it("syncs local storage when DB has a valid appearance_mode", async () => {
+    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, "light");
+    maybeSingleMock.mockResolvedValue({ data: { appearance_mode: "dark" } });
+
+    await expect(syncAppearanceFromDb()).resolves.toBe("dark");
+    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("dark");
   });
 });

@@ -69,6 +69,7 @@
   --color-input-bg: var(--input-bg);
   --color-error: var(--error-color);
   --color-error-light: var(--error-light);
+  --color-error-border: var(--error-border);
   --color-chart-grid: var(--chart-grid);
   --color-chart-axis: var(--chart-axis);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,

@@ -12,13 +12,13 @@ export function TableDiagram({ data }: TableDiagramProps) {
           {data.title}
         </h3>
       )}
-      <table className="table-auto w-max min-w-[240px] sm:min-w-[320px] mx-auto border-collapse border-2 border-black text-sm">
+      <table className="table-auto w-max min-w-[240px] sm:min-w-[320px] mx-auto border-collapse border-2 border-border-default text-sm">
         <thead>
-          <tr className="bg-gray-100">
+          <tr className="bg-surface-muted">
             {data.headers.map((header, index) => (
               <th
                 key={index}
-                className="border border-black px-3 py-2 text-left font-bold text-foreground whitespace-nowrap"
+                className="border border-border-default px-3 py-2 text-left font-bold text-foreground whitespace-nowrap"
               >
                 {header}
               </th>
@@ -31,7 +31,7 @@ export function TableDiagram({ data }: TableDiagramProps) {
               {row.map((cell, cellIndex) => (
                 <td
                   key={cellIndex}
-                  className="border border-black px-3 py-2 text-foreground whitespace-nowrap"
+                  className="border border-border-default px-3 py-2 text-foreground whitespace-nowrap"
                 >
                   {cell}
                 </td>

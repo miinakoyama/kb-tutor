@@ -14,9 +14,17 @@ const LIGHT_CHART_COLORS: ChartThemeColors = {
   foreground: "#1f2d1f",
 };
 
+const DARK_CHART_COLORS: ChartThemeColors = {
+  grid: "rgba(232, 240, 234, 0.12)",
+  axis: "rgba(232, 240, 234, 0.55)",
+  primary: "#22c55e",
+  surface: "#152018",
+  foreground: "#e8f0ea",
+};
+
 export function getChartThemeColors(resolvedTheme: "light" | "dark"): ChartThemeColors {
   if (typeof window === "undefined") {
-    return LIGHT_CHART_COLORS;
+    return resolvedTheme === "dark" ? DARK_CHART_COLORS : LIGHT_CHART_COLORS;
   }
 
   const styles = getComputedStyle(document.documentElement);

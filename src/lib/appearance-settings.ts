@@ -85,6 +85,10 @@ export async function saveAppearanceModeToDb(
   }
 }
 
+function isStoredAppearanceMode(value: unknown): value is AppearanceMode {
+  return typeof value === "string" && VALID_MODES.includes(value as AppearanceMode);
+}
+
 export async function syncAppearanceFromDb(
   fallback: AppearanceMode = DEFAULT_APPEARANCE_MODE,
 ): Promise<AppearanceMode> {
@@ -95,9 +99,14 @@ export async function syncAppearanceFromDb(
       .from("user_settings")
       .select("appearance_mode")
       .maybeSingle();
-    const normalized = normalizeAppearanceMode(data?.appearance_mode, fallback);
-    setStoredAppearanceModeLocalOnly(normalized);
-    return normalized;
+
+    if (isStoredAppearanceMode(data?.appearance_mode)) {
+      setStoredAppearanceModeLocalOnly(data.appearance_mode);
+      return data.appearance_mode;
+    }
+
+    // No row or null column: keep existing local preference (do not overwrite with fallback).
+    return getStoredAppearanceMode(fallback);
   } catch {
     return getStoredAppearanceMode(fallback);
   }
