@@ -18,7 +18,6 @@ import { shuffleArray } from "@/lib/array-utils";
 
 const PRIMARY_COLOR = "#16a34a";
 const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
-const PRIMARY_TEXT = "#166534";
 const ERROR_COLOR = "#f87171";
 const ERROR_LIGHT = "rgba(248, 113, 113, 0.1)";
 const ERROR_BG_STRONG = "rgba(248, 113, 113, 0.2)";
@@ -117,33 +116,33 @@ function OptionButton({
   onSelect,
 }: OptionButtonProps) {
   const getBorderColor = () => {
-    if (showCorrect) return PRIMARY_COLOR;
-    if (showWrong) return ERROR_COLOR;
-    if (isSelected) return PRIMARY_COLOR;
-    return "rgba(31, 45, 31, 0.2)";
+    if (showCorrect) return "var(--primary)";
+    if (showWrong) return "var(--error-color)";
+    if (isSelected) return "var(--primary)";
+    return "var(--border-default)";
   };
 
   const getBackgroundColor = () => {
-    if (showCorrect) return PRIMARY_LIGHT;
-    if (showWrong) return ERROR_LIGHT;
-    if (isSelected) return PRIMARY_LIGHT;
-    return "white";
+    if (showCorrect) return "var(--primary-light)";
+    if (showWrong) return "var(--error-light)";
+    if (isSelected) return "var(--primary-light)";
+    return "var(--surface)";
   };
 
   const getBadgeStyles = () => {
     if (showCorrect || showWrong || isSelected) {
       return {
         backgroundColor: showCorrect
-          ? PRIMARY_COLOR
+          ? "var(--primary)"
           : showWrong
-            ? ERROR_COLOR
-            : PRIMARY_COLOR,
+            ? "var(--error-color)"
+            : "var(--primary)",
         color: "white",
       };
     }
     return {
-      backgroundColor: "rgba(31, 45, 31, 0.1)",
-      color: "#1f2d1f",
+      backgroundColor: "var(--surface-muted)",
+      color: "var(--foreground)",
     };
   };
 
@@ -253,30 +252,22 @@ function QuestionDisplay({
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-5 p-4 rounded-xl border"
-              style={{
-                backgroundColor: currentAnswer.isCorrect
-                  ? PRIMARY_LIGHT
-                  : ERROR_LIGHT,
-                borderColor: currentAnswer.isCorrect
-                  ? `${PRIMARY_COLOR}40`
-                  : ERROR_BORDER,
-              }}
+              className={`mt-5 p-4 rounded-xl border ${
+                currentAnswer.isCorrect
+                  ? "border-primary/40 bg-primary-light"
+                  : "border-error-border bg-error-light"
+              }`}
             >
               <div className="flex items-start gap-3">
                 {currentAnswer.isCorrect ? (
-                  <CheckCircle2
-                    className="w-5 h-5 flex-shrink-0 mt-0.5"
-                    style={{ color: PRIMARY_COLOR }}
-                  />
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary" />
                 ) : (
-                  <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <XCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
                 )}
                 <p
-                  className="text-sm leading-relaxed"
-                  style={{
-                    color: currentAnswer.isCorrect ? PRIMARY_TEXT : ERROR_TEXT,
-                  }}
+                  className={`text-sm leading-relaxed ${
+                    currentAnswer.isCorrect ? "text-slate-gray" : "text-error"
+                  }`}
                 >
                   {selectedOption.feedback}
                 </p>
