@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
+import { alertSuccess } from "@/lib/ui/status-badge-styles";
 
 type Role = "student" | "teacher" | "admin";
 
@@ -279,7 +280,7 @@ export default function AccountManagementPage() {
 
 
       {message && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 mb-4">
+        <p className={`${alertSuccess} mb-4`}>
           {message}
         </p>
       )}

@@ -26,13 +26,13 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
       {hasVisual && (
         <div className="space-y-2">
           {question.imageUrl && (
-            <div className="rounded-lg overflow-hidden border border-border-default bg-surface">
+            <div className="rounded-lg overflow-hidden border border-border-default bg-[var(--diagram-canvas)] p-3">
               <Image
                 src={question.imageUrl}
                 alt="Question illustration"
                 width={600}
                 height={400}
-                className="w-full object-contain max-h-64"
+                className="diagram-raster w-full object-contain max-h-64"
                 unoptimized
               />
             </div>

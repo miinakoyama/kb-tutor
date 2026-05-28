@@ -24,6 +24,26 @@ import type {
   DashboardSummary,
   ModeMetrics,
 } from "@/lib/analytics/teacher-dashboard-server";
+import {
+  accuracyTextClass,
+  accuracyTextClassLenient,
+  badgeAmber,
+  badgeEmerald,
+  badgeNeutral,
+  badgeRose,
+  barAmber,
+  barEmerald,
+  barRose,
+  chipActiveAmber,
+  chipActiveEmerald,
+  chipActiveRose,
+  chipActiveSlate,
+  chipInactiveAmber,
+  chipInactiveEmerald,
+  chipInactiveRose,
+  chipInactiveSlate,
+  textEmerald,
+} from "@/lib/ui/status-badge-styles";
 type RangeKey = "7d" | "30d" | "all";
 type ModeKey = "compare" | "practice" | "exam" | "review";
 type AttemptModeKey = "practice" | "exam" | "review";
@@ -241,7 +261,7 @@ function TeacherDashboardContent() {
           value={`${data.summary.completionRate}%`}
           helper={activeStudentsHelper(data.summary, mode)}
           icon={CheckCircle2}
-          accentClass="text-primary"
+          accentClass="text-primary dark:text-forest"
           bgClass="bg-primary/10"
         />
         {mode === "compare" ? (
@@ -271,7 +291,7 @@ function TeacherDashboardContent() {
         <StudentBreakdownCard summary={data.summary} />
       </section>
 
-      <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm mb-6">
+      <section className="rounded-2xl border border-border-default bg-surface shadow-sm mb-6">
         <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-gray">
@@ -411,7 +431,7 @@ function TeacherDashboardContent() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm">
+      <section className="rounded-2xl border border-border-default bg-surface shadow-sm">
         <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-slate-gray">
@@ -420,7 +440,7 @@ function TeacherDashboardContent() {
             {data.lowAndFastCount > 0 && (
               <button
                 onClick={() => setStudentFilter("low_and_fast")}
-                className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors hover:opacity-90 ${badgeRose}`}
               >
                 <AlertCircle className="w-3.5 h-3.5" />
                 {data.lowAndFastCount}{" "}
@@ -741,7 +761,7 @@ function KpiCard({
   bgClass: string;
 }) {
   return (
-    <article className="rounded-2xl border border-primary/20 bg-surface p-4 shadow-sm">
+    <article className="rounded-2xl border border-border-default bg-surface p-4 shadow-sm">
       <div className="flex items-start justify-between mb-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
@@ -760,14 +780,8 @@ function KpiCard({
 
 function ModeAccuracyCard({ summary }: { summary: DashboardSummary }) {
   const byMode = summary.byMode;
-  const toneClass = (accuracy: number, hasAttempts: boolean) => {
-    if (!hasAttempts) return "text-muted-foreground";
-    if (accuracy >= 70) return "text-emerald-700";
-    if (accuracy >= 55) return "text-amber-700";
-    return "text-rose-700";
-  };
   return (
-    <article className="rounded-2xl border border-primary/20 bg-surface p-4 shadow-sm">
+    <article className="rounded-2xl border border-border-default bg-surface p-4 shadow-sm">
       <div className="flex items-start justify-between mb-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Accuracy by Mode
@@ -787,7 +801,7 @@ function ModeAccuracyCard({ summary }: { summary: DashboardSummary }) {
               </span>
               <div className="flex items-baseline gap-2">
                 <span
-                  className={`text-base font-bold ${toneClass(metrics?.accuracy ?? 0, hasAttempts)}`}
+                  className={`text-base font-bold ${accuracyTextClass(metrics?.accuracy ?? 0, hasAttempts)}`}
                 >
                   {hasAttempts ? `${metrics?.accuracy ?? 0}%` : "—"}
                 </span>
@@ -822,7 +836,7 @@ function StudentBreakdownCard({ summary }: { summary: DashboardSummary }) {
     { label: "Not started", value: breakdown.notStarted, color: "#cbd5e1" },
   ];
   return (
-    <article className="rounded-2xl border border-primary/20 bg-surface p-4 shadow-sm">
+    <article className="rounded-2xl border border-border-default bg-surface p-4 shadow-sm">
       <div className="flex items-start justify-between mb-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Student Breakdown
@@ -923,25 +937,23 @@ function StatusChip({
   count?: number;
 }) {
   const toneClass: Record<string, string> = {
-    slate:
-      "border-slate-300 text-slate-gray bg-surface hover:bg-surface-muted",
-    emerald:
-      "border-emerald-200 text-emerald-700 bg-surface hover:bg-emerald-50",
-    amber: "border-amber-200 text-amber-700 bg-surface hover:bg-amber-50",
-    rose: "border-rose-200 text-rose-700 bg-surface hover:bg-rose-50",
+    slate: chipInactiveSlate,
+    emerald: chipInactiveEmerald,
+    amber: chipInactiveAmber,
+    rose: chipInactiveRose,
   };
   const activeClass: Record<string, string> = {
-    slate: "bg-slate-900 text-white border-slate-900",
-    emerald: "bg-emerald-600 text-white border-emerald-600",
-    amber: "bg-amber-500 text-white border-amber-500",
-    rose: "bg-rose-600 text-white border-rose-600",
+    slate: chipActiveSlate,
+    emerald: chipActiveEmerald,
+    amber: chipActiveAmber,
+    rose: chipActiveRose,
   };
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/40 focus-visible:ring-offset-1 ${
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 ${
         active ? activeClass[tone] : toneClass[tone]
       }`}
     >
@@ -967,15 +979,15 @@ function AccuracyBar({
   status: StandardRow["status"];
 }) {
   const colorMap: Record<StandardRow["status"], string> = {
-    on_track: "bg-emerald-500",
-    watch: "bg-amber-500",
-    needs_review: "bg-rose-500",
-    not_started: "bg-slate-300",
+    on_track: barEmerald,
+    watch: barAmber,
+    needs_review: barRose,
+    not_started: "bg-border-default",
   };
   const textMap: Record<StandardRow["status"], string> = {
-    on_track: "text-emerald-700",
-    watch: "text-amber-700",
-    needs_review: "text-rose-700",
+    on_track: textEmerald,
+    watch: "text-amber-700 dark:text-amber-300",
+    needs_review: "text-rose-700 dark:text-rose-300",
     not_started: "text-muted-foreground",
   };
   return (
@@ -1001,13 +1013,11 @@ function AccuracyValue({
   hasAttempts: boolean;
 }) {
   if (!hasAttempts) return <span className="text-muted-foreground">—</span>;
-  const tone =
-    value >= 70
-      ? "text-emerald-700"
-      : value >= 50
-        ? "text-amber-700"
-        : "text-rose-700";
-  return <span className={`font-semibold ${tone}`}>{value}%</span>;
+  return (
+    <span className={`font-semibold ${accuracyTextClassLenient(value, true)}`}>
+      {value}%
+    </span>
+  );
 }
 
 function ModeAccuracyCell({ metrics }: { metrics: ModeMetrics | undefined }) {
@@ -1019,15 +1029,11 @@ function ModeAccuracyCell({ metrics }: { metrics: ModeMetrics | undefined }) {
       </div>
     );
   }
-  const tone =
-    metrics.accuracy >= 70
-      ? "text-emerald-700"
-      : metrics.accuracy >= 55
-        ? "text-amber-700"
-        : "text-rose-700";
   return (
     <div className="flex flex-col items-center">
-      <span className={`text-sm font-semibold ${tone}`}>
+      <span
+        className={`text-sm font-semibold ${accuracyTextClass(metrics.accuracy, true)}`}
+      >
         {metrics.accuracy}%
       </span>
       <span className="text-[10px] text-muted-foreground">
@@ -1049,10 +1055,10 @@ function StandardStatusBadge({ status }: { status: StandardRow["status"] }) {
     not_started: "Not started",
   };
   const tone: Record<StandardRow["status"], string> = {
-    on_track: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    watch: "bg-amber-50 text-amber-700 border-amber-200",
-    needs_review: "bg-rose-50 text-rose-700 border-rose-200",
-    not_started: "bg-surface-muted text-muted-foreground border-border-default",
+    on_track: badgeEmerald,
+    watch: badgeAmber,
+    needs_review: badgeRose,
+    not_started: badgeNeutral,
   };
   return (
     <span
@@ -1072,10 +1078,10 @@ function StudentStatusBadge({ status }: { status: StudentRow["status"] }) {
     not_started: "Not started",
   };
   const tone: Record<StudentRow["status"], string> = {
-    on_track: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    watch: "bg-amber-50 text-amber-700 border-amber-200",
-    struggling: "bg-rose-50 text-rose-700 border-rose-200",
-    not_started: "bg-surface-muted text-muted-foreground border-border-default",
+    on_track: badgeEmerald,
+    watch: badgeAmber,
+    struggling: badgeRose,
+    not_started: badgeNeutral,
   };
   return (
     <span

@@ -7,6 +7,11 @@ import { LatexText } from "@/components/shared/LatexText";
 import type { Diagram } from "@/types/question";
 import { DataAnalysisTabs } from "../tabs";
 import { SchoolFilter } from "../school-filter";
+import {
+  badgeAmber,
+  badgeEmerald,
+  buttonOutlinePrimary,
+} from "@/lib/ui/status-badge-styles";
 
 type ModeSlice = {
   mode: string;
@@ -296,7 +301,7 @@ export default function QuestionQualityPage() {
           <button
             onClick={() => downloadQuestionsCsv(sortedRows)}
             disabled={sortedRows.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className={buttonOutlinePrimary}
           >
             <Download className="w-4 h-4" />
             Download CSV
@@ -384,7 +389,7 @@ export default function QuestionQualityPage() {
                                   key={badge.label}
                                   className={
                                     badge.tone === "warning"
-                                      ? "inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 px-2 py-0.5 text-[10px]"
+                                      ? `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${badgeAmber}`
                                       : "inline-flex items-center gap-1 rounded-full bg-surface-muted border border-border-default text-muted-foreground px-2 py-0.5 text-[10px]"
                                   }
                                 >
@@ -492,7 +497,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                     key={option.id}
                     className={`rounded-md border px-3 py-2 text-sm ${
                       isCorrect
-                        ? "border-green-200 bg-green-50 text-green-900"
+                        ? badgeEmerald
                         : "border-border-default bg-surface text-slate-gray"
                     }`}
                   >

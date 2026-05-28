@@ -5,6 +5,7 @@ import { Download, RefreshCw } from "lucide-react";
 import { DataAnalysisTabs } from "../tabs";
 import { DateRangePicker, defaultPilotRange } from "../date-range";
 import { SchoolFilter } from "../school-filter";
+import { alertAmber, buttonOutlinePrimary } from "@/lib/ui/status-badge-styles";
 
 interface Counter {
   n: number;
@@ -129,7 +130,7 @@ export default function FeatureUsagePage() {
             <button
               onClick={() => data && downloadFeatureUsageCsv(data, range)}
               disabled={!data}
-              className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={buttonOutlinePrimary}
             >
               <Download className="w-4 h-4" />
               Download CSV
@@ -145,7 +146,7 @@ export default function FeatureUsagePage() {
       )}
 
       {data?.meta.truncated && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 mb-4">
+        <p className={`${alertAmber} mb-4`}>
           Results are truncated at 50,000 events. Narrow the date range for a complete view.
         </p>
       )}

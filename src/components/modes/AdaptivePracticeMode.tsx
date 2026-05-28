@@ -1143,14 +1143,14 @@ export function AdaptivePracticeMode({
               }
               belowOptionsSlot={
                 showScaffold && question.focusHint && !isCompleted ? (
-                  <div className="mt-4 p-3 rounded-xl border border-primary/20 bg-primary/5">
+                  <div className="mt-4 rounded-xl border border-primary/25 bg-primary-light p-3">
                     <div className="flex items-start gap-2.5">
                       <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-0.5">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-forest mb-0.5">
                           Focus Hint
                         </p>
-                        <p className="text-sm text-slate-gray/80 leading-relaxed">{question.focusHint}</p>
+                        <p className="text-sm text-slate-gray leading-relaxed">{question.focusHint}</p>
                       </div>
                     </div>
                   </div>

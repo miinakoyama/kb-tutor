@@ -33,6 +33,7 @@ import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { badgeAmber, calloutAmber, calloutAmberIcon } from "@/lib/ui/status-badge-styles";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
@@ -1107,7 +1108,7 @@ export function ExamMode({
             data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
             className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-[13px] font-medium transition-colors ${
               answers[currentIndex]?.flagged
-                ? "text-amber-600 bg-amber-50 border border-amber-200"
+                ? badgeAmber
                 : "text-muted-foreground hover:text-muted-foreground border border-border-subtle hover:border-border-default"
             }`}
           >
@@ -1332,9 +1333,9 @@ function ConfirmDialog({
         </h3>
 
         {unansweredCount > 0 && (
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 mb-4">
-            <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-800">
+          <div className={`flex items-start gap-2 p-3 mb-4 ${calloutAmber}`}>
+            <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${calloutAmberIcon}`} />
+            <p className="text-sm text-slate-gray">
               You have {unansweredCount} unanswered{" "}
               {unansweredCount === 1 ? "question" : "questions"}.
             </p>

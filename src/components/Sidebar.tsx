@@ -465,7 +465,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       {/* Mobile / tablet top header bar */}
       <header
         className="lg:hidden fixed top-0 left-0 right-0 h-16 z-40 flex items-center px-4 shadow-sm"
-        style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
+        style={{ background: "var(--sidebar-gradient)" }}
       >
         <button
           onClick={() => setIsOpen(true)}
@@ -499,7 +499,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             exit={{ x: -280 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed left-0 top-0 bottom-0 w-64 z-50 lg:hidden shadow-xl"
-            style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
+            style={{ background: "var(--sidebar-gradient)" }}
           >
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
@@ -529,7 +529,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-hidden transition-all duration-300 ${
           isCollapsed ? "lg:w-14" : "lg:w-64"
         }`}
-        style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
+        style={{ background: "var(--sidebar-gradient)" }}
       >
         <div className="flex flex-col h-full w-full">{desktopSidebarContent}</div>
       </aside>

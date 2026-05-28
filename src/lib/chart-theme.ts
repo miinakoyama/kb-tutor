@@ -17,7 +17,7 @@ const LIGHT_CHART_COLORS: ChartThemeColors = {
 const DARK_CHART_COLORS: ChartThemeColors = {
   grid: "rgba(232, 240, 234, 0.12)",
   axis: "rgba(232, 240, 234, 0.55)",
-  primary: "#22c55e",
+  primary: "#3d9a62",
   surface: "#152018",
   foreground: "#e8f0ea",
 };
@@ -37,7 +37,7 @@ export function getChartThemeColors(resolvedTheme: "light" | "dark"): ChartTheme
     return {
       grid: read("--chart-grid", "rgba(232, 240, 234, 0.12)"),
       axis: read("--chart-axis", "rgba(232, 240, 234, 0.55)"),
-      primary: read("--primary", "#22c55e"),
+      primary: read("--primary", "#3d9a62"),
       surface: read("--surface", "#152018"),
       foreground: read("--foreground", "#e8f0ea"),
     };

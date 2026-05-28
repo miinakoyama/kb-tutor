@@ -5,6 +5,13 @@ import { Download, RefreshCw } from "lucide-react";
 import { DataAnalysisTabs } from "../tabs";
 import { DateRangePicker, defaultPilotRange } from "../date-range";
 import { SchoolFilter } from "../school-filter";
+import {
+  buttonOutlinePrimary,
+  metricCardGood,
+  metricCardNeutral,
+  metricCardWarn,
+  textAmber,
+} from "@/lib/ui/status-badge-styles";
 
 interface Counter {
   started: number;
@@ -225,7 +232,7 @@ export default function InsightsPage() {
           <button
             onClick={() => data && downloadInsightsCsv(data, range)}
             disabled={!data}
-            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className={buttonOutlinePrimary}
           >
             <Download className="w-4 h-4" />
             Download summary CSV
@@ -634,10 +641,10 @@ function MetricCard({
 }) {
   const ring =
     tone === "good"
-      ? "border-primary/30 bg-primary-light"
+      ? metricCardGood
       : tone === "warn"
-        ? "border-amber-200 bg-amber-50"
-        : "border-border-default bg-surface";
+        ? metricCardWarn
+        : metricCardNeutral;
   return (
     <article className={`rounded-xl border ${ring} p-4 shadow-sm`}>
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -658,7 +665,7 @@ function UpliftCell({ value }: { value: number }) {
 
 function GapCell({ value }: { value: number }) {
   const tone =
-    value > 0.25 ? "text-amber-700" : value > 0.1 ? "text-slate-gray" : "text-primary";
+    value > 0.25 ? textAmber : value > 0.1 ? "text-slate-gray" : "text-primary";
   return <span className={`tabular-nums font-medium ${tone}`}>{pctSigned(value)}</span>;
 }
 

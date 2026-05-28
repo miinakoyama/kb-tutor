@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Plus, School, Trash2, Users, X } from "lucide-react";
 import { formatExamDate } from "@/lib/keystone-exam";
+import { alertSuccess, badgeAmber } from "@/lib/ui/status-badge-styles";
 
 interface ProfileOption {
   id: string;
@@ -228,7 +229,7 @@ export default function SchoolManagementPage() {
       </header>
 
       {message && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 mb-4">
+        <p className={`${alertSuccess} mb-4`}>
           {message}
         </p>
       )}
@@ -281,7 +282,7 @@ export default function SchoolManagementPage() {
                         </span>
                       )}
                       {school.is_hidden && (
-                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badgeAmber}`}>
                           Hidden on student login
                         </span>
                       )}

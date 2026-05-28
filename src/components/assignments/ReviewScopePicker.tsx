@@ -7,6 +7,7 @@ import {
   type ModuleCode,
   type StandardInfo,
 } from "@/lib/standards";
+import { calloutAmber } from "@/lib/ui/status-badge-styles";
 
 export interface ReviewScope {
   standards: string[];
@@ -96,7 +97,7 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
+      <div className={`rounded-lg px-3 py-2 text-xs text-slate-gray ${calloutAmber}`}>
         Review mode pulls questions each student previously answered incorrectly,
         filtered to the standards you pick below. Since each standard belongs to a
         single topic, selecting a standard automatically scopes the topic too. No

@@ -7,6 +7,7 @@ import { BarChart3, CalendarDays, ClipboardList, List, Plus, Trash2, Users } fro
 import { AssignmentProgressPanel } from "@/components/assignments/AssignmentProgressPanel";
 import { formatDueDateTime } from "@/lib/due-date";
 import type { AssignmentProgressResponse } from "@/lib/analytics/assignment-progress";
+import { alertSuccess, badgeAmber } from "@/lib/ui/status-badge-styles";
 
 interface SchoolRow {
   id: string;
@@ -256,7 +257,7 @@ function AssignmentManagementContent() {
       </header>
 
       {message && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 mb-4">
+        <p className={`${alertSuccess} mb-4`}>
           {message}
         </p>
       )}
@@ -302,7 +303,7 @@ function AssignmentManagementContent() {
       </div>
 
       {tab === "list" ? (
-        <section className="rounded-xl border border-primary/25 bg-surface shadow-sm">
+        <section className="rounded-xl border border-border-default bg-surface shadow-sm">
           {isLoading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
               Loading assignments...
@@ -320,7 +321,7 @@ function AssignmentManagementContent() {
               </Link>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border-subtle">
               {assignments.map((assignment) => {
                 const attemptCount = assignment.attempt_count ?? 0;
                 const respondentCount = assignment.respondent_count ?? 0;
@@ -351,7 +352,7 @@ function AssignmentManagementContent() {
                           </span>
                           {attemptCount > 0 && (
                             <span
-                              className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full"
+                              className={`flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium border px-2 py-0.5 rounded-full ${badgeAmber}`}
                               title={`${respondentCount} students answered, ${attemptCount} attempts`}
                             >
                               <Users className="w-3 h-3" />

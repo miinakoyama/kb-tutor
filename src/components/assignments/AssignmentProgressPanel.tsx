@@ -14,6 +14,17 @@ import {
   type StudentAssignmentProgress,
 } from "@/lib/analytics/assignment-progress";
 import { downloadAssignmentProgressCsv } from "@/lib/csv/assignment-progress";
+import {
+  badgeAmber,
+  badgeEmerald,
+  badgeRose,
+  barAmber,
+  barEmerald,
+  barRose,
+  textAmber,
+  textEmerald,
+  textRose,
+} from "@/lib/ui/status-badge-styles";
 
 const SORT_OPTIONS: { value: AssignmentProgressRowSortKey; label: string }[] = [
   {
@@ -69,7 +80,7 @@ export function AssignmentProgressPanel({
 
   return (
     <section
-      className={`rounded-2xl border border-primary/25 bg-surface shadow-sm ${className}`.trim()}
+      className={`rounded-2xl border border-border-default bg-surface shadow-sm ${className}`.trim()}
     >
       <div className="border-b border-border-subtle px-5 py-4">
         <h2 className="text-lg font-semibold text-slate-gray">Assignment progress</h2>
@@ -82,7 +93,7 @@ export function AssignmentProgressPanel({
       </div>
 
       {errorMessage && !isLoading ? (
-        <p className="mx-5 mt-3 rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-red-800">
+        <p className="mx-5 mt-3 rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error">
           {errorMessage}
         </p>
       ) : null}
@@ -273,7 +284,7 @@ function AssignmentHeaderCell({
       <span className="text-[10px] font-normal text-muted-foreground">
         {dueLabel ? `Due ${dueLabel}` : "No due date"}
       </span>
-      <span className="text-[10px] font-normal text-emerald-700">
+      <span className={`text-[10px] font-normal ${textEmerald}`}>
         {assignment.completedCount}/{assignment.totalTargets} ({completionPct}%)
       </span>
     </div>
@@ -296,9 +307,9 @@ function ProgressStatusCell({
     );
   }
   const tone: Record<AssignmentProgressStatus, string> = {
-    completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    in_progress: "bg-amber-50 text-amber-700 border-amber-200",
-    not_started: "bg-rose-50 text-rose-700 border-rose-200",
+    completed: badgeEmerald,
+    in_progress: badgeAmber,
+    not_started: badgeRose,
   };
   const icon: Record<AssignmentProgressStatus, ReactNode> = {
     completed: <CheckCircle2 className="h-3 w-3" />,
@@ -319,7 +330,7 @@ function ProgressStatusCell({
       {icon[progress.status]}
       {label[progress.status]}
       {progress.status === "in_progress" && progress.totalQuestions != null && (
-        <span className="ml-0.5 text-[10px] font-normal text-amber-700/80">
+        <span className={`ml-0.5 text-[10px] font-normal ${textAmber} opacity-80`}>
           {progress.answeredCount}/{progress.totalQuestions}
         </span>
       )}
@@ -360,14 +371,14 @@ function ProgressTotalCard({
 }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   const barTone: Record<"emerald" | "amber" | "rose", string> = {
-    emerald: "bg-emerald-500",
-    amber: "bg-amber-500",
-    rose: "bg-rose-500",
+    emerald: barEmerald,
+    amber: barAmber,
+    rose: barRose,
   };
   const textTone: Record<"emerald" | "amber" | "rose", string> = {
-    emerald: "text-emerald-700",
-    amber: "text-amber-700",
-    rose: "text-rose-700",
+    emerald: textEmerald,
+    amber: textAmber,
+    rose: textRose,
   };
   return (
     <div className="rounded-xl border border-border-default bg-surface-muted p-3">

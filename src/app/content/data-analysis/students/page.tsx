@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { DataAnalysisTabs } from "../tabs";
 import { DateRangePicker, defaultPilotRange } from "../date-range";
 import { SchoolFilter } from "../school-filter";
+import { badgeEmerald, buttonOutlinePrimary } from "@/lib/ui/status-badge-styles";
 
 interface Summary {
   schools: number;
@@ -146,7 +147,7 @@ function StudentsInner() {
           </button>
           <a
             href={csvHref}
-            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-green-50 transition-colors"
+            className={buttonOutlinePrimary}
           >
             <Download className="w-4 h-4" />
             Download CSV
@@ -205,7 +206,7 @@ function StudentsInner() {
                       <span
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
                           row.isCorrect
-                            ? "bg-green-50 text-green-700 border border-green-200"
+                            ? badgeEmerald
                             : "bg-error-light text-error border border-error-border"
                         }`}
                       >

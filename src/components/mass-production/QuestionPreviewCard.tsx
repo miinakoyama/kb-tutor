@@ -13,6 +13,13 @@ import type { Question } from "@/types/question";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { LatexText } from "@/components/shared/LatexText";
 import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
+import {
+  calloutPrimary,
+  calloutPrimaryBody,
+  calloutPrimaryTitle,
+  optionPanelCorrect,
+  optionPanelNeutral,
+} from "@/lib/ui/status-badge-styles";
 
 interface QuestionPreviewCardProps {
   question: Question;
@@ -165,11 +172,9 @@ export function QuestionPreviewCard({
               return (
                 <div
                   key={option.id}
-                  className={`p-3 rounded-lg text-sm ${
-                    isCorrect
-                      ? "bg-primary/5 border border-primary/20"
-                      : "bg-slate-gray/5"
-                  }`}
+                  className={
+                    isCorrect ? optionPanelCorrect : optionPanelNeutral
+                  }
                 >
                   <div className="flex items-start gap-2">
                     <span
@@ -201,18 +206,18 @@ export function QuestionPreviewCard({
           </div>
 
           {question.keyKnowledge && (
-            <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
-              <p className="text-xs font-semibold text-primary mb-1">Key Knowledge</p>
-              <p className="text-sm text-slate-gray">
+            <div className={`mt-4 ${calloutPrimary}`}>
+              <p className={calloutPrimaryTitle}>Key Knowledge</p>
+              <p className={calloutPrimaryBody}>
                 <LatexText text={question.keyKnowledge} />
               </p>
             </div>
           )}
 
           {question.focusHint && (
-            <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-xs font-semibold text-blue-700 mb-1">Focus Hint</p>
-              <p className="text-sm text-blue-800">
+            <div className={`mt-2 ${calloutPrimary}`}>
+              <p className={calloutPrimaryTitle}>Focus Hint</p>
+              <p className={calloutPrimaryBody}>
                 <LatexText text={question.focusHint} />
               </p>
             </div>

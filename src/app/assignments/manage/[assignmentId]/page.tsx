@@ -22,6 +22,15 @@ import {
   formatDueDateTime,
   isoToDateTimeLocalValue,
 } from "@/lib/due-date";
+import {
+  alertSuccess,
+  badgeAmber,
+  badgeEmerald,
+  badgeNeutral,
+  statCardBase,
+  statCardHighlight,
+  textAmber,
+} from "@/lib/ui/status-badge-styles";
 
 type AssignmentMode = "practice" | "exam" | "review";
 type SourceType = "existing_set" | "generated_now" | "manual";
@@ -335,7 +344,7 @@ function AssignmentDetailContent({
       </header>
 
       {message && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        <p className={alertSuccess}>
           {message}
         </p>
       )}
@@ -521,20 +530,14 @@ function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-lg border px-4 py-3 ${
-        highlight
-          ? "border-amber-200 bg-amber-50"
-          : "border-border-default bg-surface"
-      }`}
-    >
+    <div className={highlight ? statCardHighlight : statCardBase}>
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
         {icon}
         {label}
       </div>
       <p
         className={`text-2xl font-semibold ${
-          highlight ? "text-amber-700" : "text-slate-gray"
+          highlight ? textAmber : "text-slate-gray"
         }`}
       >
         {value}
@@ -709,9 +712,9 @@ function StudentProgressSection({
   const formerCount = sortedStudents.length - currentCount;
 
   const statusStyles: Record<StudentProgressStatus, string> = {
-    not_started: "bg-surface-muted text-foreground border-border-default",
-    in_progress: "bg-amber-50 text-amber-700 border-amber-200",
-    completed: "bg-green-50 text-green-700 border-green-200",
+    not_started: badgeNeutral,
+    in_progress: badgeAmber,
+    completed: badgeEmerald,
   };
 
   const statusLabel: Record<StudentProgressStatus, string> = {

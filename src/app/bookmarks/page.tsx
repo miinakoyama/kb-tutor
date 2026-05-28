@@ -14,6 +14,17 @@ import {
 import { fetchBookmarkIds, removeBookmark } from "@/lib/storage";
 import { useQuestions } from "@/hooks/useQuestions";
 import type { Question } from "@/types/question";
+import {
+  calloutAmber,
+  calloutAmberIcon,
+  calloutAmberTitleUpper,
+  calloutInfo,
+  calloutInfoIcon,
+  calloutInfoTitleUpper,
+  calloutPrimary,
+  calloutPrimaryBody,
+  calloutPrimaryTitleUpper,
+} from "@/lib/ui/status-badge-styles";
 
 interface BookmarkedQuestion {
   question: Question;
@@ -213,14 +224,14 @@ export default function BookmarksPage() {
                             </div>
 
                             {question.explanation && (
-                              <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
+                              <div className={`p-4 ${calloutInfo}`}>
                                 <div className="flex items-start gap-2">
-                                  <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                                  <CheckCircle2 className={`w-4 h-4 flex-shrink-0 mt-0.5 ${calloutInfoIcon}`} />
                                   <div>
-                                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                                    <p className={calloutInfoTitleUpper}>
                                       Explanation
                                     </p>
-                                    <p className="text-sm text-blue-800">
+                                    <p className="text-sm text-slate-gray">
                                       {question.explanation}
                                     </p>
                                   </div>
@@ -229,14 +240,14 @@ export default function BookmarksPage() {
                             )}
 
                             {question.keyKnowledge && (
-                              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                              <div className={`p-4 ${calloutPrimary}`}>
                                 <div className="flex items-start gap-2">
                                   <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                                   <div>
-                                    <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1">
+                                    <p className={calloutPrimaryTitleUpper}>
                                       Key Knowledge
                                     </p>
-                                    <p className="text-sm text-slate-gray">
+                                    <p className={calloutPrimaryBody}>
                                       {question.keyKnowledge}
                                     </p>
                                   </div>
@@ -245,14 +256,14 @@ export default function BookmarksPage() {
                             )}
 
                             {question.commonMisconception && (
-                              <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                              <div className={`p-4 ${calloutAmber}`}>
                                 <div className="flex items-start gap-2">
-                                  <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${calloutAmberIcon}`} />
                                   <div>
-                                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">
+                                    <p className={calloutAmberTitleUpper}>
                                       Common Misconception
                                     </p>
-                                    <p className="text-sm text-amber-800">
+                                    <p className="text-sm text-slate-gray">
                                       {question.commonMisconception}
                                     </p>
                                   </div>

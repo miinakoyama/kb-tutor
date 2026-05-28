@@ -23,6 +23,7 @@ import {
   type KeystoneExamInfo,
 } from "@/lib/keystone-exam";
 import { AssignmentModeBadge } from "@/components/assignments/AssignmentModeBadge";
+import { badgeAmber } from "@/lib/ui/status-badge-styles";
 
 interface HomePageContentProps {
   assignments: StudentAssignmentListItem[];
@@ -232,7 +233,7 @@ function getCountdownTone(days: number): {
     return {
       accent: {
         border: "border-error-border",
-        bg: "bg-gradient-to-r from-red-50 to-orange-50",
+        bg: "bg-gradient-to-r from-red-50 to-orange-50 dark:from-rose-950/50 dark:to-orange-950/40",
         iconBg: "bg-error-light",
         iconText: "text-error",
         label: "text-error",
@@ -248,26 +249,26 @@ function getCountdownTone(days: number): {
   if (days <= 30) {
     return {
       accent: {
-        border: "border-amber-300",
-        bg: "bg-gradient-to-r from-amber-50 to-yellow-50",
-        iconBg: "bg-amber-100",
-        iconText: "text-amber-600",
-        label: "text-amber-700",
-        headline: "text-amber-700",
-        text: "text-amber-800/90",
+        border: "border-amber-300 dark:border-amber-700/40",
+        bg: "bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/45 dark:to-amber-950/30",
+        iconBg: "bg-amber-100 dark:bg-amber-900/50",
+        iconText: "text-amber-600 dark:text-amber-300",
+        label: "text-amber-700 dark:text-amber-300",
+        headline: "text-amber-700 dark:text-amber-200",
+        text: "text-amber-800/90 dark:text-amber-200/80",
       },
       subtitle: "The exam is coming up. Keep your streak going!",
     };
   }
   return {
     accent: {
-      border: "border-primary/40",
-      bg: "bg-gradient-to-r from-emerald-50 to-green-50",
+      border: "border-primary/40 dark:border-primary-border",
+      bg: "bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-emerald-950/30",
       iconBg: "bg-primary/15",
       iconText: "text-primary",
-      label: "text-primary-hover",
+      label: "text-primary-hover dark:text-forest",
       headline: "text-heading",
-      text: "text-heading/80",
+      text: "text-heading/80 dark:text-muted-foreground",
     },
     subtitle: "Plenty of time — steady practice builds confidence.",
   };
@@ -352,7 +353,9 @@ function StatusDot({ status }: { status: StudentAssignmentStatus }) {
   }
   if (status === "in_progress") {
     return (
-      <span className="inline-flex text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
+      <span
+        className={`inline-flex border px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeAmber}`}
+      >
         In progress
       </span>
     );

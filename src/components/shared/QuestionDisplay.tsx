@@ -120,13 +120,15 @@ export function QuestionDisplay({
         </div>
 
         {question.imageUrl && (
-          <div className={`rounded-lg overflow-hidden ${compactLayout ? "my-3" : "my-4"}`}>
+          <div
+            className={`rounded-lg overflow-hidden bg-[var(--diagram-canvas)] p-3 ${compactLayout ? "my-3" : "my-4"}`}
+          >
             <Image
               src={question.imageUrl}
               alt="Question illustration"
               width={600}
               height={400}
-              className={`w-full object-contain ${compactLayout ? "max-h-[220px]" : "max-h-[300px]"}`}
+              className={`diagram-raster w-full object-contain ${compactLayout ? "max-h-[220px]" : "max-h-[300px]"}`}
             />
           </div>
         )}

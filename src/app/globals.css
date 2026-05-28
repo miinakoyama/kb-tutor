@@ -23,6 +23,10 @@
   --input-bg: #ffffff;
   --chart-grid: rgba(31, 45, 31, 0.12);
   --chart-axis: rgba(31, 45, 31, 0.55);
+  --diagram-canvas: var(--surface-muted);
+  --diagram-node-fill: #ffffff;
+  --diagram-ink: #1f2d1f;
+  --sidebar-gradient: linear-gradient(135deg, #166534 0%, #15803d 100%);
 }
 
 .dark {
@@ -30,13 +34,15 @@
   --foreground: #e8f0ea;
   --surface: #152018;
   --surface-muted: #1a2820;
-  --heading: #86efac;
-  --forest: #4ade80;
+  /* Softer than light-mode heading: readable accent without neon glow on dark UI */
+  --heading: #c5d9cc;
+  --forest: #8fbf9f;
   --muted-foreground: rgba(232, 240, 234, 0.68);
-  --primary: #22c55e;
-  --primary-hover: #16a34a;
-  --primary-light: rgba(34, 197, 94, 0.15);
-  --primary-border: rgba(34, 197, 94, 0.45);
+  /* Muted primary for solid buttons/links — less saturated than light theme */
+  --primary: #3d9a62;
+  --primary-hover: #348554;
+  --primary-light: rgba(61, 154, 98, 0.14);
+  --primary-border: rgba(143, 191, 159, 0.35);
   --border-default: rgba(232, 240, 234, 0.16);
   --border-subtle: rgba(232, 240, 234, 0.08);
   --error-color: #fca5a5;
@@ -45,6 +51,11 @@
   --input-bg: #1a2820;
   --chart-grid: rgba(232, 240, 234, 0.12);
   --chart-axis: rgba(232, 240, 234, 0.55);
+  --diagram-canvas: #121c16;
+  --diagram-node-fill: #1e2e24;
+  --diagram-ink: #e8f0ea;
+  /* Slightly darker sidebar gradient — same brand, less glare next to dark content */
+  --sidebar-gradient: linear-gradient(135deg, #0f3d24 0%, #14532d 100%);
 }
 
 @theme inline {
@@ -99,4 +110,10 @@ body {
 .dark .katex .mclose,
 .dark .katex .mpunct {
   color: inherit;
+}
+
+/* Black-on-transparent diagram assets → light strokes on dark canvas */
+.dark .diagram-raster {
+  filter: invert(1);
+  opacity: 0.94;
 }

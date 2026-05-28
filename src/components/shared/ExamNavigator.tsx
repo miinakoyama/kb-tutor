@@ -40,9 +40,9 @@ export function ExamNavigator({
   });
 
   return (
-    <div className="rounded-2xl border border-primary/30 bg-surface shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-border-default bg-surface shadow-sm overflow-hidden">
       <div className="px-5 pt-5 pb-3">
-        <h3 className="text-base font-semibold text-slate-gray mb-1">Questions</h3>
+        <h3 className="text-base font-semibold text-foreground mb-1">Questions</h3>
         <p className="text-sm text-muted-foreground">
           {answeredCount} answered · {unansweredCount} unanswered
         </p>
@@ -55,8 +55,8 @@ export function ExamNavigator({
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors rounded-t-lg ${
               activeTab === tab.id
-                ? "text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-muted-foreground"
+                ? "text-forest border-b-2 border-primary"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.label} ({tab.count})
@@ -80,19 +80,19 @@ export function ExamNavigator({
                 onClick={() => onNavigate(i)}
                 aria-label={ariaLabel}
                 aria-current={isCurrent ? "true" : undefined}
-                className={`relative w-full aspect-square min-h-[44px] rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heading/50 flex items-center justify-center ${
+                className={`relative w-full aspect-square min-h-[44px] rounded-lg text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 flex items-center justify-center ${
+                  answered
+                    ? "bg-primary-light text-foreground"
+                    : "bg-surface-muted text-muted-foreground hover:bg-foreground/5"
+                } ${
                   isCurrent
-                    ? "ring-2 ring-heading ring-offset-1"
-                    : ""
+                    ? "ring-2 ring-primary ring-offset-2 ring-offset-surface"
+                    : "border border-border-subtle"
                 }`}
-                style={{
-                  backgroundColor: answered ? "rgba(20, 83, 45, 0.15)" : "#f1f5f9",
-                  color: answered ? "#14532d" : "#64748b",
-                }}
               >
                 {i + 1}
                 {answered && (
-                  <Check className="absolute -bottom-0.5 -right-0.5 w-3 h-3 text-white bg-heading rounded-full p-0.5" strokeWidth={3} />
+                  <Check className="absolute -bottom-0.5 -right-0.5 w-3 h-3 text-white bg-primary rounded-full p-0.5" strokeWidth={3} />
                 )}
                 {isFlagged && (
                   <Flag className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 text-amber-500 fill-amber-500" />

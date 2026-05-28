@@ -213,13 +213,13 @@ function QuestionDisplay({
           </div>
 
           {question.imageUrl && (
-            <div className="my-4 rounded-lg overflow-hidden">
+            <div className="my-4 rounded-lg overflow-hidden bg-[var(--diagram-canvas)] p-3">
               <Image
                 src={question.imageUrl}
                 alt="Question illustration"
                 width={600}
                 height={400}
-                className="object-contain"
+                className="diagram-raster object-contain"
               />
             </div>
           )}

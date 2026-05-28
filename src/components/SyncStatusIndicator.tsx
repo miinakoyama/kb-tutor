@@ -9,6 +9,7 @@ import {
   subscribeSyncStatus,
   type SyncStatus,
 } from "@/lib/sync-queue";
+import { badgeAmber, badgeViolet } from "@/lib/ui/status-badge-styles";
 
 /**
  * Minimal pill at the top-right. We intentionally stay silent during the
@@ -95,14 +96,14 @@ function render(status: SyncStatus): {
       const count = status.queuedCount;
       const label = `Still saving ${count} item${count === 1 ? "" : "s"}…`;
       return {
-        tone: "border-amber-200 bg-amber-50/95 text-amber-800",
+        tone: badgeAmber,
         icon: <RefreshCw className="size-3.5 animate-spin" aria-hidden />,
         label,
         action: (
           <button
             type="button"
             onClick={() => void retryAllPending()}
-            className="ml-1 rounded-full border border-amber-300 bg-surface/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 hover:bg-surface"
+            className="ml-1 rounded-full border border-border-default bg-surface/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground hover:bg-surface-muted"
           >
             Retry now
           </button>
@@ -120,7 +121,7 @@ function render(status: SyncStatus): {
       };
     case "failed":
       return {
-        tone: "border-violet-300 bg-violet-50/95 text-violet-800",
+        tone: badgeViolet,
         icon: <TriangleAlert className="size-3.5" aria-hidden />,
         label: `Couldn't sync ${status.queuedCount} item${
           status.queuedCount === 1 ? "" : "s"
