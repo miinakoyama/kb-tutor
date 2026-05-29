@@ -186,11 +186,11 @@ export default function QuestionsPage() {
   const getSourceIcon = (source: QuestionSource) => {
     switch (source) {
       case "manual":
-        return <FileText className="w-5 h-5 text-slate-gray/70" />;
+        return <FileText className="w-5 h-5 text-muted-foreground" />;
       case "imported":
-        return <FileText className="w-5 h-5 text-slate-gray/70" />;
+        return <FileText className="w-5 h-5 text-muted-foreground" />;
       case "generated":
-        return <Sparkles className="w-5 h-5 text-[#16a34a]" />;
+        return <Sparkles className="w-5 h-5 text-primary" />;
     }
   };
 
@@ -208,7 +208,7 @@ export default function QuestionsPage() {
   if (loadingSchools) {
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex justify-center">
-        <Loader2 className="w-8 h-8 text-[#16a34a] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </main>
     );
   }
@@ -217,10 +217,10 @@ export default function QuestionsPage() {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/content"
-        className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-6"
+        className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"
       >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-          <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+          <ArrowLeft className="w-4 h-4 text-heading" />
         </span>
         Back to Content Management
       </Link>
@@ -228,7 +228,7 @@ export default function QuestionsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-gray">Question Manager</h1>
-          <p className="text-sm text-slate-gray/70">
+          <p className="text-sm text-muted-foreground">
             {selectedSchoolId
               ? filteredSetCount !== totalSetCount || searchQuery.trim() || onlyMySets
                 ? `Showing ${filteredSetCount} of ${totalSetCount} set(s) for the selected school`
@@ -240,7 +240,7 @@ export default function QuestionsPage() {
           <button
             type="button"
             onClick={() => setAddMenuOpen((o) => !o)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-[#16a34a] hover:bg-[#15803d] transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-primary hover:bg-primary-hover transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add new
@@ -253,17 +253,17 @@ export default function QuestionsPage() {
                 aria-label="Close menu"
                 onClick={() => setAddMenuOpen(false)}
               />
-              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-slate-200 bg-white shadow-lg z-20 py-1">
+              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border-default bg-surface shadow-lg z-20 py-1">
                 <Link
                   href={
                     selectedSchoolId
                       ? `/content/mass-production?schoolIds=${encodeURIComponent(selectedSchoolId)}`
                       : "/content/mass-production"
                   }
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-[#16a34a]/10"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-primary/10"
                   onClick={() => setAddMenuOpen(false)}
                 >
-                  <Sparkles className="w-4 h-4 text-[#16a34a]" />
+                  <Sparkles className="w-4 h-4 text-primary" />
                   Generate with AI
                 </Link>
                 <Link
@@ -272,10 +272,10 @@ export default function QuestionsPage() {
                       ? `/content/questions/new/manual?schoolIds=${encodeURIComponent(selectedSchoolId)}`
                       : "/content/questions/new/manual"
                   }
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-[#16a34a]/10"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-primary/10"
                   onClick={() => setAddMenuOpen(false)}
                 >
-                  <FileText className="w-4 h-4 text-[#16a34a]" />
+                  <FileText className="w-4 h-4 text-primary" />
                   Add manually
                 </Link>
               </div>
@@ -285,7 +285,7 @@ export default function QuestionsPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-error-border bg-error-light px-4 py-2 text-sm text-error">
           {error}
         </div>
       )}
@@ -298,7 +298,7 @@ export default function QuestionsPage() {
           <select
             value={selectedSchoolId ?? ""}
             onChange={(e) => setSelectedSchoolId(e.target.value || null)}
-            className="min-w-[220px] border border-slate-gray/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50"
+            className="min-w-[220px] border border-border-default rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             {schools.length === 0 ? (
               <option value="">No schools available</option>
@@ -312,13 +312,13 @@ export default function QuestionsPage() {
           </select>
         </div>
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-gray/40" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search question sets..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-sm"
+            className="w-full pl-10 pr-4 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
           />
         </div>
         <div className="flex h-10 items-center">
@@ -327,7 +327,7 @@ export default function QuestionsPage() {
               type="checkbox"
               checked={onlyMySets}
               onChange={(e) => setOnlyMySets(e.target.checked)}
-              className="rounded border-slate-gray/30 text-[#16a34a]"
+              className="rounded border-border-default text-primary"
             />
             Show only my sets
           </label>
@@ -336,7 +336,7 @@ export default function QuestionsPage() {
 
       {loadingSets ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="w-8 h-8 text-[#16a34a] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       ) : (
         <div className="space-y-3">
@@ -345,7 +345,7 @@ export default function QuestionsPage() {
             return (
               <div
                 key={set.id}
-                className="rounded-xl border border-[#16a34a]/30 bg-white p-4 shadow-sm"
+                className="rounded-xl border border-primary/30 bg-surface p-4 shadow-sm"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <Link
@@ -360,39 +360,39 @@ export default function QuestionsPage() {
                       {getSourceIcon(set.source)}
                     </div>
                     <div className="min-w-0">
-                      <h2 className="font-medium text-slate-gray group-hover:text-[#16a34a] transition-colors truncate">
+                      <h2 className="font-medium text-slate-gray group-hover:text-primary transition-colors truncate">
                         {set.name}
                       </h2>
                       <div className="flex flex-wrap items-center gap-3 mt-1">
-                        <span className="text-xs text-[#16a34a] bg-[#16a34a]/10 px-2 py-0.5 rounded">
+                        <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">
                           {getSourceLabel(set.source)}
                         </span>
                         {set.createdAt && (
-                          <span className="text-xs text-slate-gray/50">
+                          <span className="text-xs text-muted-foreground">
                             {new Date(set.createdAt).toLocaleDateString()}
                           </span>
                         )}
                         {row && (
-                          <span className="text-xs text-slate-gray/50">
+                          <span className="text-xs text-muted-foreground">
                             Created by: {row.creatorName}
                           </span>
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-[#16a34a] shrink-0" />
+                    <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-primary shrink-0" />
                   </Link>
                   <div className="flex flex-wrap items-center gap-3 sm:justify-end">
                     <button
                       type="button"
                       onClick={(e) => void handleRemoveFromSchool(e, set.id)}
-                      className="text-xs font-medium text-slate-gray hover:text-red-600 px-2 py-1"
+                      className="text-xs font-medium text-slate-gray hover:text-error px-2 py-1"
                     >
                       Remove from school
                     </button>
                     <button
                       type="button"
                       onClick={(e) => void handleDeleteSetEverywhere(e, set.id)}
-                      className="p-2 rounded-lg text-slate-gray/40 hover:text-red-500 hover:bg-red-50"
+                      className="p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-error-light"
                       title="Delete set entirely"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -405,14 +405,14 @@ export default function QuestionsPage() {
 
           {filteredSets.length === 0 && selectedSchoolId && (
             <div className="text-center py-12">
-              <p className="text-slate-gray/60 mb-4">
+              <p className="text-muted-foreground mb-4">
                 {searchQuery
                   ? "No question sets found matching your search."
                   : onlyMySets
                     ? "No question sets created by you match this view."
                   : "No question sets linked to this school yet."}
               </p>
-              <p className="text-sm text-slate-gray/50 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Use Add new to generate with AI or add questions manually, and
                 select this school when saving.
               </p>

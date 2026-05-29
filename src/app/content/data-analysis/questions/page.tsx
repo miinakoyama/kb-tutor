@@ -7,6 +7,11 @@ import { LatexText } from "@/components/shared/LatexText";
 import type { Diagram } from "@/types/question";
 import { DataAnalysisTabs } from "../tabs";
 import { SchoolFilter } from "../school-filter";
+import {
+  badgeAmber,
+  badgeEmerald,
+  buttonOutlinePrimary,
+} from "@/lib/ui/status-badge-styles";
 
 type ModeSlice = {
   mode: string;
@@ -248,14 +253,14 @@ export default function QuestionQualityPage() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
           Question Quality Diagnostics
         </h1>
       </header>
 
       <DataAnalysisTabs active="questions" />
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
           <label className="text-sm text-slate-gray">
@@ -263,7 +268,7 @@ export default function QuestionQualityPage() {
             <select
               value={standardFilter}
               onChange={(event) => setStandardFilter(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              className="w-full rounded-lg border border-border-default px-3 py-2"
             >
               <option value="">All standards</option>
               {standards.map((standard) => (
@@ -280,7 +285,7 @@ export default function QuestionQualityPage() {
               min={0}
               value={minN}
               onChange={(event) => setMinN(Math.max(0, Number.parseInt(event.target.value, 10) || 0))}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              className="w-full rounded-lg border border-border-default px-3 py-2"
             />
           </label>
         </div>
@@ -288,7 +293,7 @@ export default function QuestionQualityPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -296,35 +301,35 @@ export default function QuestionQualityPage() {
           <button
             onClick={() => downloadQuestionsCsv(sortedRows)}
             disabled={sortedRows.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className={buttonOutlinePrimary}
           >
             <Download className="w-4 h-4" />
             Download CSV
           </button>
-          <span className="text-xs text-slate-gray/60">
+          <span className="text-xs text-muted-foreground">
             {sortedRows.length} question{sortedRows.length === 1 ? "" : "s"} shown
           </span>
         </div>
       </section>
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
           {error}
         </p>
       )}
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm overflow-hidden">
+      <section className="rounded-xl border border-primary/25 bg-surface shadow-sm overflow-hidden">
         {loading ? (
-          <p className="p-6 text-sm text-slate-gray/70">Loading question stats...</p>
+          <p className="p-6 text-sm text-muted-foreground">Loading question stats...</p>
         ) : sortedRows.length === 0 ? (
-          <p className="p-6 text-sm text-slate-gray/70">
+          <p className="p-6 text-sm text-muted-foreground">
             No question attempts match the current filters.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-500">
+                <tr className="border-b border-border-default text-left text-muted-foreground">
                   <th className="w-8 px-2 py-2"></th>
                   <SortHeader label="Question" active={sortKey === "questionId"} onClick={() => toggleSort("questionId")} indicator={sortIndicator("questionId")} />
                   <SortHeader label="Standard" active={sortKey === "standardId"} onClick={() => toggleSort("standardId")} indicator={sortIndicator("standardId")} />
@@ -345,10 +350,10 @@ export default function QuestionQualityPage() {
                   return (
                     <Fragment key={row.questionId}>
                       <tr
-                        className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                        className="border-b border-border-subtle hover:bg-surface-muted cursor-pointer"
                         onClick={() => setExpandedId(isExpanded ? null : row.questionId)}
                       >
-                        <td className="px-2 py-2 text-slate-gray/60">
+                        <td className="px-2 py-2 text-muted-foreground">
                           {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </td>
                         <td className="px-2 py-2 font-mono text-xs text-slate-gray/80 max-w-[220px] truncate" title={row.questionId}>
@@ -360,7 +365,7 @@ export default function QuestionQualityPage() {
                         <td className="px-2 py-2 whitespace-nowrap">{row.totalAttempts}</td>
                         <td className="px-2 py-2 whitespace-nowrap">
                           {formatPercent(row.overall.accuracy)}
-                          <span className="ml-1 text-xs text-slate-gray/60">
+                          <span className="ml-1 text-xs text-muted-foreground">
                             ({row.overall.correct}/{row.overall.attempts})
                           </span>
                         </td>
@@ -377,15 +382,15 @@ export default function QuestionQualityPage() {
                         <td className="px-2 py-2">
                           <div className="flex flex-wrap gap-1">
                             {badges.length === 0 ? (
-                              <span className="text-xs text-slate-gray/50">-</span>
+                              <span className="text-xs text-muted-foreground">-</span>
                             ) : (
                               badges.map((badge) => (
                                 <span
                                   key={badge.label}
                                   className={
                                     badge.tone === "warning"
-                                      ? "inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 px-2 py-0.5 text-[10px]"
-                                      : "inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 text-[10px]"
+                                      ? `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${badgeAmber}`
+                                      : "inline-flex items-center gap-1 rounded-full bg-surface-muted border border-border-default text-muted-foreground px-2 py-0.5 text-[10px]"
                                   }
                                 >
                                   {badge.tone === "warning" && <AlertTriangle className="w-3 h-3" />}
@@ -397,7 +402,7 @@ export default function QuestionQualityPage() {
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr className="border-b border-slate-100 bg-slate-50/60">
+                        <tr className="border-b border-border-subtle bg-surface-muted/60">
                           <td colSpan={10} className="px-4 py-4">
                             <QuestionDetail row={row} />
                           </td>
@@ -425,7 +430,7 @@ interface SortHeaderProps {
 function SortHeader({ label, active, onClick, indicator }: SortHeaderProps) {
   return (
     <th
-      className={`px-2 py-2 font-medium cursor-pointer select-none ${active ? "text-slate-gray" : "hover:text-slate-gray"}`}
+      className={`px-2 py-2 font-medium cursor-pointer select-none ${active ? "text-slate-gray" : "hover:text-foreground"}`}
       onClick={onClick}
     >
       {label}
@@ -458,7 +463,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="rounded-lg border border-border-default bg-surface p-4">
         <h3 className="text-sm font-semibold text-slate-gray mb-2">Question preview</h3>
         {row.question ? (
           <div className="space-y-3">
@@ -466,7 +471,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
               <LatexText text={row.question.text} />
             </p>
             {row.question.imageUrl && (
-              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <div className="overflow-hidden rounded-lg border border-border-default bg-surface">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={row.question.imageUrl}
@@ -476,7 +481,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
               </div>
             )}
             {row.question.diagram && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="rounded-lg border border-border-default bg-surface-muted p-3">
                 <DiagramRenderer diagram={row.question.diagram as Diagram} />
               </div>
             )}
@@ -492,8 +497,8 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                     key={option.id}
                     className={`rounded-md border px-3 py-2 text-sm ${
                       isCorrect
-                        ? "border-green-200 bg-green-50 text-green-900"
-                        : "border-slate-200 bg-white text-slate-gray"
+                        ? badgeEmerald
+                        : "border-border-default bg-surface text-slate-gray"
                     }`}
                   >
                     <span className="mr-2 font-semibold">{label}.</span>
@@ -504,7 +509,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-slate-gray/70">
+          <p className="text-sm text-muted-foreground">
             Question text is not available in generated_questions/assignment snapshots for this id.
           </p>
         )}
@@ -516,7 +521,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-slate-500 border-b border-slate-200">
+              <tr className="text-muted-foreground border-b border-border-default">
                 <th className="px-2 py-1 text-left font-medium">Mode</th>
                 <th className="px-2 py-1 text-left font-medium">n</th>
                 <th className="px-2 py-1 text-left font-medium">Users</th>
@@ -529,7 +534,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
               {modesOrder.map((mode) => {
                 const slice = row.modes[mode];
                 return (
-                  <tr key={mode} className="border-b border-slate-100">
+                  <tr key={mode} className="border-b border-border-subtle">
                     <td className="px-2 py-1 capitalize">{mode}</td>
                     {slice ? (
                       <>
@@ -537,7 +542,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                         <td className="px-2 py-1">{slice.uniqueUsers}</td>
                         <td className="px-2 py-1">
                           {formatPercent(slice.accuracy)}
-                          <span className="ml-1 text-slate-gray/60">
+                          <span className="ml-1 text-muted-foreground">
                             ({slice.correct}/{slice.attempts})
                           </span>
                         </td>
@@ -545,7 +550,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                         <td className="px-2 py-1">{formatSeconds(slice.timeP90)}</td>
                       </>
                     ) : (
-                      <td className="px-2 py-1 text-slate-gray/50" colSpan={5}>
+                      <td className="px-2 py-1 text-muted-foreground" colSpan={5}>
                         No attempts
                       </td>
                     )}
@@ -556,7 +561,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
           </table>
         </div>
         {row.practiceFirstAttempt && (
-          <p className="mt-2 text-xs text-slate-gray/70">
+          <p className="mt-2 text-xs text-muted-foreground">
             Practice 1st-attempt accuracy:{" "}
             <span className="font-semibold text-slate-gray">
               {formatPercent(row.practiceFirstAttempt.accuracy)}
@@ -578,14 +583,14 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                 if (!list || list.length === 0) return null;
                 return (
                   <div key={mode}>
-                    <p className="text-xs font-medium text-slate-gray/70 capitalize mb-1">{mode}</p>
+                    <p className="text-xs font-medium text-muted-foreground capitalize mb-1">{mode}</p>
                     <ul className="space-y-1">
                       {list.map((choice) => (
                         <li key={`${mode}-${choice.optionId}`} className="text-xs">
                           <div className="flex items-center justify-between gap-2">
                             <span
                               className={`font-mono truncate max-w-[240px] ${
-                                choice.isCorrectChoice ? "text-[#166534] font-semibold" : "text-slate-gray"
+                                choice.isCorrectChoice ? "text-forest font-semibold" : "text-slate-gray"
                               }`}
                               title={choice.optionId}
                             >
@@ -594,15 +599,15 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                                 <span className="ml-1 rounded bg-green-100 px-1 text-[10px] text-green-800">correct</span>
                               )}
                             </span>
-                            <span className="text-slate-gray/70 whitespace-nowrap">
+                            <span className="text-muted-foreground whitespace-nowrap">
                               {formatPercent(choice.share)} ({choice.n})
                             </span>
                           </div>
-                          <div className="mt-0.5 h-1.5 w-full rounded bg-slate-200 overflow-hidden">
+                          <div className="mt-0.5 h-1.5 w-full rounded bg-surface-muted overflow-hidden">
                             <div
                               className={
                                 choice.isCorrectChoice
-                                  ? "h-full bg-[#16a34a]"
+                                  ? "h-full bg-primary"
                                   : "h-full bg-slate-400"
                               }
                               style={{ width: `${Math.min(100, choice.share * 100)}%` }}
@@ -617,10 +622,10 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="rounded-lg border border-border-default bg-surface p-3">
             <h3 className="text-sm font-semibold text-slate-gray mb-2">Confidence distribution</h3>
             {confidenceTotal === 0 ? (
-              <p className="text-xs text-slate-gray/70">No confidence submissions for this question yet.</p>
+              <p className="text-xs text-muted-foreground">No confidence submissions for this question yet.</p>
             ) : (
               <>
                 <ul className="space-y-2">
@@ -631,13 +636,13 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                       <li key={level}>
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-slate-gray">{CONFIDENCE_LABELS[level]}</span>
-                          <span className="text-slate-gray/70">
+                          <span className="text-muted-foreground">
                             {bucket.total} ({Math.round(share * 100)}%) · {accuracy === null ? "—" : `${Math.round(accuracy * 100)}% correct`}
                           </span>
                         </div>
-                        <div className="mt-0.5 h-1.5 w-full rounded bg-slate-200 overflow-hidden">
+                        <div className="mt-0.5 h-1.5 w-full rounded bg-surface-muted overflow-hidden">
                           <div
-                            className="h-full bg-[#16a34a]/70"
+                            className="h-full bg-primary/70"
                             style={{ width: `${Math.min(100, share * 100)}%` }}
                           />
                         </div>
@@ -645,7 +650,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                     );
                   })}
                 </ul>
-                <p className="mt-3 text-xs text-slate-gray/70">
+                <p className="mt-3 text-xs text-muted-foreground">
                   Overconfident wrong: {row.confidence.overconfidentWrong} · Underconfident right:{" "}
                   {row.confidence.underconfidentRight}
                 </p>

@@ -96,9 +96,9 @@ export function SelfPracticePlanner() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-[#16a34a]/30 bg-white p-5 sm:p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-[#14532d] mb-2">Choose Topics</h2>
-        <p className="text-sm text-slate-gray/70 mb-4">
+      <section className="rounded-2xl border border-primary/30 bg-surface p-5 sm:p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-heading mb-2">Choose Topics</h2>
+        <p className="text-sm text-muted-foreground mb-4">
           Select one or more module/category areas for practice.
         </p>
         <div className="flex items-center justify-between gap-4">
@@ -108,11 +108,11 @@ export function SelfPracticePlanner() {
                 prev.length === allTopics.length ? [] : allTopics
               )
             }
-            className="inline-flex items-center rounded-lg border border-[#16a34a]/30 bg-[#16a34a]/10 px-3 py-1.5 text-xs font-semibold text-[#14532d] transition-colors hover:bg-[#16a34a]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50"
+            className="inline-flex items-center rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-heading transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             {isAllSelected ? "Deselect all areas" : "Select all areas"}
           </button>
-          <span className="text-xs text-slate-gray/70">
+          <span className="text-xs text-muted-foreground">
             {selectedTopics.length}/{allTopics.length} selected
           </span>
         </div>
@@ -133,12 +133,12 @@ export function SelfPracticePlanner() {
                       onClick={() => toggleTopic(selection.key)}
                       className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
                         active
-                          ? "border-[#16a34a] bg-[#16a34a]/10 text-[#14532d]"
-                          : "border-slate-200 bg-white text-slate-gray hover:border-[#16a34a]/40"
+                          ? "border-primary bg-primary/10 text-heading"
+                          : "border-border-default bg-surface text-slate-gray hover:border-primary/40"
                       }`}
                     >
                       <span className="inline-flex items-center gap-2">
-                        {active && <Check className="w-4 h-4 text-[#16a34a]" />}
+                        {active && <Check className="w-4 h-4 text-primary" />}
                         {selection.category}
                       </span>
                     </button>
@@ -150,8 +150,8 @@ export function SelfPracticePlanner() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#16a34a]/30 bg-white p-5 sm:p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-[#14532d] mb-2">Select Mode</h2>
+      <section className="rounded-2xl border border-primary/30 bg-surface p-5 sm:p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-heading mb-2">Select Mode</h2>
         <div className="grid gap-3 sm:grid-cols-3">
           {MODE_CHOICES.map((choice) => (
             <button
@@ -159,19 +159,19 @@ export function SelfPracticePlanner() {
               onClick={() => setSelectedMode(choice.mode)}
               className={`rounded-xl border p-3 text-left transition-colors ${
                 selectedMode === choice.mode
-                  ? "border-[#16a34a] bg-[#16a34a]/10"
-                  : "border-slate-200 hover:border-[#16a34a]/40"
+                  ? "border-primary bg-primary/10"
+                  : "border-border-default hover:border-primary/40"
               }`}
             >
               <p className="text-sm font-semibold text-slate-gray">{choice.title}</p>
-              <p className="text-xs text-slate-gray/70 mt-1">{choice.description}</p>
+              <p className="text-xs text-muted-foreground mt-1">{choice.description}</p>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#16a34a]/30 bg-white p-5 sm:p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-[#14532d] mb-2">Set Session Time</h2>
+      <section className="rounded-2xl border border-primary/30 bg-surface p-5 sm:p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-heading mb-2">Set Session Time</h2>
         <div className="flex flex-wrap gap-2 mb-3">
           {TIME_PRESETS.map((time) => (
             <button
@@ -182,8 +182,8 @@ export function SelfPracticePlanner() {
               }}
               className={`rounded-lg px-3 py-2 text-sm font-medium border ${
                 !isCustomTime && selectedMinutes === time
-                  ? "bg-[#16a34a] text-white border-[#16a34a]"
-                  : "bg-white border-slate-200 text-slate-gray hover:border-[#16a34a]/40"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-surface border-border-default text-slate-gray hover:border-primary/40"
               }`}
             >
               {time} mins
@@ -193,8 +193,8 @@ export function SelfPracticePlanner() {
             onClick={() => setIsCustomTime(true)}
             className={`rounded-lg px-3 py-2 text-sm font-medium border ${
               isCustomTime
-                ? "bg-[#16a34a] text-white border-[#16a34a]"
-                : "bg-white border-slate-200 text-slate-gray hover:border-[#16a34a]/40"
+                ? "bg-primary text-white border-primary"
+                : "bg-surface border-border-default text-slate-gray hover:border-primary/40"
             }`}
           >
             Custom
@@ -211,9 +211,9 @@ export function SelfPracticePlanner() {
             className="w-44 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         )}
-        <div className="mt-4 rounded-xl border border-[#16a34a]/20 bg-[#16a34a]/5 p-3">
+        <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
           <p className="text-sm text-slate-gray flex items-center gap-2">
-            <Clock3 className="w-4 h-4 text-[#16a34a]" />
+            <Clock3 className="w-4 h-4 text-primary" />
             Estimated questions: <span className="font-semibold">{questionCount}</span>
           </p>
         </div>
@@ -223,7 +223,7 @@ export function SelfPracticePlanner() {
         {startHref ? (
           <Link
             href={startHref}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a] text-white font-medium hover:bg-[#15803d] transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
           >
             <Play className="w-4 h-4" />
             Start Practice

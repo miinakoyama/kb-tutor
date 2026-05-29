@@ -1,35 +1,88 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f0f4f1;
   --foreground: #1f2d1f;
+  --surface: #ffffff;
+  --surface-muted: #f8faf8;
+  --heading: #14532d;
+  --forest: #166534;
+  --muted-foreground: rgba(31, 45, 31, 0.7);
   --primary: #16a34a;
   --primary-hover: #15803d;
   --primary-light: rgba(22, 163, 74, 0.1);
   --primary-border: rgba(22, 163, 74, 0.5);
   --border-default: rgba(31, 45, 31, 0.2);
+  --border-subtle: rgba(31, 45, 31, 0.1);
   --error-color: #f87171;
   --error-light: rgba(248, 113, 113, 0.1);
   --error-border: rgba(248, 113, 113, 0.3);
+  --input-bg: #ffffff;
+  --chart-grid: rgba(31, 45, 31, 0.12);
+  --chart-axis: rgba(31, 45, 31, 0.55);
+  --diagram-canvas: var(--surface-muted);
+  --diagram-node-fill: #ffffff;
+  --diagram-ink: #1f2d1f;
+  --sidebar-gradient: linear-gradient(135deg, #166534 0%, #15803d 100%);
 }
 
-/* KeystoneBio-inspired bright palette */
+.dark {
+  --background: #0c140e;
+  --foreground: #e8f0ea;
+  --surface: #152018;
+  --surface-muted: #1a2820;
+  /* Softer than light-mode heading: readable accent without neon glow on dark UI */
+  --heading: #c5d9cc;
+  --forest: #8fbf9f;
+  --muted-foreground: rgba(232, 240, 234, 0.68);
+  /* Muted primary for solid buttons/links — less saturated than light theme */
+  --primary: #3d9a62;
+  --primary-hover: #348554;
+  --primary-light: rgba(61, 154, 98, 0.14);
+  --primary-border: rgba(143, 191, 159, 0.35);
+  --border-default: rgba(232, 240, 234, 0.16);
+  --border-subtle: rgba(232, 240, 234, 0.08);
+  --error-color: #fca5a5;
+  --error-light: rgba(248, 113, 113, 0.15);
+  --error-border: rgba(248, 113, 113, 0.35);
+  --input-bg: #1a2820;
+  --chart-grid: rgba(232, 240, 234, 0.12);
+  --chart-axis: rgba(232, 240, 234, 0.55);
+  --diagram-canvas: #121c16;
+  --diagram-node-fill: #1e2e24;
+  --diagram-ink: #e8f0ea;
+  /* Slightly darker sidebar gradient — same brand, less glare next to dark content */
+  --sidebar-gradient: linear-gradient(135deg, #0f3d24 0%, #14532d 100%);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-forest: #166534;
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-heading: var(--heading);
+  --color-forest: var(--forest);
   --color-leaf: #22863a;
   --color-mint: #34d058;
   --color-bright: #85e89d;
-  --color-sage-green: #22863a;
-  --color-sand-beige: #f0f4f1;
-  --color-slate-gray: #1f2d1f;
+  --color-sage-green: var(--forest);
+  --color-sand-beige: var(--background);
+  --color-slate-gray: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-light: var(--primary-light);
+  --color-border-default: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+  --color-input-bg: var(--input-bg);
   --color-error: var(--error-color);
   --color-error-light: var(--error-light);
+  --color-error-border: var(--error-border);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-heading: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
@@ -43,4 +96,24 @@ body {
 
 .font-heading {
   font-family: var(--font-heading);
+}
+
+.dark .katex {
+  color: var(--foreground);
+}
+
+.dark .katex .mord,
+.dark .katex .mop,
+.dark .katex .mbin,
+.dark .katex .mrel,
+.dark .katex .mopen,
+.dark .katex .mclose,
+.dark .katex .mpunct {
+  color: inherit;
+}
+
+/* Black-on-transparent diagram assets → light strokes on dark canvas */
+.dark .diagram-raster {
+  filter: invert(1);
+  opacity: 0.94;
 }

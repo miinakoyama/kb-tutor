@@ -23,6 +23,7 @@ import {
   type KeystoneExamInfo,
 } from "@/lib/keystone-exam";
 import { AssignmentModeBadge } from "@/components/assignments/AssignmentModeBadge";
+import { badgeAmber } from "@/lib/ui/status-badge-styles";
 
 interface HomePageContentProps {
   assignments: StudentAssignmentListItem[];
@@ -50,7 +51,7 @@ export function HomePageContent({
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <section className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
           Home
         </h1>
       </section>
@@ -58,13 +59,13 @@ export function HomePageContent({
       {keystoneExam && <KeystoneExamCountdown exam={keystoneExam} />}
 
       <section className="grid gap-4 lg:grid-cols-3 mb-6">
-        <div className="lg:col-span-3 rounded-2xl border border-[#16a34a]/25 bg-white p-5 sm:p-6 shadow-sm">
+        <div className="lg:col-span-3 rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm">
           <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="inline-flex items-center gap-2 text-[#16a34a]">
+            <div className="inline-flex items-center gap-2 text-primary dark:text-forest">
               <ClipboardList className="w-5 h-5" />
               <span className="font-semibold">To do</span>
             </div>
-            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#16a34a]/10 text-[#166534]">
+            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary/10 text-forest">
               {activeAssignments.length} active
             </span>
           </div>
@@ -76,7 +77,7 @@ export function HomePageContent({
                   ? "No active assignments right now."
                   : "All caught up! No pending assignments."}
               </p>
-              <p className="text-sm text-slate-gray/70 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 {totalAssignments === 0
                   ? "Use Self Practice to keep your momentum."
                   : "Nice work. You can review completed assignments below."}
@@ -85,7 +86,7 @@ export function HomePageContent({
           ) : (
             <>
               {overdueInTodo > 0 && (
-                <p className="text-xs font-medium text-red-700 mb-2">
+                <p className="text-xs font-medium text-error mb-2">
                   {overdueInTodo} past due —{" "}
                   {overdueInTodo === 1 ? "complete it" : "complete them"} first.
                 </p>
@@ -101,7 +102,7 @@ export function HomePageContent({
           <div className="mt-5">
             <Link
               href="/assignments"
-              className="inline-flex items-center justify-center rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d] transition-colors"
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover transition-colors"
             >
               View all assignments
             </Link>
@@ -111,9 +112,9 @@ export function HomePageContent({
         <div className="lg:col-span-3 grid gap-4 sm:grid-cols-2">
           <Link
             href="/self-practice"
-            className="rounded-2xl border border-[#16a34a]/25 bg-white p-5 sm:p-6 shadow-sm hover:border-[#16a34a] transition-colors"
+            className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors"
           >
-            <div className="inline-flex items-center gap-2 text-[#16a34a] mb-2">
+            <div className="inline-flex items-center gap-2 text-primary dark:text-forest mb-2">
               <NotebookPen className="w-5 h-5" />
               <span className="font-semibold">Self Practice</span>
             </div>
@@ -121,7 +122,7 @@ export function HomePageContent({
               Choose topic and mode, then start a focused practice session.
             </p>
             <div className="mt-4">
-              <span className="inline-flex items-center justify-center rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d] transition-colors">
+              <span className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover transition-colors">
                 Start self practice
               </span>
             </div>
@@ -129,14 +130,14 @@ export function HomePageContent({
 
           <Link
             href="/notifications"
-            className="rounded-2xl border border-[#16a34a]/25 bg-white p-5 sm:p-6 shadow-sm hover:border-[#16a34a] transition-colors"
+            className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors"
           >
             <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="inline-flex items-center gap-2 text-[#16a34a]">
+              <div className="inline-flex items-center gap-2 text-primary dark:text-forest">
                 <Bell className="w-5 h-5" />
                 <span className="font-semibold">Notifications</span>
               </div>
-              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#16a34a]/10 text-[#166534]">
+              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary/10 text-forest">
                 {unreadCount} unread
               </span>
             </div>
@@ -144,7 +145,7 @@ export function HomePageContent({
               {latestNotification}
             </p>
             <div className="mt-4">
-              <span className="inline-flex items-center justify-center rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d] transition-colors">
+              <span className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover transition-colors">
                 View notifications
               </span>
             </div>
@@ -204,7 +205,7 @@ function KeystoneExamCountdown({ exam }: { exam: KeystoneExamInfo }) {
             )}
           </div>
           <p className={`mt-1 text-sm ${accent.text}`}>{subtitle}</p>
-          <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-slate-gray/70">
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarDays className="w-3.5 h-3.5" />
             Exam date: {formatExamDate(exam.examDate)}
           </p>
@@ -231,13 +232,13 @@ function getCountdownTone(days: number): {
   if (days <= 7) {
     return {
       accent: {
-        border: "border-red-300",
-        bg: "bg-gradient-to-r from-red-50 to-orange-50",
-        iconBg: "bg-red-100",
-        iconText: "text-red-600",
-        label: "text-red-700",
-        headline: "text-red-700",
-        text: "text-red-700/90",
+        border: "border-error-border",
+        bg: "bg-gradient-to-r from-red-50 to-orange-50 dark:from-rose-950/50 dark:to-orange-950/40",
+        iconBg: "bg-error-light",
+        iconText: "text-error",
+        label: "text-error",
+        headline: "text-error",
+        text: "text-error/90",
       },
       subtitle:
         days === 0
@@ -248,26 +249,26 @@ function getCountdownTone(days: number): {
   if (days <= 30) {
     return {
       accent: {
-        border: "border-amber-300",
-        bg: "bg-gradient-to-r from-amber-50 to-yellow-50",
-        iconBg: "bg-amber-100",
-        iconText: "text-amber-600",
-        label: "text-amber-700",
-        headline: "text-amber-700",
-        text: "text-amber-800/90",
+        border: "border-amber-300 dark:border-amber-700/40",
+        bg: "bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/45 dark:to-amber-950/30",
+        iconBg: "bg-amber-100 dark:bg-amber-900/50",
+        iconText: "text-amber-600 dark:text-amber-300",
+        label: "text-amber-700 dark:text-amber-300",
+        headline: "text-amber-700 dark:text-amber-200",
+        text: "text-amber-800/90 dark:text-amber-200/80",
       },
       subtitle: "The exam is coming up. Keep your streak going!",
     };
   }
   return {
     accent: {
-      border: "border-[#16a34a]/40",
-      bg: "bg-gradient-to-r from-emerald-50 to-green-50",
-      iconBg: "bg-[#16a34a]/15",
-      iconText: "text-[#16a34a]",
-      label: "text-[#15803d]",
-      headline: "text-[#14532d]",
-      text: "text-[#14532d]/80",
+      border: "border-primary/40 dark:border-primary-border",
+      bg: "bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-emerald-950/30",
+      iconBg: "bg-primary/15",
+      iconText: "text-primary",
+      label: "text-primary-hover dark:text-forest",
+      headline: "text-heading",
+      text: "text-heading/80 dark:text-muted-foreground",
     },
     subtitle: "Plenty of time — steady practice builds confidence.",
   };
@@ -280,7 +281,7 @@ function TodoRow({ assignment }: { assignment: StudentAssignmentListItem }) {
   const href = buildPracticeHref(assignment);
 
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 hover:border-[#16a34a]/40 transition-colors">
+    <li className="flex items-center gap-3 rounded-lg border border-border-default bg-surface px-3 py-2 hover:border-primary/40 transition-colors">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-medium text-slate-gray truncate">
@@ -288,14 +289,14 @@ function TodoRow({ assignment }: { assignment: StudentAssignmentListItem }) {
           </p>
           <AssignmentModeBadge mode={assignment.mode} size="xs" />
           {overdue && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-error bg-error-light px-1.5 py-0.5 rounded-full">
               <Clock className="w-3 h-3" />
               Overdue
             </span>
           )}
           <StatusDot status={assignment.status} />
         </div>
-        <p className="text-xs text-slate-gray/70 mt-0.5 flex items-center gap-2 flex-wrap">
+        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
           <DueLabel dueDate={assignment.due_date} overdue={overdue} />
           {assignment.progress.total > 0 && (
             <span>
@@ -310,7 +311,7 @@ function TodoRow({ assignment }: { assignment: StudentAssignmentListItem }) {
       </div>
       <Link
         href={href}
-        className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#16a34a] text-white text-xs font-semibold hover:bg-[#15803d] transition-colors"
+        className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary-hover transition-colors"
       >
         <Play className="w-3.5 h-3.5" />
         {ctaLabel}
@@ -327,13 +328,13 @@ function DueLabel({
   overdue: boolean;
 }) {
   if (!dueDate) {
-    return <span className="text-slate-gray/50">No due date</span>;
+    return <span className="text-muted-foreground">No due date</span>;
   }
   const text = `Due ${formatDueDateTime(dueDate)}`;
   return (
     <span
       className={`inline-flex items-center gap-1 ${
-        overdue ? "text-red-700 font-medium" : "text-slate-gray/70"
+        overdue ? "text-error font-medium" : "text-muted-foreground"
       }`}
     >
       <CalendarDays className="w-3 h-3" />
@@ -345,14 +346,16 @@ function DueLabel({
 function StatusDot({ status }: { status: StudentAssignmentStatus }) {
   if (status === "completed") {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#14532d]">
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-heading">
         <CheckCircle2 className="w-3 h-3" />
       </span>
     );
   }
   if (status === "in_progress") {
     return (
-      <span className="inline-flex text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
+      <span
+        className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeAmber}`}
+      >
         In progress
       </span>
     );

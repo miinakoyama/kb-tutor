@@ -123,7 +123,7 @@ export function NextSessionCTA({ excludeAssignmentId }: NextSessionCTAProps) {
   if (isLoading) {
     return (
       <div
-        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a]/20 text-[#14532d]/70 text-sm font-medium min-h-[44px]"
+        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-primary/20 text-heading/70 text-sm font-medium min-h-[44px]"
         role="status"
         aria-live="polite"
         aria-busy="true"
@@ -144,7 +144,7 @@ export function NextSessionCTA({ excludeAssignmentId }: NextSessionCTAProps) {
     return (
       <Link
         href="/self-practice"
-        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a] text-white text-sm font-semibold hover:bg-[#15803d] transition-colors min-h-[44px] shadow-sm"
+        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-hover transition-colors min-h-[44px] shadow-sm"
       >
         <Sparkles className="w-4 h-4" />
         <span>Go to Self Practice</span>
@@ -157,7 +157,7 @@ export function NextSessionCTA({ excludeAssignmentId }: NextSessionCTAProps) {
   return (
     <Link
       href={buildPracticeHref(data.assignment)}
-      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a] text-white text-sm font-semibold hover:bg-[#15803d] transition-colors min-h-[44px] shadow-sm max-w-full min-w-0"
+      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-hover transition-colors min-h-[44px] shadow-sm max-w-full min-w-0"
     >
       <span className="truncate min-w-0 flex-1">
         {verb} next: {data.assignment.title}

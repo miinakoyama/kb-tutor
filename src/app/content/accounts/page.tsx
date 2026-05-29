@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
+import { alertSuccess } from "@/lib/ui/status-badge-styles";
 
 type Role = "student" | "teacher" | "admin";
 
@@ -206,30 +207,30 @@ export default function AccountManagementPage() {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <header className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
             Account Management
           </h1>
-          <p className="text-slate-gray/70">
+          <p className="text-muted-foreground">
             Manage teacher and admin accounts. Students are registered automatically when they first log in.
           </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors shadow-sm"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
           Create Staff Account
         </button>
       </header>
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
   <div className="flex flex-wrap items-end gap-4">
     <label className="text-sm text-slate-gray">
       <span className="block mb-1 font-medium">Role filter</span>
       <select
         value={roleFilter}
         onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}
-        className="rounded-lg border border-slate-200 px-3 py-2"
+        className="rounded-lg border border-border-default px-3 py-2"
       >
         <option value="all">All roles</option>
         <option value="student">student</option>
@@ -245,7 +246,7 @@ export default function AccountManagementPage() {
         onChange={(event) =>
           setAnalyticsFilter(event.target.value as "all" | "included" | "excluded")
         }
-        className="rounded-lg border border-slate-200 px-3 py-2"
+        className="rounded-lg border border-border-default px-3 py-2"
       >
         <option value="all">All users</option>
         <option value="included">Included in analytics</option>
@@ -258,7 +259,7 @@ export default function AccountManagementPage() {
       <select
         value={schoolFilter}
         onChange={(event) => setSchoolFilter(event.target.value)}
-        className="rounded-lg border border-slate-200 px-3 py-2"
+        className="rounded-lg border border-border-default px-3 py-2"
       >
         <option value="all">All schools</option>
         {schools.map((school) => (
@@ -270,7 +271,7 @@ export default function AccountManagementPage() {
     </label>
   </div>
 
-  <p className="mt-3 text-xs text-slate-gray/70">
+  <p className="mt-3 text-xs text-muted-foreground">
     Users marked as &quot;Excluded from analytics&quot; are skipped when computing teacher dashboard
     metrics and assignment response counts. This setting applies to student accounts only. Use this
     for developer or test accounts whose data should not affect reporting.
@@ -279,26 +280,26 @@ export default function AccountManagementPage() {
 
 
       {message && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 mb-4">
+        <p className={`${alertSuccess} mb-4`}>
           {message}
         </p>
       )}
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
           {error}
         </p>
       )}
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
+      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
         {loading ? (
-          <p className="text-sm text-slate-gray/70">Loading users...</p>
+          <p className="text-sm text-muted-foreground">Loading users...</p>
         ) : users.length === 0 ? (
-          <p className="text-sm text-slate-gray/70">No users found.</p>
+          <p className="text-sm text-muted-foreground">No users found.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-500">
+                <tr className="border-b border-border-default text-left text-muted-foreground">
                   <th className="px-2 py-2 font-medium">Student ID</th>
                   <th className="px-2 py-2 font-medium">Display Name</th>
                   <th className="px-2 py-2 font-medium">Role</th>
@@ -311,14 +312,14 @@ export default function AccountManagementPage() {
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr key={user.id} className="border-b border-slate-100 align-top">
+                  <tr key={user.id} className="border-b border-border-subtle align-top">
                     <td className="px-2 py-3 min-w-[140px]">
                       <input
                         value={user.student_id ?? ""}
                         onChange={(e) =>
                           updateLocalUser(user.id, { student_id: e.target.value || null })
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2"
+                        className="w-full rounded-lg border border-border-default px-2.5 py-2"
                       />
                     </td>
                     <td className="px-2 py-3 min-w-[180px]">
@@ -327,7 +328,7 @@ export default function AccountManagementPage() {
                         onChange={(e) =>
                           updateLocalUser(user.id, { display_name: e.target.value || null })
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2"
+                        className="w-full rounded-lg border border-border-default px-2.5 py-2"
                       />
                     </td>
                     <td className="px-2 py-3 min-w-[130px]">
@@ -336,7 +337,7 @@ export default function AccountManagementPage() {
                         onChange={(e) =>
                           updateLocalUser(user.id, { role: e.target.value as Role })
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2"
+                        className="w-full rounded-lg border border-border-default px-2.5 py-2"
                       >
                         <option value="student">student</option>
                         <option value="teacher">teacher</option>
@@ -361,14 +362,14 @@ export default function AccountManagementPage() {
                                 excluded_from_analytics: e.target.checked,
                               })
                             }
-                            className="h-4 w-4 rounded border-slate-300 text-[#16a34a] focus:ring-[#16a34a]"
+                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-[#16a34a]"
                           />
                           <span className="text-xs text-slate-gray/80">
                             {user.excluded_from_analytics ? "Excluded" : "Included"}
                           </span>
                         </label>
                       ) : (
-                        <span className="text-xs text-slate-gray/60">Student only</span>
+                        <span className="text-xs text-muted-foreground">Student only</span>
                       )}
                     </td>
                     <td className="px-2 py-3 min-w-[220px] text-xs text-slate-gray/80">
@@ -387,13 +388,13 @@ export default function AccountManagementPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => void saveUser(user)}
-                          className="rounded-lg bg-[#16a34a] px-3 py-2 text-xs font-medium text-white hover:bg-[#15803d] transition-colors"
+                          className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary-hover transition-colors"
                         >
                           Save
                         </button>
                         <button
                           onClick={() => void deleteUser(user.id)}
-                          className="rounded-lg border border-red-300 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 transition-colors"
+                          className="rounded-lg border border-error-border px-3 py-2 text-xs font-medium text-error hover:bg-error-light transition-colors"
                         >
                           Delete
                         </button>
@@ -406,20 +407,20 @@ export default function AccountManagementPage() {
           </div>
         )}
         {!loading && totalUsers > 0 && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm">
-            <p className="text-slate-gray/70">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4 text-sm">
+            <p className="text-muted-foreground">
               Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalUsers)} of{" "}
               {totalUsers}
             </p>
             <div className="flex items-center gap-2">
-              <label className="text-slate-gray/70" htmlFor="account-page-size">
+              <label className="text-muted-foreground" htmlFor="account-page-size">
                 Rows
               </label>
               <select
                 id="account-page-size"
                 value={pageSize}
                 onChange={(event) => setPageSize(Number(event.target.value) as 25 | 50 | 100)}
-                className="rounded-lg border border-slate-200 px-2 py-1.5"
+                className="rounded-lg border border-border-default px-2 py-1.5"
               >
                 <option value={25}>25</option>
                 <option value={50}>50</option>
@@ -428,17 +429,17 @@ export default function AccountManagementPage() {
               <button
                 onClick={() => setPage((current) => Math.max(1, current - 1))}
                 disabled={page <= 1}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-50"
+                className="rounded-lg border border-border-default px-3 py-1.5 disabled:opacity-50"
               >
                 Previous
               </button>
-              <span className="text-slate-gray/70">
+              <span className="text-muted-foreground">
                 Page {page} / {totalPages}
               </span>
               <button
                 onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                 disabled={page >= totalPages}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-50"
+                className="rounded-lg border border-border-default px-3 py-1.5 disabled:opacity-50"
               >
                 Next
               </button>
@@ -453,12 +454,12 @@ export default function AccountManagementPage() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setShowCreateModal(false)}
           />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="relative bg-surface rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
               <h2 className="text-lg font-semibold text-slate-gray">Create Staff Account</h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                className="p-1 rounded-lg text-muted-foreground hover:text-muted-foreground hover:bg-surface-muted transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -474,7 +475,7 @@ export default function AccountManagementPage() {
                     setCreateForm((prev) => ({ ...prev, email: e.target.value }))
                   }
                   placeholder="teacher@school.example"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-border-default px-3 py-2"
                   required
                 />
               </label>
@@ -485,7 +486,7 @@ export default function AccountManagementPage() {
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, displayName: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-border-default px-3 py-2"
                 />
               </label>
               <label className="block text-sm text-slate-gray">
@@ -496,7 +497,7 @@ export default function AccountManagementPage() {
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, password: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-border-default px-3 py-2"
                   required
                 />
               </label>
@@ -507,7 +508,7 @@ export default function AccountManagementPage() {
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, role: e.target.value as "teacher" | "admin" }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-border-default px-3 py-2"
                 >
                   <option value="teacher">teacher</option>
                   <option value="admin">admin</option>
@@ -518,14 +519,14 @@ export default function AccountManagementPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-muted transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isCreating}
-                  className="rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] disabled:opacity-60 transition-colors"
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60 transition-colors"
                 >
                   {isCreating ? "Creating..." : "Create Account"}
                 </button>

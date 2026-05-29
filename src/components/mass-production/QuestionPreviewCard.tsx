@@ -13,6 +13,13 @@ import type { Question } from "@/types/question";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { LatexText } from "@/components/shared/LatexText";
 import { GlossaryPanel } from "@/components/shared/GlossaryPanel";
+import {
+  calloutPrimary,
+  calloutPrimaryBody,
+  calloutPrimaryTitle,
+  optionPanelCorrect,
+  optionPanelNeutral,
+} from "@/lib/ui/status-badge-styles";
 
 interface QuestionPreviewCardProps {
   question: Question;
@@ -40,33 +47,33 @@ export function QuestionPreviewCard({
   const glossaryCount = inlineTerms.length + sidebarTerms.length;
 
   return (
-    <div className="rounded-xl border border-slate-gray/20 bg-white shadow-sm overflow-hidden transition-colors">
+    <div className="rounded-xl border border-border-default bg-surface shadow-sm overflow-hidden transition-colors">
       <div className="p-4">
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="text-xs font-medium text-slate-gray/60 bg-slate-gray/10 px-2 py-0.5 rounded">
+              <span className="text-xs font-medium text-muted-foreground bg-slate-gray/10 px-2 py-0.5 rounded">
                 Q{index + 1}
               </span>
-              <span className="text-xs text-slate-gray/60">{question.topic}</span>
+              <span className="text-xs text-muted-foreground">{question.topic}</span>
               {question.standardId && (
-                <span className="text-xs text-slate-gray/60 bg-slate-gray/10 px-2 py-0.5 rounded">
+                <span className="text-xs text-muted-foreground bg-slate-gray/10 px-2 py-0.5 rounded">
                   {question.standardId}
                 </span>
               )}
               {question.dok && (
-                <span className="text-xs text-white bg-[#16a34a]/80 px-2 py-0.5 rounded">
+                <span className="text-xs text-white bg-primary/80 px-2 py-0.5 rounded">
                   DOK {question.dok}
                 </span>
               )}
               {question.diagram && (
-                <span className="text-xs text-[#16a34a] flex items-center gap-1">
+                <span className="text-xs text-primary flex items-center gap-1">
                   <BarChart3 className="w-3 h-3" />
                   {question.diagram.type}
                 </span>
               )}
               {glossaryCount > 0 && (
-                <span className="text-xs text-[#14532d] bg-[#16a34a]/10 px-2 py-0.5 rounded">
+                <span className="text-xs text-heading bg-primary/10 px-2 py-0.5 rounded">
                   Glossary {glossaryCount}
                 </span>
               )}
@@ -78,7 +85,7 @@ export function QuestionPreviewCard({
 
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="mt-2 text-xs text-[#16a34a] hover:text-[#15803d] flex items-center gap-1"
+              className="mt-2 text-xs text-primary hover:text-primary-hover flex items-center gap-1"
             >
               {isExpanded ? (
                 <>
@@ -100,7 +107,7 @@ export function QuestionPreviewCard({
                 <div className="flex items-center gap-2">
                   <span
                     id={`sp-label-${question.id}`}
-                    className="text-xs font-medium text-slate-gray/70 whitespace-nowrap"
+                    className="text-xs font-medium text-muted-foreground whitespace-nowrap"
                   >
                     Self Practice
                   </span>
@@ -110,10 +117,10 @@ export function QuestionPreviewCard({
                     aria-labelledby={`sp-label-${question.id}`}
                     aria-checked={includeInSelfPractice === true}
                     onClick={onToggleIncludeInSelfPractice}
-                    className={`flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 focus-visible:ring-offset-2 ${
+                    className={`flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 ${
                       includeInSelfPractice === true
-                        ? "justify-end bg-[#16a34a]"
-                        : "justify-start bg-slate-200"
+                        ? "justify-end bg-primary"
+                        : "justify-start bg-surface-muted"
                     }`}
                     title={
                       includeInSelfPractice === true
@@ -121,20 +128,20 @@ export function QuestionPreviewCard({
                         : "Not included in Self Practice"
                     }
                   >
-                    <span className="pointer-events-none h-5 w-5 rounded-full bg-white shadow-sm" />
+                    <span className="pointer-events-none h-5 w-5 rounded-full bg-surface shadow-sm" />
                   </button>
                 </div>
               )}
               <button
                 onClick={onEdit}
-                className="p-2 rounded-lg text-slate-gray/50 hover:text-[#16a34a] hover:bg-[#16a34a]/10 transition-colors"
+                className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                 title="Edit"
               >
                 <Edit2 className="w-4 h-4" />
               </button>
               <button
                 onClick={onDelete}
-                className="p-2 rounded-lg text-slate-gray/50 hover:text-red-500 hover:bg-red-50 transition-colors"
+                className="p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-error-light transition-colors"
                 title="Delete"
               >
                 <Trash2 className="w-4 h-4" />
@@ -145,7 +152,7 @@ export function QuestionPreviewCard({
       </div>
 
       {isExpanded && (
-        <div className="px-4 pb-4 pt-2 border-t border-slate-gray/10">
+        <div className="px-4 pb-4 pt-2 border-t border-border-subtle">
           {question.diagram && (
             <div className="mb-4 p-4 bg-slate-gray/5 rounded-lg">
               <DiagramRenderer diagram={question.diagram} />
@@ -153,7 +160,7 @@ export function QuestionPreviewCard({
           )}
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-gray/60 uppercase tracking-wide">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Options
             </p>
             {question.options.map((option, optionIndex) => {
@@ -165,18 +172,16 @@ export function QuestionPreviewCard({
               return (
                 <div
                   key={option.id}
-                  className={`p-3 rounded-lg text-sm ${
-                    isCorrect
-                      ? "bg-[#16a34a]/5 border border-[#16a34a]/20"
-                      : "bg-slate-gray/5"
-                  }`}
+                  className={
+                    isCorrect ? optionPanelCorrect : optionPanelNeutral
+                  }
                 >
                   <div className="flex items-start gap-2">
                     <span
                       className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold ${
                         isCorrect
-                          ? "bg-[#16a34a] text-white"
-                          : "bg-slate-gray/20 text-slate-gray/70"
+                          ? "bg-primary text-white"
+                          : "bg-slate-gray/20 text-muted-foreground"
                       }`}
                     >
                       {label}
@@ -186,13 +191,13 @@ export function QuestionPreviewCard({
                         <LatexText text={option.text} />
                       </p>
                       {option.feedback && (
-                        <p className="text-xs text-slate-gray/60 mt-1">
+                        <p className="text-xs text-muted-foreground mt-1">
                           <LatexText text={option.feedback} />
                         </p>
                       )}
                     </div>
                     {isCorrect && (
-                      <CheckCircle2 className="w-4 h-4 text-[#16a34a] flex-shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
                     )}
                   </div>
                 </div>
@@ -201,18 +206,18 @@ export function QuestionPreviewCard({
           </div>
 
           {question.keyKnowledge && (
-            <div className="mt-4 p-3 bg-[#16a34a]/5 rounded-lg border border-[#16a34a]/20">
-              <p className="text-xs font-semibold text-[#16a34a] mb-1">Key Knowledge</p>
-              <p className="text-sm text-slate-gray">
+            <div className={`mt-4 ${calloutPrimary}`}>
+              <p className={calloutPrimaryTitle}>Key Knowledge</p>
+              <p className={calloutPrimaryBody}>
                 <LatexText text={question.keyKnowledge} />
               </p>
             </div>
           )}
 
           {question.focusHint && (
-            <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-xs font-semibold text-blue-700 mb-1">Focus Hint</p>
-              <p className="text-sm text-blue-800">
+            <div className={`mt-2 ${calloutPrimary}`}>
+              <p className={calloutPrimaryTitle}>Focus Hint</p>
+              <p className={calloutPrimaryBody}>
                 <LatexText text={question.focusHint} />
               </p>
             </div>

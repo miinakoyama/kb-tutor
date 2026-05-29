@@ -407,21 +407,21 @@ export default function MassProductionPage() {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/content"
-        className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-6"
+        className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"
       >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-          <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+          <ArrowLeft className="w-4 h-4 text-heading" />
         </span>
         Back to Content Management
       </Link>
 
       <div className="flex items-center gap-3 mb-6">
-        <Sparkles className="w-6 h-6 text-[#16a34a]" />
+        <Sparkles className="w-6 h-6 text-primary" />
         <div>
           <h1 className="text-xl font-bold text-slate-gray">
             LLM Mass Production
           </h1>
-          <p className="text-sm text-slate-gray/70">
+          <p className="text-sm text-muted-foreground">
             Generate questions at scale using AI
           </p>
         </div>
@@ -429,7 +429,7 @@ export default function MassProductionPage() {
 
       <div className="space-y-6">
         {/* Question Set Name */}
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
             Question Set
           </h2>
@@ -447,21 +447,21 @@ export default function MassProductionPage() {
                 }))
               }
               placeholder="e.g., Photosynthesis Practice Set"
-              className="w-full max-w-md px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50"
+              className="w-full max-w-md px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
               required
             />
-            <p className="text-xs text-slate-gray/60 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Required: this name is used to identify the generated set later.
               It must be unique among sets linked to each selected school.
             </p>
           </div>
         </section>
 
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
             Schools *
           </h2>
-          <p className="text-sm text-slate-gray/70 mb-3">
+          <p className="text-sm text-muted-foreground mb-3">
             Choose which school catalogs receive this set. You can enable Self
             Practice later in Question Manager.
           </p>
@@ -485,7 +485,7 @@ export default function MassProductionPage() {
                             : [...prev, school.id],
                         );
                       }}
-                      className="rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]"
+                      className="rounded border-border-default text-primary focus:ring-[#16a34a]"
                     />
                     {school.name}
                   </label>
@@ -496,7 +496,7 @@ export default function MassProductionPage() {
         </section>
 
         {/* Basic Settings */}
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
             Basic Settings
           </h2>
@@ -535,9 +535,9 @@ export default function MassProductionPage() {
                 }
               }}
               placeholder="5"
-              className="w-24 px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-center"
+              className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
             />
-            <p className="text-xs text-slate-gray/60 mt-1">1-20 questions per batch</p>
+            <p className="text-xs text-muted-foreground mt-1">1-20 questions per batch</p>
           </div>
 
           {/* Topic and Standard Selection */}
@@ -549,13 +549,13 @@ export default function MassProductionPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleAutoDistributeCounts}
-                  className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
+                  className="text-xs text-primary hover:text-primary-hover font-medium"
                 >
                   Auto distribute
                 </button>
                 <button
                   onClick={handleClearAllCounts}
-                  className="text-xs text-[#16a34a] hover:text-[#15803d] font-medium"
+                  className="text-xs text-primary hover:text-primary-hover font-medium"
                 >
                   Clear all counts
                 </button>
@@ -573,7 +573,7 @@ export default function MassProductionPage() {
                 return (
                   <div
                     key={selection.key}
-                    className="rounded-lg border border-slate-200 overflow-hidden"
+                    className="rounded-lg border border-border-default overflow-hidden"
                   >
                     <div className="flex items-center justify-between gap-2 p-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -581,7 +581,7 @@ export default function MassProductionPage() {
                           <button
                             type="button"
                             onClick={() => toggleTopicExpansion(selection.key)}
-                            className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-slate-100 text-slate-gray/70 hover:text-slate-gray"
+                            className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-surface-muted text-muted-foreground hover:text-foreground"
                             aria-label={
                               isExpanded ? "Hide standards" : "Show standards"
                             }
@@ -597,7 +597,7 @@ export default function MassProductionPage() {
                           {selection.label}
                         </span>
                         {hasStandards && (
-                          <span className="text-xs text-slate-gray/60">
+                          <span className="text-xs text-muted-foreground">
                             ({selectedCount}/{topicStandards.length})
                           </span>
                         )}
@@ -605,18 +605,18 @@ export default function MassProductionPage() {
                     </div>
 
                     {isExpanded && hasStandards && (
-                      <div className="border-t border-slate-200 bg-slate-50/70 px-3 py-2 space-y-1.5">
+                      <div className="border-t border-border-default bg-surface-muted/70 px-3 py-2 space-y-1.5">
                         {topicStandards.map((standard) => (
                           <div
                             key={`${selection.key}-${standard.id}`}
-                            className="flex items-start gap-3 p-1.5 rounded hover:bg-white"
+                            className="flex items-start gap-3 p-1.5 rounded hover:bg-surface"
                           >
                             <div className="flex-1 min-w-0 text-sm text-slate-gray">
                               <span className="font-medium">{standard.id}</span> -{" "}
                               {standard.label}
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-xs text-slate-gray/60">Count</span>
+                              <span className="text-xs text-muted-foreground">Count</span>
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -628,7 +628,7 @@ export default function MassProductionPage() {
                                     event.target.value
                                   )
                                 }
-                                className="w-14 px-2 py-1 border border-slate-gray/20 rounded-md text-center text-xs"
+                                className="w-14 px-2 py-1 border border-border-default rounded-md text-center text-xs"
                               />
                             </div>
                           </div>
@@ -642,8 +642,8 @@ export default function MassProductionPage() {
             <div
               className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
                 isStandardCountValid
-                  ? "border-[#16a34a]/30 bg-[#16a34a]/10 text-[#14532d]"
-                  : "border-red-300 bg-red-50 text-red-700"
+                  ? "border-primary/30 bg-primary/10 text-heading"
+                  : "border-error-border bg-error-light text-error"
               }`}
             >
               <span className="font-medium">
@@ -667,13 +667,13 @@ export default function MassProductionPage() {
               {([1, 2, 3] as DOKLevel[]).map((level) => (
                 <label
                   key={level}
-                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-gray/5 cursor-pointer"
+                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-foreground/5 cursor-pointer"
                 >
                   <input
                     type="checkbox"
                     checked={settings.dokLevels.includes(level)}
                     onChange={() => handleDokToggle(level)}
-                    className="w-4 h-4 mt-0.5 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
+                    className="w-4 h-4 mt-0.5 rounded border-border-default text-primary focus:ring-primary/50"
                   />
                   <div>
                     <span className="text-sm font-medium text-slate-gray">
@@ -684,7 +684,7 @@ export default function MassProductionPage() {
                         ? "Skill/Concept"
                         : "Strategic Thinking"}
                     </span>
-                    <p className="text-xs text-slate-gray/60 mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {level === 1
                         ? "Recall facts, definitions, terms"
                         : level === 2
@@ -700,7 +700,7 @@ export default function MassProductionPage() {
         </section>
 
         {/* Diagram Settings */}
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
             Diagram Settings
           </h2>
@@ -718,7 +718,7 @@ export default function MassProductionPage() {
                     : DEFAULT_SETTINGS.diagramConfig,
                 }))
               }
-              className="w-4 h-4 rounded border-slate-gray/30 text-[#16a34a] focus:ring-[#16a34a]/50"
+              className="w-4 h-4 rounded border-border-default text-primary focus:ring-primary/50"
             />
             <span className="text-sm font-medium text-slate-gray">
               Include questions with diagrams
@@ -727,7 +727,7 @@ export default function MassProductionPage() {
 
           {settings.includeDiagrams && (
             <div className="space-y-4 pl-7">
-              <p className="text-xs text-slate-gray/60 mb-3">
+              <p className="text-xs text-muted-foreground mb-3">
                 Specify how many questions should include each diagram type.
                 Remaining questions will be text-only.
               </p>
@@ -744,7 +744,7 @@ export default function MassProductionPage() {
                     value={settings.diagramConfig.chart || ""}
                     onChange={(e) => handleDiagramCountChange("chart", e.target.value)}
                     placeholder="0"
-                    className="w-20 px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-center"
+                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
                   />
                 </div>
                 <div>
@@ -758,7 +758,7 @@ export default function MassProductionPage() {
                     value={settings.diagramConfig.table || ""}
                     onChange={(e) => handleDiagramCountChange("table", e.target.value)}
                     placeholder="0"
-                    className="w-20 px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-center"
+                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
                   />
                 </div>
                 <div>
@@ -772,7 +772,7 @@ export default function MassProductionPage() {
                     value={settings.diagramConfig.flowchart || ""}
                     onChange={(e) => handleDiagramCountChange("flowchart", e.target.value)}
                     placeholder="0"
-                    className="w-20 px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-center"
+                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
                   />
                 </div>
                 <div>
@@ -786,26 +786,26 @@ export default function MassProductionPage() {
                     value={settings.diagramConfig.diagram || ""}
                     onChange={(e) => handleDiagramCountChange("diagram", e.target.value)}
                     placeholder="0"
-                    className="w-20 px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-center"
+                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
                   />
                 </div>
               </div>
 
               <div className="mt-4 p-3 rounded-lg bg-slate-gray/5">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-gray/70">Diagram questions:</span>
+                  <span className="text-muted-foreground">Diagram questions:</span>
                   <span className="font-medium text-slate-gray">
                     {totalDiagramCount}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">
-                  <span className="text-slate-gray/70">Text-only questions:</span>
+                  <span className="text-muted-foreground">Text-only questions:</span>
                   <span className="font-medium text-slate-gray">
                     {textOnlyCount}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm mt-1 pt-1 border-t border-slate-gray/10">
-                  <span className="text-slate-gray/70">Total:</span>
+                <div className="flex justify-between text-sm mt-1 pt-1 border-t border-border-subtle">
+                  <span className="text-muted-foreground">Total:</span>
                   <span className="font-medium text-slate-gray">
                     {settings.questionCount}
                   </span>
@@ -816,23 +816,23 @@ export default function MassProductionPage() {
         </section>
 
         {/* Advanced Settings */}
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-xl border border-primary/30 bg-surface shadow-sm overflow-hidden">
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between p-6 text-left hover:bg-slate-gray/5"
+            className="w-full flex items-center justify-between p-6 text-left hover:bg-foreground/5"
           >
             <h2 className="text-lg font-medium text-slate-gray">
               Advanced Settings
             </h2>
             {showAdvanced ? (
-              <ChevronUp className="w-5 h-5 text-slate-gray/50" />
+              <ChevronUp className="w-5 h-5 text-muted-foreground" />
             ) : (
-              <ChevronDown className="w-5 h-5 text-slate-gray/50" />
+              <ChevronDown className="w-5 h-5 text-muted-foreground" />
             )}
           </button>
 
           {showAdvanced && (
-            <div className="px-6 pb-6 border-t border-slate-gray/10 pt-4">
+            <div className="px-6 pb-6 border-t border-border-subtle pt-4">
               <label className="block text-sm font-medium text-slate-gray mb-2">
                 Custom Instructions (Optional)
               </label>
@@ -846,9 +846,9 @@ export default function MassProductionPage() {
                 }
                 placeholder="Add any specific instructions for the AI, e.g., 'Focus on photosynthesis concepts' or 'Include more application-based questions'"
                 rows={4}
-                className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16a34a]/50 text-sm resize-none"
+                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm resize-none"
               />
-              <p className="text-xs text-slate-gray/60 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 These instructions will be added to the generation prompt.
               </p>
             </div>
@@ -857,7 +857,7 @@ export default function MassProductionPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          <div className="p-4 rounded-lg bg-error-light border border-error-border text-error text-sm">
             {error}
           </div>
         )}
@@ -865,14 +865,14 @@ export default function MassProductionPage() {
         {/* Generate Button */}
         <div className="flex items-center justify-end gap-4">
           {isGenerating && (
-            <span className="text-sm text-slate-gray/60">
+            <span className="text-sm text-muted-foreground">
               Elapsed: {formatTime(elapsedTime)}
             </span>
           )}
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isGenerating ? (
               <>

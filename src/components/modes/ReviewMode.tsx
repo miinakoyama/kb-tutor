@@ -87,18 +87,18 @@ export function ReviewMode({
   if (reviewQuestions.length === 0) {
     return (
       <div className="max-w-lg mx-auto pt-8">
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center shadow-sm">
-          <CheckCircle2 className="w-12 h-12 text-[#16a34a] mx-auto mb-4" />
+        <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center shadow-sm">
+          <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-4" />
           <h2 className="text-xl font-bold text-slate-gray mb-2">
             Nothing to Review!
           </h2>
-          <p className="text-sm text-slate-gray/60 mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             You haven&apos;t gotten any questions wrong yet, or you haven&apos;t
             practiced any questions. Try some practice first!
           </p>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-[#16a34a] hover:bg-[#15803d] transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors"
           >
             <Home className="w-4 h-4" />
             Go to Home

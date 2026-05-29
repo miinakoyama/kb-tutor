@@ -66,7 +66,7 @@ export default function AssignmentHistoryPage() {
 
   if (isLoading) {
     return (
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-center text-slate-gray/70">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-center text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" />
         Loading attempt history...
       </main>
@@ -78,11 +78,11 @@ export default function AssignmentHistoryPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-4">
         <Link
           href="/assignments"
-          className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
         >
           <ArrowLeft className="w-4 h-4" /> Back to assignments
         </Link>
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-error-border bg-error-light px-4 py-3 text-sm text-error">
           {error ?? "Attempt history is not available."}
         </div>
       </main>
@@ -95,20 +95,20 @@ export default function AssignmentHistoryPage() {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6">
       <Link
         href="/assignments"
-        className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
       >
         <ArrowLeft className="w-4 h-4" /> Back to assignments
       </Link>
 
       <header className="space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <HistoryIcon className="w-5 h-5 text-[#14532d]" />
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
+          <HistoryIcon className="w-5 h-5 text-heading" />
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">
             Past attempts
           </h1>
         </div>
-        <p className="text-slate-gray/70 text-sm">{assignment.title}</p>
-        <p className="text-xs text-slate-gray/60">
+        <p className="text-muted-foreground text-sm">{assignment.title}</p>
+        <p className="text-xs text-muted-foreground">
           {assignment.max_attempts != null
             ? `Attempts used: ${attempts.length} / ${assignment.max_attempts}`
             : `Attempts used: ${attempts.length} / ∞`}
@@ -116,7 +116,7 @@ export default function AssignmentHistoryPage() {
       </header>
 
       {attempts.length === 0 ? (
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm text-center">
+        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
           <p className="text-slate-gray">
             You haven&apos;t completed this assignment yet.
           </p>
@@ -132,22 +132,22 @@ export default function AssignmentHistoryPage() {
               <li key={attempt.attempt_number}>
                 <Link
                   href={`/assignments/${encodeURIComponent(assignmentId)}/history/${attempt.attempt_number}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm hover:bg-slate-50 transition-colors"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm hover:bg-surface-muted transition-colors"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-gray">
                       Attempt {attempt.attempt_number}
                     </p>
-                    <p className="text-xs text-slate-gray/60 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Completed{" "}
                       {new Date(attempt.completed_at).toLocaleString()}
                     </p>
-                    <p className="text-xs text-slate-gray/60 mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       Score: {correct} / {total}{" "}
                       {total > 0 ? `(${percent}%)` : ""}
                     </p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-slate-gray/40 flex-shrink-0" />
+                  <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                 </Link>
               </li>
             );

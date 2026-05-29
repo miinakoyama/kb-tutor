@@ -42,10 +42,10 @@ export function ReadAloudButton({
       type="button"
       onClick={handleClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border text-[#166534] hover:bg-[#16a34a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border text-forest hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
         isCurrent
-          ? "border-[#16a34a]/60 bg-[#16a34a]/15"
-          : "border-[#16a34a]/30"
+          ? "border-primary/60 bg-primary/15"
+          : "border-primary/30"
       }`}
       aria-label={isCurrent ? `${label} reading. Stop.` : idleAriaLabel}
       aria-pressed={isCurrent}

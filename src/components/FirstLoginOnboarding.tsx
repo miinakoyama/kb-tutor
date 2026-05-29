@@ -208,7 +208,7 @@ export function FirstLoginOnboarding({
     <div className="fixed inset-0 z-[80]">
       {spotlightRect ? (
         <div
-          className="pointer-events-none fixed border-2 border-[#4ade80] transition-all duration-200"
+          className="pointer-events-none fixed border-2 border-mint transition-all duration-200"
           style={{
             top: spotlightRect.top,
             left: spotlightRect.left,
@@ -232,23 +232,23 @@ export function FirstLoginOnboarding({
         <div
           ref={cardRef}
           style={spotlightCardStyle}
-          className={`w-full rounded-2xl border border-[#16a34a]/20 bg-white shadow-2xl ${
+          className={`w-full rounded-2xl border border-primary/20 bg-surface shadow-2xl ${
             isSpotlightStep ? "max-w-none" : "max-w-2xl"
           }`}
         >
-          <div className="border-b border-slate-100 px-6 py-4">
+          <div className="border-b border-border-subtle px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                   Quick tour
                 </p>
-                <h2 className="text-xl font-bold text-[#14532d]">{currentStep.title}</h2>
+                <h2 className="text-xl font-bold text-heading">{currentStep.title}</h2>
               </div>
-              <span className="rounded-full bg-[#16a34a]/10 px-2.5 py-1 text-xs font-semibold text-[#166534]">
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-forest">
                 {stepIndex + 1} / {steps.length}
               </span>
             </div>
-            <p className="mt-2 text-sm text-slate-600">{currentStep.description}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{currentStep.description}</p>
           </div>
 
           {currentStep.modeCards && currentStep.modeCards.length > 0 && (
@@ -257,21 +257,21 @@ export function FirstLoginOnboarding({
                 {currentStep.modeCards.map((modeCard) => (
                   <div
                     key={modeCard.label}
-                    className="rounded-lg border border-[#16a34a]/20 bg-[#16a34a]/5 p-3"
+                    className="rounded-lg border border-primary/20 bg-primary/5 p-3"
                   >
-                    <p className="text-sm font-semibold text-[#166534]">{modeCard.label}</p>
-                    <p className="mt-1 text-xs text-slate-600">{modeCard.description}</p>
+                    <p className="text-sm font-semibold text-forest">{modeCard.label}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{modeCard.description}</p>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle px-6 py-4">
             <button
               type="button"
               onClick={onSkip}
-              className="text-sm font-semibold text-slate-500 hover:text-slate-700"
+              className="text-sm font-semibold text-muted-foreground hover:text-foreground"
             >
               Skip tour
             </button>
@@ -281,7 +281,7 @@ export function FirstLoginOnboarding({
                 type="button"
                 onClick={() => setStepIndex((prev) => Math.max(0, prev - 1))}
                 disabled={stepIndex === 0}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-border-default px-3 py-2 text-sm font-semibold text-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Back
               </button>
@@ -294,7 +294,7 @@ export function FirstLoginOnboarding({
                   }
                   setStepIndex((prev) => Math.min(steps.length - 1, prev + 1));
                 }}
-                className="rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d]"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
               >
                 {nextLabel}
               </button>

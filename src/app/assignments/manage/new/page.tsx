@@ -36,7 +36,7 @@ export default function CreateAssignmentPage() {
     <Suspense
       fallback={
         <div className="h-64 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       }
     >
@@ -314,7 +314,7 @@ function CreateAssignmentContent() {
     return (
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="h-64 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       </main>
     );
@@ -324,29 +324,29 @@ function CreateAssignmentContent() {
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/assignments/manage"
-        className="inline-flex items-center gap-2 text-sm text-[#14532d] hover:text-[#166534] mb-6"
+        className="inline-flex items-center gap-2 text-sm text-heading hover:text-forest mb-6"
       >
         <ArrowLeft className="w-4 h-4" />
         Back to assignments
       </Link>
 
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-1">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-1">
           Create Assignment
         </h1>
-        <p className="text-slate-gray/70 text-sm">
+        <p className="text-muted-foreground text-sm">
           Pick existing questions, author new ones, or target previous mistakes.
         </p>
       </header>
 
       {loadError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-4">
+        <div className="rounded-lg border border-error-border bg-error-light px-4 py-3 text-sm text-error mb-4">
           {loadError}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm p-5 space-y-4">
+        <section className="rounded-xl border border-primary/25 bg-surface shadow-sm p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-gray">Basic info</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block text-sm text-slate-gray md:col-span-2">
@@ -355,7 +355,7 @@ function CreateAssignmentContent() {
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="e.g. Genetics Quick Check"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+                className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 required
               />
             </label>
@@ -364,7 +364,7 @@ function CreateAssignmentContent() {
               <select
                 value={selectedSchoolId}
                 onChange={(event) => setSelectedSchoolId(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+                className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 required
               >
                 <option value="">Select school</option>
@@ -382,7 +382,7 @@ function CreateAssignmentContent() {
                 min={1}
                 value={targetMinutes}
                 onChange={(event) => setTargetMinutes(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+                className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
             </label>
             <label className="block text-sm text-slate-gray md:col-span-2">
@@ -393,7 +393,7 @@ function CreateAssignmentContent() {
                 type="datetime-local"
                 value={dueDate}
                 onChange={(event) => setDueDate(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+                className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
             </label>
             <label className="block text-sm text-slate-gray md:col-span-2">
@@ -405,9 +405,9 @@ function CreateAssignmentContent() {
                 onChange={(event) => setInstructions(event.target.value)}
                 rows={3}
                 placeholder="e.g. Please complete Assignment 1 before starting this one."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none resize-y"
+                className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-y"
               />
-              <span className="block mt-1 text-xs text-slate-gray/70">
+              <span className="block mt-1 text-xs text-muted-foreground">
                 Shown to students on the assignment card. Supports multiple
                 lines.
               </span>
@@ -415,7 +415,7 @@ function CreateAssignmentContent() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm p-5 space-y-4">
+        <section className="rounded-xl border border-primary/25 bg-surface shadow-sm p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-gray">Mode</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {(
@@ -446,8 +446,8 @@ function CreateAssignmentContent() {
                   key={option.value}
                   className={`rounded-lg border p-3 cursor-pointer transition-colors ${
                     isSelected
-                      ? "border-[#16a34a] bg-[#16a34a]/5"
-                      : "border-slate-200 hover:border-[#16a34a]/40"
+                      ? "border-primary bg-primary/5"
+                      : "border-border-default hover:border-primary/40"
                   }`}
                 >
                   <input
@@ -459,12 +459,12 @@ function CreateAssignmentContent() {
                   />
                   <p
                     className={`text-sm font-semibold ${
-                      isSelected ? "text-[#14532d]" : "text-slate-gray"
+                      isSelected ? "text-heading" : "text-slate-gray"
                     }`}
                   >
                     {option.label}
                   </p>
-                  <p className="text-xs text-slate-gray/70 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {option.description}
                   </p>
                 </label>
@@ -477,11 +477,11 @@ function CreateAssignmentContent() {
               type="checkbox"
               checked={randomizeOrder}
               onChange={(event) => setRandomizeOrder(event.target.checked)}
-              className="mt-1 w-4 h-4 accent-[#16a34a]"
+              className="mt-1 w-4 h-4 accent-primary"
             />
             <span>
               <span className="block font-medium">Randomize question order</span>
-              <span className="text-xs text-slate-gray/70">
+              <span className="text-xs text-muted-foreground">
                 When enabled, each student sees questions in their own deterministic order.
               </span>
             </span>
@@ -498,9 +498,9 @@ function CreateAssignmentContent() {
               value={maxAttempts}
               onChange={(event) => setMaxAttempts(event.target.value)}
               placeholder="Unlimited"
-              className="w-full md:w-48 rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+              className="w-full md:w-48 rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             />
-            <span className="block mt-1 text-xs text-slate-gray/70">
+            <span className="block mt-1 text-xs text-muted-foreground">
               Leave blank to allow unlimited retries. Otherwise, students can
               complete this assignment at most this many times.
             </span>
@@ -508,10 +508,10 @@ function CreateAssignmentContent() {
         </section>
 
         {mode !== "review" ? (
-          <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm p-5 space-y-4">
+          <section className="rounded-xl border border-primary/25 bg-surface shadow-sm p-5 space-y-4">
             <h2 className="text-lg font-semibold text-slate-gray">Question source</h2>
             <div className="flex flex-wrap gap-3 text-sm">
-              <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer">
+              <label className="inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 cursor-pointer">
                 <input
                   type="radio"
                   name="question-source"
@@ -520,7 +520,7 @@ function CreateAssignmentContent() {
                 />
                 Select from existing sets
               </label>
-              <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer">
+              <label className="inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 cursor-pointer">
                 <input
                   type="radio"
                   name="question-source"
@@ -533,13 +533,13 @@ function CreateAssignmentContent() {
 
             {sourceType === "existing_set" ? (
               visibleQuestionSets.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center">
-                  <p className="text-sm text-slate-gray/70 mb-3">
+                <div className="rounded-lg border border-dashed border-border-default p-6 text-center">
+                  <p className="text-sm text-muted-foreground mb-3">
                     No question sets are available for this school yet.
                   </p>
                   <Link
                     href="/content/mass-production"
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted"
                   >
                     Go to Mass Production
                   </Link>
@@ -558,18 +558,18 @@ function CreateAssignmentContent() {
             ) : (
               <>
                 <ManualQuestionEditor drafts={manualDrafts} onChange={setManualDrafts} />
-                <label className="flex items-start gap-2 text-sm text-slate-gray cursor-pointer border-t border-slate-100 pt-4">
+                <label className="flex items-start gap-2 text-sm text-slate-gray cursor-pointer border-t border-border-subtle pt-4">
                   <input
                     type="checkbox"
                     checked={saveManualAsSet}
                     onChange={(event) => setSaveManualAsSet(event.target.checked)}
-                    className="mt-1 w-4 h-4 accent-[#16a34a]"
+                    className="mt-1 w-4 h-4 accent-primary"
                   />
                   <span>
                     <span className="block font-medium">
                       Save these questions as a new question set
                     </span>
-                    <span className="text-xs text-slate-gray/70">
+                    <span className="text-xs text-muted-foreground">
                       When enabled, a new question set named after the assignment title
                       is created so you can reuse these questions later.
                     </span>
@@ -579,13 +579,13 @@ function CreateAssignmentContent() {
             )}
           </section>
         ) : (
-          <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm p-5 space-y-4">
+          <section className="rounded-xl border border-primary/25 bg-surface shadow-sm p-5 space-y-4">
             <h2 className="text-lg font-semibold text-slate-gray">Review scope</h2>
             <ReviewScopePicker value={reviewScope} onChange={setReviewScope} />
           </section>
         )}
 
-        <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm p-5 space-y-3">
+        <section className="rounded-xl border border-primary/25 bg-surface shadow-sm p-5 space-y-3">
           <h2 className="text-lg font-semibold text-slate-gray">Preview & submit</h2>
           <p className="text-sm text-slate-gray">
             Mode: <span className="font-semibold capitalize">{mode}</span>
@@ -608,7 +608,7 @@ function CreateAssignmentContent() {
           </p>
 
           {formError && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error">
               {formError}
             </p>
           )}
@@ -616,14 +616,14 @@ function CreateAssignmentContent() {
           <div className="flex flex-wrap justify-end gap-3 pt-2">
             <Link
               href="/assignments/manage"
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="rounded-lg border border-border-default px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-muted"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={isSubmitting || schools.length === 0}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isSubmitting ? "Creating..." : "Create assignment"}
