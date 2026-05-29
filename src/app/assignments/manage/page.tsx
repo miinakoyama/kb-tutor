@@ -352,7 +352,7 @@ function AssignmentManagementContent() {
                           </span>
                           {attemptCount > 0 && (
                             <span
-                              className={`flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium border px-2 py-0.5 rounded-full ${badgeAmber}`}
+                              className={`flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${badgeAmber}`}
                               title={`${respondentCount} students answered, ${attemptCount} attempts`}
                             >
                               <Users className="w-3 h-3" />

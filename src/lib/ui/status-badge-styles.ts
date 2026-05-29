@@ -1,20 +1,21 @@
 /** Status badge / tone classes shared across teacher surfaces (light + dark). */
 
 export const badgeEmerald =
-  "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/45 dark:text-emerald-200/90 dark:border-emerald-800/35";
+  "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-200/90 dark:border-emerald-800/35";
 
 export const badgeAmber =
-  "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/45 dark:text-amber-200/90 dark:border-amber-800/35";
+  "border border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/45 dark:text-amber-200/90 dark:border-amber-800/35";
 
 export const badgeRose =
-  "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/45 dark:text-rose-200/90 dark:border-rose-800/35";
+  "border border-rose-200 bg-rose-50 text-rose-700 dark:bg-rose-950/45 dark:text-rose-200/90 dark:border-rose-800/35";
 
 export const badgeNeutral =
-  "bg-surface-muted text-muted-foreground border-border-default";
+  "border border-border-default bg-surface-muted text-muted-foreground";
 
 export const badgeViolet =
-  "border-violet-200 bg-violet-50 text-violet-800 dark:bg-violet-950/45 dark:text-violet-200/90 dark:border-violet-800/35";
+  "border border-violet-200 bg-violet-50 text-violet-800 dark:bg-violet-950/45 dark:text-violet-200/90 dark:border-violet-800/35";
 
+export const textNeutral = "text-slate-gray";
 export const textEmerald = "text-emerald-700 dark:text-emerald-300";
 export const textAmber = "text-amber-700 dark:text-amber-300";
 export const textRose = "text-rose-700 dark:text-rose-300";
@@ -71,7 +72,7 @@ export const calloutPrimaryTitle =
 export const calloutPrimaryTitleUpper =
   "text-xs font-semibold text-forest uppercase tracking-wide mb-1";
 
-export const calloutPrimaryBody = "text-sm text-slate-gray";
+export const calloutPrimaryBody = `text-sm ${textNeutral}`;
 
 /** Secondary info callout (explanations) — muted sky, safe in dark mode. */
 export const calloutInfo =

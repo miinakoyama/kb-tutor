@@ -371,8 +371,8 @@ function DataQualityPanel({
         <span
           className={
             allZero
-              ? `rounded-full border px-2 py-0.5 text-xs ${badgeEmerald}`
-              : `rounded-full border px-2 py-0.5 text-xs inline-flex items-center gap-1 ${badgeAmber}`
+              ? `rounded-full px-2 py-0.5 text-xs ${badgeEmerald}`
+              : `rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1 ${badgeAmber}`
           }
         >
           {allZero ? "No signals" : (

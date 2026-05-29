@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -34,6 +35,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     useState<AppearanceMode>(DEFAULT_APPEARANCE_MODE);
   const [prefersDark, setPrefersDark] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const appearanceModeRef = useRef(appearanceMode);
+  appearanceModeRef.current = appearanceMode;
 
   useEffect(() => {
     const init = async () => {
@@ -51,7 +54,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (!hydrated) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = (event: MediaQueryListEvent) => {
-      setPrefersDark(event.matches);
+      const matches = event.matches;
+      // Update .dark before children rerender so chart CSS variables match resolvedTheme.
+      if (appearanceModeRef.current === "system") {
+        applyResolvedThemeToDocument(matches ? "dark" : "light");
+      }
+      setPrefersDark(matches);
     };
     setPrefersDark(media.matches);
     media.addEventListener("change", handleChange);

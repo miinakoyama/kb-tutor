@@ -389,7 +389,7 @@ export default function QuestionQualityPage() {
                                   key={badge.label}
                                   className={
                                     badge.tone === "warning"
-                                      ? `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${badgeAmber}`
+                                      ? `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${badgeAmber}`
                                       : "inline-flex items-center gap-1 rounded-full bg-surface-muted border border-border-default text-muted-foreground px-2 py-0.5 text-[10px]"
                                   }
                                 >

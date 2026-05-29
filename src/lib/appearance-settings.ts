@@ -101,8 +101,23 @@ export async function syncAppearanceFromDb(
       .maybeSingle();
 
     if (isStoredAppearanceMode(data?.appearance_mode)) {
-      setStoredAppearanceModeLocalOnly(data.appearance_mode);
-      return data.appearance_mode;
+      const dbMode = data.appearance_mode;
+      const localMode = getStoredAppearanceMode(fallback);
+      const hadLocalPreference =
+        window.localStorage.getItem(APPEARANCE_STORAGE_KEY) !== null;
+
+      // Migration backfill uses DEFAULT 'system'; do not treat it as an explicit choice
+      // over an existing local light/dark preference.
+      if (
+        dbMode === "system" &&
+        hadLocalPreference &&
+        localMode !== "system"
+      ) {
+        return localMode;
+      }
+
+      setStoredAppearanceModeLocalOnly(dbMode);
+      return dbMode;
     }
 
     // No row or null column: keep existing local preference (do not overwrite with fallback).

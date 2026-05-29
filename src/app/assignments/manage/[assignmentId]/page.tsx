@@ -30,6 +30,7 @@ import {
   statCardBase,
   statCardHighlight,
   textAmber,
+  textNeutral,
 } from "@/lib/ui/status-badge-styles";
 
 type AssignmentMode = "practice" | "exam" | "review";
@@ -537,7 +538,7 @@ function StatCard({
       </div>
       <p
         className={`text-2xl font-semibold ${
-          highlight ? textAmber : "text-slate-gray"
+          highlight ? textAmber : textNeutral
         }`}
       >
         {value}
@@ -797,7 +798,7 @@ function StudentProgressSection({
                     </td>
                     <td className="px-3 py-2">
                       <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusStyles[student.status]}`}
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[student.status]}`}
                       >
                         {statusLabel[student.status]}
                       </span>

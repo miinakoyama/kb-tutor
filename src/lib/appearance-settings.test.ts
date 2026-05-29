@@ -91,4 +91,20 @@ describe("syncAppearanceFromDb", () => {
     await expect(syncAppearanceFromDb()).resolves.toBe("dark");
     expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("dark");
   });
+
+  it("does not overwrite local light/dark with migration default system", async () => {
+    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, "dark");
+    maybeSingleMock.mockResolvedValue({ data: { appearance_mode: "system" } });
+
+    await expect(syncAppearanceFromDb()).resolves.toBe("dark");
+    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("dark");
+  });
+
+  it("accepts DB system when local preference is also system", async () => {
+    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, "system");
+    maybeSingleMock.mockResolvedValue({ data: { appearance_mode: "system" } });
+
+    await expect(syncAppearanceFromDb()).resolves.toBe("system");
+    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("system");
+  });
 });

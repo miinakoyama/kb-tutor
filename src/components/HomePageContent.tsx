@@ -354,7 +354,7 @@ function StatusDot({ status }: { status: StudentAssignmentStatus }) {
   if (status === "in_progress") {
     return (
       <span
-        className={`inline-flex border px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeAmber}`}
+        className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeAmber}`}
       >
         In progress
       </span>

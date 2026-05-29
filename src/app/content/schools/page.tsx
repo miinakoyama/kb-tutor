@@ -282,7 +282,7 @@ export default function SchoolManagementPage() {
                         </span>
                       )}
                       {school.is_hidden && (
-                        <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badgeAmber}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeAmber}`}>
                           Hidden on student login
                         </span>
                       )}

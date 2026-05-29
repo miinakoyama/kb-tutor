@@ -440,7 +440,7 @@ function TeacherDashboardContent() {
             {data.lowAndFastCount > 0 && (
               <button
                 onClick={() => setStudentFilter("low_and_fast")}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors hover:opacity-90 ${badgeRose}`}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors hover:opacity-90 ${badgeRose}`}
               >
                 <AlertCircle className="w-3.5 h-3.5" />
                 {data.lowAndFastCount}{" "}
@@ -1062,7 +1062,7 @@ function StandardStatusBadge({ status }: { status: StandardRow["status"] }) {
   };
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
     >
       {status === "needs_review" && <BookOpen className="w-3 h-3 flex-shrink-0" />}
       {label[status]}
@@ -1085,7 +1085,7 @@ function StudentStatusBadge({ status }: { status: StudentRow["status"] }) {
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
     >
       {label[status]}
     </span>

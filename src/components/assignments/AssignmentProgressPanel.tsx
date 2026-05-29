@@ -324,7 +324,7 @@ function ProgressStatusCell({
   const title = buildProgressCellTitle(progress);
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone[progress.status]}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone[progress.status]}`}
       title={title}
     >
       {icon[progress.status]}
