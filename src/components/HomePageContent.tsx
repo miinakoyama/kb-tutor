@@ -61,7 +61,7 @@ export function HomePageContent({
       <section className="grid gap-4 lg:grid-cols-3 mb-6">
         <div className="lg:col-span-3 rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm">
           <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="inline-flex items-center gap-2 text-primary">
+            <div className="inline-flex items-center gap-2 text-primary dark:text-forest">
               <ClipboardList className="w-5 h-5" />
               <span className="font-semibold">To do</span>
             </div>
@@ -114,7 +114,7 @@ export function HomePageContent({
             href="/self-practice"
             className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors"
           >
-            <div className="inline-flex items-center gap-2 text-primary mb-2">
+            <div className="inline-flex items-center gap-2 text-primary dark:text-forest mb-2">
               <NotebookPen className="w-5 h-5" />
               <span className="font-semibold">Self Practice</span>
             </div>
@@ -133,7 +133,7 @@ export function HomePageContent({
             className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors"
           >
             <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="inline-flex items-center gap-2 text-primary">
+              <div className="inline-flex items-center gap-2 text-primary dark:text-forest">
                 <Bell className="w-5 h-5" />
                 <span className="font-semibold">Notifications</span>
               </div>
