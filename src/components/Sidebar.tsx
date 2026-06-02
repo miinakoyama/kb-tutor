@@ -11,7 +11,6 @@ import {
   Database,
   Menu,
   X,
-  Bell,
   ClipboardList,
   Bookmark,
   NotebookPen,
@@ -56,7 +55,6 @@ const STUDENT_SECTION: NavSection = {
   title: "Learning",
   items: [
     { href: "/", label: "Home", icon: Home },
-    { href: "/notifications", label: "Notifications", icon: Bell },
     { href: "/assignments", label: "My Assignment", icon: ClipboardList },
     { href: "/self-practice", label: "Self Practice", icon: NotebookPen },
     { href: "/progress", label: "My Progress", icon: BarChart3 },

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Bell,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
@@ -11,7 +10,6 @@ import {
   NotebookPen,
   Play,
 } from "lucide-react";
-import type { StudentNotification } from "@/lib/notifications";
 import type {
   StudentAssignmentListItem,
   StudentAssignmentStatus,
@@ -27,7 +25,6 @@ import { badgeAmber } from "@/lib/ui/status-badge-styles";
 
 interface HomePageContentProps {
   assignments: StudentAssignmentListItem[];
-  notifications: StudentNotification[];
   keystoneExam?: KeystoneExamInfo | null;
 }
 
@@ -35,14 +32,8 @@ const TODO_LIMIT = 3;
 
 export function HomePageContent({
   assignments,
-  notifications,
   keystoneExam = null,
 }: HomePageContentProps) {
-  const topNotifications = notifications.slice(0, 3);
-  const unreadCount = notifications.filter((item) => !item.read).length;
-  const latestNotification =
-    topNotifications[0]?.message ?? "No new notifications.";
-
   const activeAssignments = assignments.filter((a) => a.status !== "completed");
   const todoItems = selectTodoAssignments(activeAssignments, TODO_LIMIT);
   const totalAssignments = assignments.length;
@@ -109,10 +100,10 @@ export function HomePageContent({
           </div>
         </div>
 
-        <div className="lg:col-span-3 grid gap-4 sm:grid-cols-2">
+        <div className="lg:col-span-3">
           <Link
             href="/self-practice"
-            className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors"
+            className="block rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors"
           >
             <div className="inline-flex items-center gap-2 text-primary dark:text-forest mb-2">
               <NotebookPen className="w-5 h-5" />
@@ -124,29 +115,6 @@ export function HomePageContent({
             <div className="mt-4">
               <span className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover transition-colors">
                 Start self practice
-              </span>
-            </div>
-          </Link>
-
-          <Link
-            href="/notifications"
-            className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors"
-          >
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="inline-flex items-center gap-2 text-primary dark:text-forest">
-                <Bell className="w-5 h-5" />
-                <span className="font-semibold">Notifications</span>
-              </div>
-              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary/10 text-forest">
-                {unreadCount} unread
-              </span>
-            </div>
-            <p className="text-sm text-slate-gray/80 line-clamp-3">
-              {latestNotification}
-            </p>
-            <div className="mt-4">
-              <span className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover transition-colors">
-                View notifications
               </span>
             </div>
           </Link>
