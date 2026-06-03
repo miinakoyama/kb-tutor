@@ -11,7 +11,6 @@ import {
   Database,
   Menu,
   X,
-  Bell,
   ClipboardList,
   Bookmark,
   NotebookPen,
@@ -56,7 +55,6 @@ const STUDENT_SECTION: NavSection = {
   title: "Learning",
   items: [
     { href: "/", label: "Home", icon: Home },
-    { href: "/notifications", label: "Notifications", icon: Bell },
     { href: "/assignments", label: "My Assignment", icon: ClipboardList },
     { href: "/self-practice", label: "Self Practice", icon: NotebookPen },
     { href: "/progress", label: "My Progress", icon: BarChart3 },
@@ -320,14 +318,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
           } ${
             active
-              ? "bg-white/20 text-white shadow-inner"
-              : "text-white/90 hover:bg-white/10 hover:text-white"
+              ? "bg-surface/20 text-white shadow-inner"
+              : "text-white/90 hover:bg-surface/10 hover:text-white"
           }`}
         >
           <Icon className="w-5 h-5 flex-shrink-0" />
           {!collapsed && label}
           {!collapsed && isBookmarksLink && bookmarkCount > 0 && (
-            <span className="ml-auto bg-white/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+            <span className="ml-auto bg-surface/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
               {bookmarkCount}
             </span>
           )}
@@ -357,20 +355,20 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 6 }}
           transition={{ duration: 0.15 }}
-          className={`absolute bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 ${
+          className={`absolute bg-surface rounded-xl shadow-xl border border-border-subtle overflow-hidden z-50 ${
             collapsed
               ? "bottom-0 left-full ml-2 w-56"
               : "bottom-full left-0 right-0 mb-2 mx-3"
           }`}
         >
           {userProfile && (
-            <div className="px-4 py-3 border-b border-slate-100">
-              <p className="text-xs text-slate-400 mb-0.5">Signed in as</p>
-              <p className="text-sm font-semibold text-slate-700 truncate">
+            <div className="px-4 py-3 border-b border-border-subtle">
+              <p className="text-xs text-muted-foreground mb-0.5">Signed in as</p>
+              <p className="text-sm font-semibold text-foreground truncate">
                 {getDisplayName(userProfile)}
               </p>
               {role !== "student" && (
-                <p className="text-xs text-slate-400 truncate">{userProfile.email}</p>
+                <p className="text-xs text-muted-foreground truncate">{userProfile.email}</p>
               )}
             </div>
           )}
@@ -380,14 +378,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               setShowUserMenu(false);
               if (closeMobileMenu) setIsOpen(false);
             }}
-            className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-surface-muted transition-colors"
           >
-            <Settings className="w-4 h-4 text-slate-400" />
+            <Settings className="w-4 h-4 text-muted-foreground" />
             Settings
           </Link>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-slate-100"
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-error hover:bg-error-light transition-colors border-t border-border-subtle"
           >
             <LogOut className="w-4 h-4" />
             Logout
@@ -406,11 +404,11 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       <button
         onClick={() => setShowUserMenu((v) => !v)}
         title={collapsed && userProfile ? getDisplayName(userProfile) : undefined}
-        className={`w-full flex items-center rounded-lg hover:bg-white/10 transition-colors group ${
+        className={`w-full flex items-center rounded-lg hover:bg-surface/10 transition-colors group ${
           collapsed ? "justify-center p-2" : "gap-3 px-3 py-2"
         }`}
       >
-        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+        <div className="w-8 h-8 rounded-full bg-surface/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
           {userProfile ? getInitial(userProfile) : "?"}
         </div>
         {!collapsed && (
@@ -441,7 +439,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           data-tour-id={TOUR_TARGET_IDS.SIDEBAR_TOGGLE}
           onClick={onToggle}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={`p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 ${
+          className={`p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-surface/10 transition-colors flex-shrink-0 ${
             isCollapsed ? "" : "ml-0.5"
           }`}
         >
@@ -465,11 +463,11 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       {/* Mobile / tablet top header bar */}
       <header
         className="lg:hidden fixed top-0 left-0 right-0 h-16 z-40 flex items-center px-4 shadow-sm"
-        style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
+        style={{ background: "var(--sidebar-gradient)" }}
       >
         <button
           onClick={() => setIsOpen(true)}
-          className="p-3 rounded-lg text-white min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/10 transition-colors"
+          className="p-3 rounded-lg text-white min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-surface/10 transition-colors"
           aria-label="Open menu"
         >
           <Menu className="w-6 h-6" />
@@ -499,7 +497,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             exit={{ x: -280 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed left-0 top-0 bottom-0 w-64 z-50 lg:hidden shadow-xl"
-            style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
+            style={{ background: "var(--sidebar-gradient)" }}
           >
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
@@ -511,7 +509,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-3 rounded-lg text-white hover:bg-white/10 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  className="p-3 rounded-lg text-white hover:bg-surface/10 min-w-[44px] min-h-[44px] flex items-center justify-center"
                   aria-label="Close menu"
                 >
                   <X className="w-5 h-5" />
@@ -529,7 +527,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-hidden transition-all duration-300 ${
           isCollapsed ? "lg:w-14" : "lg:w-64"
         }`}
-        style={{ background: "linear-gradient(135deg, #166534 0%, #15803d 100%)" }}
+        style={{ background: "var(--sidebar-gradient)" }}
       >
         <div className="flex flex-col h-full w-full">{desktopSidebarContent}</div>
       </aside>

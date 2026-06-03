@@ -9,6 +9,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { useTheme } from "@/components/ThemeProvider";
+import { getChartThemeColors } from "@/lib/chart-theme";
 import type { ChartData } from "@/types/question";
 
 interface LineChartDiagramProps {
@@ -16,8 +18,10 @@ interface LineChartDiagramProps {
 }
 
 export function LineChartDiagram({ data }: LineChartDiagramProps) {
+  const { resolvedTheme } = useTheme();
+  const colors = getChartThemeColors(resolvedTheme);
   const hasMultiSeries = Array.isArray(data.series) && data.series.length > 0;
-  const strokePalette = ["#000", "#333", "#666", "#999"];
+  const strokePalette = [colors.foreground, colors.axis, colors.primary, colors.grid];
   const dashPalette = ["0", "6 4", "2 3", "10 4"];
   const multiSeriesData = hasMultiSeries
     ? data.data.map((point) => {
@@ -44,9 +48,9 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
     : data.data;
 
   return (
-    <div className="w-full bg-white p-4 border border-gray-300 rounded">
+    <div className="w-full bg-surface p-4 border border-border-default rounded">
       {data.title && (
-        <h3 className="text-center text-sm font-bold text-black mb-2">
+        <h3 className="text-center text-sm font-bold text-foreground mb-2">
           {data.title}
         </h3>
       )}
@@ -55,23 +59,23 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
           data={multiSeriesData}
           margin={{ top: 16, right: 24, left: 48, bottom: 32 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#999" />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
           <XAxis
             dataKey="x"
-            tick={{ fontSize: 12, fill: "#000" }}
-            stroke="#000"
+            tick={{ fontSize: 12, fill: colors.axis }}
+            stroke={colors.axis}
             label={{
               value: data.xAxisLabel,
               position: "bottom",
               offset: 12,
               fontSize: 12,
-              fill: "#000",
+              fill: colors.axis,
             }}
           />
           <YAxis
             width={72}
-            tick={{ fontSize: 12, fill: "#000" }}
-            stroke="#000"
+            tick={{ fontSize: 12, fill: colors.axis }}
+            stroke={colors.axis}
             label={{
               value: data.yAxisLabel,
               angle: -90,
@@ -80,7 +84,7 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
               dx: -8,
               dy: 0,
               fontSize: 12,
-              fill: "#000",
+              fill: colors.axis,
               style: { textAnchor: "middle" },
             }}
           />
@@ -115,10 +119,10 @@ export function LineChartDiagram({ data }: LineChartDiagramProps) {
               type="monotone"
               dataKey="y"
               isAnimationActive={false}
-              stroke="#000"
+              stroke={colors.foreground}
               strokeWidth={2}
-              dot={{ fill: "#000", strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6, fill: "#333" }}
+              dot={{ fill: colors.foreground, strokeWidth: 2, r: 4 }}
+              activeDot={{ r: 6, fill: colors.primary }}
             />
           )}
         </LineChart>

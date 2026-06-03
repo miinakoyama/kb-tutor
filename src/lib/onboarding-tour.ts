@@ -4,7 +4,6 @@ export const TOUR_TARGET_IDS = {
   SIDEBAR_ROOT: "tour-sidebar-root",
   SIDEBAR_TOGGLE: "tour-sidebar-toggle",
   HOME: "tour-home",
-  NOTIFICATIONS: "tour-notifications",
   STUDENT_ASSIGNMENTS: "tour-student-assignments",
   SELF_PRACTICE: "tour-self-practice",
   PROGRESS: "tour-progress",
@@ -62,18 +61,10 @@ const STUDENT_STEPS: OnboardingStep[] = [
   },
   {
     title: "Home",
-    description: "Check what to do today and review your latest notifications here.",
+    description: "Check what to do today and see your active assignments here.",
     type: "spotlight",
     targetIds: [TOUR_TARGET_IDS.HOME],
     routePath: "/",
-  },
-  {
-    title: "Notifications",
-    description:
-      "Review assignment updates and reminders so you can stay on track.",
-    type: "spotlight",
-    targetIds: [TOUR_TARGET_IDS.NOTIFICATIONS],
-    routePath: "/notifications",
   },
   {
     title: "My Assignment",
@@ -180,7 +171,6 @@ export function getTourTargetIdForHref(
   role: SidebarRole,
 ): TourTargetId | undefined {
   if (href === "/") return TOUR_TARGET_IDS.HOME;
-  if (href === "/notifications") return TOUR_TARGET_IDS.NOTIFICATIONS;
   if (href === "/self-practice") return TOUR_TARGET_IDS.SELF_PRACTICE;
   if (href === "/progress") return TOUR_TARGET_IDS.PROGRESS;
   if (href === "/bookmarks") return TOUR_TARGET_IDS.BOOKMARKS;

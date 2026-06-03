@@ -1,3 +1,6 @@
+"use client";
+
+import { useId } from "react";
 import type { FlowchartData } from "@/types/question";
 
 interface FlowchartDiagramProps {
@@ -59,6 +62,8 @@ function wrapLabel(text: string): string[] {
 }
 
 export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
+  // React useId may include ":" — strip for valid SVG url(#id) references.
+  const arrowMarkerId = `flow-arrow-${useId().replace(/:/g, "")}`;
   const nodeLabelLines = Object.fromEntries(
     data.nodes.map((node) => [node.id, wrapLabel(node.label)])
   );
@@ -88,9 +93,9 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[460px] bg-white p-4 border border-gray-300 rounded">
+    <div className="mx-auto w-full max-w-[460px] bg-[var(--diagram-canvas)] p-4 border border-border-default rounded">
       {data.title && (
-        <h3 className="text-center text-sm font-bold text-black mb-2">
+        <h3 className="text-center text-sm font-bold text-foreground mb-2">
           {data.title}
         </h3>
       )}
@@ -100,14 +105,14 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
       >
         <defs>
           <marker
-            id="arrowhead-bw"
+            id={arrowMarkerId}
             markerWidth="8"
             markerHeight="6"
             refX="7"
             refY="3"
             orient="auto"
           >
-            <polygon points="0 0, 8 3, 0 6" fill="#000" />
+            <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-ink)" />
           </marker>
         </defs>
 
@@ -132,9 +137,9 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
                 y1={startY}
                 x2={endX}
                 y2={endY}
-                stroke="#000"
+                stroke="var(--diagram-ink)"
                 strokeWidth="2"
-                markerEnd="url(#arrowhead-bw)"
+                markerEnd={`url(#${arrowMarkerId})`}
               />
               {edge.label && (
                 <g>
@@ -144,7 +149,9 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
                     width={labelBgWidth}
                     height={EDGE_LABEL_BG_HEIGHT}
                     rx="3"
-                    fill="white"
+                    fill="var(--diagram-node-fill)"
+                    stroke="var(--diagram-ink)"
+                    strokeWidth="1"
                   />
                   <text
                     x={labelPos.x}
@@ -152,7 +159,7 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fontSize="12"
-                    fill="#000"
+                    fill="var(--diagram-ink)"
                   >
                     {edge.label}
                   </text>
@@ -177,8 +184,8 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
                 width={NODE_WIDTH}
                 height={nodeHeight}
                 rx="4"
-                fill="white"
-                stroke="#000"
+                fill="var(--diagram-node-fill)"
+                stroke="var(--diagram-ink)"
                 strokeWidth="2"
               />
               <text
@@ -187,7 +194,7 @@ export function FlowchartDiagram({ data }: FlowchartDiagramProps) {
                 textAnchor="middle"
                 fontSize="12"
                 fontWeight="500"
-                fill="#000"
+                fill="var(--diagram-ink)"
               >
                 {lines.map((line, index) => (
                   <tspan

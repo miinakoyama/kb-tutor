@@ -109,10 +109,10 @@ export default function ManualQuestionSetPage() {
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/content/questions"
-        className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-6"
+        className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"
       >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-          <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+          <ArrowLeft className="w-4 h-4 text-heading" />
         </span>
         Back to Question Manager
       </Link>
@@ -120,19 +120,19 @@ export default function ManualQuestionSetPage() {
       <h1 className="text-xl font-bold text-slate-gray mb-2">
         Add manual question set
       </h1>
-      <p className="text-sm text-slate-gray/70 mb-6">
+      <p className="text-sm text-muted-foreground mb-6">
         Create one or more manual questions. This editor matches the assignment
         manual question flow, including Fill with AI.
       </p>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-error-border bg-error-light px-4 py-2 text-sm text-error">
           {error}
         </div>
       )}
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm space-y-4">
+        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-medium text-slate-gray">Schools *</h2>
           {schoolOptions.length === 0 ? (
             <p className="text-sm text-amber-700">Loading schools…</p>
@@ -151,7 +151,7 @@ export default function ManualQuestionSetPage() {
                             : [...prev, school.id],
                         );
                       }}
-                      className="rounded border-slate-gray/30 text-[#16a34a]"
+                      className="rounded border-border-default text-primary"
                     />
                     {school.name}
                   </label>
@@ -161,20 +161,20 @@ export default function ManualQuestionSetPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm space-y-4">
+        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm space-y-4">
           <label className="block">
             <span className="text-sm font-medium text-slate-gray">Set name *</span>
             <input
               type="text"
               value={setName}
               onChange={(e) => setSetName(e.target.value)}
-              className="mt-1 w-full px-3 py-2 border border-slate-gray/20 rounded-lg"
+              className="mt-1 w-full px-3 py-2 border border-border-default rounded-lg"
               placeholder="e.g., Week 3 review"
             />
           </label>
         </section>
 
-        <section className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm space-y-4">
+        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-medium text-slate-gray">Questions</h2>
           <ManualQuestionEditor drafts={manualDrafts} onChange={setManualDrafts} />
         </section>
@@ -182,7 +182,7 @@ export default function ManualQuestionSetPage() {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#16a34a] text-white font-medium hover:bg-[#15803d] disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover disabled:opacity-50"
         >
           {saving ? (
             <>

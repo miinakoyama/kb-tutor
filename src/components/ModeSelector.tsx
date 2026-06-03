@@ -65,17 +65,17 @@ export function ModeSelector({ moduleId, topicName }: ModeSelectorProps) {
       <div className="mb-6">
         <Link
           href="/self-practice"
-          className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+          className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-4"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+            <ArrowLeft className="w-4 h-4 text-heading" />
           </span>
           Back to Self Practice
         </Link>
-        <h1 className="text-xl sm:text-2xl font-bold font-heading text-[#14532d]">
+        <h1 className="text-xl sm:text-2xl font-bold font-heading text-heading">
           {topicName}
         </h1>
-        <p className="text-sm text-slate-gray/60 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Choose how you want to practice
         </p>
       </div>
@@ -123,23 +123,23 @@ function ModeCard({
     >
       <Link
         href={href}
-        className="block rounded-3xl border border-[#16a34a]/30 bg-white p-5 shadow-sm hover:shadow-md hover:border-[#16a34a] transition-all group"
+        className="block rounded-3xl border border-primary/30 bg-surface p-5 shadow-sm hover:shadow-md hover:border-primary transition-all group"
       >
         <div className="flex items-center gap-3 mb-3">
-          <Icon className="w-6 h-6 text-[#16a34a] flex-shrink-0" />
+          <Icon className="w-6 h-6 text-primary flex-shrink-0" />
           <div>
             <h3 className="text-lg font-bold text-slate-gray">{card.title}</h3>
-            <p className="text-xs text-[#16a34a] font-medium">
+            <p className="text-xs text-primary font-medium">
               {card.subtitle}
             </p>
           </div>
         </div>
 
-        <p className="text-sm text-slate-gray/70 leading-relaxed mb-3">
+        <p className="text-sm text-muted-foreground leading-relaxed mb-3">
           {card.description}
         </p>
 
-        <div className="flex items-center gap-3 text-xs text-slate-gray/50">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{card.questions}</span>
           <span>·</span>
           <span>{card.time}</span>

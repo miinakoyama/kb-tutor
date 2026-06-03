@@ -50,7 +50,7 @@ const TABS: Array<{ id: Tab; label: string; href: string; description: string }>
 
 export function DataAnalysisTabs({ active }: DataAnalysisTabsProps) {
   return (
-    <nav className="mb-6 border-b border-slate-200" aria-label="Data analysis tabs">
+    <nav className="mb-6 border-b border-border-default" aria-label="Data analysis tabs">
       <div className="flex items-center gap-4 overflow-x-auto">
         {TABS.map((tab) => {
           const isActive = tab.id === active;
@@ -62,8 +62,8 @@ export function DataAnalysisTabs({ active }: DataAnalysisTabsProps) {
               aria-current={isActive ? "page" : undefined}
               className={
                 isActive
-                  ? "-mb-px whitespace-nowrap border-b-2 border-[#16a34a] px-1.5 pb-2.5 pt-1 text-sm font-semibold text-[#14532d] transition-colors"
-                  : "-mb-px whitespace-nowrap border-b-2 border-transparent px-1.5 pb-2.5 pt-1 text-sm font-semibold text-slate-gray/60 transition-colors hover:text-slate-gray"
+                  ? "-mb-px whitespace-nowrap border-b-2 border-primary px-1.5 pb-2.5 pt-1 text-sm font-semibold text-heading transition-colors"
+                  : "-mb-px whitespace-nowrap border-b-2 border-transparent px-1.5 pb-2.5 pt-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
               }
             >
               {tab.label}

@@ -22,6 +22,16 @@ import {
   formatDueDateTime,
   isoToDateTimeLocalValue,
 } from "@/lib/due-date";
+import {
+  alertSuccess,
+  badgeAmber,
+  badgeEmerald,
+  badgeNeutral,
+  statCardBase,
+  statCardHighlight,
+  textAmber,
+  textNeutral,
+} from "@/lib/ui/status-badge-styles";
 
 type AssignmentMode = "practice" | "exam" | "review";
 type SourceType = "existing_set" | "generated_now" | "manual";
@@ -113,7 +123,7 @@ export default function AssignmentDetailPage() {
 
   if (isLoading) {
     return (
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-center text-slate-gray/70">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-center text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" />
         Loading assignment...
       </main>
@@ -125,11 +135,11 @@ export default function AssignmentDetailPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
         <Link
           href="/assignments/manage"
-          className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a] mb-4"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary mb-4"
         >
           <ArrowLeft className="w-4 h-4" /> Back to assignments
         </Link>
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-error-border bg-error-light px-4 py-3 text-sm text-error">
           {loadError ?? "Assignment not found."}
         </div>
       </main>
@@ -302,7 +312,7 @@ function AssignmentDetailContent({
     <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 lg:py-10 space-y-6">
       <Link
         href="/assignments/manage"
-        className="inline-flex items-center gap-1 text-sm text-slate-gray/70 hover:text-[#16a34a]"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
       >
         <ArrowLeft className="w-4 h-4" /> Back to assignments
       </Link>
@@ -310,41 +320,41 @@ function AssignmentDetailContent({
       <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] truncate">
+            <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading truncate">
               {assignment.title}
             </h1>
             {assignment.school_name && (
-              <span className="inline-flex items-center text-xs font-medium text-[#16a34a] bg-[#16a34a]/10 px-2 py-0.5 rounded-full">
+              <span className="inline-flex items-center text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                 {assignment.school_name}
               </span>
             )}
-            <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+            <span className="inline-flex items-center text-xs font-medium text-foreground bg-surface-muted px-2 py-0.5 rounded-full">
               Mode: {mode}
             </span>
           </div>
-          <p className="text-xs text-slate-gray/60">
+          <p className="text-xs text-muted-foreground">
             Created {new Date(assignment.created_at).toLocaleString()}
           </p>
         </div>
         <button
           onClick={() => void handleDelete()}
-          className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg text-red-600 border border-red-200 hover:bg-red-50"
+          className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg text-error border border-error-border hover:bg-error-light"
         >
           <Trash2 className="w-4 h-4" /> Delete
         </button>
       </header>
 
       {message && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        <p className={alertSuccess}>
           {message}
         </p>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 flex items-start gap-2">
+      <div className="rounded-lg border border-border-default bg-surface-muted px-4 py-3 text-sm text-foreground flex items-start gap-2">
         <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div>
           <p className="font-medium">What can be edited</p>
-          <p className="text-slate-600">
+          <p className="text-muted-foreground">
             Title, due date, time limit, and randomization can always be updated.
             Questions, mode, and review scope are fixed after creation to protect
             in-progress students — delete and recreate to change them.
@@ -377,10 +387,10 @@ function AssignmentDetailContent({
       </section>
 
       {/* ---- Safe-field editor ---- */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+      <section className="rounded-xl border border-border-default bg-surface p-4 sm:p-5 space-y-4">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-slate-gray">Details</h2>
-          <span className="text-xs text-slate-gray/60">(editable)</span>
+          <span className="text-xs text-muted-foreground">(editable)</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -390,7 +400,7 @@ function AssignmentDetailContent({
               type="text"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-md border border-slate-300 bg-surface px-3 py-2 text-sm"
             />
           </label>
 
@@ -400,7 +410,7 @@ function AssignmentDetailContent({
               type="datetime-local"
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-md border border-slate-300 bg-surface px-3 py-2 text-sm"
             />
           </label>
 
@@ -416,7 +426,7 @@ function AssignmentDetailContent({
                   Math.max(1, Math.min(180, Number(event.target.value) || 1)),
                 )
               }
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-md border border-slate-300 bg-surface px-3 py-2 text-sm"
             />
           </label>
 
@@ -425,11 +435,11 @@ function AssignmentDetailContent({
               type="checkbox"
               checked={randomizeOrder}
               onChange={(event) => setRandomizeOrder(event.target.checked)}
-              className="mt-1 w-4 h-4 accent-[#16a34a]"
+              className="mt-1 w-4 h-4 accent-primary"
             />
             <span>
               <span className="block font-medium">Randomize question order</span>
-              <span className="text-xs text-slate-gray/70">
+              <span className="text-xs text-muted-foreground">
                 Each student sees questions in a different deterministic order.
               </span>
             </span>
@@ -446,9 +456,9 @@ function AssignmentDetailContent({
               value={maxAttempts}
               onChange={(event) => setMaxAttempts(event.target.value)}
               placeholder="Unlimited"
-              className="w-full md:w-48 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full md:w-48 rounded-md border border-slate-300 bg-surface px-3 py-2 text-sm"
             />
-            <span className="block mt-1 text-xs text-slate-gray/70">
+            <span className="block mt-1 text-xs text-muted-foreground">
               Leave blank to allow unlimited retries. Reducing this below an
               existing student&apos;s completion count blocks future restarts
               but does not invalidate prior work.
@@ -464,16 +474,16 @@ function AssignmentDetailContent({
               onChange={(event) => setInstructions(event.target.value)}
               rows={3}
               placeholder="e.g. Please complete Assignment 1 before starting this one."
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm resize-y"
+              className="w-full rounded-md border border-slate-300 bg-surface px-3 py-2 text-sm resize-y"
             />
-            <span className="block mt-1 text-xs text-slate-gray/70">
+            <span className="block mt-1 text-xs text-muted-foreground">
               Shown to students on the assignment card.
             </span>
           </label>
         </div>
 
         {metaError && (
-          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <p className="rounded-md border border-error-border bg-error-light px-3 py-2 text-xs text-error">
             {metaError}
           </p>
         )}
@@ -482,7 +492,7 @@ function AssignmentDetailContent({
           <button
             onClick={() => void saveMeta()}
             disabled={!metaDirty || metaSaving}
-            className="inline-flex items-center gap-1 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {metaSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -521,20 +531,14 @@ function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-lg border px-4 py-3 ${
-        highlight
-          ? "border-amber-200 bg-amber-50"
-          : "border-slate-200 bg-white"
-      }`}
-    >
-      <div className="flex items-center gap-2 text-xs text-slate-gray/70 mb-1">
+    <div className={highlight ? statCardHighlight : statCardBase}>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
         {icon}
         {label}
       </div>
       <p
         className={`text-2xl font-semibold ${
-          highlight ? "text-amber-700" : "text-slate-gray"
+          highlight ? textAmber : textNeutral
         }`}
       >
         {value}
@@ -563,21 +567,21 @@ function QuestionsDisplay({
   };
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+    <section className="rounded-xl border border-border-default bg-surface p-4 sm:p-5 space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-base font-semibold text-slate-gray">Questions</h2>
-        <span className="text-xs text-slate-gray/60">
+        <span className="text-xs text-muted-foreground">
           {questions.length} question{questions.length === 1 ? "" : "s"}
         </span>
         {sourceType && (
-          <span className="text-xs text-slate-gray/60">
+          <span className="text-xs text-muted-foreground">
             Source: {sourceType.replaceAll("_", " ")}
           </span>
         )}
       </div>
 
       {questions.length === 0 ? (
-        <p className="text-sm text-slate-gray/70">
+        <p className="text-sm text-muted-foreground">
           No questions attached to this assignment.
         </p>
       ) : (
@@ -587,26 +591,26 @@ function QuestionsDisplay({
             return (
               <li
                 key={entry.questionId}
-                className="rounded-md border border-slate-200 bg-white"
+                className="rounded-md border border-border-default bg-surface"
               >
                 <button
                   type="button"
                   onClick={() => toggleExpanded(entry.questionId)}
-                  className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-slate-50 rounded-md"
+                  className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-surface-muted rounded-md"
                 >
                   {showDetails ? (
-                    <ChevronDown className="w-4 h-4 mt-0.5 text-slate-400 flex-shrink-0" />
+                    <ChevronDown className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
                   ) : (
-                    <ChevronRight className="w-4 h-4 mt-0.5 text-slate-400 flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-slate-gray">
-                      <span className="text-slate-gray/50 mr-1">
+                      <span className="text-muted-foreground mr-1">
                         Q{entry.orderIndex + 1}.
                       </span>
                       {entry.payload.text}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-gray/60">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {entry.payload.topic}
                       {entry.payload.standardId
                         ? ` • ${entry.payload.standardId}`
@@ -632,18 +636,18 @@ function ReviewScopeDisplay({ assignment }: { assignment: AssignmentDetail }) {
   const maxQuestions = assignment.max_questions ?? 0;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+    <section className="rounded-xl border border-border-default bg-surface p-4 sm:p-5 space-y-4">
       <h2 className="text-base font-semibold text-slate-gray">Review scope</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/70 mb-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
             Max questions per student
           </p>
           <p className="text-slate-gray">{maxQuestions}</p>
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/70 mb-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
             Topics ({topics.length})
           </p>
           <p className="text-slate-gray">
@@ -653,17 +657,17 @@ function ReviewScopeDisplay({ assignment }: { assignment: AssignmentDetail }) {
       </div>
 
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/70 mb-1.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
           Standards ({standards.length})
         </p>
         {standards.length === 0 ? (
-          <p className="text-xs text-slate-gray/70">No standards selected.</p>
+          <p className="text-xs text-muted-foreground">No standards selected.</p>
         ) : (
           <ul className="flex flex-wrap gap-1.5">
             {standards.map((s) => (
               <li
                 key={s}
-                className="inline-flex items-center text-xs text-slate-700 bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5"
+                className="inline-flex items-center text-xs text-foreground bg-surface-muted border border-border-default rounded-full px-2 py-0.5"
               >
                 {s}
               </li>
@@ -673,7 +677,7 @@ function ReviewScopeDisplay({ assignment }: { assignment: AssignmentDetail }) {
       </div>
 
       {assignment.due_date && (
-        <p className="inline-flex items-center gap-1 text-xs text-slate-gray/70">
+        <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
           <CalendarDays className="w-3.5 h-3.5" />
           Due {formatDueDateTime(assignment.due_date)}
         </p>
@@ -709,9 +713,9 @@ function StudentProgressSection({
   const formerCount = sortedStudents.length - currentCount;
 
   const statusStyles: Record<StudentProgressStatus, string> = {
-    not_started: "bg-slate-100 text-slate-700 border-slate-200",
-    in_progress: "bg-amber-50 text-amber-700 border-amber-200",
-    completed: "bg-green-50 text-green-700 border-green-200",
+    not_started: badgeNeutral,
+    in_progress: badgeAmber,
+    completed: badgeEmerald,
   };
 
   const statusLabel: Record<StudentProgressStatus, string> = {
@@ -721,12 +725,12 @@ function StudentProgressSection({
   };
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+    <section className="rounded-xl border border-border-default bg-surface p-4 sm:p-5 space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-base font-semibold text-slate-gray">
           Student progress
         </h2>
-        <p className="text-xs text-slate-gray/70">
+        <p className="text-xs text-muted-foreground">
           {currentCount} current student{currentCount === 1 ? "" : "s"}
           {formerCount > 0
             ? ` • ${formerCount} former member${formerCount === 1 ? "" : "s"}`
@@ -735,14 +739,14 @@ function StudentProgressSection({
       </div>
 
       {sortedStudents.length === 0 ? (
-        <p className="text-sm text-slate-gray/70">
+        <p className="text-sm text-muted-foreground">
           No students are assigned to this assignment.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-gray/70">
+              <tr className="border-b border-border-default text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-3 py-2 font-semibold">Student ID</th>
                 <th className="px-3 py-2 font-semibold">Name</th>
                 <th className="px-3 py-2 font-semibold">Progress</th>
@@ -758,8 +762,8 @@ function StudentProgressSection({
                 return (
                   <tr
                     key={student.student_user_id}
-                    className={`border-b border-slate-100 last:border-b-0 ${
-                      student.is_current_member ? "" : "bg-slate-50/60"
+                    className={`border-b border-border-subtle last:border-b-0 ${
+                      student.is_current_member ? "" : "bg-surface-muted/60"
                     }`}
                   >
                     <td className="px-3 py-2 text-slate-gray">
@@ -770,7 +774,7 @@ function StudentProgressSection({
                         <span>{student.display_name ?? "—"}</span>
                         {!student.is_current_member && (
                           <span
-                            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-gray/80"
+                            className="inline-flex items-center rounded-full border border-border-default bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-slate-gray/80"
                             title="This student is no longer in the school but has historical work on this assignment."
                           >
                             Former member
@@ -780,13 +784,13 @@ function StudentProgressSection({
                     </td>
                     <td className="px-3 py-2 min-w-[220px]">
                       <div className="flex items-center gap-2">
-                        <div className="h-2 w-full max-w-[140px] overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-2 w-full max-w-[140px] overflow-hidden rounded-full bg-surface-muted">
                           <div
-                            className="h-full bg-[#16a34a]"
+                            className="h-full bg-primary"
                             style={{ width: `${progressRatio * 100}%` }}
                           />
                         </div>
-                        <span className="text-xs text-slate-gray/70 whitespace-nowrap">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
                           {student.answered_questions}/{student.total_questions} (
                           {student.completion_rate}%)
                         </span>
@@ -794,7 +798,7 @@ function StudentProgressSection({
                     </td>
                     <td className="px-3 py-2">
                       <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusStyles[student.status]}`}
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[student.status]}`}
                       >
                         {statusLabel[student.status]}
                       </span>

@@ -7,6 +7,7 @@ import {
   type ModuleCode,
   type StandardInfo,
 } from "@/lib/standards";
+import { calloutAmber } from "@/lib/ui/status-badge-styles";
 
 export interface ReviewScope {
   standards: string[];
@@ -96,7 +97,7 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
+      <div className={`rounded-lg px-3 py-2 text-xs text-slate-gray ${calloutAmber}`}>
         Review mode pulls questions each student previously answered incorrectly,
         filtered to the standards you pick below. Since each standard belongs to a
         single topic, selecting a standard automatically scopes the topic too. No
@@ -106,7 +107,7 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold text-slate-gray">Standards</h4>
-          <p className="text-xs text-slate-gray/60">
+          <p className="text-xs text-muted-foreground">
             {selectedSet.size} selected
           </p>
         </div>
@@ -126,19 +127,19 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
             return (
               <div
                 key={moduleGroup.module}
-                className="rounded-lg border border-slate-200 bg-white"
+                className="rounded-lg border border-border-default bg-surface"
               >
-                <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
                   <p className="text-sm font-semibold text-slate-gray">
                     Module {moduleGroup.module}
-                    <span className="ml-2 text-xs font-normal text-slate-gray/60">
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
                       ({moduleSelectedCount}/{moduleStandardIds.length})
                     </span>
                   </p>
                   <button
                     type="button"
                     onClick={() => toggleModule(moduleGroup)}
-                    className="text-xs text-[#15803d] hover:underline"
+                    className="text-xs text-primary-hover hover:underline"
                   >
                     {moduleAllSelected ? "Deselect all" : "Select all"}
                   </button>
@@ -165,7 +166,7 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
                           <button
                             type="button"
                             onClick={() => toggleExpanded(key)}
-                            className="p-1 rounded hover:bg-slate-100"
+                            className="p-1 rounded hover:bg-surface-muted"
                             aria-label={
                               isExpanded
                                 ? "Collapse category"
@@ -173,15 +174,15 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
                             }
                           >
                             {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-slate-500" />
+                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
                             ) : (
-                              <ChevronRight className="w-4 h-4 text-slate-500" />
+                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
                             )}
                           </button>
                           <label className="flex-1 flex items-center gap-2 text-sm text-slate-gray cursor-pointer select-none">
                             <input
                               type="checkbox"
-                              className="w-4 h-4 accent-[#16a34a]"
+                              className="w-4 h-4 accent-primary"
                               checked={allSelected}
                               ref={(el) => {
                                 if (el) el.indeterminate = someSelected;
@@ -191,7 +192,7 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
                             <span className="flex-1 font-medium">
                               {categoryGroup.category}
                             </span>
-                            <span className="text-xs text-slate-gray/60">
+                            <span className="text-xs text-muted-foreground">
                               {selectedCount}/{ids.length}
                             </span>
                           </label>
@@ -206,7 +207,7 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
                                   <label className="flex items-start gap-2 text-xs text-slate-gray cursor-pointer">
                                     <input
                                       type="checkbox"
-                                      className="mt-1 w-4 h-4 accent-[#16a34a]"
+                                      className="mt-1 w-4 h-4 accent-primary"
                                       checked={checked}
                                       onChange={() =>
                                         toggleStandard(standard.id)
@@ -216,7 +217,7 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
                                       <span className="font-medium">
                                         {standard.id}
                                       </span>
-                                      <span className="ml-1 text-slate-gray/70">
+                                      <span className="ml-1 text-muted-foreground">
                                         {standard.label}
                                       </span>
                                     </span>
@@ -252,9 +253,9 @@ export function ReviewScopePicker({ value, onChange }: ReviewScopePickerProps) {
               : 1;
             onChange({ ...value, maxQuestions: safe });
           }}
-          className="w-32 rounded-lg border border-slate-200 px-3 py-2 focus:ring-2 focus:ring-[#16a34a]/20 focus:border-[#16a34a] outline-none"
+          className="w-32 rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
         />
-        <span className="ml-2 text-xs text-slate-gray/60">
+        <span className="ml-2 text-xs text-muted-foreground">
           If fewer incorrect questions exist, all of them will be shown.
         </span>
       </label>

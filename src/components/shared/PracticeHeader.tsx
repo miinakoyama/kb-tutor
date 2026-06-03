@@ -60,10 +60,10 @@ export function PracticeHeader({
       {showBackLink && (
         <Link
           href={backHref}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-4"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-            <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+            <ArrowLeft className="w-4 h-4 text-heading" />
           </span>
           {backLabel}
         </Link>
@@ -73,16 +73,16 @@ export function PracticeHeader({
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
             {topicName && (
-              <h1 className="text-xl font-bold font-heading text-[#14532d] mb-1">
+              <h1 className="text-xl font-bold font-heading text-heading mb-1">
                 {topicName}
               </h1>
             )}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-              <span className="text-[#16a34a] font-medium">{modeLabel}</span>
+              <span className="text-primary font-medium">{modeLabel}</span>
               {showProgress && (
                 <>
-                  <span className="text-slate-gray/40">·</span>
-                  <span className="text-slate-gray/60">
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">
                     {useAnsweredProgress
                       ? `${answeredCount} of ${totalQuestions} answered`
                       : `Question ${currentQuestion} of ${totalQuestions}`}
@@ -91,7 +91,7 @@ export function PracticeHeader({
                     <span className="ml-1 inline-flex items-center min-w-0 w-24 sm:w-36">
                       <span className="h-1.5 w-full bg-slate-gray/10 rounded-full overflow-hidden">
                         <motion.span
-                          className="block h-full rounded-full bg-[#16a34a]"
+                          className="block h-full rounded-full bg-primary"
                           initial={{ width: 0 }}
                           animate={{ width: `${progressPercent}%` }}
                           transition={{ duration: 0.3 }}
@@ -114,7 +114,7 @@ export function PracticeHeader({
       {showProgress && !inlineProgress && (
         <div className="h-2 bg-slate-gray/10 rounded-full overflow-hidden">
           <motion.div
-            className="h-full rounded-full bg-[#16a34a]"
+            className="h-full rounded-full bg-primary"
             initial={{ width: 0 }}
             animate={{ width: `${progressPercent}%` }}
             transition={{ duration: 0.3 }}

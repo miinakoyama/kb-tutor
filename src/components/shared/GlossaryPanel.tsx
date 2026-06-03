@@ -24,19 +24,19 @@ export function GlossaryPanel({
   if (terms.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-[#16a34a]/30 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-primary/30 bg-surface shadow-sm overflow-hidden">
       <button
         onClick={() => setIsPanelOpen(!isPanelOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#16a34a]/5 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-primary/5 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-[#16a34a]" />
+          <BookOpen className="w-4 h-4 text-primary" />
           <span className="text-sm font-semibold text-slate-gray">{title}</span>
         </div>
         {isPanelOpen ? (
-          <ChevronDown className="w-4 h-4 text-slate-gray/50" />
+          <ChevronDown className="w-4 h-4 text-muted-foreground" />
         ) : (
-          <ChevronRight className="w-4 h-4 text-slate-gray/50" />
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
         )}
       </button>
 
@@ -79,7 +79,7 @@ function TermAccordion({
   };
 
   return (
-    <div className="border-b border-slate-gray/10 last:border-b-0 pb-2 last:pb-0">
+    <div className="border-b border-border-subtle last:border-b-0 pb-2 last:pb-0">
       <button
         onClick={handleToggle}
         className="w-full flex items-center justify-between py-1.5 text-left"
@@ -89,7 +89,7 @@ function TermAccordion({
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.15 }}
         >
-          <ChevronDown className="w-3.5 h-3.5 text-slate-gray/40" />
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
         </motion.span>
       </button>
 
@@ -106,7 +106,7 @@ function TermAccordion({
               {term.definition}
             </p>
             {term.example && (
-              <p className="text-xs text-slate-gray/60 italic mt-1">
+              <p className="text-xs text-muted-foreground italic mt-1">
                 Example: {term.example}
               </p>
             )}

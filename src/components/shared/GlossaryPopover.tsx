@@ -46,7 +46,7 @@ export function GlossaryPopover({ term, children, onOpen }: GlossaryPopoverProps
       <button
         ref={triggerRef}
         onClick={handleToggle}
-        className="inline text-[#16a34a] font-medium underline decoration-[#16a34a]/40 decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/50 rounded"
+        className="inline text-primary font-medium underline decoration-primary/40 decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
       >
         {children}
       </button>
@@ -64,15 +64,15 @@ export function GlossaryPopover({ term, children, onOpen }: GlossaryPopoverProps
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.97 }}
               transition={{ duration: 0.15 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-md bg-white rounded-xl border border-[#16a34a]/30 shadow-xl p-5"
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-md bg-surface rounded-xl border border-primary/30 shadow-xl p-5"
             >
               <div className="flex items-start justify-between mb-3">
-                <h4 className="text-lg font-semibold text-[#16a34a]">
+                <h4 className="text-lg font-semibold text-primary">
                   {term.term}
                 </h4>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1 rounded-lg text-slate-gray/50 hover:text-slate-gray hover:bg-slate-gray/10 transition-colors"
+                  className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -80,7 +80,7 @@ export function GlossaryPopover({ term, children, onOpen }: GlossaryPopoverProps
 
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/50 mb-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
                     Definition
                   </p>
                   <p className="text-sm text-slate-gray leading-relaxed">
@@ -89,8 +89,8 @@ export function GlossaryPopover({ term, children, onOpen }: GlossaryPopoverProps
                 </div>
 
                 {term.example && (
-                  <div className="pt-2 border-t border-slate-gray/10">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/50 mb-1">
+                  <div className="pt-2 border-t border-border-subtle">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
                       Example
                     </p>
                     <p className="text-sm text-slate-gray/80 italic leading-relaxed">

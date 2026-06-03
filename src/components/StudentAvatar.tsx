@@ -8,7 +8,7 @@ export function StudentAvatar({ label }: StudentAvatarProps) {
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
   return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#16a34a]/10 text-xs font-semibold text-[#166534]">
+    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-forest">
       {initials || "?"}
     </span>
   );

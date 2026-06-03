@@ -18,7 +18,7 @@ export function ConfidenceCheck({ value, onChange }: ConfidenceCheckProps) {
   const labelId = useId();
 
   return (
-    <div className="pt-3 border-t border-slate-gray/10">
+    <div className="pt-3 border-t border-border-subtle">
       <p id={labelId} className="text-sm font-medium text-slate-gray mb-2">
         How confident were you?
       </p>
@@ -36,8 +36,8 @@ export function ConfidenceCheck({ value, onChange }: ConfidenceCheckProps) {
               aria-pressed={isActive}
               className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-150 ${
                 isActive
-                  ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]"
-                  : "border-slate-gray/20 bg-white text-slate-gray/70 hover:border-slate-gray/40 hover:text-slate-gray"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border-default bg-surface text-muted-foreground hover:border-border-default hover:text-foreground"
               }`}
             >
               {level.label}

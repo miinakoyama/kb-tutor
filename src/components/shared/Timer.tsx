@@ -33,17 +33,17 @@ export function Timer({ isRunning, onElapsedChange }: TimerProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <Clock className="w-4 h-4 text-slate-gray/60" />
+      <Clock className="w-4 h-4 text-muted-foreground" />
       {visible ? (
         <span className="text-sm font-mono font-medium text-slate-gray tabular-nums">
           {formatTime(elapsedMs)}
         </span>
       ) : (
-        <span className="text-sm text-slate-gray/40">--:--</span>
+        <span className="text-sm text-muted-foreground">--:--</span>
       )}
       <button
         onClick={() => setVisible(!visible)}
-        className="p-1 rounded text-slate-gray/40 hover:text-slate-gray transition-colors"
+        className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
         title={visible ? "Hide timer" : "Show timer"}
       >
         {visible ? (

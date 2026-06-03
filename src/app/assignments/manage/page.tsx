@@ -7,6 +7,7 @@ import { BarChart3, CalendarDays, ClipboardList, List, Plus, Trash2, Users } fro
 import { AssignmentProgressPanel } from "@/components/assignments/AssignmentProgressPanel";
 import { formatDueDateTime } from "@/lib/due-date";
 import type { AssignmentProgressResponse } from "@/lib/analytics/assignment-progress";
+import { alertSuccess, badgeAmber } from "@/lib/ui/status-badge-styles";
 
 interface SchoolRow {
   id: string;
@@ -239,16 +240,16 @@ function AssignmentManagementContent() {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <header className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-1">
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-1">
             Assignment Management
           </h1>
-          <p className="text-slate-gray/70 text-sm">
+          <p className="text-muted-foreground text-sm">
             Create assignments per school and automatically assign to students.
           </p>
         </div>
         <Link
           href="/assignments/manage/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors shadow-sm"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
           Create Assignment
@@ -256,18 +257,18 @@ function AssignmentManagementContent() {
       </header>
 
       {message && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 mb-4">
+        <p className={`${alertSuccess} mb-4`}>
           {message}
         </p>
       )}
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
           {error}
         </p>
       )}
 
       <div
-        className="mb-6 flex items-center gap-4 overflow-x-auto border-b border-slate-200"
+        className="mb-6 flex items-center gap-4 overflow-x-auto border-b border-border-default"
         role="tablist"
         aria-label="Assignment management sections"
       >
@@ -278,8 +279,8 @@ function AssignmentManagementContent() {
           onClick={() => setTab("list")}
           className={`-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
             tab === "list"
-              ? "border-[#16a34a] text-[#14532d]"
-              : "border-transparent text-slate-gray/60 hover:text-slate-gray"
+              ? "border-primary text-heading"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <List className="h-4 w-4" />
@@ -292,8 +293,8 @@ function AssignmentManagementContent() {
           onClick={() => setTab("progress")}
           className={`-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
             tab === "progress"
-              ? "border-[#16a34a] text-[#14532d]"
-              : "border-transparent text-slate-gray/60 hover:text-slate-gray"
+              ? "border-primary text-heading"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <BarChart3 className="h-4 w-4" />
@@ -302,32 +303,32 @@ function AssignmentManagementContent() {
       </div>
 
       {tab === "list" ? (
-        <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm">
+        <section className="rounded-xl border border-border-default bg-surface shadow-sm">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-slate-gray/70">
+            <div className="p-8 text-center text-sm text-muted-foreground">
               Loading assignments...
             </div>
           ) : assignments.length === 0 ? (
             <div className="p-8 text-center">
               <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-gray/70 mb-4">No assignments yet.</p>
+              <p className="text-muted-foreground mb-4">No assignments yet.</p>
               <Link
                 href="/assignments/manage/new"
-                className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Create your first assignment
               </Link>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border-subtle">
               {assignments.map((assignment) => {
                 const attemptCount = assignment.attempt_count ?? 0;
                 const respondentCount = assignment.respondent_count ?? 0;
                 return (
                   <article
                     key={assignment.id}
-                    className="group p-4 sm:p-5 hover:bg-slate-50/80 transition-colors cursor-pointer"
+                    className="group p-4 sm:p-5 hover:bg-surface-muted/80 transition-colors cursor-pointer"
                     role="button"
                     tabIndex={0}
                     onClick={() =>
@@ -343,15 +344,15 @@ function AssignmentManagementContent() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className="text-base font-semibold text-slate-gray truncate group-hover:text-[#14532d]">
+                          <h3 className="text-base font-semibold text-slate-gray truncate group-hover:text-heading">
                             {assignment.title}
                           </h3>
-                          <span className="flex-shrink-0 inline-flex items-center text-xs font-medium text-[#16a34a] bg-[#16a34a]/10 px-2 py-0.5 rounded-full">
+                          <span className="flex-shrink-0 inline-flex items-center text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                             {schoolNameById.get(assignment.school_id) ?? assignment.school_id}
                           </span>
                           {attemptCount > 0 && (
                             <span
-                              className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full"
+                              className={`flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${badgeAmber}`}
                               title={`${respondentCount} students answered, ${attemptCount} attempts`}
                             >
                               <Users className="w-3 h-3" />
@@ -359,7 +360,7 @@ function AssignmentManagementContent() {
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-gray/70">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                           {describeAssignment(assignment).map((part, index) => (
                             <span key={index}>{part}</span>
                           ))}
@@ -377,7 +378,7 @@ function AssignmentManagementContent() {
                           event.stopPropagation();
                           void handleDeleteAssignment(assignment);
                         }}
-                        className="flex-shrink-0 p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        className="flex-shrink-0 p-2 rounded-lg text-muted-foreground hover:text-error hover:bg-error-light transition-colors"
                         title="Delete assignment"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -394,13 +395,13 @@ function AssignmentManagementContent() {
           {schools.length > 1 && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <label className="text-sm text-slate-gray">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   School
                 </span>
                 <select
                   value={progressSchoolId}
                   onChange={(e) => setProgressSchoolId(e.target.value)}
-                  className="w-full min-w-[12rem] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-gray focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20 sm:w-auto"
+                  className="w-full min-w-[12rem] rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 sm:w-auto"
                 >
                   <option value="">All your schools</option>
                   {schools.map((s) => (
