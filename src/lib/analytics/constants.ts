@@ -48,8 +48,17 @@ export const DEFAULT_PERFORMANCE_THRESHOLDS: PerformanceThresholds = {
   basicMin: BASIC_MIN_ACCURACY,
 };
 
+export function isDefaultPerformanceThresholds(
+  thresholds: PerformanceThresholds,
+): boolean {
+  return (
+    thresholds.basicMin === DEFAULT_PERFORMANCE_THRESHOLDS.basicMin
+    && thresholds.proficientMin === DEFAULT_PERFORMANCE_THRESHOLDS.proficientMin
+    && thresholds.advancedMin === DEFAULT_PERFORMANCE_THRESHOLDS.advancedMin
+  );
+}
+
 /**
- * Merge user-supplied (potentially partial) thresholds on top of the
  * defaults and clamp every value to [0, 100]. Returns a fully-populated
  * `PerformanceThresholds`. Out-of-order values are not auto-corrected
  * here; the API layer is responsible for rejecting invalid input.

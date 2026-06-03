@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
+  isDefaultPerformanceThresholds,
   resolvePerformanceThresholds,
   type PerformanceThresholds,
 } from "@/lib/analytics/constants";
@@ -48,5 +49,9 @@ export async function loadTeacherThresholds(userId: string): Promise<{
   if (!data) {
     return { thresholds: DEFAULT_PERFORMANCE_THRESHOLDS, isCustom: false };
   }
-  return { thresholds: rowToThresholds(data as ThresholdsRow), isCustom: true };
+  const thresholds = rowToThresholds(data as ThresholdsRow);
+  return {
+    thresholds,
+    isCustom: !isDefaultPerformanceThresholds(thresholds),
+  };
 }

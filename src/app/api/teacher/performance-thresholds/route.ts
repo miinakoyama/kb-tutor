@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
+  isDefaultPerformanceThresholds,
   resolvePerformanceThresholds,
   validatePerformanceThresholds,
   type PerformanceThresholds,
@@ -112,13 +113,35 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const resolved = resolvePerformanceThresholds(parsed.body);
-  const validationError = validatePerformanceThresholds(resolved);
+  const validationError = validatePerformanceThresholds(parsed.body);
   if (validationError) {
     return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
+  const resolved = resolvePerformanceThresholds(parsed.body);
+  const matchesDefaults = isDefaultPerformanceThresholds(resolved);
+
   const admin = createSupabaseAdminClient();
+  if (matchesDefaults) {
+    const { error } = await admin
+      .from("teacher_performance_thresholds")
+      .delete()
+      .eq("user_id", guard.userId);
+    if (error) {
+      console.error("[performance-thresholds] delete on default save failed", error);
+      return NextResponse.json(
+        { error: "Failed to save thresholds" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      thresholds: DEFAULT_PERFORMANCE_THRESHOLDS,
+      defaults: DEFAULT_PERFORMANCE_THRESHOLDS,
+      isCustom: false,
+    });
+  }
+
   const { error } = await admin
     .from("teacher_performance_thresholds")
     .upsert(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
+  isDefaultPerformanceThresholds,
   resolvePerformanceThresholds,
   validatePerformanceThresholds,
 } from "./constants";
@@ -33,6 +34,33 @@ describe("resolvePerformanceThresholds", () => {
   it("rounds non-integer inputs", () => {
     const result = resolvePerformanceThresholds({ proficientMin: 72.4 });
     expect(result.proficientMin).toBe(72);
+  });
+
+  it("rejects out-of-range values before clamping would rewrite them", () => {
+    expect(
+      validatePerformanceThresholds({
+        basicMin: 50,
+        proficientMin: 70,
+        advancedMin: 150,
+      }),
+    ).toMatch(/advanced/);
+  });
+});
+
+describe("isDefaultPerformanceThresholds", () => {
+  it("returns true for the default bundle", () => {
+    expect(isDefaultPerformanceThresholds(DEFAULT_PERFORMANCE_THRESHOLDS)).toBe(
+      true,
+    );
+  });
+
+  it("returns false when any cutoff differs", () => {
+    expect(
+      isDefaultPerformanceThresholds({
+        ...DEFAULT_PERFORMANCE_THRESHOLDS,
+        basicMin: 55,
+      }),
+    ).toBe(false);
   });
 });
 
