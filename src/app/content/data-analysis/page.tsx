@@ -12,6 +12,7 @@ import {
 import { DataAnalysisTabs } from "./tabs";
 import { DateRangePicker, defaultPilotRange, todayRange } from "./date-range";
 import { SchoolFilter } from "./school-filter";
+import { badgeAmber, badgeEmerald } from "@/lib/ui/status-badge-styles";
 
 interface OverviewResponse {
   meta: {
@@ -170,14 +171,14 @@ export default function OverviewPage() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d] mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
           Data Analysis
         </h1>
       </header>
 
       <DataAnalysisTabs active="overview" />
 
-      <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
         <DateRangePicker value={range} onChange={setRange} />
         <div className="mt-4 max-w-xl">
           <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
@@ -185,26 +186,26 @@ export default function OverviewPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
           <button
             onClick={() => setRange(todayRange())}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-primary-light transition-colors"
           >
             Jump to today
           </button>
           <a
             href={csvHref}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a]/50 px-4 py-2 text-sm font-medium text-[#166534] hover:bg-green-50 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-primary-light transition-colors"
           >
             <Download className="w-4 h-4" />
             Download engagement CSV
           </a>
           {data && (
-            <span className="text-xs text-slate-gray/60">
+            <span className="text-xs text-muted-foreground">
               {data.meta.totalStudentsEnrolled} enrolled · generated{" "}
               {formatDateTime(data.meta.generatedAt)}
             </span>
@@ -213,13 +214,13 @@ export default function OverviewPage() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
           {error}
         </p>
       )}
 
       {loading && !data ? (
-        <p className="text-sm text-slate-gray/70">Loading overview...</p>
+        <p className="text-sm text-muted-foreground">Loading overview...</p>
       ) : data ? (
         <div className="space-y-6">
           <HeadlineCards data={data} />
@@ -339,14 +340,14 @@ function HeadlineCard({
   hint?: string;
 }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <p className="text-[11px] uppercase tracking-wide text-slate-gray/60">
+    <article className="rounded-xl border border-border-default bg-surface p-3 shadow-sm">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <p className="mt-1 text-xl font-semibold text-slate-gray tabular-nums">
         {value}
       </p>
-      {hint && <p className="text-[11px] text-slate-gray/60 mt-0.5">{hint}</p>}
+      {hint && <p className="text-[11px] text-muted-foreground mt-0.5">{hint}</p>}
     </article>
   );
 }
@@ -364,14 +365,14 @@ function DataQualityPanel({
     data.duplicateClientAttemptIds === 0;
 
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
+    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-[#14532d]">Data quality</h2>
+        <h2 className="text-lg font-semibold text-heading">Data quality</h2>
         <span
           className={
             allZero
-              ? "rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-xs text-green-700"
-              : "rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-800 inline-flex items-center gap-1"
+              ? `rounded-full px-2 py-0.5 text-xs ${badgeEmerald}`
+              : `rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1 ${badgeAmber}`
           }
         >
           {allZero ? "No signals" : (
@@ -424,19 +425,19 @@ function QualityTile({
 }) {
   const tone =
     value === 0
-      ? "border-slate-200"
+      ? "border-border-default"
       : value < 5
-        ? "border-amber-200 bg-amber-50/50"
-        : "border-red-200 bg-red-50/50";
+        ? "border-amber-200 bg-amber-50/50 dark:border-amber-800/35 dark:bg-amber-950/30"
+        : "border-error-border bg-error-light/50";
   return (
     <article className={`rounded-xl border ${tone} p-3`}>
-      <p className="text-[11px] uppercase tracking-wide text-slate-gray/60">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <p className="mt-1 text-xl font-semibold text-slate-gray tabular-nums">
         {value.toLocaleString()}
       </p>
-      <p className="text-[11px] text-slate-gray/60 mt-0.5">{hint}</p>
+      <p className="text-[11px] text-muted-foreground mt-0.5">{hint}</p>
     </article>
   );
 }
@@ -450,10 +451,10 @@ function DailyTrendChart({
   const maxActive = Math.max(1, ...daily.map((d) => d.activeStudents));
 
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d] mb-3">Daily trend</h2>
+    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-heading mb-3">Daily trend</h2>
       {daily.length === 0 ? (
-        <p className="text-sm text-slate-gray/60">No data in this window.</p>
+        <p className="text-sm text-muted-foreground">No data in this window.</p>
       ) : (
         <>
           <div className="flex items-end gap-1 h-40">
@@ -468,7 +469,7 @@ function DailyTrendChart({
                 >
                   <div className="flex items-end gap-0.5 h-full w-full justify-center">
                     <div
-                      className="w-2 rounded-t bg-[#16a34a]"
+                      className="w-2 rounded-t bg-primary"
                       style={{ height: `${attemptsH}%` }}
                     />
                     <div
@@ -480,16 +481,16 @@ function DailyTrendChart({
               );
             })}
           </div>
-          <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(0,1fr))] text-[10px] text-slate-gray/60">
+          <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(0,1fr))] text-[10px] text-muted-foreground">
             {daily.map((day) => (
               <div key={day.date} className="text-center truncate">
                 {formatDateShort(day.date)}
               </div>
             ))}
           </div>
-          <div className="mt-3 flex items-center gap-4 text-xs text-slate-gray/70">
+          <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-2 h-2 bg-[#16a34a] rounded" />
+              <span className="inline-block w-2 h-2 bg-primary rounded" />
               Attempts
             </span>
             <span className="inline-flex items-center gap-1">
@@ -512,12 +513,12 @@ function HourlyChart({
   const hasData = hourly.some((h) => h.attempts > 0);
 
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d] mb-3">
+    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-heading mb-3">
         Hourly activity
       </h2>
       {!hasData ? (
-        <p className="text-sm text-slate-gray/60">
+        <p className="text-sm text-muted-foreground">
           No attempts in this window.
         </p>
       ) : (
@@ -532,21 +533,21 @@ function HourlyChart({
                   title={`${row.hour}:00 · ${row.attempts} attempts · ${row.activeStudents} active`}
                 >
                   <div
-                    className="w-full rounded-t bg-[#16a34a]/70"
+                    className="w-full rounded-t bg-primary/70"
                     style={{ height: `${h}%`, minHeight: row.attempts > 0 ? 2 : 0 }}
                   />
                 </div>
               );
             })}
           </div>
-          <div className="mt-2 flex justify-between text-[10px] text-slate-gray/60">
+          <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
             <span>0</span>
             <span>6</span>
             <span>12</span>
             <span>18</span>
             <span>23</span>
           </div>
-          <p className="mt-2 text-xs text-slate-gray/60">
+          <p className="mt-2 text-xs text-muted-foreground">
             Local times (browser timezone). Helpful to separate in-class from
             homework usage.
           </p>
@@ -563,10 +564,10 @@ function ModeMixCard({
 }) {
   const totalAttempts = modeMix.reduce((sum, row) => sum + row.attempts, 0);
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d] mb-3">Mode mix</h2>
+    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-heading mb-3">Mode mix</h2>
       {modeMix.length === 0 ? (
-        <p className="text-sm text-slate-gray/60">No activity yet.</p>
+        <p className="text-sm text-muted-foreground">No activity yet.</p>
       ) : (
         <ul className="space-y-2">
           {modeMix.map((row) => {
@@ -575,17 +576,17 @@ function ModeMixCard({
               <li key={row.mode}>
                 <div className="flex justify-between text-sm">
                   <span className="capitalize text-slate-gray">{row.mode}</span>
-                  <span className="text-slate-gray/70 tabular-nums">
+                  <span className="text-muted-foreground tabular-nums">
                     {row.attempts} · {pct(share)}
                   </span>
                 </div>
-                <div className="mt-1 h-1.5 rounded bg-slate-100 overflow-hidden">
+                <div className="mt-1 h-1.5 rounded bg-surface-muted overflow-hidden">
                   <div
-                    className="h-full bg-[#16a34a]/70"
+                    className="h-full bg-primary/70"
                     style={{ width: `${Math.max(2, share * 100)}%` }}
                   />
                 </div>
-                <p className="text-[11px] text-slate-gray/60 mt-0.5">
+                <p className="text-[11px] text-muted-foreground mt-0.5">
                   {row.sessions} sessions · {Math.round(row.minutes)} total min
                 </p>
               </li>
@@ -610,13 +611,13 @@ function ReachSummaryCard({
     deviceRows.length > 0 || browserRows.length > 0 || osRows.length > 0;
 
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#14532d]">Reach mix</h2>
-      <p className="text-[11px] text-slate-gray/60 mb-3">
+    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-heading">Reach mix</h2>
+      <p className="text-[11px] text-muted-foreground mb-3">
         Auto-detected from user agent
       </p>
       {!hasAnyRows ? (
-        <p className="text-sm text-slate-gray/60">
+        <p className="text-sm text-muted-foreground">
           No session metadata yet. New sessions will populate this.
         </p>
       ) : (
@@ -641,9 +642,9 @@ function ReachMixList({
 
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-gray/70 mb-1">{title}</p>
+      <p className="text-xs font-semibold text-muted-foreground mb-1">{title}</p>
       {rows.length === 0 ? (
-        <p className="text-xs text-slate-gray/60">No session metadata yet.</p>
+        <p className="text-xs text-muted-foreground">No session metadata yet.</p>
       ) : (
         <ul className="space-y-1.5 text-sm">
           {rows.slice(0, 4).map((row) => {
@@ -652,16 +653,16 @@ function ReachMixList({
               <li key={`${title}-${row.key}`}>
                 <div className="flex justify-between">
                   <span className="text-slate-gray">{row.key}</span>
-                  <span className="text-slate-gray/70 tabular-nums">
+                  <span className="text-muted-foreground tabular-nums">
                     {row.sessions} · {pct(share)}
-                    <span className="text-slate-gray/50 ml-1">
+                    <span className="text-muted-foreground ml-1">
                       ({row.users} users)
                     </span>
                   </span>
                 </div>
-                <div className="mt-0.5 h-1 rounded bg-slate-100 overflow-hidden">
+                <div className="mt-0.5 h-1 rounded bg-surface-muted overflow-hidden">
                   <div
-                    className="h-full bg-[#16a34a]/70"
+                    className="h-full bg-primary/70"
                     style={{ width: `${Math.max(2, share * 100)}%` }}
                   />
                 </div>
@@ -750,13 +751,13 @@ function EngagementTable({
   const activeCount = rows.length - inactiveCount;
 
   return (
-    <section className="rounded-xl border border-[#16a34a]/25 bg-white shadow-sm overflow-hidden">
-      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+    <section className="rounded-xl border border-primary/25 bg-surface shadow-sm overflow-hidden">
+      <div className="p-4 sm:p-5 border-b border-border-subtle flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[#14532d]">
+          <h2 className="text-lg font-semibold text-heading">
             Per-student engagement
           </h2>
-          <p className="text-xs text-slate-gray/60">
+          <p className="text-xs text-muted-foreground">
             {activeCount} active · {inactiveCount} inactive of {rows.length}{" "}
             enrolled
           </p>
@@ -775,19 +776,19 @@ function EngagementTable({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search name / email / id"
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm w-60"
+            className="rounded-lg border border-border-default px-3 py-1.5 text-sm w-60"
           />
         </div>
       </div>
       {sortedRows.length === 0 ? (
-        <p className="p-5 text-sm text-slate-gray/60">
+        <p className="p-5 text-sm text-muted-foreground">
           No students match the current filter.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border-default text-left text-muted-foreground">
                 <SortHeader
                   label="Student"
                   active={sort.key === "displayName"}
@@ -838,11 +839,11 @@ function EngagementTable({
                   <tr
                     key={row.userId}
                     onClick={() => onRowClick(row.userId)}
-                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                    className="border-b border-border-subtle hover:bg-surface-muted cursor-pointer"
                   >
                     <td className="px-2 py-2">
                       <p className="font-medium text-slate-gray">{nameFallback}</p>
-                      <p className="text-xs text-slate-gray/60">
+                      <p className="text-xs text-muted-foreground">
                         {row.studentId || row.email || row.userId.slice(0, 8)}
                       </p>
                     </td>
@@ -857,7 +858,7 @@ function EngagementTable({
                     <td className="px-2 py-2 tabular-nums text-slate-gray/80">
                       {row.modes.practice} / {row.modes.exam} / {row.modes.review}
                     </td>
-                    <td className="px-2 py-2 text-slate-gray/70 whitespace-nowrap">
+                    <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">
                       {row.lastSeenAt
                         ? new Date(row.lastSeenAt).toLocaleString()
                         : "—"}
@@ -886,7 +887,7 @@ function SortHeader({
 }) {
   return (
     <th
-      className={`px-2 py-2 font-medium cursor-pointer select-none ${active ? "text-slate-gray" : "hover:text-slate-gray"}`}
+      className={`px-2 py-2 font-medium cursor-pointer select-none ${active ? "text-slate-gray" : "hover:text-foreground"}`}
       onClick={onClick}
     >
       {label}
@@ -925,22 +926,22 @@ function StudentDrawer({
         aria-label="Close"
         className="absolute inset-0 bg-black/30"
       />
-      <aside className="relative h-full w-full sm:w-[520px] bg-white shadow-2xl overflow-y-auto">
-        <header className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center justify-between">
+      <aside className="relative h-full w-full sm:w-[520px] bg-surface shadow-2xl overflow-y-auto">
+        <header className="sticky top-0 bg-surface border-b border-border-subtle px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide text-slate-gray/60">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Student detail
             </p>
-            <h3 className="text-lg font-semibold text-[#14532d]">
+            <h3 className="text-lg font-semibold text-heading">
               {nameFallback}
             </h3>
-            <p className="text-xs text-slate-gray/70">
+            <p className="text-xs text-muted-foreground">
               {student.studentId || student.email || student.userId}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-slate-gray/70 hover:bg-slate-100 hover:text-slate-gray"
+            className="p-2 rounded-lg text-muted-foreground hover:bg-surface-muted hover:text-foreground"
           >
             <X className="w-5 h-5" />
           </button>
@@ -955,8 +956,8 @@ function StudentDrawer({
               value={Math.round(student.sessionMinutes)}
             />
           </div>
-          <div className="rounded-xl border border-slate-200 p-3">
-            <p className="text-xs uppercase tracking-wide text-slate-gray/60 mb-1">
+          <div className="rounded-xl border border-border-default p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
               Mode mix
             </p>
             <p className="text-sm">
@@ -964,8 +965,8 @@ function StudentDrawer({
               Review {student.modes.review}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 p-3">
-            <p className="text-xs uppercase tracking-wide text-slate-gray/60 mb-1">
+          <div className="rounded-xl border border-border-default p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
               Timeline
             </p>
             <p className="text-sm">
@@ -975,14 +976,14 @@ function StudentDrawer({
               Last seen: {formatDateTime(student.lastSeenAt)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 p-3">
-            <p className="text-xs uppercase tracking-wide text-slate-gray/60 mb-1">
+          <div className="rounded-xl border border-border-default p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
               Deep-dive links
             </p>
             <div className="flex flex-wrap gap-2 text-sm">
               <a
                 href={`/content/data-analysis/students?student=${encodeURIComponent(student.userId)}`}
-                className="inline-flex items-center rounded-md border border-[#16a34a]/40 px-2 py-1 text-[#166534] hover:bg-green-50"
+                className="inline-flex items-center rounded-md border border-primary/40 px-2 py-1 text-forest hover:bg-primary-light"
               >
                 Open in Student attempts
               </a>
@@ -1002,8 +1003,8 @@ function DetailStat({
   value: string | number;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 p-3">
-      <p className="text-xs uppercase tracking-wide text-slate-gray/60">
+    <div className="rounded-xl border border-border-default p-3">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <p className="mt-0.5 text-xl font-semibold text-slate-gray tabular-nums">

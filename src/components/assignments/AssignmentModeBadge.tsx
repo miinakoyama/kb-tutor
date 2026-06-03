@@ -21,7 +21,8 @@ const MODE_META: Record<
   practice: {
     label: "Practice",
     icon: NotebookPen,
-    classes: "text-sky-800 bg-sky-100",
+    classes:
+      "text-sky-800 bg-sky-100 dark:text-sky-200/90 dark:bg-sky-950/45 dark:ring-1 dark:ring-sky-800/35",
     title:
       "Practice mode: hints appear after misses and you can retry each question.",
   },
@@ -29,7 +30,8 @@ const MODE_META: Record<
   exam: {
     label: "Exam",
     icon: GraduationCap,
-    classes: "text-orange-800 bg-orange-100",
+    classes:
+      "text-orange-800 bg-orange-100 dark:text-orange-200/90 dark:bg-orange-950/45 dark:ring-1 dark:ring-orange-800/35",
     title:
       "Exam mode: one attempt per question. Hints and retries are disabled.",
   },
@@ -37,7 +39,8 @@ const MODE_META: Record<
   review: {
     label: "Review",
     icon: History,
-    classes: "text-violet-800 bg-violet-100",
+    classes:
+      "text-violet-800 bg-violet-100 dark:text-violet-200/90 dark:bg-violet-950/45 dark:ring-1 dark:ring-violet-800/35",
     title:
       "Review mode: a dynamic set of questions you previously got wrong.",
   },

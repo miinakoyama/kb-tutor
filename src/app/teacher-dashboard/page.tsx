@@ -26,6 +26,26 @@ import type {
   DashboardSummary,
   ModeMetrics,
 } from "@/lib/analytics/teacher-dashboard-server";
+import {
+  accuracyTextClass,
+  accuracyTextClassLenient,
+  badgeAmber,
+  badgeEmerald,
+  badgeNeutral,
+  badgeRose,
+  barAmber,
+  barEmerald,
+  barRose,
+  chipActiveAmber,
+  chipActiveEmerald,
+  chipActiveRose,
+  chipActiveSlate,
+  chipInactiveAmber,
+  chipInactiveEmerald,
+  chipInactiveRose,
+  chipInactiveSlate,
+  textEmerald,
+} from "@/lib/ui/status-badge-styles";
 type RangeKey = "7d" | "30d" | "all";
 type ModeKey = "compare" | "practice" | "exam" | "review";
 type AttemptModeKey = "practice" | "exam" | "review";
@@ -200,15 +220,15 @@ function TeacherDashboardContent() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <section className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
+        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">
           Teacher Dashboard
         </h1>
-        <p className="text-sm text-slate-gray/70 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Identify which standards need re-teaching and which students need a
           closer look — click a standard or student row to drill in. Per-assignment completion is on{" "}
           <Link
             href="/assignments/manage?tab=progress"
-            className="font-medium text-[#16a34a] hover:underline"
+            className="font-medium text-primary hover:underline"
           >
             Assignment management → Progress
           </Link>
@@ -237,7 +257,7 @@ function TeacherDashboardContent() {
 
       <ModeTabs value={mode} onChange={setMode} />
 
-      <div className="mb-6 flex items-start gap-2 rounded-xl border border-[#16a34a]/25 bg-[#16a34a]/5 px-4 py-3 text-sm text-[#166534]">
+      <div className="mb-6 flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-forest">
         <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <p>{modeHelper}</p>
       </div>
@@ -248,8 +268,8 @@ function TeacherDashboardContent() {
           value={`${data.summary.completionRate}%`}
           helper={activeStudentsHelper(data.summary, mode)}
           icon={CheckCircle2}
-          accentClass="text-[#16a34a]"
-          bgClass="bg-[#16a34a]/10"
+          accentClass="text-primary dark:text-forest"
+          bgClass="bg-primary/10"
         />
         {mode === "compare" ? (
           <ModeAccuracyCard summary={data.summary} />
@@ -278,13 +298,13 @@ function TeacherDashboardContent() {
         <StudentBreakdownCard summary={data.summary} />
       </section>
 
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mb-6">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="rounded-2xl border border-border-default bg-surface shadow-sm mb-6">
+        <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-gray">
               Performance by standard
             </h2>
-            <p className="text-xs text-slate-gray/60">
+            <p className="text-xs text-muted-foreground">
               Tap a status pill to focus on what needs re-teaching.
             </p>
           </div>
@@ -324,7 +344,7 @@ function TeacherDashboardContent() {
             />
             <button
               onClick={() => downloadStandardMetricsCsv(filteredStandards)}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
             >
               <Download className="w-4 h-4" />
               Download CSV
@@ -335,7 +355,7 @@ function TeacherDashboardContent() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+              <tr className="bg-surface-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th className="px-5 py-3">Standard</th>
                 <th className="px-3 py-3 text-right">Attempted</th>
                 <th className="px-3 py-3 text-right">Correct</th>
@@ -358,7 +378,7 @@ function TeacherDashboardContent() {
                 <tr>
                   <td
                     colSpan={mode === "compare" ? 9 : 7}
-                    className="px-5 py-8 text-center text-sm text-slate-gray/60"
+                    className="px-5 py-8 text-center text-sm text-muted-foreground"
                   >
                     {isLoading
                       ? "Loading performance data..."
@@ -369,23 +389,23 @@ function TeacherDashboardContent() {
                 filteredStandards.map((row) => (
                   <tr
                     key={row.standardId}
-                    className="border-t border-slate-100 hover:bg-slate-50/40"
+                    className="border-t border-border-subtle hover:bg-surface-muted/40"
                   >
                     <td className="px-5 py-3">
                       <Link
-                        href={buildStandardDrillDownHref(row.standardId, {
-                          range,
-                          mode,
-                          source,
-                          classId,
-                          topic,
-                        })}
-                        className="block max-w-md font-medium text-[#166534] hover:underline"
+                       href={buildStandardDrillDownHref(row.standardId, {
+                         range,
+                         mode,
+                         source,
+                         classId,
+                         topic,
+                       })}
+                       className="block max-w-md font-medium text-[#166534] hover:underline"
                       >
-                        {row.standardId}
+                       {row.standardId}
                       </Link>
-                      <p className="text-xs text-slate-gray/60 line-clamp-2 max-w-md">
-                        {row.standardLabel}
+                      <p className="text-xs text-muted-foreground line-clamp-2 max-w-md">
+                       {row.standardLabel}
                       </p>
                     </td>
                     <td className="px-3 py-3 text-right text-slate-gray">
@@ -412,8 +432,8 @@ function TeacherDashboardContent() {
                       </td>
                     )}
                     <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-slate-gray/70">
-                        <Timer className="w-3.5 h-3.5 text-slate-gray/50" />
+                      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                        <Timer className="w-3.5 h-3.5 text-muted-foreground" />
                         {row.averageTimeSec}s
                       </span>
                     </td>
@@ -444,8 +464,8 @@ function TeacherDashboardContent() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="rounded-2xl border border-border-default bg-surface shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-slate-gray">
               {studentId ? "Student detail" : "All students"}
@@ -453,7 +473,7 @@ function TeacherDashboardContent() {
             {data.lowAndFastCount > 0 && (
               <button
                 onClick={() => setStudentFilter("low_and_fast")}
-                className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors hover:opacity-90 ${badgeRose}`}
               >
                 <AlertCircle className="w-3.5 h-3.5" />
                 {data.lowAndFastCount}{" "}
@@ -498,7 +518,7 @@ function TeacherDashboardContent() {
             />
             <button
               onClick={() => downloadStudentMetricsCsv(filteredStudentRows)}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a] px-3 py-1.5 text-sm font-medium text-[#166534] hover:bg-[#16a34a]/10 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg border border-primary px-3 py-1.5 text-sm font-medium text-forest hover:bg-primary/10 transition-colors"
             >
               <Download className="w-4 h-4" />
               Download CSV
@@ -509,7 +529,7 @@ function TeacherDashboardContent() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+              <tr className="bg-surface-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th className="px-5 py-3">Student</th>
                 <th className="px-3 py-3 text-right">Attempted</th>
                 <th className="px-3 py-3 text-right">Correct</th>
@@ -523,7 +543,7 @@ function TeacherDashboardContent() {
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-5 py-8 text-center text-sm text-slate-gray/60"
+                    className="px-5 py-8 text-center text-sm text-muted-foreground"
                   >
                     {isLoading
                       ? "Loading student data..."
@@ -534,7 +554,7 @@ function TeacherDashboardContent() {
                 filteredStudentRows.map((row) => (
                   <tr
                     key={row.studentId}
-                    className="border-t border-slate-100 hover:bg-slate-50/40"
+                    className="border-t border-border-subtle hover:bg-surface-muted/40"
                   >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
@@ -572,7 +592,7 @@ function TeacherDashboardContent() {
                         hasAttempts={row.attempted > 0}
                       />
                     </td>
-                    <td className="px-3 py-3 text-slate-gray/70">
+                    <td className="px-3 py-3 text-muted-foreground">
                       {row.attempted > 0 ? `${row.averageTimeSec}s` : "—"}
                     </td>
                     <td className="px-5 py-3">
@@ -587,7 +607,7 @@ function TeacherDashboardContent() {
       </section>
 
       {isLoading && data.byStandard.length === 0 && data.byStudent.length === 0 && (
-        <p className="text-sm text-slate-gray/60 mt-4">
+        <p className="text-sm text-muted-foreground mt-4">
           Loading dashboard data...
         </p>
       )}
@@ -620,7 +640,7 @@ function FiltersBar(props: {
   onSourceChange: (value: SourceKey) => void;
 }) {
   return (
-    <section className="rounded-2xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-5">
+    <section className="rounded-2xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <FilterSelect
           label="Topic"
@@ -659,10 +679,10 @@ function FiltersBar(props: {
           }))}
         />
         <div className="text-sm text-slate-gray">
-          <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+          <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Source
           </span>
-          <div className="flex h-[38px] w-full items-stretch overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          <div className="flex h-[38px] w-full items-stretch overflow-hidden rounded-lg border border-border-default bg-surface-muted p-0.5">
             <SourceToggle
               active={props.source === "all"}
               onClick={() => props.onSourceChange("all")}
@@ -703,13 +723,13 @@ function FilterSelect({
 }) {
   return (
     <label className="text-sm text-slate-gray">
-      <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+      <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-gray focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+        className="w-full rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       >
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map((option) => (
@@ -737,8 +757,8 @@ function SourceToggle({
       onClick={onClick}
       className={`flex flex-1 items-center justify-center whitespace-nowrap rounded-md px-2 text-xs font-semibold transition-colors ${
         active
-          ? "bg-white text-[#166534] shadow"
-          : "text-slate-gray/70 hover:text-slate-gray"
+          ? "bg-surface text-forest shadow"
+          : "text-muted-foreground hover:text-foreground"
       }`}
     >
       {children}
@@ -754,7 +774,7 @@ function ModeTabs({
   onChange: (value: ModeKey) => void;
 }) {
   return (
-    <div className="mb-3 flex items-center gap-4 border-b border-slate-200">
+    <div className="mb-3 flex items-center gap-4 border-b border-border-default">
       {MODE_TABS.map((tab) => {
         const active = tab.value === value;
         return (
@@ -764,8 +784,8 @@ function ModeTabs({
             onClick={() => onChange(tab.value)}
             className={`-mb-px border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
               active
-                ? "border-[#16a34a] text-[#14532d]"
-                : "border-transparent text-slate-gray/60 hover:text-slate-gray"
+                ? "border-primary text-heading"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.label}
@@ -792,9 +812,9 @@ function KpiCard({
   bgClass: string;
 }) {
   return (
-    <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
+    <article className="rounded-2xl border border-border-default bg-surface p-4 shadow-sm">
       <div className="flex items-start justify-between mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </p>
         <span
@@ -804,23 +824,17 @@ function KpiCard({
         </span>
       </div>
       <p className={`text-3xl font-bold ${accentClass}`}>{value}</p>
-      <p className="mt-1 text-xs text-slate-gray/60">{helper}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
     </article>
   );
 }
 
 function ModeAccuracyCard({ summary }: { summary: DashboardSummary }) {
   const byMode = summary.byMode;
-  const toneClass = (accuracy: number, hasAttempts: boolean) => {
-    if (!hasAttempts) return "text-slate-gray/40";
-    if (accuracy >= 70) return "text-emerald-700";
-    if (accuracy >= 55) return "text-amber-700";
-    return "text-rose-700";
-  };
   return (
-    <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
+    <article className="rounded-2xl border border-border-default bg-surface p-4 shadow-sm">
       <div className="flex items-start justify-between mb-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Accuracy by Mode
         </p>
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb]/10">
@@ -838,18 +852,18 @@ function ModeAccuracyCard({ summary }: { summary: DashboardSummary }) {
               </span>
               <div className="flex items-baseline gap-2">
                 <span
-                  className={`text-base font-bold ${toneClass(metrics?.accuracy ?? 0, hasAttempts)}`}
+                  className={`text-base font-bold ${accuracyTextClass(metrics?.accuracy ?? 0, hasAttempts)}`}
                 >
                   {hasAttempts ? `${metrics?.accuracy ?? 0}%` : "—"}
                 </span>
-                <span className="text-[10px] text-slate-gray/60">
+                <span className="text-[10px] text-muted-foreground">
                   {hasAttempts
                     ? `${metrics?.correct ?? 0}/${metrics?.attempted ?? 0} answers`
                     : "no attempts"}
                 </span>
               </div>
               {hasAttempts && (
-                <span className="text-[10px] text-slate-gray/50">
+                <span className="text-[10px] text-muted-foreground">
                   {metrics?.studentsAttempted ?? 0}{" "}
                   {(metrics?.studentsAttempted ?? 0) === 1
                     ? "student"
@@ -873,13 +887,13 @@ function StudentBreakdownCard({ summary }: { summary: DashboardSummary }) {
     { label: "Not started", value: breakdown.notStarted, color: "#cbd5e1" },
   ];
   return (
-    <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
+    <article className="rounded-2xl border border-border-default bg-surface p-4 shadow-sm">
       <div className="flex items-start justify-between mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Student Breakdown
         </p>
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#16a34a]/10">
-          <Users className="h-4 w-4 text-[#16a34a]" />
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+          <Users className="h-4 w-4 text-primary" />
         </span>
       </div>
       <div className="flex items-center gap-3">
@@ -925,7 +939,7 @@ function DonutChart({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#f1f5f9"
+          stroke="var(--chart-grid)"
           strokeWidth={stroke}
           fill="none"
         />
@@ -974,25 +988,23 @@ function StatusChip({
   count?: number;
 }) {
   const toneClass: Record<string, string> = {
-    slate:
-      "border-slate-300 text-slate-gray bg-white hover:bg-slate-100",
-    emerald:
-      "border-emerald-200 text-emerald-700 bg-white hover:bg-emerald-50",
-    amber: "border-amber-200 text-amber-700 bg-white hover:bg-amber-50",
-    rose: "border-rose-200 text-rose-700 bg-white hover:bg-rose-50",
+    slate: chipInactiveSlate,
+    emerald: chipInactiveEmerald,
+    amber: chipInactiveAmber,
+    rose: chipInactiveRose,
   };
   const activeClass: Record<string, string> = {
-    slate: "bg-slate-900 text-white border-slate-900",
-    emerald: "bg-emerald-600 text-white border-emerald-600",
-    amber: "bg-amber-500 text-white border-amber-500",
-    rose: "bg-rose-600 text-white border-rose-600",
+    slate: chipActiveSlate,
+    emerald: chipActiveEmerald,
+    amber: chipActiveAmber,
+    rose: chipActiveRose,
   };
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/40 focus-visible:ring-offset-1 ${
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 ${
         active ? activeClass[tone] : toneClass[tone]
       }`}
     >
@@ -1000,7 +1012,7 @@ function StatusChip({
       {typeof count === "number" && (
         <span
           className={`rounded-full px-1.5 text-[10px] ${
-            active ? "bg-white/20" : "bg-slate-100"
+            active ? "bg-surface/20" : "bg-surface-muted"
           }`}
         >
           {count}
@@ -1018,20 +1030,20 @@ function AccuracyBar({
   status: StandardRow["status"];
 }) {
   const colorMap: Record<StandardRow["status"], string> = {
-    on_track: "bg-emerald-500",
-    watch: "bg-amber-500",
-    needs_review: "bg-rose-500",
-    not_started: "bg-slate-300",
+    on_track: barEmerald,
+    watch: barAmber,
+    needs_review: barRose,
+    not_started: "bg-border-default",
   };
   const textMap: Record<StandardRow["status"], string> = {
-    on_track: "text-emerald-700",
-    watch: "text-amber-700",
-    needs_review: "text-rose-700",
-    not_started: "text-slate-400",
+    on_track: textEmerald,
+    watch: "text-amber-700 dark:text-amber-300",
+    needs_review: "text-rose-700 dark:text-rose-300",
+    not_started: "text-muted-foreground",
   };
   return (
     <div className="flex items-center gap-2 min-w-[140px]">
-      <div className="h-1.5 flex-1 rounded-full bg-slate-100">
+      <div className="h-1.5 flex-1 rounded-full bg-surface-muted">
         <div
           className={`h-full rounded-full ${colorMap[status]}`}
           style={{ width: `${value}%` }}
@@ -1051,40 +1063,34 @@ function AccuracyValue({
   value: number;
   hasAttempts: boolean;
 }) {
-  if (!hasAttempts) return <span className="text-slate-gray/40">—</span>;
-  const tone =
-    value >= 70
-      ? "text-emerald-700"
-      : value >= 50
-        ? "text-amber-700"
-        : "text-rose-700";
-  return <span className={`font-semibold ${tone}`}>{value}%</span>;
+  if (!hasAttempts) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className={`font-semibold ${accuracyTextClassLenient(value, true)}`}>
+      {value}%
+    </span>
+  );
 }
 
 function ModeAccuracyCell({ metrics }: { metrics: ModeMetrics | undefined }) {
   if (!metrics || metrics.attempted === 0) {
     return (
-      <div className="flex flex-col items-center text-slate-gray/40">
+      <div className="flex flex-col items-center text-muted-foreground">
         <span className="text-sm">—</span>
         <span className="text-[10px]">no attempts</span>
       </div>
     );
   }
-  const tone =
-    metrics.accuracy >= 70
-      ? "text-emerald-700"
-      : metrics.accuracy >= 55
-        ? "text-amber-700"
-        : "text-rose-700";
   return (
     <div className="flex flex-col items-center">
-      <span className={`text-sm font-semibold ${tone}`}>
+      <span
+        className={`text-sm font-semibold ${accuracyTextClass(metrics.accuracy, true)}`}
+      >
         {metrics.accuracy}%
       </span>
-      <span className="text-[10px] text-slate-gray/60">
+      <span className="text-[10px] text-muted-foreground">
         {metrics.correct}/{metrics.attempted} answers
       </span>
-      <span className="text-[10px] text-slate-gray/50">
+      <span className="text-[10px] text-muted-foreground">
         {metrics.studentsAttempted}{" "}
         {metrics.studentsAttempted === 1 ? "student" : "students"}
       </span>
@@ -1100,14 +1106,14 @@ function StandardStatusBadge({ status }: { status: StandardRow["status"] }) {
     not_started: "Not started",
   };
   const tone: Record<StandardRow["status"], string> = {
-    on_track: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    watch: "bg-amber-50 text-amber-700 border-amber-200",
-    needs_review: "bg-rose-50 text-rose-700 border-rose-200",
-    not_started: "bg-slate-50 text-slate-500 border-slate-200",
+    on_track: badgeEmerald,
+    watch: badgeAmber,
+    needs_review: badgeRose,
+    not_started: badgeNeutral,
   };
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
     >
       {status === "needs_review" && <BookOpen className="w-3 h-3 flex-shrink-0" />}
       {label[status]}
@@ -1123,14 +1129,14 @@ function StudentStatusBadge({ status }: { status: StudentRow["status"] }) {
     not_started: "Not started",
   };
   const tone: Record<StudentRow["status"], string> = {
-    on_track: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    watch: "bg-amber-50 text-amber-700 border-amber-200",
-    struggling: "bg-rose-50 text-rose-700 border-rose-200",
-    not_started: "bg-slate-50 text-slate-500 border-slate-200",
+    on_track: badgeEmerald,
+    watch: badgeAmber,
+    struggling: badgeRose,
+    not_started: badgeNeutral,
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone[status]}`}
     >
       {label[status]}
     </span>

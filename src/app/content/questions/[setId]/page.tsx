@@ -260,7 +260,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#16a34a] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </main>
     );
@@ -270,12 +270,12 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="text-center py-16">
-          <p className="text-slate-gray/70 mb-4">
+          <p className="text-muted-foreground mb-4">
             Question set not found or empty.
           </p>
           <Link
             href="/content/questions"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-[#16a34a] hover:bg-[#15803d]"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-primary hover:bg-primary-hover"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Question Manager
@@ -292,16 +292,16 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/content/questions"
-        className="inline-flex items-center gap-2 text-base font-semibold text-[#14532d] hover:text-[#166534] transition-colors mb-6"
+        className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"
       >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#16a34a]/10">
-          <ArrowLeft className="w-4 h-4 text-[#14532d]" />
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+          <ArrowLeft className="w-4 h-4 text-heading" />
         </span>
         Back to Question Manager
       </Link>
 
       {actionError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-error-border bg-error-light px-4 py-2 text-sm text-error">
           {actionError}
         </div>
       )}
@@ -314,7 +314,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                 type="text"
                 value={setNameDraft}
                 onChange={(event) => setSetNameDraft(event.target.value)}
-                className="min-w-[260px] max-w-xl w-full px-3 py-2 rounded-lg border border-slate-gray/20 focus:outline-none focus:ring-2 focus:ring-[#16a34a]/40 text-base font-semibold text-slate-gray"
+                className="min-w-[260px] max-w-xl w-full px-3 py-2 rounded-lg border border-border-default focus:outline-none focus:ring-2 focus:ring-[#16a34a]/40 text-base font-semibold text-slate-gray"
                 placeholder="Question set name"
                 disabled={isSavingSetName}
               />
@@ -322,7 +322,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                 type="button"
                 onClick={() => void handleSaveSetName()}
                 disabled={isSavingSetName}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white bg-[#16a34a] hover:bg-[#15803d] disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
                 Save
@@ -335,7 +335,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                   setActionError(null);
                 }}
                 disabled={isSavingSetName}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-slate-gray/20 text-slate-gray hover:bg-slate-gray/5 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-border-default text-slate-gray hover:bg-foreground/5 disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
                 Cancel
@@ -354,7 +354,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                     setIsEditingSetName(true);
                     setActionError(null);
                   }}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-gray/20 text-slate-gray hover:bg-slate-gray/5"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border-default text-slate-gray hover:bg-foreground/5"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   Rename
@@ -362,18 +362,18 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
               )}
             </div>
           )}
-          <p className="text-sm text-slate-gray/70">
+          <p className="text-sm text-muted-foreground">
             {questions.length} question(s)
             {isGeneratedFromDb &&
               ` • ${selfPracticeCount} in Self Practice bank`}
           </p>
           {questionSet.createdAt && (
-            <p className="text-xs text-slate-gray/50 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Created: {new Date(questionSet.createdAt).toLocaleString()}
             </p>
           )}
           {questionSet.generationModelLabel && (
-            <p className="text-xs text-slate-gray/50">
+            <p className="text-xs text-muted-foreground">
               Generated with: {questionSet.generationModelLabel}
             </p>
           )}
@@ -387,7 +387,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                   ? `/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}&schoolId=${encodeURIComponent(schoolIdFromQuery)}`
                   : `/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}`
               }
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-[#16a34a] hover:bg-[#15803d] transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary-hover transition-colors"
             >
               <ClipboardList className="w-4 h-4" />
               Create assignment from this set
@@ -396,7 +396,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
           {isGeneratedFromDb && (
             <button
               onClick={handleDeleteAll}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-error hover:bg-error-light transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               Delete Set
@@ -412,7 +412,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
             type="button"
             onClick={handleDownloadTsv}
             disabled={questions.length === 0}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-border-default text-slate-gray hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4" />
             TSV
@@ -421,7 +421,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
             type="button"
             onClick={handleDownloadText}
             disabled={questions.length === 0}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-border-default text-slate-gray hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileText className="w-4 h-4" />
             TXT
@@ -430,7 +430,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
             type="button"
             onClick={handleDownloadJson}
             disabled={questions.length === 0}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-slate-gray/20 text-slate-gray hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-border-default text-slate-gray hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileJson className="w-4 h-4" />
             JSON

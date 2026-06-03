@@ -134,12 +134,12 @@ export function QuestionEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 pt-4 sm:pt-4 bg-black/50 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[88vh] sm:max-h-[90vh] overflow-hidden flex flex-col my-auto">
-        <div className="flex items-center justify-between p-4 border-b border-slate-gray/10">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-3xl max-h-[88vh] sm:max-h-[90vh] overflow-hidden flex flex-col my-auto">
+        <div className="flex items-center justify-between p-4 border-b border-border-subtle">
           <h2 className="text-lg font-semibold text-slate-gray">Edit Question</h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-slate-gray/50 hover:text-slate-gray hover:bg-slate-gray/10"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-foreground/10"
           >
             <X className="w-5 h-5" />
           </button>
@@ -154,7 +154,7 @@ export function QuestionEditModal({
               value={edited.text}
               onChange={(e) => setEdited((prev) => ({ ...prev, text: e.target.value }))}
               rows={3}
-              className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm resize-none"
+              className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm resize-none"
             />
           </div>
 
@@ -169,7 +169,7 @@ export function QuestionEditModal({
                 onChange={(e) =>
                   setEdited((prev) => ({ ...prev, topic: e.target.value }))
                 }
-                className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
+                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
               />
             </div>
             <div>
@@ -186,7 +186,7 @@ export function QuestionEditModal({
                     standardLabel: selected?.label,
                   }));
                 }}
-                className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
+                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
               >
                 <option value="">Select standard</option>
                 {ALL_STANDARDS.map((standard) => (
@@ -208,7 +208,7 @@ export function QuestionEditModal({
                     dok: parseInt(e.target.value) as DOKLevel,
                   }))
                 }
-                className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
+                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
               >
                 <option value={1}>DOK 1 - Recall</option>
                 <option value={2}>DOK 2 - Skill/Concept</option>
@@ -228,7 +228,7 @@ export function QuestionEditModal({
                   className={`p-3 rounded-lg border ${
                     option.id === edited.correctOptionId
                       ? "border-leaf/30 bg-leaf/5"
-                      : "border-slate-gray/20"
+                      : "border-border-default"
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-2">
@@ -241,7 +241,7 @@ export function QuestionEditModal({
                     >
                       {option.id}
                     </span>
-                    <label className="flex items-center gap-2 text-xs text-slate-gray/60">
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
                       <input
                         type="radio"
                         name="correctOption"
@@ -264,7 +264,7 @@ export function QuestionEditModal({
                       handleOptionChange(option.id, "text", e.target.value)
                     }
                     placeholder="Option text"
-                    className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm mb-2"
+                    className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm mb-2"
                   />
                   <textarea
                     value={option.feedback || ""}
@@ -273,7 +273,7 @@ export function QuestionEditModal({
                     }
                     placeholder="Feedback for this option"
                     rows={2}
-                    className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-xs resize-none"
+                    className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-xs resize-none"
                   />
                 </div>
               ))}
@@ -290,7 +290,7 @@ export function QuestionEditModal({
               onChange={(e) =>
                 setEdited((prev) => ({ ...prev, focusHint: e.target.value }))
               }
-              className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
+              className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
             />
           </div>
 
@@ -304,7 +304,7 @@ export function QuestionEditModal({
                 setEdited((prev) => ({ ...prev, keyKnowledge: e.target.value }))
               }
               rows={2}
-              className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm resize-none"
+              className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm resize-none"
             />
           </div>
 
@@ -321,14 +321,14 @@ export function QuestionEditModal({
                 }))
               }
               rows={2}
-              className="w-full px-3 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm resize-none"
+              className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm resize-none"
             />
           </div>
 
-          <div className="rounded-lg border border-slate-gray/20 p-3 sm:p-4 space-y-4">
+          <div className="rounded-lg border border-border-default p-3 sm:p-4 space-y-4">
             <div>
               <p className="text-sm font-medium text-slate-gray">Glossary Terms</p>
-              <p className="text-xs text-slate-gray/60 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 These terms are shown in Practice and Review when scaffolding is unlocked.
               </p>
             </div>
@@ -357,10 +357,10 @@ export function QuestionEditModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-slate-gray/10 bg-slate-gray/5">
+        <div className="flex items-center justify-end gap-3 p-4 border-t border-border-subtle bg-slate-gray/5">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-slate-gray hover:bg-slate-gray/10 transition-colors text-sm"
+            className="px-4 py-2 rounded-lg text-slate-gray hover:bg-foreground/10 transition-colors text-sm"
           >
             Cancel
           </button>
@@ -397,12 +397,12 @@ function GlossaryTermsEditor({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-slate-gray">{title}</p>
-          <p className="text-xs text-slate-gray/60">{description}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
         </div>
         <button
           type="button"
           onClick={onAdd}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#16a34a]/30 text-xs font-medium text-[#166534] hover:bg-[#16a34a]/5 transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-primary/30 text-xs font-medium text-forest hover:bg-primary/5 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           Add term
@@ -410,21 +410,21 @@ function GlossaryTermsEditor({
       </div>
 
       {terms.length === 0 ? (
-        <p className="text-xs text-slate-gray/60 rounded-lg border border-dashed border-slate-gray/30 p-2.5">
+        <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border-default p-2.5">
           No terms yet.
         </p>
       ) : (
         <div className="space-y-2.5">
           {terms.map((term) => (
-            <div key={term.id} className="rounded-lg border border-slate-gray/20 bg-slate-50/40 p-2.5">
+            <div key={term.id} className="rounded-lg border border-border-default bg-surface-muted/40 p-2.5">
               <div className="flex items-start justify-between gap-2 mb-2">
-                <p className="text-xs text-slate-gray/50">
+                <p className="text-xs text-muted-foreground">
                   ID: <span className="font-mono">{term.id}</span>
                 </p>
                 <button
                   type="button"
                   onClick={() => onRemove(term.id)}
-                  className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                  className="inline-flex items-center gap-1 text-xs text-error hover:text-error"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   Remove
@@ -432,39 +432,39 @@ function GlossaryTermsEditor({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-slate-gray/70 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     Term
                   </label>
                   <input
                     type="text"
                     value={term.term}
                     onChange={(e) => onChange(term.id, "term", e.target.value)}
-                    className="w-full px-2.5 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
+                    className="w-full px-2.5 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
                     placeholder="e.g. Osmosis"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-gray/70 mb-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
                     Example (optional)
                   </label>
                   <input
                     type="text"
                     value={term.example ?? ""}
                     onChange={(e) => onChange(term.id, "example", e.target.value)}
-                    className="w-full px-2.5 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
+                    className="w-full px-2.5 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
                     placeholder="Example usage"
                   />
                 </div>
               </div>
               <div className="mt-2">
-                <label className="block text-xs font-medium text-slate-gray/70 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Definition
                 </label>
                 <textarea
                   value={term.definition}
                   onChange={(e) => onChange(term.id, "definition", e.target.value)}
                   rows={2}
-                  className="w-full px-2.5 py-2 border border-slate-gray/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm resize-none"
+                  className="w-full px-2.5 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm resize-none"
                   placeholder="Clear, concise definition"
                 />
               </div>

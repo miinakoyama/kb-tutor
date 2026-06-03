@@ -3,11 +3,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Info } from "lucide-react";
 
-const PRIMARY_COLOR = "#16a34a";
-const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
-const PENDING_COLOR = "#14532d";
-const PENDING_LIGHT = "rgba(20, 83, 45, 0.1)";
-
 interface OptionButtonProps {
   option: { id: string; text: string; feedback?: string };
   isSelected: boolean;
@@ -58,36 +53,34 @@ export function OptionButton({
   }, [showTooltip]);
 
   const getBorderColor = () => {
-    if (showCorrect) return PRIMARY_COLOR;
-    if (showWrong) return "#f87171";
-    if (isSelected && pendingSelection) return PENDING_COLOR;
-    if (isSelected) return PRIMARY_COLOR;
-    return "rgba(31, 45, 31, 0.2)";
+    if (showCorrect) return "var(--primary)";
+    if (showWrong) return "var(--error-color)";
+    if (isSelected && pendingSelection) return "var(--heading)";
+    if (isSelected) return "var(--primary)";
+    return "var(--border-default)";
   };
 
   const getBackgroundColor = () => {
-    if (showCorrect) return PRIMARY_LIGHT;
-    if (showWrong) return "rgba(248, 113, 113, 0.1)";
-    if (isSelected && pendingSelection) return PENDING_LIGHT;
-    if (isSelected) return PRIMARY_LIGHT;
-    return "white";
+    if (showCorrect) return "var(--primary-light)";
+    if (showWrong) return "var(--error-light)";
+    if (isSelected) return "var(--primary-light)";
+    return "var(--surface)";
   };
 
   const getBadgeStyles = () => {
     if (showCorrect || showWrong || isSelected) {
-      let bgColor = PRIMARY_COLOR;
-      if (showCorrect) bgColor = PRIMARY_COLOR;
-      else if (showWrong) bgColor = "#f87171";
-      else if (isSelected && pendingSelection) bgColor = PENDING_COLOR;
-      
+      let bgColor = "var(--primary)";
+      if (showWrong) bgColor = "var(--error-color)";
+      else if (isSelected && pendingSelection) bgColor = "var(--heading)";
+
       return {
         backgroundColor: bgColor,
         color: "white",
       };
     }
     return {
-      backgroundColor: "rgba(31, 45, 31, 0.1)",
-      color: "#1f2d1f",
+      backgroundColor: "var(--surface-muted)",
+      color: "var(--foreground)",
     };
   };
 
@@ -140,7 +133,7 @@ export function OptionButton({
                 setShowTooltip(!showTooltip);
               }
             }}
-            className="flex-shrink-0 p-2.5 rounded-full text-slate-gray/40 hover:text-slate-gray/70 hover:bg-slate-gray/10 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="flex-shrink-0 p-2.5 rounded-full text-muted-foreground hover:text-muted-foreground hover:bg-foreground/10 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label={tooltipHeading}
           >
             <Info className="w-4 h-4" />
@@ -151,9 +144,9 @@ export function OptionButton({
       {shouldShowIcon && showTooltip && (
         <div
           ref={tooltipRef}
-          className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-xl border border-slate-gray/20 bg-white shadow-lg"
+          className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-xl border border-border-default bg-surface shadow-lg"
         >
-          <p className="text-xs font-semibold text-slate-gray/60 mb-1">
+          <p className="text-xs font-semibold text-muted-foreground mb-1">
             {tooltipHeading}
           </p>
           <p className="text-sm text-slate-gray leading-relaxed">

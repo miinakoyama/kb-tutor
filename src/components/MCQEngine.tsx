@@ -18,12 +18,8 @@ import { shuffleArray } from "@/lib/array-utils";
 
 const PRIMARY_COLOR = "#16a34a";
 const PRIMARY_LIGHT = "rgba(22, 163, 74, 0.1)";
-const PRIMARY_TEXT = "#166534";
 const ERROR_COLOR = "#f87171";
-const ERROR_LIGHT = "rgba(248, 113, 113, 0.1)";
 const ERROR_BG_STRONG = "rgba(248, 113, 113, 0.2)";
-const ERROR_BORDER = "rgba(248, 113, 113, 0.3)";
-const ERROR_TEXT = "#991b1b";
 const ERROR_TEXT_STRONG = "#dc2626";
 const LOW_SCORE_COLOR = "#475569";
 const QUESTIONS_PER_SESSION = 10;
@@ -57,7 +53,7 @@ function QuestionHeader({
   onBackToResults,
 }: QuestionHeaderProps) {
   return (
-    <div className="flex-shrink-0 rounded-xl border border-[#16a34a]/30 bg-white px-4 sm:px-5 py-4 sm:py-5 shadow-sm">
+    <div className="flex-shrink-0 rounded-xl border border-primary/30 bg-surface px-4 sm:px-5 py-4 sm:py-5 shadow-sm">
       {isReviewing && (
         <button
           onClick={onBackToResults}
@@ -75,11 +71,11 @@ function QuestionHeader({
               {topicName}
             </h2>
           )}
-          <span className="text-sm text-slate-gray/60">
+          <span className="text-sm text-muted-foreground">
             Question {currentIndex + 1} of {totalQuestions}
           </span>
         </div>
-        <span className="text-sm text-slate-gray/60">
+        <span className="text-sm text-muted-foreground">
           {progressPercent}% Complete
         </span>
       </div>
@@ -117,33 +113,33 @@ function OptionButton({
   onSelect,
 }: OptionButtonProps) {
   const getBorderColor = () => {
-    if (showCorrect) return PRIMARY_COLOR;
-    if (showWrong) return ERROR_COLOR;
-    if (isSelected) return PRIMARY_COLOR;
-    return "rgba(31, 45, 31, 0.2)";
+    if (showCorrect) return "var(--primary)";
+    if (showWrong) return "var(--error-color)";
+    if (isSelected) return "var(--primary)";
+    return "var(--border-default)";
   };
 
   const getBackgroundColor = () => {
-    if (showCorrect) return PRIMARY_LIGHT;
-    if (showWrong) return ERROR_LIGHT;
-    if (isSelected) return PRIMARY_LIGHT;
-    return "white";
+    if (showCorrect) return "var(--primary-light)";
+    if (showWrong) return "var(--error-light)";
+    if (isSelected) return "var(--primary-light)";
+    return "var(--surface)";
   };
 
   const getBadgeStyles = () => {
     if (showCorrect || showWrong || isSelected) {
       return {
         backgroundColor: showCorrect
-          ? PRIMARY_COLOR
+          ? "var(--primary)"
           : showWrong
-            ? ERROR_COLOR
-            : PRIMARY_COLOR,
+            ? "var(--error-color)"
+            : "var(--primary)",
         color: "white",
       };
     }
     return {
-      backgroundColor: "rgba(31, 45, 31, 0.1)",
-      color: "#1f2d1f",
+      backgroundColor: "var(--surface-muted)",
+      color: "var(--foreground)",
     };
   };
 
@@ -201,9 +197,9 @@ function QuestionDisplay({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.2 }}
-          className="rounded-xl border border-[#16a34a]/30 bg-white p-4 sm:p-6 shadow-sm"
+          className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm"
         >
-          <p className="text-sm text-slate-gray/60 mb-3">
+          <p className="text-sm text-muted-foreground mb-3">
             Question {currentIndex + 1}
           </p>
 
@@ -214,13 +210,13 @@ function QuestionDisplay({
           </div>
 
           {question.imageUrl && (
-            <div className="my-4 rounded-lg overflow-hidden">
+            <div className="my-4 rounded-lg overflow-hidden bg-[var(--diagram-canvas)] p-3">
               <Image
                 src={question.imageUrl}
                 alt="Question illustration"
                 width={600}
                 height={400}
-                className="object-contain"
+                className="diagram-raster object-contain"
               />
             </div>
           )}
@@ -253,30 +249,22 @@ function QuestionDisplay({
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-5 p-4 rounded-xl border"
-              style={{
-                backgroundColor: currentAnswer.isCorrect
-                  ? PRIMARY_LIGHT
-                  : ERROR_LIGHT,
-                borderColor: currentAnswer.isCorrect
-                  ? `${PRIMARY_COLOR}40`
-                  : ERROR_BORDER,
-              }}
+              className={`mt-5 p-4 rounded-xl border ${
+                currentAnswer.isCorrect
+                  ? "border-primary/40 bg-primary-light"
+                  : "border-error-border bg-error-light"
+              }`}
             >
               <div className="flex items-start gap-3">
                 {currentAnswer.isCorrect ? (
-                  <CheckCircle2
-                    className="w-5 h-5 flex-shrink-0 mt-0.5"
-                    style={{ color: PRIMARY_COLOR }}
-                  />
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary" />
                 ) : (
-                  <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <XCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
                 )}
                 <p
-                  className="text-sm leading-relaxed"
-                  style={{
-                    color: currentAnswer.isCorrect ? PRIMARY_TEXT : ERROR_TEXT,
-                  }}
+                  className={`text-sm leading-relaxed ${
+                    currentAnswer.isCorrect ? "text-slate-gray" : "text-error"
+                  }`}
                 >
                   {selectedOption.feedback}
                 </p>
@@ -285,7 +273,7 @@ function QuestionDisplay({
           )}
 
           {!isAnswered && (
-            <p className="mt-5 text-center text-sm text-slate-gray/50 italic">
+            <p className="mt-5 text-center text-sm text-muted-foreground italic">
               Select an answer to see feedback
             </p>
           )}
@@ -325,11 +313,11 @@ function NavigationControls({
 
   return (
     <div className="flex-shrink-0 pt-4">
-      <div className="flex items-center justify-between gap-2 sm:gap-4 bg-sand-beige rounded-xl p-3 border border-[#16a34a]/20">
+      <div className="flex items-center justify-between gap-2 sm:gap-4 bg-background rounded-xl p-3 border border-primary/20">
         <button
           onClick={onPrevious}
           disabled={currentIndex === 0}
-          className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 min-h-[44px] rounded-lg border border-slate-gray/20 bg-white text-slate-gray font-medium hover:bg-slate-gray/5 focus-visible:bg-slate-gray/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 min-h-[44px] rounded-lg border border-border-default bg-surface text-slate-gray font-medium hover:bg-foreground/5 focus-visible:bg-slate-gray/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
           <span className="hidden sm:inline">Previous</span>
@@ -432,9 +420,9 @@ function SummaryScreen({
         animate={{ opacity: 1, y: 0 }}
         className="space-y-4 pb-4"
       >
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-6 shadow-sm text-center">
+        <div className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
           {topicName && (
-            <p className="text-sm text-slate-gray/70 mb-2">{topicName}</p>
+            <p className="text-sm text-muted-foreground mb-2">{topicName}</p>
           )}
           <h2 className="text-2xl font-bold text-slate-gray mb-4">
             Quiz Complete!
@@ -489,25 +477,25 @@ function SummaryScreen({
                 <CheckCircle2 className="w-4 h-4" />
                 <span className="text-xl font-bold">{correctCount}</span>
               </div>
-              <p className="text-xs text-slate-gray/70">Correct</p>
+              <p className="text-xs text-muted-foreground">Correct</p>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1.5 text-red-400">
                 <XCircle className="w-4 h-4" />
                 <span className="text-xl font-bold">{incorrectCount}</span>
               </div>
-              <p className="text-xs text-slate-gray/70">Incorrect</p>
+              <p className="text-xs text-muted-foreground">Incorrect</p>
             </div>
             <div className="text-center">
               <span className="text-xl font-bold text-slate-gray">
                 {totalQuestions}
               </span>
-              <p className="text-xs text-slate-gray/70">Total</p>
+              <p className="text-xs text-muted-foreground">Total</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-primary/30 bg-surface p-4 shadow-sm">
           <h3 className="text-base font-semibold text-slate-gray mb-3">
             Review Questions
           </h3>
@@ -704,7 +692,7 @@ export function MCQEngine({
   if (!question || sessionQuestions.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="rounded-xl border border-[#16a34a]/30 bg-white p-8 text-center text-slate-gray">
+        <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center text-slate-gray">
           No questions available for this topic.
         </div>
       </div>

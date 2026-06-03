@@ -85,8 +85,8 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
               onClick={() => onChange(presetRange(preset.key))}
               className={
                 isActive
-                  ? "rounded-md bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white"
-                  : "rounded-md px-3 py-1.5 text-xs font-medium text-slate-gray border border-slate-200 hover:bg-slate-50"
+                  ? "rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white"
+                  : "rounded-md px-3 py-1.5 text-xs font-medium text-slate-gray border border-border-default hover:bg-surface-muted"
               }
             >
               {preset.label}
@@ -101,7 +101,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
             type="date"
             value={value.from}
             onChange={(event) => onChange({ ...value, from: event.target.value })}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm min-w-[10rem]"
+            className="rounded-lg border border-border-default px-3 py-2 text-sm min-w-[10rem]"
           />
         </label>
         <label className="text-xs text-slate-gray">
@@ -110,7 +110,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
             type="date"
             value={value.to}
             onChange={(event) => onChange({ ...value, to: event.target.value })}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm min-w-[10rem]"
+            className="rounded-lg border border-border-default px-3 py-2 text-sm min-w-[10rem]"
           />
         </label>
       </div>

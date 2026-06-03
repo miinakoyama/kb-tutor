@@ -34,15 +34,6 @@ export interface MockAssignment {
   targetMinutes: number;
 }
 
-export interface MockNotification {
-  id: string;
-  recipientType: "student" | "teacher";
-  recipientId: string;
-  message: string;
-  createdAt: string;
-  read: boolean;
-}
-
 export interface MockAttempt {
   id: string;
   studentId: string;
@@ -138,33 +129,6 @@ export const MOCK_ASSIGNMENTS: MockAssignment[] = [
   },
 ];
 
-export const MOCK_NOTIFICATIONS: MockNotification[] = [
-  {
-    id: "n_1",
-    recipientType: "student",
-    recipientId: "s_alex",
-    message: "Your teacher assigned Cell Transport Readiness. Due Fri 11:59 PM.",
-    createdAt: "2026-03-25T12:00:00.000Z",
-    read: false,
-  },
-  {
-    id: "n_2",
-    recipientType: "student",
-    recipientId: "s_alex",
-    message: "Great work: your accuracy in Genetics improved by 12% this week.",
-    createdAt: "2026-03-24T14:30:00.000Z",
-    read: true,
-  },
-  {
-    id: "n_3",
-    recipientType: "teacher",
-    recipientId: "t_murphy",
-    message: "3 students are below 60% accuracy in Homeostasis and Transport.",
-    createdAt: "2026-03-25T08:15:00.000Z",
-    read: false,
-  },
-];
-
 const STANDARD_MAP = getAllStandards();
 
 function pseudoRandom(seed: number): number {
@@ -229,13 +193,4 @@ export function getAssignmentsForStudent(studentId: string): MockAssignment[] {
   const student = getStudentById(studentId);
   if (!student) return [];
   return MOCK_ASSIGNMENTS.filter((assignment) => assignment.classId === student.classId);
-}
-
-export function getNotificationsForRecipient(
-  recipientType: "student" | "teacher",
-  recipientId: string,
-): MockNotification[] {
-  return MOCK_NOTIFICATIONS
-    .filter((item) => item.recipientType === recipientType && item.recipientId === recipientId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

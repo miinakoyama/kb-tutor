@@ -14,6 +14,17 @@ import {
   type StudentAssignmentProgress,
 } from "@/lib/analytics/assignment-progress";
 import { downloadAssignmentProgressCsv } from "@/lib/csv/assignment-progress";
+import {
+  badgeAmber,
+  badgeEmerald,
+  badgeRose,
+  barAmber,
+  barEmerald,
+  barRose,
+  textAmber,
+  textEmerald,
+  textRose,
+} from "@/lib/ui/status-badge-styles";
 
 const SORT_OPTIONS: { value: AssignmentProgressRowSortKey; label: string }[] = [
   {
@@ -69,11 +80,11 @@ export function AssignmentProgressPanel({
 
   return (
     <section
-      className={`rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm ${className}`.trim()}
+      className={`rounded-2xl border border-border-default bg-surface shadow-sm ${className}`.trim()}
     >
-      <div className="border-b border-slate-100 px-5 py-4">
+      <div className="border-b border-border-subtle px-5 py-4">
         <h2 className="text-lg font-semibold text-slate-gray">Assignment progress</h2>
-        <p className="text-xs text-slate-gray/60">
+        <p className="text-xs text-muted-foreground">
           Search by name or student ID. Needs attention: most &quot;not
           started&quot; cells first, then lowest share complete. Highest %
           complete: best overall progress (completed ÷ assigned in this table).
@@ -82,21 +93,21 @@ export function AssignmentProgressPanel({
       </div>
 
       {errorMessage && !isLoading ? (
-        <p className="mx-5 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p className="mx-5 mt-3 rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error">
           {errorMessage}
         </p>
       ) : null}
 
       {isLoading ? (
-        <p className="px-5 py-8 text-center text-sm text-slate-gray/60">
+        <p className="px-5 py-8 text-center text-sm text-muted-foreground">
           Loading assignment progress...
         </p>
       ) : errorMessage ? null : !hasAssignments ? (
-        <p className="px-5 py-8 text-center text-sm text-slate-gray/60">
+        <p className="px-5 py-8 text-center text-sm text-muted-foreground">
           No assignments found for the current school filter.
         </p>
       ) : !hasRows ? (
-        <p className="px-5 py-8 text-center text-sm text-slate-gray/60">
+        <p className="px-5 py-8 text-center text-sm text-muted-foreground">
           No students in the selected school(s).
         </p>
       ) : (
@@ -121,25 +132,25 @@ export function AssignmentProgressPanel({
               tone="rose"
             />
           </div>
-          <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-3 sm:flex-row sm:items-end">
+          <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-3 sm:flex-row sm:items-end">
             <label className="min-w-0 flex-1 text-sm text-slate-gray">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Search
               </span>
               <span className="relative block">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Name or student ID"
-                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-gray placeholder:text-slate-400 focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+                  className="w-full rounded-lg border border-border-default bg-surface py-2 pl-9 pr-3 text-sm text-slate-gray placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   autoComplete="off"
                 />
               </span>
             </label>
             <label className="w-full text-sm text-slate-gray sm:w-[min(100%,22rem)] sm:flex-none">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Sort rows
               </span>
               <select
@@ -147,7 +158,7 @@ export function AssignmentProgressPanel({
                 onChange={(e) =>
                   setSortKey(e.target.value as AssignmentProgressRowSortKey)
                 }
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-gray focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+                className="w-full rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 {SORT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -160,7 +171,7 @@ export function AssignmentProgressPanel({
               type="button"
               onClick={() => downloadAssignmentProgressCsv(data, visibleRows)}
               disabled={visibleRows.length === 0}
-              className="inline-flex h-[38px] items-center justify-center gap-2 rounded-lg border border-[#16a34a] px-3 text-sm font-medium text-[#166534] transition-colors hover:bg-[#16a34a]/10 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-gray/40 disabled:hover:bg-transparent"
+              className="inline-flex h-[38px] items-center justify-center gap-2 rounded-lg border border-primary px-3 text-sm font-medium text-forest transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:border-border-default disabled:text-muted-foreground disabled:hover:bg-transparent"
             >
               <Download className="h-4 w-4" />
               Download CSV
@@ -169,8 +180,8 @@ export function AssignmentProgressPanel({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
-                  <th className="sticky left-0 z-10 bg-slate-50/90 px-5 py-3">
+                <tr className="bg-surface-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th className="sticky left-0 z-10 bg-surface-muted/90 px-5 py-3">
                     Student
                   </th>
                   {data.assignments.map((a) => (
@@ -188,7 +199,7 @@ export function AssignmentProgressPanel({
                   <tr>
                     <td
                       colSpan={data.assignments.length + 1}
-                      className="px-5 py-8 text-center text-sm text-slate-gray/60"
+                      className="px-5 py-8 text-center text-sm text-muted-foreground"
                     >
                       {searchQuery.trim()
                         ? "No students match your search."
@@ -199,9 +210,9 @@ export function AssignmentProgressPanel({
                   visibleRows.map((row) => (
                     <tr
                       key={row.studentId}
-                      className="border-t border-slate-100 hover:bg-slate-50/40"
+                      className="border-t border-border-subtle hover:bg-surface-muted/40"
                     >
-                      <td className="sticky left-0 z-10 bg-white px-5 py-3 hover:bg-slate-50/40">
+                      <td className="sticky left-0 z-10 bg-surface px-5 py-3 hover:bg-surface-muted/40">
                         <div className="flex items-center gap-3">
                           <StudentAvatar label={row.label} />
                           <div className="min-w-[140px]">
@@ -211,11 +222,11 @@ export function AssignmentProgressPanel({
                             {row.studentIdCode &&
                             row.studentIdCode.trim().toLowerCase() !==
                               row.label.trim().toLowerCase() ? (
-                              <p className="font-mono text-[10px] text-slate-gray/50">
+                              <p className="font-mono text-[10px] text-muted-foreground">
                                 {row.studentIdCode}
                               </p>
                             ) : null}
-                            <p className="text-[11px] text-slate-gray/60">
+                            <p className="text-[11px] text-muted-foreground">
                               {row.completedCount}/
                               {row.completedCount +
                                 row.inProgressCount +
@@ -270,10 +281,10 @@ function AssignmentHeaderCell({
       <span className="max-w-[160px] truncate text-xs font-semibold normal-case">
         {assignment.title}
       </span>
-      <span className="text-[10px] font-normal text-slate-gray/60">
+      <span className="text-[10px] font-normal text-muted-foreground">
         {dueLabel ? `Due ${dueLabel}` : "No due date"}
       </span>
-      <span className="text-[10px] font-normal text-emerald-700">
+      <span className={`text-[10px] font-normal ${textEmerald}`}>
         {assignment.completedCount}/{assignment.totalTargets} ({completionPct}%)
       </span>
     </div>
@@ -288,7 +299,7 @@ function ProgressStatusCell({
   if (!progress) {
     return (
       <span
-        className="inline-flex items-center gap-1 rounded-full border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-gray/50"
+        className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
         title="Not assigned to this student"
       >
         —
@@ -296,9 +307,9 @@ function ProgressStatusCell({
     );
   }
   const tone: Record<AssignmentProgressStatus, string> = {
-    completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    in_progress: "bg-amber-50 text-amber-700 border-amber-200",
-    not_started: "bg-rose-50 text-rose-700 border-rose-200",
+    completed: badgeEmerald,
+    in_progress: badgeAmber,
+    not_started: badgeRose,
   };
   const icon: Record<AssignmentProgressStatus, ReactNode> = {
     completed: <CheckCircle2 className="h-3 w-3" />,
@@ -313,13 +324,13 @@ function ProgressStatusCell({
   const title = buildProgressCellTitle(progress);
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone[progress.status]}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone[progress.status]}`}
       title={title}
     >
       {icon[progress.status]}
       {label[progress.status]}
       {progress.status === "in_progress" && progress.totalQuestions != null && (
-        <span className="ml-0.5 text-[10px] font-normal text-amber-700/80">
+        <span className={`ml-0.5 text-[10px] font-normal ${textAmber} opacity-80`}>
           {progress.answeredCount}/{progress.totalQuestions}
         </span>
       )}
@@ -360,25 +371,25 @@ function ProgressTotalCard({
 }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   const barTone: Record<"emerald" | "amber" | "rose", string> = {
-    emerald: "bg-emerald-500",
-    amber: "bg-amber-500",
-    rose: "bg-rose-500",
+    emerald: barEmerald,
+    amber: barAmber,
+    rose: barRose,
   };
   const textTone: Record<"emerald" | "amber" | "rose", string> = {
-    emerald: "text-emerald-700",
-    amber: "text-amber-700",
-    rose: "text-rose-700",
+    emerald: textEmerald,
+    amber: textAmber,
+    rose: textRose,
   };
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-gray/60">
+    <div className="rounded-xl border border-border-default bg-surface-muted p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 flex items-baseline gap-2">
         <span className={`text-2xl font-bold ${textTone[tone]}`}>{value}</span>
-        <span className="text-xs text-slate-gray/60">of {total}</span>
+        <span className="text-xs text-muted-foreground">of {total}</span>
       </div>
-      <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200">
+      <div className="mt-2 h-1.5 w-full rounded-full bg-surface-muted">
         <div
           className={`h-full rounded-full ${barTone[tone]}`}
           style={{ width: `${pct}%` }}

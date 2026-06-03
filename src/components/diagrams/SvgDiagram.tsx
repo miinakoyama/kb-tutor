@@ -187,13 +187,13 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
   }, [data.svg]);
 
   return (
-    <div className="w-full bg-white p-4 border border-gray-300 rounded">
+    <div className="w-full bg-surface p-4 border border-border-default rounded">
       {data.title && (
-        <h3 className="text-center text-sm font-bold text-black mb-2">
+        <h3 className="text-center text-sm font-bold text-foreground mb-2">
           {data.title}
         </h3>
       )}
-      <div className="flex justify-center items-center">
+      <div className="flex justify-center items-center rounded-md bg-[var(--diagram-canvas)] p-3">
         {safeSvgDataUrl ? (
           // Using <img> instead of next/image because:
           // - safeSvgDataUrl is a data URL generated at runtime, not a static asset
@@ -203,10 +203,10 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
           <img
             src={safeSvgDataUrl}
             alt={data.title || "Biology diagram"}
-            className="w-full max-w-[520px] min-w-[140px] sm:min-w-[260px] h-auto block"
+            className="diagram-raster w-full max-w-[520px] min-w-[140px] sm:min-w-[260px] h-auto block"
           />
         ) : (
-          <div className="text-sm text-red-600">Unable to render diagram safely.</div>
+          <div className="text-sm text-error">Unable to render diagram safely.</div>
         )}
       </div>
     </div>

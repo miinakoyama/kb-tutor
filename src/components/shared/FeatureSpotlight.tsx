@@ -309,7 +309,7 @@ export function FeatureSpotlight({
       {spotlightRects.map((rect, index) => (
         <div
           key={`${rect.targetId}-${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
-          className="pointer-events-none fixed border-2 border-[#4ade80] transition-[top,left,width,height] duration-150 ease-out"
+          className="pointer-events-none fixed border-2 border-mint transition-[top,left,width,height] duration-150 ease-out"
           style={{
             top: rect.top,
             left: rect.left,
@@ -325,33 +325,33 @@ export function FeatureSpotlight({
           <div
             ref={cardRef}
             style={cardStyle}
-            className="w-full rounded-2xl border border-[#16a34a]/20 bg-white shadow-2xl"
+            className="w-full rounded-2xl border border-primary/20 bg-surface shadow-2xl"
           >
-            <div className="border-b border-slate-100 px-6 py-4">
+            <div className="border-b border-border-subtle px-6 py-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#16a34a]">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                     Feature tip
                   </p>
-                  <h2 className="text-lg font-bold text-[#14532d]">{title}</h2>
+                  <h2 className="text-lg font-bold text-heading">{title}</h2>
                 </div>
                 <button
                   type="button"
                   onClick={onClose}
                   aria-label="Dismiss feature tip"
-                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-muted hover:text-foreground"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <p className="mt-2 text-sm text-slate-600">{description}</p>
-              {detail ? <p className="mt-1.5 text-sm text-slate-600">{detail}</p> : null}
+              <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+              {detail ? <p className="mt-1.5 text-sm text-muted-foreground">{detail}</p> : null}
             </div>
             <div className="flex justify-end px-6 py-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg bg-[#16a34a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#15803d]"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
               >
                 {ctaLabel}
               </button>
