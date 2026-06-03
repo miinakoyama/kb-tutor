@@ -404,12 +404,7 @@ function TeacherDashboardContent() {
               thresholds={data.thresholds}
               defaults={data.defaults}
               isCustom={data.thresholdsAreCustom}
-              onChange={(next, isCustom) => {
-                setData((prev) => ({
-                  ...prev,
-                  thresholds: next,
-                  thresholdsAreCustom: isCustom,
-                }));
+              onChange={() => {
                 setRefreshKey((prev) => prev + 1);
               }}
             />
