@@ -7,7 +7,6 @@ import {
   ClipboardList,
   Clock,
   Flame,
-  NotebookPen,
   Play,
 } from "lucide-react";
 import type {
@@ -22,6 +21,7 @@ import {
 } from "@/lib/keystone-exam";
 import { AssignmentModeBadge } from "@/components/assignments/AssignmentModeBadge";
 import { badgeAmber } from "@/lib/ui/status-badge-styles";
+import { ProgressMiniWidget } from "@/components/ProgressMiniWidget";
 
 interface HomePageContentProps {
   assignments: StudentAssignmentListItem[];
@@ -101,23 +101,7 @@ export function HomePageContent({
         </div>
 
         <div className="lg:col-span-3">
-          <Link
-            href="/self-practice"
-            className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors block"
-          >
-            <div className="inline-flex items-center gap-2 text-primary dark:text-forest mb-2">
-              <NotebookPen className="w-5 h-5" />
-              <span className="font-semibold">Self Practice</span>
-            </div>
-            <p className="text-sm text-slate-gray/80">
-              Choose topic and mode, then start a focused practice session.
-            </p>
-            <div className="mt-4">
-              <span className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover transition-colors">
-                Start self practice
-              </span>
-            </div>
-          </Link>
+          <ProgressMiniWidget />
         </div>
       </section>
     </main>
