@@ -9,10 +9,12 @@ import {
   CheckCircle2,
   Download,
   Info,
+  Sparkles,
   Timer,
   TrendingUp,
   Users,
 } from "lucide-react";
+import { SampleQuestionModal } from "@/components/teacher/SampleQuestionModal";
 import { StudentAvatar } from "@/components/StudentAvatar";
 import {
   downloadStandardMetricsCsv,
@@ -146,6 +148,11 @@ function TeacherDashboardContent() {
   const [studentFilter, setStudentFilter] = useState<StudentStatusFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
+  const [sampleModalState, setSampleModalState] = useState<{
+    open: boolean;
+    standardId: string;
+    standardLabel: string;
+  }>({ open: false, standardId: "", standardLabel: "" });
 
   useEffect(() => {
     let isCurrent = true;
@@ -218,7 +225,7 @@ function TeacherDashboardContent() {
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Identify which standards need re-teaching and which students need a
-          closer look. Per-assignment completion is on{" "}
+          closer look — click a standard or student row to drill in. Per-assignment completion is on{" "}
           <Link
             href="/assignments/manage?tab=progress"
             className="font-medium text-primary hover:underline"
@@ -363,13 +370,14 @@ function TeacherDashboardContent() {
                 )}
                 <th className="px-3 py-3">Avg time</th>
                 <th className="px-5 py-3">Status</th>
+                <th className="px-3 py-3 text-right">Sample</th>
               </tr>
             </thead>
             <tbody>
               {filteredStandards.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={mode === "compare" ? 8 : 6}
+                    colSpan={mode === "compare" ? 9 : 7}
                     className="px-5 py-8 text-center text-sm text-muted-foreground"
                   >
                     {isLoading
@@ -384,11 +392,20 @@ function TeacherDashboardContent() {
                     className="border-t border-border-subtle hover:bg-surface-muted/40"
                   >
                     <td className="px-5 py-3">
-                      <p className="font-medium text-slate-gray">
-                        {row.standardId}
-                      </p>
+                      <Link
+                       href={buildStandardDrillDownHref(row.standardId, {
+                         range,
+                         mode,
+                         source,
+                         classId,
+                         topic,
+                       })}
+                       className="block max-w-md font-medium text-[#166534] hover:underline"
+                      >
+                       {row.standardId}
+                      </Link>
                       <p className="text-xs text-muted-foreground line-clamp-2 max-w-md">
-                        {row.standardLabel}
+                       {row.standardLabel}
                       </p>
                     </td>
                     <td className="px-3 py-3 text-right text-slate-gray">
@@ -422,6 +439,22 @@ function TeacherDashboardContent() {
                     </td>
                     <td className="px-5 py-3">
                       <StandardStatusBadge status={row.status} />
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSampleModalState({
+                            open: true,
+                            standardId: row.standardId,
+                            standardLabel: row.standardLabel,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 rounded-md border border-[#16a34a] bg-white px-2 py-1 text-[11px] font-semibold text-[#166534] hover:bg-[#16a34a]/10 transition-colors"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Sample question
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -527,9 +560,18 @@ function TeacherDashboardContent() {
                       <div className="flex items-center gap-3">
                         <StudentAvatar label={row.label} />
                         <div>
-                          <p className="font-medium text-slate-gray">
+                          <Link
+                            href={buildStudentProfileHref(row.studentId, {
+                              range,
+                              mode,
+                              source,
+                              classId,
+                              topic,
+                            })}
+                            className="font-medium text-[#166534] hover:underline"
+                          >
                             {row.label}
-                          </p>
+                          </Link>
                           {row.isLowAndFast && (
                             <p className="text-xs font-medium text-rose-600">
                               Clicking without engaging
@@ -569,6 +611,15 @@ function TeacherDashboardContent() {
           Loading dashboard data...
         </p>
       )}
+
+      <SampleQuestionModal
+        open={sampleModalState.open}
+        standardId={sampleModalState.standardId}
+        standardLabel={sampleModalState.standardLabel}
+        onClose={() =>
+          setSampleModalState((prev) => ({ ...prev, open: false }))
+        }
+      />
     </main>
   );
 }
@@ -1111,4 +1162,46 @@ function avgTimeHelper(seconds: number): string {
 function activeStudentsHelper(summary: DashboardSummary, mode: ModeKey): string {
   const scope = mode === "compare" ? "any selected mode" : `${mode} mode`;
   return `${summary.studentsAttempted} of ${summary.studentsTotal} students answered in ${scope}`;
+}
+
+function buildStandardDrillDownHref(
+  standardId: string,
+  filters: {
+    range: RangeKey;
+    mode: ModeKey;
+    source: SourceKey;
+    classId: string;
+    topic: string;
+  },
+): string {
+  const params = new URLSearchParams();
+  if (filters.range !== "30d") params.set("range", filters.range);
+  if (filters.mode !== "compare") params.set("mode", filters.mode);
+  if (filters.source !== "all") params.set("source", filters.source);
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.topic) params.set("topic", filters.topic);
+  const qs = params.toString();
+  const safe = encodeURIComponent(standardId);
+  return qs ? `/teacher-dashboard/standards/${safe}?${qs}` : `/teacher-dashboard/standards/${safe}`;
+}
+
+function buildStudentProfileHref(
+  studentId: string,
+  filters: {
+    range: RangeKey;
+    mode: ModeKey;
+    source: SourceKey;
+    classId: string;
+    topic: string;
+  },
+): string {
+  const params = new URLSearchParams();
+  if (filters.range !== "30d") params.set("range", filters.range);
+  if (filters.mode !== "compare") params.set("mode", filters.mode);
+  if (filters.source !== "all") params.set("source", filters.source);
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.topic) params.set("topic", filters.topic);
+  const qs = params.toString();
+  const safe = encodeURIComponent(studentId);
+  return qs ? `/teacher-dashboard/students/${safe}?${qs}` : `/teacher-dashboard/students/${safe}`;
 }

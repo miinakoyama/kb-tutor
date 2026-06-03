@@ -10,6 +10,8 @@ import {
   appendPage,
   chunkArray,
 } from "@/lib/analytics/pagination";
+import { parseQuestionPreview as parseSharedQuestionPreview } from "@/lib/analytics/question-preview";
+import { percentile as sharedPercentile } from "@/lib/analytics/percentile";
 
 type QuestionStatsRow = {
   question_id: string;
@@ -158,71 +160,17 @@ function toNumber(value: number | string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function percentile(values: number[], ratio: number): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.floor((sorted.length - 1) * ratio);
-  return sorted[index] ?? null;
-}
+const percentile = sharedPercentile;
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function parseQuestionPreview(raw: unknown): QuestionPreview | null {
-  const source = asRecord(raw);
-  if (!source) return null;
-
-  const textRaw = source.text;
-  const text = typeof textRaw === "string" ? textRaw.trim() : "";
-  if (!text) return null;
-
-  const optionsRaw = Array.isArray(source.options) ? source.options : [];
-  const options = optionsRaw
-    .map((entry, index) => {
-      const option = asRecord(entry);
-      if (!option) return null;
-      const idRaw = option.id;
-      const textValue = typeof option.text === "string" ? option.text.trim() : "";
-      if (!textValue) return null;
-      const id =
-        typeof idRaw === "string" && idRaw.trim().length > 0
-          ? idRaw
-          : `opt_${index + 1}`;
-      return { id, text: textValue };
-    })
-    .filter((entry): entry is QuestionOptionPreview => entry !== null);
-
-  if (options.length === 0) return null;
-
-  const correctRaw = source.correctOptionId;
-  const fallbackCorrectId = options[0]?.id ?? "opt_1";
-  const correctOptionId =
-    typeof correctRaw === "string" && options.some((option) => option.id === correctRaw)
-      ? correctRaw
-      : fallbackCorrectId;
-
-  const imageUrl =
-    typeof source.imageUrl === "string" && source.imageUrl.trim().length > 0
-      ? source.imageUrl
-      : null;
-
-  const diagramRaw = asRecord(source.diagram);
-  const diagramType = diagramRaw?.type;
-  const diagram =
-    typeof diagramType === "string" && "data" in (diagramRaw ?? {})
-      ? { type: diagramType, data: diagramRaw?.data }
-      : null;
-
-  return {
-    text,
-    imageUrl,
-    options,
-    correctOptionId,
-    diagram,
-  };
-}
+/**
+ * Local QuestionPreview alias is structurally compatible with the shared
+ * type in `src/lib/analytics/teacher-analytics-types.ts`; we keep the
+ * alias around so the rest of this file's existing type references
+ * remain unchanged after extraction of the parser into the shared lib.
+ */
+const parseQuestionPreview = parseSharedQuestionPreview as (
+  raw: unknown,
+) => QuestionPreview | null;
 
 function emptyConfidenceSummary(): ConfidenceSummary {
   return {
