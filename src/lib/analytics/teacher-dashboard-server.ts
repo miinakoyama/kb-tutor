@@ -94,23 +94,11 @@ export interface DashboardResponseBody {
   thresholds: PerformanceThresholds;
 }
 
-function classifyStudent(
+function classifyPerformance(
   accuracy: number,
   attempted: number,
-  thresholds: PerformanceThresholds["student"],
+  thresholds: PerformanceThresholds,
 ): StudentStatus {
-  if (attempted === 0) return "not_started";
-  if (accuracy >= thresholds.advancedMin) return "advanced";
-  if (accuracy >= thresholds.proficientMin) return "proficient";
-  if (accuracy >= thresholds.basicMin) return "basic";
-  return "below_basic";
-}
-
-function classifyStandard(
-  accuracy: number,
-  attempted: number,
-  thresholds: PerformanceThresholds["standard"],
-): StandardStatus {
   if (attempted === 0) return "not_started";
   if (accuracy >= thresholds.advancedMin) return "advanced";
   if (accuracy >= thresholds.proficientMin) return "proficient";
@@ -345,7 +333,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         correct: item.correct,
         accuracy,
         averageTimeSec,
-        status: classifyStandard(accuracy, item.attempted, thresholds.standard),
+        status: classifyPerformance(accuracy, item.attempted, thresholds),
       };
       if (includeModeBreakdown) {
         row.byMode = byMode;
@@ -391,7 +379,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         agg.measuredTimeCount > 0
           ? Math.round(agg.totalTime / agg.measuredTimeCount)
           : 0;
-      const status = classifyStudent(accuracy, agg.attempted, thresholds.student);
+      const status = classifyPerformance(accuracy, agg.attempted, thresholds);
       const isLowAndFast =
         agg.attempted >= LOW_AND_FAST_MIN_ATTEMPTS &&
         accuracy < LOW_AND_FAST_MAX_ACCURACY &&

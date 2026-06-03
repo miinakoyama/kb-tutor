@@ -5,8 +5,9 @@ import type { PerformanceThresholds } from "./constants";
 describe("describeStudentBands", () => {
   it("describes ranges without subtracting one from tied thresholds", () => {
     const thresholds: PerformanceThresholds = {
-      student: { basicMin: 70, proficientMin: 70, advancedMin: 85 },
-      standard: { basicMin: 70, proficientMin: 70, advancedMin: 85 },
+      basicMin: 70,
+      proficientMin: 70,
+      advancedMin: 85,
     };
 
     const bands = describeStudentBands(thresholds);
@@ -21,8 +22,9 @@ describe("describeStudentBands", () => {
 
   it("keeps below-basic ranges valid when the basic threshold is zero", () => {
     const thresholds: PerformanceThresholds = {
-      student: { basicMin: 0, proficientMin: 70, advancedMin: 85 },
-      standard: { basicMin: 0, proficientMin: 70, advancedMin: 85 },
+      basicMin: 0,
+      proficientMin: 70,
+      advancedMin: 85,
     };
 
     const bands = describeStudentBands(thresholds);

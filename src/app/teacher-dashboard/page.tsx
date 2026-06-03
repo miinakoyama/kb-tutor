@@ -1190,10 +1190,10 @@ function ModeAccuracyCard({
   const byMode = summary.byMode;
   const toneClass = (accuracy: number, hasAttempts: boolean) => {
     if (!hasAttempts) return "text-slate-gray/40";
-    if (accuracy >= thresholds.standard.advancedMin) return "text-emerald-800";
-    if (accuracy >= thresholds.standard.proficientMin)
+    if (accuracy >= thresholds.advancedMin) return "text-emerald-800";
+    if (accuracy >= thresholds.proficientMin)
       return "text-emerald-700";
-    if (accuracy >= thresholds.standard.basicMin) return "text-amber-700";
+    if (accuracy >= thresholds.basicMin) return "text-amber-700";
     return "text-rose-700";
   };
   return (
@@ -1211,9 +1211,9 @@ function ModeAccuracyCard({
               For each mode,{" "}
               <span className="font-mono">correct ÷ attempted × 100</span>{" "}
               across attempts in that mode. Colors mirror the standard bands (
-              {thresholds.standard.basicMin}% /{" "}
-              {thresholds.standard.proficientMin}% /{" "}
-              {thresholds.standard.advancedMin}%).
+              {thresholds.basicMin}% /{" "}
+              {thresholds.proficientMin}% /{" "}
+              {thresholds.advancedMin}%).
             </p>
           </InfoPopover>
         </div>
@@ -1453,7 +1453,7 @@ function AccuracyValue({
   thresholds: PerformanceThresholds;
 }) {
   if (!hasAttempts) return <span className="text-slate-gray/40">—</span>;
-  const s = thresholds.student;
+  const s = thresholds;
   const tone =
     value >= s.advancedMin
       ? "text-emerald-800"
@@ -1480,7 +1480,7 @@ function ModeAccuracyCell({
       </div>
     );
   }
-  const s = thresholds.standard;
+  const s = thresholds;
   const tone =
     metrics.accuracy >= s.advancedMin
       ? "text-emerald-800"

@@ -16,10 +16,7 @@ interface Props {
 }
 
 function clone(values: PerformanceThresholds): PerformanceThresholds {
-  return {
-    student: { ...values.student },
-    standard: { ...values.standard },
-  };
+  return { ...values };
 }
 
 export function PerformanceThresholdsCard({
@@ -44,11 +41,8 @@ export function PerformanceThresholdsCard({
     [draft],
   );
 
-  function updateDraft(key: keyof PerformanceThresholds["student"], value: number) {
-    setDraft((prev) => ({
-      student: { ...prev.student, [key]: value },
-      standard: { ...prev.standard, [key]: value },
-    }));
+  function updateDraft(key: keyof PerformanceThresholds, value: number) {
+    setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
   async function save() {
@@ -184,8 +178,8 @@ export function PerformanceThresholdsCard({
 
             <div className="px-5 py-4">
               <ThresholdGroup
-                values={draft.student}
-                defaults={defaults.student}
+                values={draft}
+                defaults={defaults}
                 onChange={updateDraft}
               />
 
@@ -242,12 +236,9 @@ export function PerformanceThresholdsCard({
 }
 
 interface GroupProps {
-  values: PerformanceThresholds["student"];
-  defaults: PerformanceThresholds["student"];
-  onChange: (
-    key: keyof PerformanceThresholds["student"],
-    value: number,
-  ) => void;
+  values: PerformanceThresholds;
+  defaults: PerformanceThresholds;
+  onChange: (key: keyof PerformanceThresholds, value: number) => void;
 }
 
 function ThresholdGroup({
@@ -256,7 +247,7 @@ function ThresholdGroup({
   onChange,
 }: GroupProps) {
   const rows: {
-    key: keyof PerformanceThresholds["student"];
+    key: keyof PerformanceThresholds;
     label: string;
     rangeDescription: string;
   }[] = [

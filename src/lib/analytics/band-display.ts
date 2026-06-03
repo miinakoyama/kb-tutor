@@ -84,33 +84,33 @@ export interface BandDescriptor {
 
 function describeBands(
   scope: "student" | "standard",
-  t: PerformanceThresholds[typeof scope],
+  thresholds: PerformanceThresholds,
 ): BandDescriptor[] {
   const subject = scope === "student" ? "student" : "class on this standard";
   return [
     {
       key: "advanced",
       label: BAND_LABELS.advanced,
-      range: `≥ ${t.advancedMin}%`,
-      meaning: `Accuracy ≥ ${t.advancedMin}%. The ${subject} has mastered the material.`,
+      range: `≥ ${thresholds.advancedMin}%`,
+      meaning: `Accuracy ≥ ${thresholds.advancedMin}%. The ${subject} has mastered the material.`,
     },
     {
       key: "proficient",
       label: BAND_LABELS.proficient,
-      range: `${t.proficientMin}% ≤ accuracy < ${t.advancedMin}%`,
-      meaning: `Accuracy is at least ${t.proficientMin}% and below ${t.advancedMin}%. The ${subject} is on track for the Keystone exam.`,
+      range: `${thresholds.proficientMin}% ≤ accuracy < ${thresholds.advancedMin}%`,
+      meaning: `Accuracy is at least ${thresholds.proficientMin}% and below ${thresholds.advancedMin}%. The ${subject} is on track for the Keystone exam.`,
     },
     {
       key: "basic",
       label: BAND_LABELS.basic,
-      range: `${t.basicMin}% ≤ accuracy < ${t.proficientMin}%`,
-      meaning: `Accuracy is at least ${t.basicMin}% and below ${t.proficientMin}%. Approaching proficiency; revisit the core concepts.`,
+      range: `${thresholds.basicMin}% ≤ accuracy < ${thresholds.proficientMin}%`,
+      meaning: `Accuracy is at least ${thresholds.basicMin}% and below ${thresholds.proficientMin}%. Approaching proficiency; revisit the core concepts.`,
     },
     {
       key: "below_basic",
       label: BAND_LABELS.below_basic,
-      range: `< ${t.basicMin}%`,
-      meaning: `Accuracy below ${t.basicMin}%. Needs re-teaching of the underlying material.`,
+      range: `< ${thresholds.basicMin}%`,
+      meaning: `Accuracy below ${thresholds.basicMin}%. Needs re-teaching of the underlying material.`,
     },
     {
       key: "not_started",
@@ -124,13 +124,13 @@ function describeBands(
 export function describeStudentBands(
   thresholds: PerformanceThresholds,
 ): BandDescriptor[] {
-  return describeBands("student", thresholds.student);
+  return describeBands("student", thresholds);
 }
 
 export function describeStandardBands(
   thresholds: PerformanceThresholds,
 ): BandDescriptor[] {
-  return describeBands("standard", thresholds.standard);
+  return describeBands("standard", thresholds);
 }
 
 export function findStudentBand(

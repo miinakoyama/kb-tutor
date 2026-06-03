@@ -18,16 +18,9 @@ export interface ThresholdsRow {
 
 export function rowToThresholds(row: ThresholdsRow): PerformanceThresholds {
   return resolvePerformanceThresholds({
-    student: {
-      basicMin: row.student_basic_min,
-      proficientMin: row.student_proficient_min,
-      advancedMin: row.student_advanced_min,
-    },
-    standard: {
-      basicMin: row.standard_basic_min,
-      proficientMin: row.standard_proficient_min,
-      advancedMin: row.standard_advanced_min,
-    },
+    basicMin: row.student_basic_min,
+    proficientMin: row.student_proficient_min,
+    advancedMin: row.student_advanced_min,
   });
 }
 

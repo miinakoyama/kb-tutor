@@ -12,48 +12,27 @@ describe("resolvePerformanceThresholds", () => {
     );
   });
 
-  it("applies a partial student override to both student and standard thresholds", () => {
-    const result = resolvePerformanceThresholds({
-      student: { advancedMin: 90 },
-    });
-    expect(result.student.advancedMin).toBe(90);
-    expect(result.student.proficientMin).toBe(
-      DEFAULT_PERFORMANCE_THRESHOLDS.student.proficientMin,
+  it("applies a partial override on top of defaults", () => {
+    const result = resolvePerformanceThresholds({ advancedMin: 90 });
+    expect(result.advancedMin).toBe(90);
+    expect(result.proficientMin).toBe(
+      DEFAULT_PERFORMANCE_THRESHOLDS.proficientMin,
     );
-    expect(result.standard).toEqual(result.student);
+    expect(result.basicMin).toBe(DEFAULT_PERFORMANCE_THRESHOLDS.basicMin);
   });
 
   it("clamps values outside the [0, 100] range", () => {
     const result = resolvePerformanceThresholds({
-      student: { advancedMin: 150, basicMin: -25 },
+      advancedMin: 150,
+      basicMin: -25,
     });
-    expect(result.student.advancedMin).toBe(100);
-    expect(result.student.basicMin).toBe(0);
+    expect(result.advancedMin).toBe(100);
+    expect(result.basicMin).toBe(0);
   });
 
   it("rounds non-integer inputs", () => {
-    const result = resolvePerformanceThresholds({
-      standard: { proficientMin: 72.4 },
-    });
-    expect(result.standard.proficientMin).toBe(72);
-    expect(result.student.proficientMin).toBe(72);
-  });
-
-  it("preserves separate student and standard overrides when both are supplied", () => {
-    const result = resolvePerformanceThresholds({
-      student: { basicMin: 45, proficientMin: 65, advancedMin: 80 },
-      standard: { basicMin: 55, proficientMin: 75, advancedMin: 90 },
-    });
-    expect(result.student).toEqual({
-      basicMin: 45,
-      proficientMin: 65,
-      advancedMin: 80,
-    });
-    expect(result.standard).toEqual({
-      basicMin: 55,
-      proficientMin: 75,
-      advancedMin: 90,
-    });
+    const result = resolvePerformanceThresholds({ proficientMin: 72.4 });
+    expect(result.proficientMin).toBe(72);
   });
 });
 
@@ -65,26 +44,29 @@ describe("validatePerformanceThresholds", () => {
   it("rejects out-of-order bands", () => {
     expect(
       validatePerformanceThresholds({
-        student: { basicMin: 80, proficientMin: 70, advancedMin: 85 },
-        standard: DEFAULT_PERFORMANCE_THRESHOLDS.standard,
+        basicMin: 80,
+        proficientMin: 70,
+        advancedMin: 85,
       }),
-    ).toMatch(/student.*basic.*proficient.*advanced/);
+    ).toMatch(/basic.*proficient.*advanced/);
   });
 
   it("rejects values outside [0, 100]", () => {
     expect(
       validatePerformanceThresholds({
-        student: DEFAULT_PERFORMANCE_THRESHOLDS.student,
-        standard: { basicMin: -1, proficientMin: 70, advancedMin: 85 },
+        basicMin: -1,
+        proficientMin: 70,
+        advancedMin: 85,
       }),
-    ).toMatch(/standard basic/);
+    ).toMatch(/basic/);
   });
 
   it("accepts ties (a band can be empty)", () => {
     expect(
       validatePerformanceThresholds({
-        student: { basicMin: 70, proficientMin: 70, advancedMin: 85 },
-        standard: DEFAULT_PERFORMANCE_THRESHOLDS.standard,
+        basicMin: 70,
+        proficientMin: 70,
+        advancedMin: 85,
       }),
     ).toBeNull();
   });

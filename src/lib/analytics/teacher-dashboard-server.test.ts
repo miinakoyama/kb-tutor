@@ -119,14 +119,15 @@ describe("buildDashboardResponse", () => {
       scopedStudents: students,
       selectedStudentId: null,
       thresholds: {
-        student: { basicMin: 70, proficientMin: 80, advancedMin: 90 },
-        standard: { basicMin: 70, proficientMin: 80, advancedMin: 90 },
+        basicMin: 70,
+        proficientMin: 80,
+        advancedMin: 90,
       },
     });
     const row = result.byStudent.find((r) => r.studentId === "s1");
     expect(row?.accuracy).toBe(60);
     expect(row?.status).toBe("below_basic");
-    expect(result.thresholds.student.basicMin).toBe(70);
+    expect(result.thresholds.basicMin).toBe(70);
   });
 
   it("filters attempts by topic and returns available topics", () => {

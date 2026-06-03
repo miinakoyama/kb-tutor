@@ -13,19 +13,12 @@
  * `docs/performance-bands.md` for the full definitions and formulas.
  */
 
-/** Lower-bound (inclusive) of the Advanced band for a single student. */
-export const STUDENT_ADVANCED_MIN_ACCURACY = 85;
-/** Lower-bound (inclusive) of the Proficient band for a single student. */
-export const STUDENT_PROFICIENT_MIN_ACCURACY = 70;
-/** Lower-bound (inclusive) of the Basic band for a single student. Below this is "below basic". */
-export const STUDENT_BASIC_MIN_ACCURACY = 50;
-
-/** Lower-bound (inclusive) of the Advanced band for a standard rollup. */
-export const STANDARD_ADVANCED_MIN_ACCURACY = 85;
-/** Lower-bound (inclusive) of the Proficient band for a standard rollup. */
-export const STANDARD_PROFICIENT_MIN_ACCURACY = 70;
-/** Lower-bound (inclusive) of the Basic band for a standard rollup. Below this is "below basic". */
-export const STANDARD_BASIC_MIN_ACCURACY = 50;
+/** Lower-bound (inclusive) of the Advanced band. */
+export const ADVANCED_MIN_ACCURACY = 85;
+/** Lower-bound (inclusive) of the Proficient band. */
+export const PROFICIENT_MIN_ACCURACY = 70;
+/** Lower-bound (inclusive) of the Basic band. Below this is "below basic". */
+export const BASIC_MIN_ACCURACY = 50;
 
 /**
  * "Low + fast" (a.k.a. clicking-without-engaging) thresholds.
@@ -44,29 +37,15 @@ export const LOW_AND_FAST_MAX_AVG_TIME_SEC = 30;
  * to the classifier.
  */
 export interface PerformanceThresholds {
-  student: {
-    advancedMin: number;
-    proficientMin: number;
-    basicMin: number;
-  };
-  standard: {
-    advancedMin: number;
-    proficientMin: number;
-    basicMin: number;
-  };
+  advancedMin: number;
+  proficientMin: number;
+  basicMin: number;
 }
 
 export const DEFAULT_PERFORMANCE_THRESHOLDS: PerformanceThresholds = {
-  student: {
-    advancedMin: STUDENT_ADVANCED_MIN_ACCURACY,
-    proficientMin: STUDENT_PROFICIENT_MIN_ACCURACY,
-    basicMin: STUDENT_BASIC_MIN_ACCURACY,
-  },
-  standard: {
-    advancedMin: STANDARD_ADVANCED_MIN_ACCURACY,
-    proficientMin: STANDARD_PROFICIENT_MIN_ACCURACY,
-    basicMin: STANDARD_BASIC_MIN_ACCURACY,
-  },
+  advancedMin: ADVANCED_MIN_ACCURACY,
+  proficientMin: PROFICIENT_MIN_ACCURACY,
+  basicMin: BASIC_MIN_ACCURACY,
 };
 
 /**
@@ -76,49 +55,27 @@ export const DEFAULT_PERFORMANCE_THRESHOLDS: PerformanceThresholds = {
  * here; the API layer is responsible for rejecting invalid input.
  */
 export function resolvePerformanceThresholds(
-  override: Partial<{
-    student: Partial<PerformanceThresholds["student"]>;
-    standard: Partial<PerformanceThresholds["standard"]>;
-  }> | null,
+  override: Partial<PerformanceThresholds> | null,
 ): PerformanceThresholds {
   const clamp = (value: number, fallback: number): number => {
     if (!Number.isFinite(value)) return fallback;
     return Math.max(0, Math.min(100, Math.round(value)));
   };
 
-  const resolveGroup = (
-    partial: Partial<PerformanceThresholds["student"]> | undefined,
-    defaults: PerformanceThresholds["student"],
-  ): PerformanceThresholds["student"] => ({
+  const defaults = DEFAULT_PERFORMANCE_THRESHOLDS;
+  return {
     advancedMin: clamp(
-      partial?.advancedMin ?? defaults.advancedMin,
+      override?.advancedMin ?? defaults.advancedMin,
       defaults.advancedMin,
     ),
     proficientMin: clamp(
-      partial?.proficientMin ?? defaults.proficientMin,
+      override?.proficientMin ?? defaults.proficientMin,
       defaults.proficientMin,
     ),
     basicMin: clamp(
-      partial?.basicMin ?? defaults.basicMin,
+      override?.basicMin ?? defaults.basicMin,
       defaults.basicMin,
     ),
-  });
-
-  const studentDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.student;
-  const standardDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.standard;
-
-  if (override?.student && override?.standard) {
-    return {
-      student: resolveGroup(override.student, studentDefaults),
-      standard: resolveGroup(override.standard, standardDefaults),
-    };
-  }
-
-  const sharedOverride = override?.student ?? override?.standard;
-  const sharedThresholds = resolveGroup(sharedOverride, studentDefaults);
-  return {
-    student: { ...sharedThresholds },
-    standard: { ...sharedThresholds },
   };
 }
 
@@ -130,24 +87,18 @@ export function resolvePerformanceThresholds(
 export function validatePerformanceThresholds(
   thresholds: PerformanceThresholds,
 ): string | null {
-  const groups: { scope: "student" | "standard"; values: PerformanceThresholds["student"] }[] = [
-    { scope: "student", values: thresholds.student },
-    { scope: "standard", values: thresholds.standard },
-  ];
-  for (const { scope, values } of groups) {
-    const { basicMin, proficientMin, advancedMin } = values;
-    for (const [name, v] of [
-      ["basic", basicMin],
-      ["proficient", proficientMin],
-      ["advanced", advancedMin],
-    ] as const) {
-      if (!Number.isFinite(v) || v < 0 || v > 100) {
-        return `${scope} ${name} threshold must be between 0 and 100.`;
-      }
+  const { basicMin, proficientMin, advancedMin } = thresholds;
+  for (const [name, value] of [
+    ["basic", basicMin],
+    ["proficient", proficientMin],
+    ["advanced", advancedMin],
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      return `${name} threshold must be between 0 and 100.`;
     }
-    if (!(basicMin <= proficientMin && proficientMin <= advancedMin)) {
-      return `${scope} thresholds must satisfy basic ≤ proficient ≤ advanced.`;
-    }
+  }
+  if (!(basicMin <= proficientMin && proficientMin <= advancedMin)) {
+    return "Thresholds must satisfy basic ≤ proficient ≤ advanced.";
   }
   return null;
 }

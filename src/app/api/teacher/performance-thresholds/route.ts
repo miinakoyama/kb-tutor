@@ -6,6 +6,7 @@ import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
   resolvePerformanceThresholds,
   validatePerformanceThresholds,
+  type PerformanceThresholds,
 } from "@/lib/analytics/constants";
 import { loadTeacherThresholds } from "@/lib/analytics/teacher-thresholds";
 
@@ -46,21 +47,8 @@ export async function GET() {
   });
 }
 
-interface ThresholdsBody {
-  student?: {
-    basicMin: number;
-    proficientMin: number;
-    advancedMin: number;
-  };
-  standard?: {
-    basicMin: number;
-    proficientMin: number;
-    advancedMin: number;
-  };
-}
-
 type ParseBodyResult =
-  | { ok: true; body: ThresholdsBody }
+  | { ok: true; body: PerformanceThresholds }
   | { ok: false; error: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -69,23 +57,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseThresholdGroup(
   raw: unknown,
-  scope: "student" | "standard",
-): ThresholdsBody["student"] | string | undefined {
+): Partial<PerformanceThresholds> | string | undefined {
   if (raw === undefined) return undefined;
-  if (!isRecord(raw)) return `${scope} must be an object.`;
+  if (!isRecord(raw)) return "Thresholds must be an object.";
 
   const keys = ["basicMin", "proficientMin", "advancedMin"] as const;
-  const values: Partial<ThresholdsBody["student"]> = {};
+  const values: Partial<PerformanceThresholds> = {};
   for (const key of keys) {
     const value = raw[key];
-    if (value === undefined) return `Missing ${scope}.${key}.`;
+    if (value === undefined) return `Missing ${key}.`;
     if (typeof value !== "number" || !Number.isFinite(value)) {
-      return `${scope}.${key} must be a finite number.`;
+      return `${key} must be a finite number.`;
     }
     values[key] = value;
   }
 
-  return values as ThresholdsBody["student"];
+  return values;
 }
 
 function parseBody(raw: unknown): ParseBodyResult {
@@ -93,18 +80,21 @@ function parseBody(raw: unknown): ParseBodyResult {
     return { ok: false, error: "Request body must be an object." };
   }
 
-  const student = parseThresholdGroup(raw.student, "student");
-  if (typeof student === "string") return { ok: false, error: student };
-  const standard = parseThresholdGroup(raw.standard, "standard");
-  if (typeof standard === "string") return { ok: false, error: standard };
-  if (!student && !standard) {
-    return {
-      ok: false,
-      error: "Missing thresholds. Provide student or standard thresholds.",
-    };
+  const direct = parseThresholdGroup(raw);
+  if (typeof direct === "string") return { ok: false, error: direct };
+  if (direct) {
+    return { ok: true, body: direct as PerformanceThresholds };
   }
 
-  return { ok: true, body: { student, standard } };
+  const legacyStudent = parseThresholdGroup(raw.student);
+  if (typeof legacyStudent === "string") {
+    return { ok: false, error: legacyStudent };
+  }
+  if (!legacyStudent) {
+    return { ok: false, error: "Missing thresholds." };
+  }
+
+  return { ok: true, body: legacyStudent as PerformanceThresholds };
 }
 
 export async function PUT(request: Request) {
@@ -134,12 +124,12 @@ export async function PUT(request: Request) {
     .upsert(
       {
         user_id: guard.userId,
-        student_basic_min: resolved.student.basicMin,
-        student_proficient_min: resolved.student.proficientMin,
-        student_advanced_min: resolved.student.advancedMin,
-        standard_basic_min: resolved.standard.basicMin,
-        standard_proficient_min: resolved.standard.proficientMin,
-        standard_advanced_min: resolved.standard.advancedMin,
+        student_basic_min: resolved.basicMin,
+        student_proficient_min: resolved.proficientMin,
+        student_advanced_min: resolved.advancedMin,
+        standard_basic_min: resolved.basicMin,
+        standard_proficient_min: resolved.proficientMin,
+        standard_advanced_min: resolved.advancedMin,
       },
       { onConflict: "user_id" },
     );
