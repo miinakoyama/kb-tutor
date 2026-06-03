@@ -48,21 +48,63 @@ export async function GET() {
 
 interface ThresholdsBody {
   student?: {
-    basicMin?: number;
-    proficientMin?: number;
-    advancedMin?: number;
+    basicMin: number;
+    proficientMin: number;
+    advancedMin: number;
   };
   standard?: {
-    basicMin?: number;
-    proficientMin?: number;
-    advancedMin?: number;
+    basicMin: number;
+    proficientMin: number;
+    advancedMin: number;
   };
 }
 
-function parseBody(raw: unknown): ThresholdsBody | null {
-  if (!raw || typeof raw !== "object") return null;
-  const body = raw as ThresholdsBody;
-  return body;
+type ParseBodyResult =
+  | { ok: true; body: ThresholdsBody }
+  | { ok: false; error: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseThresholdGroup(
+  raw: unknown,
+  scope: "student" | "standard",
+): ThresholdsBody["student"] | string | undefined {
+  if (raw === undefined) return undefined;
+  if (!isRecord(raw)) return `${scope} must be an object.`;
+
+  const keys = ["basicMin", "proficientMin", "advancedMin"] as const;
+  const values: Partial<ThresholdsBody["student"]> = {};
+  for (const key of keys) {
+    const value = raw[key];
+    if (value === undefined) return `Missing ${scope}.${key}.`;
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return `${scope}.${key} must be a finite number.`;
+    }
+    values[key] = value;
+  }
+
+  return values as ThresholdsBody["student"];
+}
+
+function parseBody(raw: unknown): ParseBodyResult {
+  if (!isRecord(raw)) {
+    return { ok: false, error: "Request body must be an object." };
+  }
+
+  const student = parseThresholdGroup(raw.student, "student");
+  if (typeof student === "string") return { ok: false, error: student };
+  const standard = parseThresholdGroup(raw.standard, "standard");
+  if (typeof standard === "string") return { ok: false, error: standard };
+  if (!student && !standard) {
+    return {
+      ok: false,
+      error: "Missing thresholds. Provide student or standard thresholds.",
+    };
+  }
+
+  return { ok: true, body: { student, standard } };
 }
 
 export async function PUT(request: Request) {
@@ -75,12 +117,12 @@ export async function PUT(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const body = parseBody(payload);
-  if (!body) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  const parsed = parseBody(payload);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const resolved = resolvePerformanceThresholds(body);
+  const resolved = resolvePerformanceThresholds(parsed.body);
   const validationError = validatePerformanceThresholds(resolved);
   if (validationError) {
     return NextResponse.json({ error: validationError }, { status: 400 });

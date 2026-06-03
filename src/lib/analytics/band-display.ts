@@ -82,14 +82,6 @@ export interface BandDescriptor {
   meaning: string;
 }
 
-function formatRange(low: number | null, high: number | null): string {
-  if (low === null && high === null) return "no attempts yet";
-  if (low === null) return `< ${high}%`;
-  if (high === null) return `≥ ${low}%`;
-  if (low === high) return `${low}%`;
-  return `${low}% – ${high}%`;
-}
-
 function describeBands(
   scope: "student" | "standard",
   t: PerformanceThresholds[typeof scope],
@@ -99,29 +91,25 @@ function describeBands(
     {
       key: "advanced",
       label: BAND_LABELS.advanced,
-      range: formatRange(t.advancedMin, 100),
+      range: `≥ ${t.advancedMin}%`,
       meaning: `Accuracy ≥ ${t.advancedMin}%. The ${subject} has mastered the material.`,
     },
     {
       key: "proficient",
       label: BAND_LABELS.proficient,
-      range: formatRange(t.proficientMin, t.advancedMin - 1),
-      meaning: `Accuracy between ${t.proficientMin}% and ${
-        t.advancedMin - 1
-      }%. The ${subject} is on track for the Keystone exam.`,
+      range: `${t.proficientMin}% ≤ accuracy < ${t.advancedMin}%`,
+      meaning: `Accuracy is at least ${t.proficientMin}% and below ${t.advancedMin}%. The ${subject} is on track for the Keystone exam.`,
     },
     {
       key: "basic",
       label: BAND_LABELS.basic,
-      range: formatRange(t.basicMin, t.proficientMin - 1),
-      meaning: `Accuracy between ${t.basicMin}% and ${
-        t.proficientMin - 1
-      }%. Approaching proficiency; revisit the core concepts.`,
+      range: `${t.basicMin}% ≤ accuracy < ${t.proficientMin}%`,
+      meaning: `Accuracy is at least ${t.basicMin}% and below ${t.proficientMin}%. Approaching proficiency; revisit the core concepts.`,
     },
     {
       key: "below_basic",
       label: BAND_LABELS.below_basic,
-      range: formatRange(null, t.basicMin - 1),
+      range: `< ${t.basicMin}%`,
       meaning: `Accuracy below ${t.basicMin}%. Needs re-teaching of the underlying material.`,
     },
     {

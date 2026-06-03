@@ -37,6 +37,13 @@ CREATE TABLE IF NOT EXISTS "public"."teacher_performance_thresholds" (
 COMMENT ON TABLE "public"."teacher_performance_thresholds" IS
   'Per-teacher overrides for performance-band cutoffs used on the Teacher Dashboard.';
 
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON TABLE "public"."teacher_performance_thresholds"
+  TO authenticated;
+GRANT ALL
+  ON TABLE "public"."teacher_performance_thresholds"
+  TO service_role;
+
 ALTER TABLE "public"."teacher_performance_thresholds" ENABLE ROW LEVEL SECURITY;
 
 -- A teacher may always read and modify their own row. Admins use the

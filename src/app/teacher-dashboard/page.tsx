@@ -191,6 +191,7 @@ function TeacherDashboardContent() {
     useState<StudentStatusFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let isCurrent = true;
@@ -233,7 +234,7 @@ function TeacherDashboardContent() {
       isCurrent = false;
       controller.abort();
     };
-  }, [topic, classId, studentId, range, mode, source]);
+  }, [topic, classId, studentId, range, mode, source, refreshKey]);
 
   const filteredStudents = useMemo(() => {
     if (!classId) return data.students;
@@ -403,13 +404,14 @@ function TeacherDashboardContent() {
               thresholds={data.thresholds}
               defaults={data.defaults}
               isCustom={data.thresholdsAreCustom}
-              onChange={(next, isCustom) =>
+              onChange={(next, isCustom) => {
                 setData((prev) => ({
                   ...prev,
                   thresholds: next,
                   thresholdsAreCustom: isCustom,
-                }))
-              }
+                }));
+                setRefreshKey((prev) => prev + 1);
+              }}
             />
             <button
               onClick={() => downloadStandardMetricsCsv(filteredStandards)}

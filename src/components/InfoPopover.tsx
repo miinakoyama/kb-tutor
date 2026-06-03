@@ -42,9 +42,13 @@ export function InfoPopover({
         return;
       }
       setOpen(false);
+      setHovered(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        setHovered(false);
+      }
     };
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
@@ -79,7 +83,9 @@ export function InfoPopover({
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          setOpen((prev) => !prev);
+          const nextOpen = !visible;
+          setOpen(nextOpen);
+          if (!nextOpen) setHovered(false);
         }}
         onFocus={() => setHovered(true)}
         onBlur={() => setHovered(false)}

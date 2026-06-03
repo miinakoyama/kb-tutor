@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Save, SlidersHorizontal, X } from "lucide-react";
 import { InfoPopover } from "@/components/InfoPopover";
 import {
-  DEFAULT_PERFORMANCE_THRESHOLDS,
   validatePerformanceThresholds,
   type PerformanceThresholds,
 } from "@/lib/analytics/constants";
@@ -330,7 +329,7 @@ function ThresholdGroup({
           Below Basic ={" "}
           <span className="font-mono">accuracy &lt; {values.basicMin}%</span>.
           Defaults:{" "}
-          {Object.entries(DEFAULT_PERFORMANCE_THRESHOLDS.student)
+          {Object.entries(defaults)
             .map(([k, v]) => `${k.replace("Min", "")} ${v}%`)
             .join(", ")}
           .
