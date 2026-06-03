@@ -7,9 +7,9 @@ import {
   isDefaultPerformanceThresholds,
   resolvePerformanceThresholds,
   validatePerformanceThresholds,
-  type PerformanceThresholds,
 } from "@/lib/analytics/constants";
 import { loadTeacherThresholds } from "@/lib/analytics/teacher-thresholds";
+import { parsePerformanceThresholdsBody } from "@/lib/analytics/performance-thresholds-body";
 
 async function requireTeacher() {
   const requester = await createSupabaseServerClient();
@@ -48,56 +48,6 @@ export async function GET() {
   });
 }
 
-type ParseBodyResult =
-  | { ok: true; body: PerformanceThresholds }
-  | { ok: false; error: string };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function parseThresholdGroup(
-  raw: unknown,
-): Partial<PerformanceThresholds> | string | undefined {
-  if (raw === undefined) return undefined;
-  if (!isRecord(raw)) return "Thresholds must be an object.";
-
-  const keys = ["basicMin", "proficientMin", "advancedMin"] as const;
-  const values: Partial<PerformanceThresholds> = {};
-  for (const key of keys) {
-    const value = raw[key];
-    if (value === undefined) return `Missing ${key}.`;
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      return `${key} must be a finite number.`;
-    }
-    values[key] = value;
-  }
-
-  return values;
-}
-
-function parseBody(raw: unknown): ParseBodyResult {
-  if (!isRecord(raw)) {
-    return { ok: false, error: "Request body must be an object." };
-  }
-
-  const direct = parseThresholdGroup(raw);
-  if (typeof direct === "string") return { ok: false, error: direct };
-  if (direct) {
-    return { ok: true, body: direct as PerformanceThresholds };
-  }
-
-  const legacyStudent = parseThresholdGroup(raw.student);
-  if (typeof legacyStudent === "string") {
-    return { ok: false, error: legacyStudent };
-  }
-  if (!legacyStudent) {
-    return { ok: false, error: "Missing thresholds." };
-  }
-
-  return { ok: true, body: legacyStudent as PerformanceThresholds };
-}
-
 export async function PUT(request: Request) {
   const guard = await requireTeacher();
   if (!guard.ok) return guard.response;
@@ -108,7 +58,7 @@ export async function PUT(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const parsed = parseBody(payload);
+  const parsed = parsePerformanceThresholdsBody(payload);
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
