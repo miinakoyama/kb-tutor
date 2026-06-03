@@ -85,22 +85,37 @@ export function resolvePerformanceThresholds(
     if (!Number.isFinite(value)) return fallback;
     return Math.max(0, Math.min(100, Math.round(value)));
   };
-  const studentDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.student;
-  const sharedOverride = override?.student ?? override?.standard;
-  const sharedThresholds = {
+
+  const resolveGroup = (
+    partial: Partial<PerformanceThresholds["student"]> | undefined,
+    defaults: PerformanceThresholds["student"],
+  ): PerformanceThresholds["student"] => ({
     advancedMin: clamp(
-      sharedOverride?.advancedMin ?? studentDefaults.advancedMin,
-      studentDefaults.advancedMin,
+      partial?.advancedMin ?? defaults.advancedMin,
+      defaults.advancedMin,
     ),
     proficientMin: clamp(
-      sharedOverride?.proficientMin ?? studentDefaults.proficientMin,
-      studentDefaults.proficientMin,
+      partial?.proficientMin ?? defaults.proficientMin,
+      defaults.proficientMin,
     ),
     basicMin: clamp(
-      sharedOverride?.basicMin ?? studentDefaults.basicMin,
-      studentDefaults.basicMin,
+      partial?.basicMin ?? defaults.basicMin,
+      defaults.basicMin,
     ),
-  };
+  });
+
+  const studentDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.student;
+  const standardDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.standard;
+
+  if (override?.student && override?.standard) {
+    return {
+      student: resolveGroup(override.student, studentDefaults),
+      standard: resolveGroup(override.standard, standardDefaults),
+    };
+  }
+
+  const sharedOverride = override?.student ?? override?.standard;
+  const sharedThresholds = resolveGroup(sharedOverride, studentDefaults);
   return {
     student: { ...sharedThresholds },
     standard: { ...sharedThresholds },

@@ -1160,14 +1160,14 @@ function KpiCard({
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between mb-2">
-        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
           {label}
           {info && (
             <InfoPopover label={`How is ${label} computed?`} align="start">
               {info}
             </InfoPopover>
           )}
-        </p>
+        </div>
         <span
           className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${bgClass}`}
         >
@@ -1199,7 +1199,7 @@ function ModeAccuracyCard({
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between mb-3">
-        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
           Accuracy by Mode
           <InfoPopover
             label="How is per-mode accuracy computed?"
@@ -1216,7 +1216,7 @@ function ModeAccuracyCard({
               {thresholds.standard.advancedMin}%).
             </p>
           </InfoPopover>
-        </p>
+        </div>
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb]/10">
           <TrendingUp className="h-4 w-4 text-[#1d4ed8]" />
         </span>
@@ -1296,16 +1296,16 @@ function StudentBreakdownCard({
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between mb-2">
-        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
           Student Breakdown
           <InfoPopover
             label="How are student bands computed?"
-            align="start"
+            align="end"
             width="wide"
           >
             <BandLegend bands={describeStudentBands(thresholds)} />
           </InfoPopover>
-        </p>
+        </div>
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#16a34a]/10">
           <Users className="h-4 w-4 text-[#16a34a]" />
         </span>

@@ -38,6 +38,23 @@ describe("resolvePerformanceThresholds", () => {
     expect(result.standard.proficientMin).toBe(72);
     expect(result.student.proficientMin).toBe(72);
   });
+
+  it("preserves separate student and standard overrides when both are supplied", () => {
+    const result = resolvePerformanceThresholds({
+      student: { basicMin: 45, proficientMin: 65, advancedMin: 80 },
+      standard: { basicMin: 55, proficientMin: 75, advancedMin: 90 },
+    });
+    expect(result.student).toEqual({
+      basicMin: 45,
+      proficientMin: 65,
+      advancedMin: 80,
+    });
+    expect(result.standard).toEqual({
+      basicMin: 55,
+      proficientMin: 75,
+      advancedMin: 90,
+    });
+  });
 });
 
 describe("validatePerformanceThresholds", () => {
