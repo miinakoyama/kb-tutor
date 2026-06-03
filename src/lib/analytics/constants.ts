@@ -25,7 +25,7 @@ export const STANDARD_ADVANCED_MIN_ACCURACY = 85;
 /** Lower-bound (inclusive) of the Proficient band for a standard rollup. */
 export const STANDARD_PROFICIENT_MIN_ACCURACY = 70;
 /** Lower-bound (inclusive) of the Basic band for a standard rollup. Below this is "below basic". */
-export const STANDARD_BASIC_MIN_ACCURACY = 55;
+export const STANDARD_BASIC_MIN_ACCURACY = 50;
 
 /**
  * "Low + fast" (a.k.a. clicking-without-engaging) thresholds.
@@ -86,36 +86,24 @@ export function resolvePerformanceThresholds(
     return Math.max(0, Math.min(100, Math.round(value)));
   };
   const studentDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.student;
-  const standardDefaults = DEFAULT_PERFORMANCE_THRESHOLDS.standard;
+  const sharedOverride = override?.student ?? override?.standard;
+  const sharedThresholds = {
+    advancedMin: clamp(
+      sharedOverride?.advancedMin ?? studentDefaults.advancedMin,
+      studentDefaults.advancedMin,
+    ),
+    proficientMin: clamp(
+      sharedOverride?.proficientMin ?? studentDefaults.proficientMin,
+      studentDefaults.proficientMin,
+    ),
+    basicMin: clamp(
+      sharedOverride?.basicMin ?? studentDefaults.basicMin,
+      studentDefaults.basicMin,
+    ),
+  };
   return {
-    student: {
-      advancedMin: clamp(
-        override?.student?.advancedMin ?? studentDefaults.advancedMin,
-        studentDefaults.advancedMin,
-      ),
-      proficientMin: clamp(
-        override?.student?.proficientMin ?? studentDefaults.proficientMin,
-        studentDefaults.proficientMin,
-      ),
-      basicMin: clamp(
-        override?.student?.basicMin ?? studentDefaults.basicMin,
-        studentDefaults.basicMin,
-      ),
-    },
-    standard: {
-      advancedMin: clamp(
-        override?.standard?.advancedMin ?? standardDefaults.advancedMin,
-        standardDefaults.advancedMin,
-      ),
-      proficientMin: clamp(
-        override?.standard?.proficientMin ?? standardDefaults.proficientMin,
-        standardDefaults.proficientMin,
-      ),
-      basicMin: clamp(
-        override?.standard?.basicMin ?? standardDefaults.basicMin,
-        standardDefaults.basicMin,
-      ),
-    },
+    student: { ...sharedThresholds },
+    standard: { ...sharedThresholds },
   };
 }
 

@@ -39,10 +39,11 @@ by topic so that unrelated topics are not merged.
 
 ---
 
-## Student bands
+## Performance bands
 
-A student's band is decided from their accuracy within the active
-filters. The thresholds are inclusive lower bounds.
+A student or standard band is decided from accuracy within the active
+filters. The thresholds are inclusive lower bounds and use the same
+defaults for student rows and standard rollups.
 
 | Band         | Default rule                | Meaning                                            |
 | ------------ | --------------------------- | -------------------------------------------------- |
@@ -69,20 +70,11 @@ still be flagged if their answering rhythm is unusually fast and wrong.
 
 ---
 
-## Standard bands
+## Standard rollups
 
 For each Keystone standard the dashboard rolls up every attempt across
-the visible roster, then applies the same kind of cutoffs. Defaults are
-slightly tighter for the Basic floor because standard-level rollups
-have many more attempts and so are less noisy.
-
-| Band         | Default rule                | Meaning                                                |
-| ------------ | --------------------------- | ------------------------------------------------------ |
-| Advanced     | `accuracy ≥ 85%`            | Class has mastered this standard.                      |
-| Proficient   | `70% ≤ accuracy < 85%`      | Class is on track on this standard.                    |
-| Basic        | `55% ≤ accuracy < 70%`      | Worth a quick review at the next opportunity.          |
-| Below Basic  | `accuracy < 55%`            | Re-teach: high impact for assignment / lesson design.  |
-| Not Started  | `attempts = 0`              | No attempts on this standard in the active window.     |
+the visible roster, then applies the same band cutoffs used for student
+rows.
 
 ---
 
@@ -90,7 +82,7 @@ have many more attempts and so are less noisy.
 
 The defaults above are intended to align with Keystone Biology cut
 scores, but each teacher can override them from the **Teacher
-Dashboard → Performance bands** card. The overrides:
+Dashboard → Edit performance bands** modal. The overrides:
 
 - are stored per teacher in the `teacher_performance_thresholds` table,
 - apply only to the dashboards that teacher sees,
@@ -107,8 +99,8 @@ To keep the bands monotone, the editor enforces:
 0 ≤ basic_min ≤ proficient_min ≤ advanced_min ≤ 100
 ```
 
-The same rules apply independently to the student thresholds and the
-standard thresholds.
+The same threshold set is applied to both student rows and standard
+rollups.
 
 ---
 

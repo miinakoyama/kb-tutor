@@ -12,7 +12,7 @@ describe("resolvePerformanceThresholds", () => {
     );
   });
 
-  it("merges partial student override on top of defaults", () => {
+  it("applies a partial student override to both student and standard thresholds", () => {
     const result = resolvePerformanceThresholds({
       student: { advancedMin: 90 },
     });
@@ -20,7 +20,7 @@ describe("resolvePerformanceThresholds", () => {
     expect(result.student.proficientMin).toBe(
       DEFAULT_PERFORMANCE_THRESHOLDS.student.proficientMin,
     );
-    expect(result.standard).toEqual(DEFAULT_PERFORMANCE_THRESHOLDS.standard);
+    expect(result.standard).toEqual(result.student);
   });
 
   it("clamps values outside the [0, 100] range", () => {
@@ -36,6 +36,7 @@ describe("resolvePerformanceThresholds", () => {
       standard: { proficientMin: 72.4 },
     });
     expect(result.standard.proficientMin).toBe(72);
+    expect(result.student.proficientMin).toBe(72);
   });
 });
 

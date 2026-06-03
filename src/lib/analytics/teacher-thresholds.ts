@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
+  resolvePerformanceThresholds,
   type PerformanceThresholds,
 } from "@/lib/analytics/constants";
 
@@ -16,7 +17,7 @@ export interface ThresholdsRow {
 }
 
 export function rowToThresholds(row: ThresholdsRow): PerformanceThresholds {
-  return {
+  return resolvePerformanceThresholds({
     student: {
       basicMin: row.student_basic_min,
       proficientMin: row.student_proficient_min,
@@ -27,7 +28,7 @@ export function rowToThresholds(row: ThresholdsRow): PerformanceThresholds {
       proficientMin: row.standard_proficient_min,
       advancedMin: row.standard_advanced_min,
     },
-  };
+  });
 }
 
 /**

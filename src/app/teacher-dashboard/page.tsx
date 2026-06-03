@@ -1,17 +1,17 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
-  AlertCircle,
   BookOpen,
   CheckCircle2,
   Download,
   Info,
+  Search,
   Timer,
   TrendingUp,
   Users,
+  X,
 } from "lucide-react";
 import { StudentAvatar } from "@/components/StudentAvatar";
 import { InfoPopover } from "@/components/InfoPopover";
@@ -114,6 +114,31 @@ const MODE_TABS: { value: ModeKey; label: string; helper: string }[] = [
   },
 ];
 
+const LEARNING_MODE_TABS: {
+  value: AttemptModeKey;
+  label: string;
+  helper: string;
+}[] = [
+  {
+    value: "practice",
+    label: "Practice mode",
+    helper:
+      "Scaffolding available. Accuracy reflects learning in progress, not final mastery.",
+  },
+  {
+    value: "exam",
+    label: "Exam mode",
+    helper:
+      "Students answer without scaffolding. Use accuracy as a signal of independent mastery.",
+  },
+  {
+    value: "review",
+    label: "Review mode",
+    helper:
+      "Students revisit previously answered questions. Ideal for closing recurring gaps.",
+  },
+];
+
 const ATTEMPT_MODES: AttemptModeKey[] = ["practice", "exam", "review"];
 const MODE_LABELS: Record<AttemptModeKey, string> = {
   practice: "Practice",
@@ -160,8 +185,10 @@ function TeacherDashboardContent() {
   const [range, setRange] = useState<RangeKey>("30d");
   const [mode, setMode] = useState<ModeKey>("compare");
   const [source, setSource] = useState<SourceKey>("all");
-  const [standardFilter, setStandardFilter] = useState<StandardStatusFilter>("all");
-  const [studentFilter, setStudentFilter] = useState<StudentStatusFilter>("all");
+  const [standardFilter, setStandardFilter] =
+    useState<StandardStatusFilter>("all");
+  const [studentFilter, setStudentFilter] =
+    useState<StudentStatusFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
 
@@ -226,25 +253,14 @@ function TeacherDashboardContent() {
     return data.byStudent.filter((row) => row.status === studentFilter);
   }, [studentFilter, data.byStudent]);
 
-  const modeHelper = MODE_TABS.find((tab) => tab.value === mode)?.helper ?? "";
-
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <section className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
-          Teacher Dashboard
-        </h1>
-        <p className="text-sm text-slate-gray/70 mt-1">
-          Identify which standards need re-teaching and which students need a
-          closer look. Per-assignment completion is on{" "}
-          <Link
-            href="/assignments/manage?tab=progress"
-            className="font-medium text-[#16a34a] hover:underline"
-          >
-            Assignment management → Progress
-          </Link>
-          .
-        </p>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
+            Teacher Dashboard
+          </h1>
+        </div>
       </section>
 
       <FiltersBar
@@ -268,24 +284,6 @@ function TeacherDashboardContent() {
 
       <ModeTabs value={mode} onChange={setMode} />
 
-      <div className="mb-6 flex items-start gap-2 rounded-xl border border-[#16a34a]/25 bg-[#16a34a]/5 px-4 py-3 text-sm text-[#166534]">
-        <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <p>{modeHelper}</p>
-      </div>
-
-      <PerformanceThresholdsCard
-        thresholds={data.thresholds}
-        defaults={data.defaults}
-        isCustom={data.thresholdsAreCustom}
-        onChange={(next, isCustom) =>
-          setData((prev) => ({
-            ...prev,
-            thresholds: next,
-            thresholdsAreCustom: isCustom,
-          }))
-        }
-      />
-
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <KpiCard
           label="Active Students"
@@ -303,14 +301,17 @@ function TeacherDashboardContent() {
                 <span className="font-mono">
                   students_with_attempts ÷ students_in_class × 100
                 </span>
-                . A student counts as &quot;active&quot; if they have at
-                least one attempt in the selected date range and mode.
+                . A student counts as &quot;active&quot; if they have at least
+                one attempt in the selected date range and mode.
               </p>
             </>
           }
         />
         {mode === "compare" ? (
-          <ModeAccuracyCard summary={data.summary} thresholds={data.thresholds} />
+          <ModeAccuracyCard
+            summary={data.summary}
+            thresholds={data.thresholds}
+          />
         ) : (
           <KpiCard
             label="Overall Accuracy"
@@ -325,7 +326,9 @@ function TeacherDashboardContent() {
             bgClass="bg-[#2563eb]/10"
             info={
               <>
-                <p className="font-semibold text-slate-gray">How is accuracy computed?</p>
+                <p className="font-semibold text-slate-gray">
+                  How is accuracy computed?
+                </p>
                 <p className="mt-1">
                   <span className="font-mono">
                     accuracy = correct ÷ answered × 100
@@ -350,14 +353,17 @@ function TeacherDashboardContent() {
                 How is avg time computed?
               </p>
               <p className="mt-1">
-                Mean dwell time per question over the active filters.
-                Attempts older than the time-tracking rollout (no
-                recorded dwell) are excluded.
+                Mean dwell time per question over the active filters. Attempts
+                older than the time-tracking rollout (no recorded dwell) are
+                excluded.
               </p>
             </>
           }
         />
-        <StudentBreakdownCard summary={data.summary} thresholds={data.thresholds} />
+        <StudentBreakdownCard
+          summary={data.summary}
+          thresholds={data.thresholds}
+        />
       </section>
 
       <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mb-6">
@@ -367,40 +373,44 @@ function TeacherDashboardContent() {
               Performance by standard
             </h2>
             <p className="text-xs text-slate-gray/60">
-              Tap a status pill to focus on what needs re-teaching.
+              Filter by status to focus on what needs re-teaching.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusChip
-              label="All"
-              active={standardFilter === "all"}
-              onClick={() => setStandardFilter("all")}
+            <StatusFilterSelect
+              label="Status"
+              value={standardFilter}
+              onChange={(value) =>
+                setStandardFilter(value as StandardStatusFilter)
+              }
+              options={[
+                {
+                  value: "all",
+                  label: "All statuses",
+                  count: data.byStandard.length,
+                },
+                ...(
+                  ["below_basic", "basic", "proficient", "advanced"] as const
+                ).map((key) => ({
+                  value: key,
+                  label: findStandardBand(key, data.thresholds).label,
+                  count: data.byStandard.filter((row) => row.status === key)
+                    .length,
+                })),
+              ]}
             />
-            {(["below_basic", "basic", "proficient", "advanced"] as const).map(
-              (key) => {
-                const band = findStandardBand(key, data.thresholds);
-                return (
-                  <StatusChip
-                    key={key}
-                    label={band.label}
-                    bandKey={key}
-                    active={standardFilter === key}
-                    onClick={() => setStandardFilter(key)}
-                    count={
-                      data.byStandard.filter((row) => row.status === key).length
-                    }
-                    tooltip={
-                      <>
-                        <p className="font-semibold text-slate-gray">
-                          {band.label} ({band.range})
-                        </p>
-                        <p className="mt-1">{band.meaning}</p>
-                      </>
-                    }
-                  />
-                );
-              },
-            )}
+            <PerformanceThresholdsCard
+              thresholds={data.thresholds}
+              defaults={data.defaults}
+              isCustom={data.thresholdsAreCustom}
+              onChange={(next, isCustom) =>
+                setData((prev) => ({
+                  ...prev,
+                  thresholds: next,
+                  thresholdsAreCustom: isCustom,
+                }))
+              }
+            />
             <button
               onClick={() => downloadStandardMetricsCsv(filteredStandards)}
               className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
@@ -412,23 +422,28 @@ function TeacherDashboardContent() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table
+            className={`w-full text-sm ${mode === "compare" ? "min-w-[1040px]" : ""}`}
+          >
             <thead>
               <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
-                <th className="px-5 py-3">Standard</th>
-                <th className="px-3 py-3 text-right">Attempted</th>
-                <th className="px-3 py-3 text-right">Correct</th>
+                <th className="w-[34%] px-5 py-3">Standard</th>
+                <th className="w-24 px-3 py-3 text-right">Attempted</th>
+                <th className="w-20 px-3 py-3 text-right">Correct</th>
                 {mode === "compare" ? (
                   <>
-                    <th className="px-3 py-3 text-center">Practice</th>
-                    <th className="px-3 py-3 text-center">Exam</th>
-                    <th className="px-3 py-3 text-center">Review</th>
+                    <th className="w-32 px-2 py-3 text-center">Practice</th>
+                    <th className="w-32 px-2 py-3 text-center">Exam</th>
+                    <th className="w-32 px-2 py-3 text-center">Review</th>
                   </>
                 ) : (
                   <th className="px-3 py-3">
                     <span className="inline-flex items-center gap-1.5">
                       Accuracy
-                      <InfoPopover label="How is accuracy computed?" align="start">
+                      <InfoPopover
+                        label="How is accuracy computed?"
+                        align="start"
+                      >
                         <p className="font-semibold text-slate-gray">
                           Per-standard accuracy
                         </p>
@@ -436,20 +451,26 @@ function TeacherDashboardContent() {
                           <span className="font-mono">
                             correct ÷ attempted × 100
                           </span>{" "}
-                          across every attempt on this standard for the
-                          visible roster. Bar color matches the
-                          status band on the right.
+                          across every attempt on this standard for the visible
+                          roster. Bar color matches the status band on the
+                          right.
                         </p>
                       </InfoPopover>
                     </span>
                   </th>
                 )}
-                <th className="px-3 py-3">Avg time</th>
-                <th className="px-5 py-3">
+                <th className="w-24 px-3 py-3">Avg time</th>
+                <th className="w-36 px-5 py-3">
                   <span className="inline-flex items-center gap-1.5">
                     Status
-                    <InfoPopover label="How are standard bands computed?" align="end" width="wide">
-                      <BandLegend bands={describeStandardBands(data.thresholds)} />
+                    <InfoPopover
+                      label="How are standard bands computed?"
+                      align="end"
+                      width="wide"
+                    >
+                      <BandLegend
+                        bands={describeStandardBands(data.thresholds)}
+                      />
                     </InfoPopover>
                   </span>
                 </th>
@@ -537,79 +558,51 @@ function TeacherDashboardContent() {
 
       <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
+          <div>
             <h2 className="text-lg font-semibold text-slate-gray">
               {studentId ? "Student detail" : "All students"}
             </h2>
-            {data.lowAndFastCount > 0 && (
-              <button
-                onClick={() => setStudentFilter("low_and_fast")}
-                className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
-              >
-                <AlertCircle className="w-3.5 h-3.5" />
-                {data.lowAndFastCount}{" "}
-                {data.lowAndFastCount === 1 ? "student" : "students"} clicking
-                without engaging
-              </button>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusChip
-              label="All"
-              active={studentFilter === "all"}
-              onClick={() => setStudentFilter("all")}
-            />
-            <StatusChip
-              label="Clicking w/o engaging"
-              bandKey="below_basic"
-              active={studentFilter === "low_and_fast"}
-              onClick={() => setStudentFilter("low_and_fast")}
-              count={data.lowAndFastCount}
-              tooltip={
-                <>
-                  <p className="font-semibold text-slate-gray">
-                    Clicking without engaging
-                  </p>
-                  <p className="mt-1">
-                    Flag for students who answer fast and wrong.
-                    Triggers when <span className="font-mono">≥ 10</span>{" "}
-                    attempts, accuracy{" "}
-                    <span className="font-mono">&lt; 50%</span>, and
-                    average time per question{" "}
-                    <span className="font-mono">&lt; 30s</span>.
-                  </p>
-                </>
+            <StatusFilterSelect
+              label="Status"
+              value={studentFilter}
+              onChange={(value) =>
+                setStudentFilter(value as StudentStatusFilter)
               }
+              options={[
+                {
+                  value: "all",
+                  label: "All statuses",
+                  count: data.byStudent.length,
+                },
+                {
+                  value: "low_and_fast",
+                  label: "Clicking w/o engaging",
+                  count: data.lowAndFastCount,
+                },
+                {
+                  value: "below_basic",
+                  label: findStudentBand("below_basic", data.thresholds).label,
+                  count: data.summary.breakdown.belowBasic,
+                },
+                {
+                  value: "basic",
+                  label: findStudentBand("basic", data.thresholds).label,
+                  count: data.summary.breakdown.basic,
+                },
+                {
+                  value: "proficient",
+                  label: findStudentBand("proficient", data.thresholds).label,
+                  count: data.summary.breakdown.proficient,
+                },
+                {
+                  value: "advanced",
+                  label: findStudentBand("advanced", data.thresholds).label,
+                  count: data.summary.breakdown.advanced,
+                },
+              ]}
             />
-            {(["below_basic", "basic", "proficient", "advanced"] as const).map(
-              (key) => {
-                const band = findStudentBand(key, data.thresholds);
-                const counts: Record<typeof key, number> = {
-                  below_basic: data.summary.breakdown.belowBasic,
-                  basic: data.summary.breakdown.basic,
-                  proficient: data.summary.breakdown.proficient,
-                  advanced: data.summary.breakdown.advanced,
-                };
-                return (
-                  <StatusChip
-                    key={key}
-                    label={band.label}
-                    bandKey={key}
-                    active={studentFilter === key}
-                    onClick={() => setStudentFilter(key)}
-                    count={counts[key]}
-                    tooltip={
-                      <>
-                        <p className="font-semibold text-slate-gray">
-                          {band.label} ({band.range})
-                        </p>
-                        <p className="mt-1">{band.meaning}</p>
-                      </>
-                    }
-                  />
-                );
-              },
-            )}
             <button
               onClick={() => downloadStudentMetricsCsv(filteredStudentRows)}
               className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a] px-3 py-1.5 text-sm font-medium text-[#166534] hover:bg-[#16a34a]/10 transition-colors"
@@ -630,7 +623,10 @@ function TeacherDashboardContent() {
                 <th className="px-3 py-3">
                   <span className="inline-flex items-center gap-1.5">
                     Accuracy
-                    <InfoPopover label="How is per-student accuracy computed?" align="start">
+                    <InfoPopover
+                      label="How is per-student accuracy computed?"
+                      align="start"
+                    >
                       <p className="font-semibold text-slate-gray">
                         Per-student accuracy
                       </p>
@@ -638,9 +634,8 @@ function TeacherDashboardContent() {
                         <span className="font-mono">
                           correct ÷ attempted × 100
                         </span>{" "}
-                        across this student&apos;s attempts in the
-                        active filters, rounded to the nearest whole
-                        percent.
+                        across this student&apos;s attempts in the active
+                        filters, rounded to the nearest whole percent.
                       </p>
                     </InfoPopover>
                   </span>
@@ -649,8 +644,14 @@ function TeacherDashboardContent() {
                 <th className="px-5 py-3">
                   <span className="inline-flex items-center gap-1.5">
                     Status
-                    <InfoPopover label="How are student bands computed?" align="end" width="wide">
-                      <BandLegend bands={describeStudentBands(data.thresholds)} />
+                    <InfoPopover
+                      label="How are student bands computed?"
+                      align="end"
+                      width="wide"
+                    >
+                      <BandLegend
+                        bands={describeStudentBands(data.thresholds)}
+                      />
                     </InfoPopover>
                   </span>
                 </th>
@@ -721,11 +722,13 @@ function TeacherDashboardContent() {
         </div>
       </section>
 
-      {isLoading && data.byStandard.length === 0 && data.byStudent.length === 0 && (
-        <p className="text-sm text-slate-gray/60 mt-4">
-          Loading dashboard data...
-        </p>
-      )}
+      {isLoading &&
+        data.byStandard.length === 0 &&
+        data.byStudent.length === 0 && (
+          <p className="text-sm text-slate-gray/60 mt-4">
+            Loading dashboard data...
+          </p>
+        )}
     </main>
   );
 }
@@ -753,7 +756,10 @@ function FiltersBar(props: {
           value={props.topic}
           onChange={props.onTopicChange}
           placeholder="All topics"
-          options={props.topics.map((topic) => ({ value: topic, label: topic }))}
+          options={props.topics.map((topic) => ({
+            value: topic,
+            label: topic,
+          }))}
         />
         <FilterSelect
           label="School"
@@ -765,15 +771,10 @@ function FiltersBar(props: {
             label: item.label,
           }))}
         />
-        <FilterSelect
-          label="Student"
+        <StudentSearchFilter
           value={props.studentId}
+          students={props.students}
           onChange={props.onStudentChange}
-          placeholder="All students"
-          options={props.students.map((item) => ({
-            value: item.id,
-            label: item.label,
-          }))}
         />
         <FilterSelect
           label="Date range"
@@ -848,6 +849,170 @@ function FilterSelect({
   );
 }
 
+function StudentSearchFilter({
+  value,
+  students,
+  onChange,
+}: {
+  value: string;
+  students: StudentOption[];
+  onChange: (value: string) => void;
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const skipNextEmptySyncRef = useRef(false);
+  const listboxId = useId();
+  const selectedStudent = students.find((student) => student.id === value);
+  const [query, setQuery] = useState(selectedStudent?.label ?? "");
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (selectedStudent?.label) {
+      skipNextEmptySyncRef.current = false;
+      setQuery(selectedStudent.label);
+      return;
+    }
+    if (skipNextEmptySyncRef.current) {
+      skipNextEmptySyncRef.current = false;
+      return;
+    }
+    setQuery("");
+  }, [selectedStudent?.label, value]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onMouseDown = (event: MouseEvent) => {
+      if (!wrapperRef.current) return;
+      if (
+        event.target instanceof Node &&
+        wrapperRef.current.contains(event.target)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [isOpen]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const matches = students
+    .filter((student) =>
+      normalizedQuery
+        ? student.label.toLowerCase().includes(normalizedQuery)
+        : true,
+    )
+    .slice(0, 8);
+
+  function selectStudent(student: StudentOption) {
+    setQuery(student.label);
+    onChange(student.id);
+    setIsOpen(false);
+  }
+
+  function clearStudent() {
+    setQuery("");
+    onChange("");
+    setIsOpen(false);
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative text-sm text-slate-gray">
+      <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        Student
+      </span>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-gray/40" />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => {
+            const next = event.target.value;
+            setQuery(next);
+            setIsOpen(true);
+            if (value && next !== selectedStudent?.label) {
+              skipNextEmptySyncRef.current = true;
+              onChange("");
+            } else if (next === "") {
+              onChange("");
+            }
+          }}
+          onFocus={() => setIsOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setIsOpen(false);
+            } else if (event.key === "Enter" && matches[0]) {
+              event.preventDefault();
+              selectStudent(matches[0]);
+            }
+          }}
+          placeholder="Search students"
+          className="h-[38px] w-full rounded-lg border border-slate-200 bg-white px-9 py-2 text-sm text-slate-gray placeholder:text-slate-gray/40 focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={clearStudent}
+            className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-slate-gray/50 hover:bg-slate-100 hover:text-slate-gray"
+          >
+            <X className="h-3.5 w-3.5" />
+            <span className="sr-only">Clear student</span>
+          </button>
+        )}
+      </div>
+      {isOpen && (
+        <div
+          id={listboxId}
+          role="listbox"
+          className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+        >
+          <button
+            type="button"
+            role="option"
+            aria-selected={!value}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={clearStudent}
+            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-gray hover:bg-[#16a34a]/5"
+          >
+            <span>All students</span>
+            {!value && (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[#166534]">
+                Current
+              </span>
+            )}
+          </button>
+          {matches.map((student) => (
+            <button
+              key={student.id}
+              type="button"
+              role="option"
+              aria-selected={student.id === value}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectStudent(student)}
+              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-gray hover:bg-[#16a34a]/5"
+            >
+              <span className="truncate">{student.label}</span>
+              {student.id === value && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#166534]">
+                  Current
+                </span>
+              )}
+            </button>
+          ))}
+          {matches.length === 0 && (
+            <p className="px-3 py-2 text-sm text-slate-gray/60">
+              No students found.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SourceToggle({
   active,
   onClick,
@@ -879,25 +1044,101 @@ function ModeTabs({
   value: ModeKey;
   onChange: (value: ModeKey) => void;
 }) {
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+
   return (
-    <div className="mb-3 flex items-center gap-4 border-b border-slate-200">
-      {MODE_TABS.map((tab) => {
-        const active = tab.value === value;
-        return (
-          <button
-            key={tab.value}
-            type="button"
-            onClick={() => onChange(tab.value)}
-            className={`-mb-px border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
-              active
-                ? "border-[#16a34a] text-[#14532d]"
-                : "border-transparent text-slate-gray/60 hover:text-slate-gray"
-            }`}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
+    <div className="mb-6 flex items-center justify-between gap-4 border-b border-slate-200">
+      <div className="flex items-center gap-4">
+        {MODE_TABS.map((tab) => {
+          const active = tab.value === value;
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => onChange(tab.value)}
+              className={`-mb-px border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
+                active
+                  ? "border-[#16a34a] text-[#14532d]"
+                  : "border-transparent text-slate-gray/60 hover:text-slate-gray"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="pb-2">
+        <button
+          type="button"
+          onClick={() => setIsGuideOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-gray transition-colors hover:border-[#16a34a]/40 hover:bg-[#16a34a]/10 hover:text-[#166534]"
+        >
+          <Info className="h-4 w-4" />
+          About modes
+        </button>
+      </div>
+
+      {isGuideOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 px-4 py-6 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mode-guide-title"
+        >
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+              <div>
+                <h2
+                  id="mode-guide-title"
+                  className="flex items-center gap-2 text-base font-semibold text-slate-gray"
+                >
+                  <Info className="h-4 w-4 text-[#16a34a]" />
+                  Mode guide
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGuideOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-gray/60 transition-colors hover:bg-slate-100 hover:text-slate-gray"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              {LEARNING_MODE_TABS.map((tab) => (
+                <div
+                  key={tab.value}
+                  className="border-l-2 border-[#16a34a] py-3 pl-4 first:pt-0 last:pb-0 [&+&]:mt-3 [&+&]:border-t [&+&]:border-t-slate-100"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-gray">
+                      {tab.label}
+                    </p>
+                    {tab.value === value && (
+                      <span className="rounded-full bg-[#16a34a]/10 px-2 py-0.5 text-[10px] font-semibold text-[#166534]">
+                        Current
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-gray/70">
+                    {tab.helper}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setIsGuideOpen(false)}
+                className="rounded-lg bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#15803d]"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -953,7 +1194,8 @@ function ModeAccuracyCard({
   const toneClass = (accuracy: number, hasAttempts: boolean) => {
     if (!hasAttempts) return "text-slate-gray/40";
     if (accuracy >= thresholds.standard.advancedMin) return "text-emerald-800";
-    if (accuracy >= thresholds.standard.proficientMin) return "text-emerald-700";
+    if (accuracy >= thresholds.standard.proficientMin)
+      return "text-emerald-700";
     if (accuracy >= thresholds.standard.basicMin) return "text-amber-700";
     return "text-rose-700";
   };
@@ -962,17 +1204,17 @@ function ModeAccuracyCard({
       <div className="flex items-start justify-between mb-3">
         <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
           Accuracy by Mode
-          <InfoPopover label="How is per-mode accuracy computed?" align="start" width="wide">
-            <p className="font-semibold text-slate-gray">
-              Per-mode accuracy
-            </p>
+          <InfoPopover
+            label="How is per-mode accuracy computed?"
+            align="start"
+            width="wide"
+          >
+            <p className="font-semibold text-slate-gray">Per-mode accuracy</p>
             <p className="mt-1">
               For each mode,{" "}
-              <span className="font-mono">
-                correct ÷ attempted × 100
-              </span>{" "}
-              across attempts in that mode. Colors mirror the
-              standard bands ({thresholds.standard.basicMin}% /{" "}
+              <span className="font-mono">correct ÷ attempted × 100</span>{" "}
+              across attempts in that mode. Colors mirror the standard bands (
+              {thresholds.standard.basicMin}% /{" "}
               {thresholds.standard.proficientMin}% /{" "}
               {thresholds.standard.advancedMin}%).
             </p>
@@ -1059,7 +1301,11 @@ function StudentBreakdownCard({
       <div className="flex items-start justify-between mb-2">
         <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
           Student Breakdown
-          <InfoPopover label="How are student bands computed?" align="start" width="wide">
+          <InfoPopover
+            label="How are student bands computed?"
+            align="start"
+            width="wide"
+          >
             <BandLegend bands={describeStudentBands(thresholds)} />
           </InfoPopover>
         </p>
@@ -1145,55 +1391,36 @@ function DonutChart({
   );
 }
 
-function StatusChip({
+function StatusFilterSelect({
   label,
-  active,
-  onClick,
-  bandKey,
-  count,
-  tooltip,
+  value,
+  onChange,
+  options,
 }: {
   label: string;
-  active: boolean;
-  onClick: () => void;
-  bandKey?: "advanced" | "proficient" | "basic" | "below_basic" | "not_started";
-  count?: number;
-  tooltip?: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string; count?: number }[];
 }) {
-  const slateIdle =
-    "border-slate-300 text-slate-gray bg-white hover:bg-slate-100";
-  const slateActive = "bg-slate-900 text-white border-slate-900";
-  const tone = bandKey ? BAND_TONES[bandKey] : null;
-  const className = `inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/40 focus-visible:ring-offset-1 ${
-    active ? tone?.chipActive ?? slateActive : tone?.chipIdle ?? slateIdle
-  }`;
-  const button = (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={className}
-    >
-      {label}
-      {typeof count === "number" && (
-        <span
-          className={`rounded-full px-1.5 text-[10px] ${
-            active ? "bg-white/20" : "bg-slate-100"
-          }`}
-        >
-          {count}
-        </span>
-      )}
-    </button>
-  );
-  if (!tooltip) return button;
   return (
-    <span className="relative inline-flex items-center gap-1">
-      {button}
-      <InfoPopover label={`${label} band definition`} align="center">
-        {tooltip}
-      </InfoPopover>
-    </span>
+    <label className="inline-flex items-center gap-2 text-sm">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 min-w-44 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-gray shadow-sm transition-colors hover:border-[#16a34a]/40 focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {typeof option.count === "number"
+              ? `${option.label} (${option.count})`
+              : option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -1250,9 +1477,9 @@ function ModeAccuracyCell({
 }) {
   if (!metrics || metrics.attempted === 0) {
     return (
-      <div className="flex flex-col items-center text-slate-gray/40">
+      <div className="flex min-w-24 flex-col items-center text-slate-gray/40">
         <span className="text-sm">—</span>
-        <span className="text-[10px]">no attempts</span>
+        <span className="whitespace-nowrap text-[10px]">no attempts</span>
       </div>
     );
   }
@@ -1266,14 +1493,14 @@ function ModeAccuracyCell({
           ? "text-amber-700"
           : "text-rose-700";
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex min-w-24 flex-col items-center">
       <span className={`text-sm font-semibold ${tone}`}>
         {metrics.accuracy}%
       </span>
-      <span className="text-[10px] text-slate-gray/60">
+      <span className="whitespace-nowrap text-[10px] text-slate-gray/60">
         {metrics.correct}/{metrics.attempted} answers
       </span>
-      <span className="text-[10px] text-slate-gray/50">
+      <span className="whitespace-nowrap text-[10px] text-slate-gray/50">
         {metrics.studentsAttempted}{" "}
         {metrics.studentsAttempted === 1 ? "student" : "students"}
       </span>
@@ -1301,7 +1528,11 @@ function StatusBadgeBase({
         {icon}
         {band.label}
       </span>
-      <InfoPopover label={`${band.label} band definition`} align="end" width="wide">
+      <InfoPopover
+        label={`${band.label} band definition`}
+        align="end"
+        width="wide"
+      >
         <p className="font-semibold text-slate-gray">
           {band.label} ({band.range})
         </p>
@@ -1408,7 +1639,10 @@ function avgTimeHelper(seconds: number): string {
   return "engaged, not rushing";
 }
 
-function activeStudentsHelper(summary: DashboardSummary, mode: ModeKey): string {
+function activeStudentsHelper(
+  summary: DashboardSummary,
+  mode: ModeKey,
+): string {
   const scope = mode === "compare" ? "any selected mode" : `${mode} mode`;
   return `${summary.studentsAttempted} of ${summary.studentsTotal} students answered in ${scope}`;
 }

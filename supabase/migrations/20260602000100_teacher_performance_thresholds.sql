@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "public"."teacher_performance_thresholds" (
   "student_basic_min" integer NOT NULL DEFAULT 50,
   "student_proficient_min" integer NOT NULL DEFAULT 70,
   "student_advanced_min" integer NOT NULL DEFAULT 85,
-  "standard_basic_min" integer NOT NULL DEFAULT 55,
+  "standard_basic_min" integer NOT NULL DEFAULT 50,
   "standard_proficient_min" integer NOT NULL DEFAULT 70,
   "standard_advanced_min" integer NOT NULL DEFAULT 85,
   "created_at" timestamptz NOT NULL DEFAULT now(),
