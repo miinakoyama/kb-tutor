@@ -76,7 +76,7 @@ describe("downloadStandardMetricsCsv", () => {
         correct: 7,
         accuracy: 70,
         averageTimeSec: 45,
-        status: "watch",
+        status: "basic",
       },
     ];
     downloadStandardMetricsCsv(rows);
@@ -87,6 +87,7 @@ describe("downloadStandardMetricsCsv", () => {
     expect(text.split("\n")[0]).toContain("standard_id");
     expect(text).toContain("3.1.9-12.A");
     expect(text).toContain("70");
+    expect(text).toContain("basic");
   });
 
   it("escapes values that contain commas or quotes", () => {
@@ -98,7 +99,7 @@ describe("downloadStandardMetricsCsv", () => {
         correct: 1,
         accuracy: 100,
         averageTimeSec: 0,
-        status: "on_track",
+        status: "advanced",
       },
     ];
     downloadStandardMetricsCsv(rows);
@@ -115,7 +116,7 @@ describe("downloadStandardMetricsCsv", () => {
         correct: 5,
         accuracy: 63,
         averageTimeSec: 40,
-        status: "watch",
+        status: "basic",
         byMode: {
           practice: {
             attempted: 4,
@@ -147,7 +148,7 @@ describe("downloadStandardMetricsCsv", () => {
     expect(text.split("\n")[0]).toBe(
       "standard_id,standard_label,attempted,correct,accuracy_percent,average_time_seconds,status,practice_attempted,practice_correct,practice_accuracy_percent,practice_students,exam_attempted,exam_correct,exam_accuracy_percent,exam_students,review_attempted,review_correct,review_accuracy_percent,review_students",
     );
-    expect(text).toContain("S1,Label A,8,5,63,40,watch,4,3,75,2,3,1,33,1,1,1,100,1");
+    expect(text).toContain("S1,Label A,8,5,63,40,basic,4,3,75,2,3,1,33,1,1,1,100,1");
   });
 });
 
@@ -162,7 +163,7 @@ describe("downloadStudentMetricsCsv", () => {
         correct: 6,
         accuracy: 75,
         averageTimeSec: 52,
-        status: "watch",
+        status: "proficient",
         isLowAndFast: false,
       },
     ];
@@ -172,6 +173,6 @@ describe("downloadStudentMetricsCsv", () => {
     expect(text.split("\n")[0]).toBe(
       "student_id,student_label,attempted,correct,accuracy_percent,average_time_seconds,status,low_and_fast",
     );
-    expect(text).toContain("s1,Student One,8,6,75,52,watch,no");
+    expect(text).toContain("s1,Student One,8,6,75,52,proficient,no");
   });
 });

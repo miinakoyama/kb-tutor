@@ -194,4 +194,3 @@ export function getAssignmentsForStudent(studentId: string): MockAssignment[] {
   if (!student) return [];
   return MOCK_ASSIGNMENTS.filter((assignment) => assignment.classId === student.classId);
 }
-
