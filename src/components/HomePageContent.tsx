@@ -103,7 +103,7 @@ export function HomePageContent({
         <div className="lg:col-span-3">
           <Link
             href="/self-practice"
-            className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors block"
+            className="block rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm hover:border-primary transition-colors"
           >
             <div className="inline-flex items-center gap-2 text-primary dark:text-forest mb-2">
               <NotebookPen className="w-5 h-5" />

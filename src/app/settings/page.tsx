@@ -178,7 +178,7 @@ export default function SettingsPage() {
           Time Zone
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Used for streak date calculations.
+          Used for due dates and streak date calculations.
         </p>
 
         <div className="inline-flex items-center gap-2">

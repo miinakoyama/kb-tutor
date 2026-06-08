@@ -1,12 +1,10 @@
 import { getStandardById } from "@/lib/standards";
 import {
+  DEFAULT_PERFORMANCE_THRESHOLDS,
   LOW_AND_FAST_MAX_ACCURACY,
   LOW_AND_FAST_MAX_AVG_TIME_SEC,
   LOW_AND_FAST_MIN_ATTEMPTS,
-  STANDARD_ON_TRACK_MIN_ACCURACY,
-  STANDARD_WATCH_MIN_ACCURACY,
-  STUDENT_ON_TRACK_MIN_ACCURACY,
-  STUDENT_WATCH_MIN_ACCURACY,
+  type PerformanceThresholds,
 } from "@/lib/analytics/constants";
 
 export type AttemptMode = "practice" | "exam" | "review";
@@ -24,12 +22,18 @@ export interface AttemptRecord {
 }
 
 export type StudentStatus =
-  | "on_track"
-  | "watch"
-  | "struggling"
+  | "advanced"
+  | "proficient"
+  | "basic"
+  | "below_basic"
   | "not_started";
 
-export type StandardStatus = "on_track" | "watch" | "needs_review" | "not_started";
+export type StandardStatus =
+  | "advanced"
+  | "proficient"
+  | "basic"
+  | "below_basic"
+  | "not_started";
 
 export interface ModeMetrics {
   attempted: number;
@@ -71,9 +75,10 @@ export interface DashboardSummary {
   totalAnswered: number;
   totalCorrect: number;
   breakdown: {
-    onTrack: number;
-    watch: number;
-    struggling: number;
+    advanced: number;
+    proficient: number;
+    basic: number;
+    belowBasic: number;
     notStarted: number;
   };
   byMode?: Record<AttemptMode, ModeMetrics>;
@@ -86,23 +91,19 @@ export interface DashboardResponseBody {
   byStandard: StandardRow[];
   byStudent: StudentRow[];
   lowAndFastCount: number;
+  thresholds: PerformanceThresholds;
 }
 
-function classifyStudent(accuracy: number, attempted: number): StudentStatus {
-  if (attempted === 0) return "not_started";
-  if (accuracy >= STUDENT_ON_TRACK_MIN_ACCURACY) return "on_track";
-  if (accuracy >= STUDENT_WATCH_MIN_ACCURACY) return "watch";
-  return "struggling";
-}
-
-function classifyStandard(
+function classifyPerformance(
   accuracy: number,
   attempted: number,
-): StandardStatus {
+  thresholds: PerformanceThresholds,
+): StudentStatus {
   if (attempted === 0) return "not_started";
-  if (accuracy >= STANDARD_ON_TRACK_MIN_ACCURACY) return "on_track";
-  if (accuracy >= STANDARD_WATCH_MIN_ACCURACY) return "watch";
-  return "needs_review";
+  if (accuracy >= thresholds.advancedMin) return "advanced";
+  if (accuracy >= thresholds.proficientMin) return "proficient";
+  if (accuracy >= thresholds.basicMin) return "basic";
+  return "below_basic";
 }
 
 function roundPercent(value: number): number {
@@ -116,6 +117,8 @@ interface BuildArgs {
   scopedStudents: { id: string; label: string; classId: string | null }[];
   selectedStudentId: string | null;
   includeModeBreakdown?: boolean;
+  /** When omitted, uses the system defaults. Per-teacher overrides should be merged in by the caller. */
+  thresholds?: PerformanceThresholds;
 }
 
 const MODES: AttemptMode[] = ["practice", "exam", "review"];
@@ -145,6 +148,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     scopedStudents,
     selectedStudentId,
     includeModeBreakdown = false,
+    thresholds = DEFAULT_PERFORMANCE_THRESHOLDS,
   } = args;
 
   const topics = Array.from(
@@ -329,7 +333,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         correct: item.correct,
         accuracy,
         averageTimeSec,
-        status: classifyStandard(accuracy, item.attempted),
+        status: classifyPerformance(accuracy, item.attempted, thresholds),
       };
       if (includeModeBreakdown) {
         row.byMode = byMode;
@@ -375,7 +379,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         agg.measuredTimeCount > 0
           ? Math.round(agg.totalTime / agg.measuredTimeCount)
           : 0;
-      const status = classifyStudent(accuracy, agg.attempted);
+      const status = classifyPerformance(accuracy, agg.attempted, thresholds);
       const isLowAndFast =
         agg.attempted >= LOW_AND_FAST_MIN_ATTEMPTS &&
         accuracy < LOW_AND_FAST_MAX_ACCURACY &&
@@ -395,10 +399,11 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     })
     .sort((a, b) => {
       const statusOrder: Record<StudentStatus, number> = {
-        struggling: 0,
-        watch: 1,
-        on_track: 2,
-        not_started: 3,
+        below_basic: 0,
+        basic: 1,
+        proficient: 2,
+        advanced: 3,
+        not_started: 4,
       };
       const aOrder = statusOrder[a.status];
       const bOrder = statusOrder[b.status];
@@ -415,13 +420,14 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
 
   const breakdown = byStudent.reduce(
     (acc, row) => {
-      if (row.status === "on_track") acc.onTrack += 1;
-      else if (row.status === "watch") acc.watch += 1;
-      else if (row.status === "struggling") acc.struggling += 1;
+      if (row.status === "advanced") acc.advanced += 1;
+      else if (row.status === "proficient") acc.proficient += 1;
+      else if (row.status === "basic") acc.basic += 1;
+      else if (row.status === "below_basic") acc.belowBasic += 1;
       else acc.notStarted += 1;
       return acc;
     },
-    { onTrack: 0, watch: 0, struggling: 0, notStarted: 0 },
+    { advanced: 0, proficient: 0, basic: 0, belowBasic: 0, notStarted: 0 },
   );
 
   const lowAndFastCount = byStudent.filter((row) => row.isLowAndFast).length;
@@ -447,5 +453,6 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     byStandard,
     byStudent,
     lowAndFastCount,
+    thresholds,
   };
 }
