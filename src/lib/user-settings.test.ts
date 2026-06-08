@@ -9,9 +9,7 @@ function makeSupabase(responses: {
   const from = vi.fn(() => {
     const builder = {
       select: vi.fn(() => ({
-        maybeSingle: vi.fn(async () =>
-          responses.timeZone ?? { data: null, error: null },
-        ),
+        maybeSingle: vi.fn(async () => responses.timeZone ?? { data: null, error: null }),
       })),
     };
     return builder;
@@ -20,10 +18,12 @@ function makeSupabase(responses: {
 }
 
 describe("getStudentUserSettings", () => {
-  it("returns default time zone when column is missing", async () => {
+  it("returns the default time zone when the column is missing", async () => {
     const supabase = makeSupabase({});
     const settings = await getStudentUserSettings(supabase);
-    expect(settings).toEqual({ timeZone: DEFAULT_APP_TIME_ZONE });
+    expect(settings).toEqual({
+      timeZone: DEFAULT_APP_TIME_ZONE,
+    });
   });
 
   it("returns the stored time zone when valid", async () => {
@@ -37,6 +37,14 @@ describe("getStudentUserSettings", () => {
   it("falls back to the default when the stored time zone is invalid", async () => {
     const supabase = makeSupabase({
       timeZone: { data: { time_zone: "Not/A_Zone" }, error: null },
+    });
+    const settings = await getStudentUserSettings(supabase);
+    expect(settings.timeZone).toBe(DEFAULT_APP_TIME_ZONE);
+  });
+
+  it("falls back to the default when the query errors", async () => {
+    const supabase = makeSupabase({
+      timeZone: { data: null, error: { message: "column missing" } },
     });
     const settings = await getStudentUserSettings(supabase);
     expect(settings.timeZone).toBe(DEFAULT_APP_TIME_ZONE);

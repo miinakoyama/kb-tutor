@@ -8,6 +8,8 @@ import {
   type AttemptRecord,
 } from "@/lib/analytics/teacher-dashboard-server";
 import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
+import { loadTeacherThresholds } from "@/lib/analytics/teacher-thresholds";
+import { DEFAULT_PERFORMANCE_THRESHOLDS } from "@/lib/analytics/constants";
 
 /**
  * Raw shape returned by Supabase for the `attempts` table.
@@ -146,6 +148,8 @@ export async function GET(request: Request) {
     .map((row) => ({ id: String(row.id), label: String(row.name ?? row.id) }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
+  const { thresholds, isCustom: thresholdsAreCustom } = await loadTeacherThresholds(user.id);
+
   const emptyResponse = {
     classes,
     students: [] as { id: string; label: string; classId: string | null }[],
@@ -158,11 +162,20 @@ export async function GET(request: Request) {
       avgTimeSec: 0,
       totalAnswered: 0,
       totalCorrect: 0,
-      breakdown: { onTrack: 0, watch: 0, struggling: 0, notStarted: 0 },
+      breakdown: {
+        advanced: 0,
+        proficient: 0,
+        basic: 0,
+        belowBasic: 0,
+        notStarted: 0,
+      },
     },
     byStandard: [] as never[],
     byStudent: [] as never[],
     lowAndFastCount: 0,
+    thresholds,
+    defaults: DEFAULT_PERFORMANCE_THRESHOLDS,
+    thresholdsAreCustom,
     filters: { range, mode, source, classId: classId ?? null, studentId: studentId ?? null, topic: topic ?? null },
   };
 
@@ -284,11 +297,14 @@ export async function GET(request: Request) {
     })),
     selectedStudentId: studentId ?? null,
     includeModeBreakdown: mode === "compare",
+    thresholds,
   });
 
   return NextResponse.json({
     classes,
     ...payload,
+    defaults: DEFAULT_PERFORMANCE_THRESHOLDS,
+    thresholdsAreCustom,
     filters: { range, mode, source, classId: classId ?? null, studentId: studentId ?? null, topic: topic ?? null },
   });
 }
