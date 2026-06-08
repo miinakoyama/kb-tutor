@@ -22,7 +22,7 @@ const LOOKBACK_DAYS = 365;
 const FETCH_LIMIT = 2000;
 
 const TOPIC_SHORT_LABELS: Record<string, string> = {
-  "Module A - Structure and Function": "Structure",
+  "Module A - Structure and Function": "Structure & Function",
   "Module A - Matter and Energy in Organisms and Ecosystems": "Matter & Energy",
   "Module A - Interdependent Relationships in Ecosystems": "Ecosystems I",
   "Module B - Inheritance and Variation of Traits": "Inheritance",
