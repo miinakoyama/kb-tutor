@@ -141,7 +141,7 @@ export function SelfPracticePlanner() {
             }
             className="inline-flex items-center rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-heading transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
-            {isAllSelected ? "Deselect all" : "Select all"}
+            {isAllSelected ? "Deselect all areas" : "Select all areas"}
           </button>
           <span className="text-xs text-muted-foreground">
             {selectedTopics.length}/{ALL_KEYS.length} selected
