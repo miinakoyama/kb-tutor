@@ -871,13 +871,13 @@ export function ExamMode({
       <div className="h-full flex items-center justify-center">
         <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
-            No questions available for this topic yet. Please select a different topic or check back later.
+            No questions are available for this selection yet. Please select different standards or check back later.
           </p>
           <Link
-            href="/"
+            href="/self-practice"
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover"
           >
-            Back to Home
+            Back to Self Practice
           </Link>
         </div>
       </div>
@@ -896,23 +896,15 @@ export function ExamMode({
     );
   }
 
-  const isTopicQuiz = topicName?.startsWith("Topic Quiz:");
-  const displayTopicName = isTopicQuiz
-    ? topicName?.replace("Topic Quiz: ", "")
-    : topicName;
-  const backHref = isTopicQuiz && question
-    ? `/practice?module=${question.module}&topic=${encodeURIComponent(question.topic)}`
-    : "/";
-  const modeLabel = isTopicQuiz ? "Topic Quiz" : "Mock Exam";
   const unansweredLabel = Math.max(0, unansweredCount);
 
   return (
     <div className="flex flex-col h-full">
       <PracticeHeader
-        topicName={displayTopicName}
+        topicName={topicName}
         mode="exam"
-        modeLabel={modeLabel}
-        backHref={backHref}
+        modeLabel="Mock Exam"
+        backHref="/self-practice"
         showBackLink={false}
         inlineProgress
         compactSpacing
