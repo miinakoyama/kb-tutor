@@ -13,8 +13,10 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   calculateMastery,
+  getMasteryBand,
   PROGRESS_TOPICS,
   type AttemptRow,
+  type MasteryBand,
   type MasteryDatum,
 } from "@/lib/progress/mastery";
 
@@ -30,9 +32,7 @@ const TOPIC_SHORT_LABELS: Record<string, string> = {
   "Module B - Natural Selection and Evolution": "Evolution",
 };
 
-type Band = "no_data" | "getting_started" | "building_up" | "on_track" | "mastered";
-
-const BAND_COLOR: Record<Band, string> = {
+const BAND_COLOR: Record<MasteryBand, string> = {
   no_data: "#cbd5e1",
   getting_started: "#ef4444",
   building_up: "#f59e0b",
@@ -40,26 +40,13 @@ const BAND_COLOR: Record<Band, string> = {
   mastered: "#16a34a",
 };
 
-const BAND_LABEL: Record<Band, string> = {
+const BAND_LABEL: Record<MasteryBand, string> = {
   no_data: "No data yet",
   getting_started: "Just getting started",
   building_up: "Building up",
   on_track: "On track",
   mastered: "Mastered",
 };
-
-// Thresholds from the band rubric:
-// Mastered   : ≥85% accuracy AND ≥20 attempts
-// On track   : ≥65% accuracy AND ≥15 attempts
-// Building up: ≥45% accuracy AND ≥10 attempts
-// Getting started: anything below the above
-function getBand(d: MasteryDatum): Band {
-  if (d.attempts === 0) return "no_data";
-  if (d.masteryValue >= 85 && d.attempts >= 20) return "mastered";
-  if (d.masteryValue >= 65 && d.attempts >= 15) return "on_track";
-  if (d.masteryValue >= 45 && d.attempts >= 10) return "building_up";
-  return "getting_started";
-}
 
 type ChartDatum = {
   label: string;
@@ -87,7 +74,12 @@ function ColoredBar(props: unknown) {
   );
 }
 
-const LEGEND_BANDS: Band[] = ["getting_started", "building_up", "on_track", "mastered"];
+const LEGEND_BANDS: MasteryBand[] = [
+  "getting_started",
+  "building_up",
+  "on_track",
+  "mastered",
+];
 
 export function ProgressMiniWidget() {
   const [isChartMounted, setIsChartMounted] = useState(false);
@@ -130,7 +122,7 @@ export function ProgressMiniWidget() {
       const mastery = calculateMastery((data ?? []) as AttemptRow[]);
       setChartData(
         mastery.map((d: MasteryDatum) => {
-          const band = getBand(d);
+          const band = getMasteryBand(d.correct, d.attempts);
           return {
             label: TOPIC_SHORT_LABELS[d.topic] ?? d.topic,
             fullTopic: d.fullTopic,

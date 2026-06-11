@@ -10,7 +10,8 @@ import {
   getStandardById,
   type ModuleCode,
 } from "@/lib/standards";
-import { getAnswerHistory } from "@/lib/storage";
+import { getMasteryBand } from "@/lib/progress/mastery";
+import { fetchAnswerHistory } from "@/lib/storage";
 
 const MODE_CHOICES: Array<{
   mode: PracticeMode;
@@ -70,15 +71,14 @@ function getMasteryTag(
   stats: { correct: number; total: number } | undefined,
 ): MasteryTag | null {
   if (!stats || stats.total === 0) return null;
-  const percent = Math.round((stats.correct / stats.total) * 100);
-  const { total } = stats;
-  if (percent >= 85 && total >= 20) {
+  const band = getMasteryBand(stats.correct, stats.total);
+  if (band === "mastered") {
     return { label: "Mastered", bgColor: "bg-green-100", textColor: "text-green-700", icon: Star };
   }
-  if (percent >= 65 && total >= 15) {
+  if (band === "on_track") {
     return { label: "Proficient", bgColor: "bg-blue-100", textColor: "text-blue-700", icon: Check };
   }
-  if (percent >= 45 && total >= 10) {
+  if (band === "building_up") {
     return { label: "Building up", bgColor: "bg-amber-100", textColor: "text-amber-700", icon: Minus };
   }
   return {
@@ -97,18 +97,24 @@ export function SelfPracticePlanner() {
   >({});
 
   useEffect(() => {
-    const history = getAnswerHistory();
-    const map: Record<string, { correct: number; total: number }> = {};
-    for (const answer of history) {
-      if (!answer.standardId) continue;
-      const std = getStandardById(answer.standardId);
-      if (!std) continue;
-      const key = `Module ${std.module} - ${std.category}`;
-      if (!map[key]) map[key] = { correct: 0, total: 0 };
-      map[key].total++;
-      if (answer.isCorrect) map[key].correct++;
-    }
-    setAccuracyMap(map);
+    let cancelled = false;
+    void fetchAnswerHistory().then((history) => {
+      if (cancelled) return;
+      const map: Record<string, { correct: number; total: number }> = {};
+      for (const answer of history) {
+        if (!answer.standardId) continue;
+        const std = getStandardById(answer.standardId);
+        if (!std) continue;
+        const key = `Module ${std.module} - ${std.category}`;
+        if (!map[key]) map[key] = { correct: 0, total: 0 };
+        map[key].total++;
+        if (answer.isCorrect) map[key].correct++;
+      }
+      setAccuracyMap(map);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const isAllSelected = ALL_KEYS.length > 0 && selectedTopics.length === ALL_KEYS.length;

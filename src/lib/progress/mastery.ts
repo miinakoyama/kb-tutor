@@ -13,6 +13,12 @@ export type AttemptRow = {
 };
 
 export type MasteryLevel = "insufficient_data" | "estimated" | "measured";
+export type MasteryBand =
+  | "no_data"
+  | "getting_started"
+  | "building_up"
+  | "on_track"
+  | "mastered";
 
 export type ProgressTopic = {
   key: string;
@@ -36,6 +42,20 @@ const MODULE_ORDER: ModuleCode[] = ["A", "B"];
 const PRIOR_ATTEMPT_WEIGHT = 5;
 const PRIOR_ACCURACY = 0.6;
 const MIN_MEASURED_ATTEMPTS = 3;
+
+/**
+ * Classifies progress using raw accuracy and the rubric's minimum attempt
+ * counts. Smoothed mastery remains useful for chart values, but must not
+ * change which rubric band a learner has earned.
+ */
+export function getMasteryBand(correct: number, attempts: number): MasteryBand {
+  if (attempts === 0) return "no_data";
+  const accuracy = (correct / attempts) * 100;
+  if (accuracy >= 85 && attempts >= 20) return "mastered";
+  if (accuracy >= 65 && attempts >= 15) return "on_track";
+  if (accuracy >= 45 && attempts >= 10) return "building_up";
+  return "getting_started";
+}
 
 export const PROGRESS_TOPICS: ProgressTopic[] = MODULE_ORDER.flatMap((module) => {
   const categories = Array.from(
