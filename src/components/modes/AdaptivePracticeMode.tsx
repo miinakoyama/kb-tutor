@@ -768,6 +768,17 @@ export function AdaptivePracticeMode({
     });
   }, [assignmentId, feedbackVisible, isCompleted, mode, question]);
 
+  const finishSession = useCallback(() => {
+    trackAnalyticsEvent({
+      eventType: mode === "review" ? "review_item_completed" : "stage_completed",
+      mode,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+    markStageCompleted();
+    setShowSummary(true);
+  }, [assignmentId, markStageCompleted, mode]);
+
   const handleNext = useCallback(() => {
     if (!isCompleted) return;
     if (currentIndex < totalQuestions - 1) {
@@ -779,14 +790,7 @@ export function AdaptivePracticeMode({
     }
     if (allCompleted) {
       if (isAssignmentRun) {
-        trackAnalyticsEvent({
-          eventType: mode === "review" ? "review_item_completed" : "stage_completed",
-          mode,
-          assignmentId,
-          sessionId: sessionId ?? undefined,
-        });
-        markStageCompleted();
-        setShowSummary(true);
+        finishSession();
       } else {
         // Self-practice: cycle by appending another shuffled batch
         setSessionQuestions((prev) => [...prev, ...shuffleArray(questions)]);
@@ -798,14 +802,11 @@ export function AdaptivePracticeMode({
     }
   }, [
     allCompleted,
-    assignmentId,
     currentIndex,
+    finishSession,
     isAssignmentRun,
     isCompleted,
-    markStageCompleted,
-    mode,
     questions,
-    sessionId,
     totalQuestions,
   ]);
 
@@ -1057,7 +1058,7 @@ export function AdaptivePracticeMode({
         rightSlot={
           !isAssignmentRun ? (
             <button
-              onClick={() => setShowSummary(true)}
+              onClick={finishSession}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white font-semibold bg-primary hover:bg-primary-hover transition-colors text-sm"
             >
               Finish Session

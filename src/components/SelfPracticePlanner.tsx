@@ -10,7 +10,7 @@ import {
   getStandardById,
   type ModuleCode,
 } from "@/lib/standards";
-import { getAnswerHistory } from "@/lib/storage";
+import { fetchAnswerHistory } from "@/lib/storage";
 
 const MODE_CHOICES: Array<{
   mode: PracticeMode;
@@ -97,18 +97,26 @@ export function SelfPracticePlanner() {
   >({});
 
   useEffect(() => {
-    const history = getAnswerHistory();
-    const map: Record<string, { correct: number; total: number }> = {};
-    for (const answer of history) {
-      if (!answer.standardId) continue;
-      const std = getStandardById(answer.standardId);
-      if (!std) continue;
-      const key = `Module ${std.module} - ${std.category}`;
-      if (!map[key]) map[key] = { correct: 0, total: 0 };
-      map[key].total++;
-      if (answer.isCorrect) map[key].correct++;
-    }
-    setAccuracyMap(map);
+    let cancelled = false;
+
+    void fetchAnswerHistory().then((history) => {
+      if (cancelled) return;
+      const map: Record<string, { correct: number; total: number }> = {};
+      for (const answer of history) {
+        if (!answer.standardId) continue;
+        const std = getStandardById(answer.standardId);
+        if (!std) continue;
+        const key = `Module ${std.module} - ${std.category}`;
+        if (!map[key]) map[key] = { correct: 0, total: 0 };
+        map[key].total++;
+        if (answer.isCorrect) map[key].correct++;
+      }
+      setAccuracyMap(map);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const isAllSelected = ALL_KEYS.length > 0 && selectedTopics.length === ALL_KEYS.length;
