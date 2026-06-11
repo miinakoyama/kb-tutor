@@ -10,6 +10,7 @@ import {
   getStandardById,
   type ModuleCode,
 } from "@/lib/standards";
+import { getMasteryBand } from "@/lib/progress/mastery";
 import { fetchAnswerHistory } from "@/lib/storage";
 
 const MODE_CHOICES: Array<{
@@ -69,15 +70,14 @@ function getMasteryTag(
   stats: { correct: number; total: number } | undefined,
 ): MasteryTag | null {
   if (!stats || stats.total === 0) return null;
-  const percent = Math.round((stats.correct / stats.total) * 100);
-  const { total } = stats;
-  if (percent >= 85 && total >= 20) {
+  const band = getMasteryBand(stats.correct, stats.total);
+  if (band === "mastered") {
     return { label: "Mastered", bgColor: "bg-green-100", textColor: "text-green-700" };
   }
-  if (percent >= 65 && total >= 15) {
+  if (band === "on_track") {
     return { label: "Proficient", bgColor: "bg-blue-100", textColor: "text-blue-700" };
   }
-  if (percent >= 45 && total >= 10) {
+  if (band === "building_up") {
     return { label: "Building up", bgColor: "bg-amber-100", textColor: "text-amber-700" };
   }
   return {
