@@ -39,7 +39,16 @@ vi.mock("@/components/shared/PracticeHeader", () => ({
 }));
 
 vi.mock("@/components/shared/QuestionDisplay", () => ({
-  QuestionDisplay: () => <div>Question display</div>,
+  QuestionDisplay: ({
+    onOptionClick,
+  }: {
+    onOptionClick?: (optionId: string) => void;
+  }) => (
+    <div>
+      <div>Question display</div>
+      <button onClick={() => onOptionClick?.("B")}>Select B</button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/shared/FeedbackPanel", () => ({
@@ -81,6 +90,10 @@ describe("AdaptivePracticeMode session completion", () => {
     markStageCompletedMock.mockReset();
     trackAnalyticsEventMock.mockReset();
     useAnalyticsSessionMock.mockReset();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value: vi.fn(),
+    });
     useAnalyticsSessionMock.mockReturnValue({
       sessionId: "session-1",
       markStageCompleted: markStageCompletedMock,
@@ -89,6 +102,7 @@ describe("AdaptivePracticeMode session completion", () => {
 
   afterEach(() => {
     cleanup();
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
   });
 
   it("marks self-practice complete before opening the summary", async () => {
@@ -107,6 +121,43 @@ describe("AdaptivePracticeMode session completion", () => {
         assignmentId: undefined,
         sessionId: "session-1",
       });
+    });
+  });
+
+  it("uses all available questions when questionCount is omitted", async () => {
+    render(<AdaptivePracticeMode questions={[question]} mode="practice" />);
+
+    expect(await screen.findByText("Question display")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
+    expect(screen.queryByText("No questions available for this selection yet.")).toBeNull();
+  });
+
+  it("emits explanation_opened again when a question repeats in a new cycle", async () => {
+    render(
+      <AdaptivePracticeMode questions={[question]} questionCount={1} mode="practice" />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(
+        trackAnalyticsEventMock.mock.calls.filter(
+          ([event]) => event.eventType === "explanation_opened",
+        ),
+      ).toHaveLength(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(
+        trackAnalyticsEventMock.mock.calls.filter(
+          ([event]) => event.eventType === "explanation_opened",
+        ),
+      ).toHaveLength(2);
     });
   });
 });

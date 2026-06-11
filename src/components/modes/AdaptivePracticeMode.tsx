@@ -189,9 +189,10 @@ export function AdaptivePracticeMode({
     // For assignments we trust the server's deterministic ordering so resume
     // always lands on the same question. Self-practice keeps the legacy
     // random-shuffle-and-cap behavior.
+    const count = questionCount ?? questions.length;
     const selected = isAssignmentRun
-      ? questions.slice(0, questionCount)
-      : shuffleArray(questions).slice(0, questionCount);
+      ? questions.slice(0, count)
+      : shuffleArray(questions).slice(0, count);
     setSessionQuestions(selected);
     // Seed bookmark state from Supabase so it stays correct across devices.
     // toggleBookmark updates the localStorage cache synchronously after this
@@ -755,7 +756,7 @@ export function AdaptivePracticeMode({
   const feedbackVisible = attempts.length > 0 && (isCompleted || isAwaitingRetry);
   useEffect(() => {
     if (!question || !feedbackVisible) return;
-    const key = `${question.id}:${isCompleted ? "completed" : "retry"}`;
+    const key = `${currentIndex}:${question.id}:${isCompleted ? "completed" : "retry"}`;
     if (explanationEmittedRef.current.has(key)) return;
     explanationEmittedRef.current.add(key);
     trackAnalyticsEvent({
@@ -766,7 +767,7 @@ export function AdaptivePracticeMode({
       sessionId: sessionIdRef.current ?? undefined,
       payload: { phase: isCompleted ? "completed" : "retry" },
     });
-  }, [assignmentId, feedbackVisible, isCompleted, mode, question]);
+  }, [assignmentId, currentIndex, feedbackVisible, isCompleted, mode, question]);
 
   const finishSession = useCallback(() => {
     trackAnalyticsEvent({
