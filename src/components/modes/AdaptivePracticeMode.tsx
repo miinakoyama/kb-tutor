@@ -36,8 +36,7 @@ import { useAnalyticsSession } from "@/lib/analytics/session";
 import { NextSessionCTA } from "@/components/shared/NextSessionCTA";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
-const DEFAULT_QUESTION_COUNT = 10;
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 2;
 const GLOSSARY_FALLBACK_LIMIT = 6;
 const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
 const READ_ALOUD_SPOTLIGHT_DISMISSED_KEY =
@@ -91,7 +90,7 @@ interface AttemptRecord {
 export function AdaptivePracticeMode({
   questions,
   topicName,
-  questionCount = DEFAULT_QUESTION_COUNT,
+  questionCount,
   assignmentId,
   mode = "practice",
   backHref = "/self-practice",
@@ -779,22 +778,33 @@ export function AdaptivePracticeMode({
       return;
     }
     if (allCompleted) {
-      trackAnalyticsEvent({
-        eventType: mode === "review" ? "review_item_completed" : "stage_completed",
-        mode,
-        assignmentId,
-        sessionId: sessionId ?? undefined,
-      });
-      markStageCompleted();
-      setShowSummary(true);
+      if (isAssignmentRun) {
+        trackAnalyticsEvent({
+          eventType: mode === "review" ? "review_item_completed" : "stage_completed",
+          mode,
+          assignmentId,
+          sessionId: sessionId ?? undefined,
+        });
+        markStageCompleted();
+        setShowSummary(true);
+      } else {
+        // Self-practice: cycle by appending another shuffled batch
+        setSessionQuestions((prev) => [...prev, ...shuffleArray(questions)]);
+        setCurrentIndex((prev) => prev + 1);
+        requestAnimationFrame(() => {
+          scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      }
     }
   }, [
     allCompleted,
     assignmentId,
     currentIndex,
+    isAssignmentRun,
     isCompleted,
     markStageCompleted,
     mode,
+    questions,
     sessionId,
     totalQuestions,
   ]);
@@ -919,8 +929,12 @@ export function AdaptivePracticeMode({
         );
     }
 
-    const correctCount = Object.values(finalAnswers).filter((answer) => answer.isCorrect).length;
-    const scorePercent = Math.round((correctCount / totalQuestions) * 100);
+    const answeredEntries = sessionQuestions
+      .map((q, index) => ({ q, index, answer: finalAnswers[index] }))
+      .filter(({ answer }) => !!answer);
+    const answeredTotal = answeredEntries.length;
+    const correctCount = answeredEntries.filter(({ answer }) => answer.isCorrect).length;
+    const scorePercent = answeredTotal > 0 ? Math.round((correctCount / answeredTotal) * 100) : 0;
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -934,7 +948,7 @@ export function AdaptivePracticeMode({
           </h2>
           <p className="text-4xl font-bold text-primary mb-1">{scorePercent}%</p>
           <p className="text-sm text-muted-foreground">
-            {correctCount} of {totalQuestions} final answers correct
+            {correctCount} of {answeredTotal} final answers correct
           </p>
         </div>
 
@@ -943,25 +957,19 @@ export function AdaptivePracticeMode({
             Review Questions
           </h3>
           <div className="space-y-2">
-            {sessionQuestions.map((q, index) => {
-              const answer = finalAnswers[index];
-              const hasAnswer = !!answer;
+            {answeredEntries.map(({ q, index, answer }, position) => {
               const isCorrect = !!answer?.isCorrect;
               return (
                 <button
                   key={`${q.id}-${index}`}
                   onClick={() => setSummaryReviewIndex(index)}
                   className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-foreground/5 ${
-                    isCorrect
-                      ? "border-primary/20"
-                      : hasAnswer
-                        ? "border-error-border"
-                        : "border-border-subtle"
+                    isCorrect ? "border-primary/20" : "border-error-border"
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     <span className="text-xs font-medium text-muted-foreground mt-0.5 w-5 flex-shrink-0">
-                      {index + 1}
+                      {position + 1}
                     </span>
                     <p className="flex-1 text-sm text-slate-gray line-clamp-1">
                       {q.text}
@@ -969,10 +977,8 @@ export function AdaptivePracticeMode({
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {isCorrect ? (
                         <CheckCircle2 className="w-4 h-4 text-primary" />
-                      ) : hasAnswer ? (
-                        <XCircle className="w-4 h-4 text-red-400" />
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <XCircle className="w-4 h-4 text-red-400" />
                       )}
                     </div>
                   </div>
@@ -1043,11 +1049,21 @@ export function AdaptivePracticeMode({
         mode={mode}
         backHref={backHref}
         showBackLink={showBackLink}
-        inlineProgress
+        inlineProgress={isAssignmentRun}
         compactSpacing
-        currentQuestion={currentIndex + 1}
-        totalQuestions={totalQuestions}
+        currentQuestion={isAssignmentRun ? currentIndex + 1 : undefined}
+        totalQuestions={isAssignmentRun ? totalQuestions : undefined}
         answeredCount={completedCount}
+        rightSlot={
+          !isAssignmentRun ? (
+            <button
+              onClick={() => setShowSummary(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white font-semibold bg-primary hover:bg-primary-hover transition-colors text-sm"
+            >
+              Finish Session
+            </button>
+          ) : undefined
+        }
       />
 
       <div className="flex flex-col gap-3 flex-1 min-h-0">
@@ -1200,7 +1216,7 @@ export function AdaptivePracticeMode({
                   onClick={handleNext}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors text-[13px]"
                 >
-                  {currentIndex === totalQuestions - 1 ? "View Results" : "Next"}
+                  {isAssignmentRun && currentIndex === totalQuestions - 1 ? "View Results" : "Next"}
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               )}

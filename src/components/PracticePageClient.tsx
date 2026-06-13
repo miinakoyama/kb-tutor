@@ -228,6 +228,11 @@ export function PracticePageClient({
     if (selectedTopics.length > 0) {
       filteredQuestions = filteredQuestions.filter((question) =>
         selectedTopics.some((selection) => {
+          // Standard ID selection (e.g. "3.1.9-12.A") — match directly
+          if (getStandardById(selection)) {
+            return question.standardId === selection;
+          }
+
           const match = selection.match(MODULE_CATEGORY_TOPIC_PATTERN);
           if (!match) {
             return question.topic === selection;
@@ -257,8 +262,8 @@ export function PracticePageClient({
       );
       topicName =
         selectedTopics.length === 1
-          ? selectedTopics[0]
-          : `${selectedTopics.length} selected areas`;
+          ? (getStandardById(selectedTopics[0])?.id ?? selectedTopics[0])
+          : `${selectedTopics.length} standards selected`;
     }
   }
 

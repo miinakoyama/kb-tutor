@@ -19,40 +19,12 @@ import {
   type AttemptRow,
   type MasteryDatum,
 } from "@/lib/progress/mastery";
+import { calculateStreak } from "@/lib/progress/streak";
 import { getBrowserTimeZone, DEFAULT_APP_TIME_ZONE } from "@/lib/timezone";
 import { syncTimeZoneFromDb } from "@/lib/timezone-settings";
 
 const PROGRESS_LOOKBACK_DAYS = 365;
 const PROGRESS_FETCH_LIMIT = 2000;
-
-function toDateKey(value: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-  }).format(value);
-}
-
-/**
- * Calculates current daily streak from answered timestamps in the user's timezone.
- * A streak counts consecutive calendar days up to today.
- */
-function calculateStreak(rows: AttemptRow[], timeZone: string): number {
-  const answeredDates = new Set(
-    rows.map((row) => toDateKey(new Date(row.answered_at), timeZone)),
-  );
-  if (answeredDates.size === 0) return 0;
-
-  let streak = 0;
-  const cursor = new Date();
-
-  while (true) {
-    const key = toDateKey(cursor, timeZone);
-    if (!answeredDates.has(key)) break;
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  return streak;
-}
 
 export default function ProgressPage() {
   const [isLoading, setIsLoading] = useState(true);
