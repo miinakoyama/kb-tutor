@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { User } from "@supabase/supabase-js";
 import {
+  getRoleLandingPath,
   parseRole,
   resolveMetadataRole,
   resolveProfileRole,
@@ -89,5 +90,17 @@ describe("resolveRole", () => {
   it("returns null when neither source yields a valid role", () => {
     const user = makeUser({});
     expect(resolveRole(null, user)).toBeNull();
+  });
+});
+
+describe("getRoleLandingPath", () => {
+  it("routes staff roles to their dashboards", () => {
+    expect(getRoleLandingPath("admin")).toBe("/content/accounts");
+    expect(getRoleLandingPath("teacher")).toBe("/teacher-dashboard");
+  });
+
+  it("keeps students and unknown roles on the student home", () => {
+    expect(getRoleLandingPath("student")).toBe("/");
+    expect(getRoleLandingPath(null)).toBe("/");
   });
 });

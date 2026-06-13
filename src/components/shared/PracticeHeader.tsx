@@ -49,6 +49,7 @@ export function PracticeHeader({
   const backLabel = isBackToHome ? "Back to Home" : "Back to Mode Selection";
   const showProgress = currentQuestion !== undefined && totalQuestions !== undefined;
   const useAnsweredProgress = answeredCount !== undefined && totalQuestions !== undefined;
+  const showAnsweredOnly = answeredCount !== undefined && totalQuestions === undefined && currentQuestion === undefined;
   const progressPercent = useAnsweredProgress
     ? Math.round((answeredCount / totalQuestions) * 100)
     : showProgress
@@ -99,6 +100,12 @@ export function PracticeHeader({
                       </span>
                     </span>
                   )}
+                </>
+              )}
+              {showAnsweredOnly && answeredCount !== undefined && (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">{answeredCount} answered</span>
                 </>
               )}
             </div>

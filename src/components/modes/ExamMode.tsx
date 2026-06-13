@@ -255,10 +255,18 @@ export function ExamMode({
     }
     // For assignment runs, trust the server's deterministic ordering so
     // resume lands on the same question. Self-practice exam keeps the legacy
-    // random-shuffle behavior.
-    const ordered = isAssignmentRun
-      ? questions.slice(0, requestedQuestionCount)
-      : shuffleArray(questions).slice(0, requestedQuestionCount);
+    // random-shuffle behavior, repeating questions if the bank is smaller
+    // than the requested count.
+    let ordered: Question[];
+    if (isAssignmentRun) {
+      ordered = questions.slice(0, requestedQuestionCount);
+    } else {
+      let pool = shuffleArray(questions);
+      while (pool.length < requestedQuestionCount) {
+        pool = [...pool, ...shuffleArray(questions)];
+      }
+      ordered = pool.slice(0, requestedQuestionCount);
+    }
     setSessionQuestions(ordered);
 
     if (isAssignmentRun && answered) {
@@ -725,7 +733,6 @@ export function ExamMode({
         questions={sessionQuestions}
         answers={answers}
         correctCount={correctCount}
-        totalQuestions={totalQuestions}
         elapsedMs={elapsedMs}
         topicName={topicName}
         assignmentId={assignmentId}
@@ -871,13 +878,13 @@ export function ExamMode({
       <div className="h-full flex items-center justify-center">
         <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
-            No questions available for this topic yet. Please select a different topic or check back later.
+            No questions are available for this selection yet. Please select different standards or check back later.
           </p>
           <Link
-            href="/"
+            href="/self-practice"
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover"
           >
-            Back to Home
+            Back to Self Practice
           </Link>
         </div>
       </div>
@@ -896,23 +903,15 @@ export function ExamMode({
     );
   }
 
-  const isTopicQuiz = topicName?.startsWith("Topic Quiz:");
-  const displayTopicName = isTopicQuiz
-    ? topicName?.replace("Topic Quiz: ", "")
-    : topicName;
-  const backHref = isTopicQuiz && question
-    ? `/practice?module=${question.module}&topic=${encodeURIComponent(question.topic)}`
-    : "/";
-  const modeLabel = isTopicQuiz ? "Topic Quiz" : "Mock Exam";
   const unansweredLabel = Math.max(0, unansweredCount);
 
   return (
     <div className="flex flex-col h-full">
       <PracticeHeader
-        topicName={displayTopicName}
+        topicName={topicName}
         mode="exam"
-        modeLabel={modeLabel}
-        backHref={backHref}
+        modeLabel="Mock Exam"
+        backHref="/self-practice"
         showBackLink={false}
         inlineProgress
         compactSpacing
@@ -1369,7 +1368,6 @@ function ExamResults({
   questions,
   answers,
   correctCount,
-  totalQuestions,
   elapsedMs,
   topicName,
   assignmentId,
@@ -1379,7 +1377,6 @@ function ExamResults({
   questions: Question[];
   answers: Record<number, AnswerRecord>;
   correctCount: number;
-  totalQuestions: number;
   elapsedMs: number;
   topicName?: string;
   /**
@@ -1391,10 +1388,15 @@ function ExamResults({
   onReview: (index: number) => void;
   onRetry: () => void;
 }) {
-  const scorePercent = Math.round((correctCount / totalQuestions) * 100);
+  const answeredEntries = questions
+    .map((q, index) => ({ q, index, answer: answers[index] }))
+    .filter(({ answer }) => !!answer?.selectedOptionId);
+  const answeredTotal = answeredEntries.length;
+  const scorePercent =
+    answeredTotal > 0 ? Math.round((correctCount / answeredTotal) * 100) : 0;
   const minutes = Math.floor(elapsedMs / 60000);
   const avgSeconds =
-    totalQuestions > 0 ? Math.round(elapsedMs / 1000 / totalQuestions) : 0;
+    answeredTotal > 0 ? Math.round(elapsedMs / 1000 / answeredTotal) : 0;
 
   return (
     <motion.div
@@ -1424,7 +1426,7 @@ function ExamResults({
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-slate-gray">
-              {totalQuestions - correctCount}
+              {answeredTotal - correctCount}
             </p>
             <p className="text-muted-foreground">Incorrect</p>
           </div>
@@ -1444,26 +1446,20 @@ function ExamResults({
           Review Questions
         </h3>
         <div className="space-y-2">
-          {questions.map((q, index) => {
-            const answer = answers[index];
-            const hasAnswer = !!answer?.selectedOptionId;
-            const isCorrect = hasAnswer && answer?.selectedOptionId === q.correctOptionId;
+          {answeredEntries.map(({ q, index, answer }, position) => {
+            const isCorrect = answer?.selectedOptionId === q.correctOptionId;
             const isFlagged = answer?.flagged;
             return (
               <button
                 key={index}
                 onClick={() => onReview(index)}
                 className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-foreground/5 ${
-                  isCorrect
-                    ? "border-primary/20"
-                    : hasAnswer
-                      ? "border-error-border"
-                      : "border-border-subtle"
+                  isCorrect ? "border-primary/20" : "border-error-border"
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <span className="text-xs font-medium text-muted-foreground mt-0.5 w-5">
-                    {index + 1}
+                    {position + 1}
                   </span>
                   <p className="flex-1 text-sm text-slate-gray line-clamp-1">
                     {q.text}
@@ -1477,10 +1473,8 @@ function ExamResults({
                         className="w-4 h-4"
                         style={{ color: PRIMARY_COLOR }}
                       />
-                    ) : hasAnswer ? (
-                      <XCircle className="w-4 h-4 text-red-400" />
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <XCircle className="w-4 h-4 text-red-400" />
                     )}
                   </div>
                 </div>
