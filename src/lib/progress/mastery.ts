@@ -31,6 +31,8 @@ export type MasteryDatum = {
   fill: string;
 };
 
+export type TrendDirection = "up" | "down" | "flat";
+
 const MODULE_ORDER: ModuleCode[] = ["A", "B"];
 
 const PRIOR_ATTEMPT_WEIGHT = 5;
@@ -118,4 +120,43 @@ export function calculateMastery(rows: AttemptRow[]): MasteryDatum[] {
       fill: level === "estimated" ? "#65a30d" : "#2d6a4f",
     };
   });
+}
+
+function toDateKey(value: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(value);
+}
+
+/**
+ * Compares mastery for each topic against mastery computed without the
+ * most recent session's attempts, to surface whether a strand improved,
+ * declined, or stayed flat since the student's last session.
+ */
+export function calculateTrends(
+  rows: AttemptRow[],
+  timeZone: string,
+): Map<string, TrendDirection> {
+  const trends = new Map<string, TrendDirection>();
+  if (rows.length === 0) return trends;
+
+  const dateKeys = rows.map((row) => toDateKey(new Date(row.answered_at), timeZone));
+  const lastSessionKey = dateKeys.reduce((latest, key) => (key > latest ? key : latest));
+  const previousRows = rows.filter((_, i) => dateKeys[i] !== lastSessionKey);
+
+  const current = calculateMastery(rows);
+  const previous = calculateMastery(previousRows);
+
+  for (let i = 0; i < current.length; i += 1) {
+    const cur = current[i];
+    const prev = previous[i];
+    if (cur.attempts === prev.attempts) {
+      trends.set(cur.fullTopic, "flat");
+    } else if (cur.masteryValue > prev.masteryValue) {
+      trends.set(cur.fullTopic, "up");
+    } else if (cur.masteryValue < prev.masteryValue) {
+      trends.set(cur.fullTopic, "down");
+    } else {
+      trends.set(cur.fullTopic, "flat");
+    }
+  }
+  return trends;
 }

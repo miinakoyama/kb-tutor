@@ -3,23 +3,30 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
   ResponsiveContainer,
 } from "recharts";
+import { Flame, Clock } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   calculateMastery,
+  calculateTrends,
   PROGRESS_TOPICS,
   type AttemptRow,
   type MasteryDatum,
+  type TrendDirection,
 } from "@/lib/progress/mastery";
+import { calculateStreak } from "@/lib/progress/streak";
+import { getBrowserTimeZone, DEFAULT_APP_TIME_ZONE } from "@/lib/timezone";
+import { syncTimeZoneFromDb } from "@/lib/timezone-settings";
 
 const LOOKBACK_DAYS = 365;
 const FETCH_LIMIT = 2000;
+const WEEK_DAYS = 7;
 
 const TOPIC_SHORT_LABELS: Record<string, string> = {
   "Module A - Structure and Function": "Structure & Function",
@@ -30,76 +37,87 @@ const TOPIC_SHORT_LABELS: Record<string, string> = {
   "Module B - Natural Selection and Evolution": "Evolution",
 };
 
-type Band = "no_data" | "getting_started" | "building_up" | "on_track" | "mastered";
+const LABEL_TO_TOPIC = new Map(
+  PROGRESS_TOPICS.map(({ key }) => [TOPIC_SHORT_LABELS[key] ?? key, key]),
+);
 
-const BAND_COLOR: Record<Band, string> = {
-  no_data: "#cbd5e1",
-  getting_started: "#ef4444",
-  building_up: "#f59e0b",
-  on_track: "#3b82f6",
-  mastered: "#16a34a",
+type AttemptWithTime = AttemptRow & {
+  assignment_id: string | null;
+  time_spent_sec: number | null;
 };
 
-const BAND_LABEL: Record<Band, string> = {
-  no_data: "No data yet",
-  getting_started: "Just getting started",
-  building_up: "Building up",
-  on_track: "On track",
-  mastered: "Mastered",
+const TREND_COLOR: Record<TrendDirection, string> = {
+  up: "#16a34a",
+  down: "#dc2626",
+  flat: "#94a3b8",
 };
 
-// Thresholds from the band rubric:
-// Mastered   : ≥85% accuracy AND ≥20 attempts
-// On track   : ≥65% accuracy AND ≥15 attempts
-// Building up: ≥45% accuracy AND ≥10 attempts
-// Getting started: anything below the above
-function getBand(d: MasteryDatum): Band {
-  if (d.attempts === 0) return "no_data";
-  if (d.masteryValue >= 85 && d.attempts >= 20) return "mastered";
-  if (d.masteryValue >= 65 && d.attempts >= 15) return "on_track";
-  if (d.masteryValue >= 45 && d.attempts >= 10) return "building_up";
-  return "getting_started";
+const TREND_SYMBOL: Record<TrendDirection, string> = {
+  up: "▲",
+  down: "▼",
+  flat: "●",
+};
+
+function formatTimeSpent(totalSeconds: number): string {
+  if (totalSeconds <= 0) return "0 min";
+  const totalMinutes = Math.round(totalSeconds / 60);
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
 }
 
-type ChartDatum = {
-  label: string;
-  fullTopic: string;
-  displayValue: number;
-  color: string;
-  status: string;
-};
+/**
+ * Custom PolarAngleAxis tick that appends a small trend marker (▲/▼/●)
+ * after each strand label, colored to show whether mastery improved,
+ * declined, or stayed flat since the student's last session.
+ */
+function TrendAxisTick(
+  props: {
+    x?: number | string;
+    y?: number | string;
+    textAnchor?: "middle" | "start" | "end" | "inherit";
+    payload?: { value?: string };
+  } & {
+    trends: Map<string, TrendDirection>;
+    labelToTopic: Map<string, string>;
+  },
+) {
+  const { x = 0, y = 0, textAnchor = "middle", payload, trends, labelToTopic } = props;
+  const label = payload?.value ?? "";
+  const fullTopic = labelToTopic.get(label);
+  const trend = fullTopic ? trends.get(fullTopic) : undefined;
 
-function ColoredBar(props: unknown) {
-  const { x, y, width, height, color } = props as {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    color: string;
-  };
-  if (!height || height <= 0) return null;
-  const r = Math.min(4, width / 2, height);
   return (
-    <path
-      d={`M${x},${y + height} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + width - r},${y} Q${x + width},${y} ${x + width},${y + r} L${x + width},${y + height} Z`}
-      fill={color}
-    />
+    <text x={x} y={y} textAnchor={textAnchor} fontSize={9} dy={3}>
+      <tspan fill="#6b7280">{label}</tspan>
+      {trend && (
+        <tspan fill={TREND_COLOR[trend]} fontWeight="bold">
+          {" "}
+          {TREND_SYMBOL[trend]}
+        </tspan>
+      )}
+    </text>
   );
 }
-
-const LEGEND_BANDS: Band[] = ["getting_started", "building_up", "on_track", "mastered"];
 
 export function ProgressMiniWidget() {
   const [isChartMounted, setIsChartMounted] = useState(false);
-  const [chartData, setChartData] = useState<ChartDatum[]>(() =>
+  const [chartData, setChartData] = useState<MasteryDatum[]>(() =>
     PROGRESS_TOPICS.map(({ key }) => ({
-      label: TOPIC_SHORT_LABELS[key] ?? key,
+      topic: TOPIC_SHORT_LABELS[key] ?? key,
       fullTopic: key,
-      displayValue: 5,
-      color: BAND_COLOR.no_data,
-      status: BAND_LABEL.no_data,
+      mastery: 0,
+      masteryValue: 0,
+      attempts: 0,
+      correct: 0,
+      level: "insufficient_data",
+      fill: "#94a3b8",
     })),
   );
+  const [streak, setStreak] = useState(0);
+  const [timeThisWeek, setTimeThisWeek] = useState(0);
+  const [trends, setTrends] = useState<Map<string, TrendDirection>>(new Map());
 
   useEffect(() => {
     setIsChartMounted(true);
@@ -107,6 +125,9 @@ export function ProgressMiniWidget() {
 
   useEffect(() => {
     const load = async () => {
+      const browserTimeZone = getBrowserTimeZone(DEFAULT_APP_TIME_ZONE);
+      const timeZone = await syncTimeZoneFromDb(browserTimeZone);
+
       const since = new Date();
       since.setDate(since.getDate() - LOOKBACK_DAYS);
 
@@ -119,28 +140,33 @@ export function ProgressMiniWidget() {
 
       const { data, error } = await supabase
         .from("attempts")
-        .select("is_correct,answered_at,topic,standard_id")
+        .select("is_correct,answered_at,topic,standard_id,assignment_id,time_spent_sec")
         .eq("user_id", user.id)
         .gte("answered_at", since.toISOString())
         .order("answered_at", { ascending: false })
         .limit(FETCH_LIMIT);
 
-      if (error) return;
+      if (error || !data) return;
 
-      const mastery = calculateMastery((data ?? []) as AttemptRow[]);
+      const rows = data as AttemptWithTime[];
+
+      const mastery = calculateMastery(rows);
       setChartData(
-        mastery.map((d: MasteryDatum) => {
-          const band = getBand(d);
-          return {
-            label: TOPIC_SHORT_LABELS[d.topic] ?? d.topic,
-            fullTopic: d.fullTopic,
-            // Show a small stub for no-data bars so they remain visible
-            displayValue: band === "no_data" ? 5 : d.masteryValue,
-            color: BAND_COLOR[band],
-            status: BAND_LABEL[band],
-          };
-        }),
+        mastery.map((d) => ({
+          ...d,
+          topic: TOPIC_SHORT_LABELS[d.topic] ?? d.topic,
+        })),
       );
+
+      setStreak(calculateStreak(rows, timeZone));
+      setTrends(calculateTrends(rows, timeZone));
+
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - WEEK_DAYS);
+      const weekSeconds = rows
+        .filter((row) => new Date(row.answered_at) >= weekAgo)
+        .reduce((sum, row) => sum + (row.time_spent_sec ?? 0), 0);
+      setTimeThisWeek(weekSeconds);
     };
     void load();
   }, []);
@@ -151,58 +177,57 @@ export function ProgressMiniWidget() {
         My Progress
       </span>
 
-      <div className="flex gap-4 flex-1 min-h-[180px]">
-        <div className="flex-1 min-w-0">
+      <div className="grid gap-4 sm:grid-cols-2 flex-1">
+        <div className="h-[160px] min-w-0">
           {isChartMounted ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={chartData}
-                barCategoryGap="25%"
-                margin={{ top: 4, right: 4, left: 4, bottom: 4 }}
-              >
-                <XAxis
-                  dataKey="label"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 10 }}
+              <RadarChart data={chartData}>
+                <PolarGrid stroke="#2d6a4f" strokeOpacity={0.2} />
+                <PolarAngleAxis
+                  dataKey="topic"
+                  tick={(props) => (
+                    <TrendAxisTick
+                      {...props}
+                      trends={trends}
+                      labelToTopic={LABEL_TO_TOPIC}
+                    />
+                  )}
                 />
-                <YAxis hide domain={[0, 100]} />
-                <Tooltip
-                  cursor={{ fill: "transparent" }}
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0]?.payload as ChartDatum;
-                    return (
-                      <div className="rounded-lg border border-border-default bg-surface px-3 py-2 text-xs shadow-md">
-                        <p className="font-medium text-heading mb-0.5">{d.label}</p>
-                        <span
-                          className="font-semibold"
-                          style={{ color: d.color === BAND_COLOR.no_data ? "#94a3b8" : d.color }}
-                        >
-                          {d.status}
-                        </span>
-                      </div>
-                    );
-                  }}
+                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+                <Radar
+                  dataKey="masteryValue"
+                  stroke="#16a34a"
+                  fill="#16a34a"
+                  fillOpacity={0.6}
+                  strokeWidth={2}
                 />
-                <Bar dataKey="displayValue" shape={<ColoredBar />} />
-              </BarChart>
+              </RadarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-full w-full animate-pulse rounded-xl bg-surface-muted" />
           )}
         </div>
 
-        <div className="flex flex-col justify-center gap-2 flex-shrink-0">
-          {LEGEND_BANDS.map((band) => (
-            <span key={band} className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-              <span
-                className="w-2 h-2 rounded-full inline-block flex-shrink-0"
-                style={{ backgroundColor: BAND_COLOR[band] }}
-              />
-              {BAND_LABEL[band]}
-            </span>
-          ))}
+        <div className="flex flex-col justify-center gap-6">
+          <div className="flex items-center gap-3">
+            <Flame className="w-5 h-5 text-orange-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Learning streak</p>
+              <p className="text-base font-semibold text-heading">
+                {streak} {streak === 1 ? "day" : "days"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-primary flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Time this week</p>
+              <p className="text-base font-semibold text-heading">
+                {formatTimeSpent(timeThisWeek)}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
