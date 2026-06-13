@@ -1,14 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { Clock3, Play, Check } from "lucide-react";
+import { Play, Check, Star, Minus, AlertTriangle } from "lucide-react";
 import type { PracticeMode } from "@/types/question";
 import {
-  getStandardsForModule,
+  STANDARD_DEFINITIONS,
   MODULE_TITLES,
+  getStandardById,
   type ModuleCode,
 } from "@/lib/standards";
+import { getMasteryBand } from "@/lib/progress/mastery";
+import { fetchAnswerHistory } from "@/lib/storage";
 
 const MODE_CHOICES: Array<{
   mode: PracticeMode;
@@ -32,65 +35,101 @@ const MODE_CHOICES: Array<{
   },
 ];
 
-const TIME_PRESETS = [15, 30, 60];
+const MODULE_ORDER: ModuleCode[] = ["A", "B"];
 
 interface CategorySelection {
   key: string;
-  label: string;
   module: ModuleCode;
   category: string;
 }
 
-const MODULE_ORDER: ModuleCode[] = ["A", "B"];
-const CATEGORY_SELECTIONS: CategorySelection[] = MODULE_ORDER.flatMap((module) => {
-  const categories = Array.from(
-    new Set(getStandardsForModule(module).map((standard) => standard.category))
-  );
-  return categories.map((category) => ({
-    key: `Module ${module} - ${category}`,
-    label: `Module ${module} - ${category}`,
-    module,
-    category,
-  }));
-});
+function buildCategorySelections(): CategorySelection[] {
+  const seen = new Set<string>();
+  const result: CategorySelection[] = [];
+  for (const mod of MODULE_ORDER) {
+    for (const std of STANDARD_DEFINITIONS.filter((s) => s.module === mod)) {
+      const key = `Module ${mod} - ${std.category}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({ key, module: mod, category: std.category });
+    }
+  }
+  return result;
+}
 
-function estimateQuestionCount(mode: PracticeMode, minutes: number): number {
-  const pace =
-    mode === "exam" ? 1.5 : mode === "review" ? 2.2 : 1.8;
-  return Math.max(5, Math.min(50, Math.round(minutes / pace)));
+const CATEGORY_SELECTIONS = buildCategorySelections();
+const ALL_KEYS = CATEGORY_SELECTIONS.map((c) => c.key);
+
+interface MasteryTag {
+  label: string;
+  bgColor: string;
+  textColor: string;
+  icon: React.ElementType;
+}
+
+function getMasteryTag(
+  stats: { correct: number; total: number } | undefined,
+): MasteryTag | null {
+  if (!stats || stats.total === 0) return null;
+  const band = getMasteryBand(stats.correct, stats.total);
+  if (band === "mastered") {
+    return { label: "Mastered", bgColor: "bg-green-100", textColor: "text-green-700", icon: Star };
+  }
+  if (band === "on_track") {
+    return { label: "Proficient", bgColor: "bg-blue-100", textColor: "text-blue-700", icon: Check };
+  }
+  if (band === "building_up") {
+    return { label: "Building up", bgColor: "bg-amber-100", textColor: "text-amber-700", icon: Minus };
+  }
+  return {
+    label: "Just getting started",
+    bgColor: "bg-red-50",
+    textColor: "text-red-600",
+    icon: AlertTriangle,
+  };
 }
 
 export function SelfPracticePlanner() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [selectedMode, setSelectedMode] = useState<PracticeMode>("practice");
-  const [selectedMinutes, setSelectedMinutes] = useState<number>(30);
-  const [customMinutes, setCustomMinutes] = useState<string>("");
-  const [isCustomTime, setIsCustomTime] = useState(false);
+  const [accuracyMap, setAccuracyMap] = useState<
+    Record<string, { correct: number; total: number }>
+  >({});
 
-  const allTopics = useMemo(
-    () => CATEGORY_SELECTIONS.map((selection) => selection.key),
-    []
-  );
-  const isAllSelected = allTopics.length > 0 && selectedTopics.length === allTopics.length;
-  const minutes = isCustomTime
-    ? Math.max(5, Number.parseInt(customMinutes || "0", 10) || 0)
-    : selectedMinutes;
-  const questionCount = estimateQuestionCount(selectedMode, minutes || 30);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAnswerHistory().then((history) => {
+      if (cancelled) return;
+      const map: Record<string, { correct: number; total: number }> = {};
+      for (const answer of history) {
+        if (!answer.standardId) continue;
+        const std = getStandardById(answer.standardId);
+        if (!std) continue;
+        const key = `Module ${std.module} - ${std.category}`;
+        if (!map[key]) map[key] = { correct: 0, total: 0 };
+        map[key].total++;
+        if (answer.isCorrect) map[key].correct++;
+      }
+      setAccuracyMap(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isAllSelected = ALL_KEYS.length > 0 && selectedTopics.length === ALL_KEYS.length;
 
   const startHref = useMemo(() => {
     if (selectedTopics.length === 0) return null;
     const params = new URLSearchParams();
     params.set("mode", selectedMode);
-    params.set("questions", String(questionCount));
-    // Pass raw topic strings. URLSearchParams handles %-encoding on toString;
-    // pre-encoding here would double-encode (e.g. space -> %20 -> %2520).
     params.set("topics", selectedTopics.join(","));
     return `/practice?${params.toString()}`;
-  }, [questionCount, selectedMode, selectedTopics]);
+  }, [selectedMode, selectedTopics]);
 
-  const toggleTopic = (topic: string) => {
+  const toggleTopic = (key: string) => {
     setSelectedTopics((prev) =>
-      prev.includes(topic) ? prev.filter((item) => item !== topic) : [...prev, topic],
+      prev.includes(key) ? prev.filter((t) => t !== key) : [...prev, key],
     );
   };
 
@@ -99,48 +138,68 @@ export function SelfPracticePlanner() {
       <section className="rounded-2xl border border-primary/30 bg-surface p-5 sm:p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-heading mb-2">Choose Topics</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Select one or more module/category areas for practice.
+          Select one or more categories for practice.
         </p>
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <button
             onClick={() =>
-              setSelectedTopics((prev) =>
-                prev.length === allTopics.length ? [] : allTopics
-              )
+              setSelectedTopics((prev) => (prev.length === ALL_KEYS.length ? [] : ALL_KEYS))
             }
             className="inline-flex items-center rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-heading transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
-            {isAllSelected ? "Deselect all areas" : "Select all areas"}
+            {isAllSelected ? "Deselect all" : "Select all"}
           </button>
           <span className="text-xs text-muted-foreground">
-            {selectedTopics.length}/{allTopics.length} selected
+            {selectedTopics.length}/{ALL_KEYS.length} selected
           </span>
         </div>
-        <div className="space-y-4 mt-3">
-          {MODULE_ORDER.map((module) => (
-            <div key={module}>
+
+        <div className="space-y-5">
+          {MODULE_ORDER.map((mod) => (
+            <div key={mod}>
               <h3 className="text-sm font-semibold text-slate-gray mb-2">
-                Module {module}: {MODULE_TITLES[module]}
+                Module {mod}: {MODULE_TITLES[mod]}
               </h3>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {CATEGORY_SELECTIONS.filter(
-                  (selection) => selection.module === module
-                ).map((selection) => {
-                  const active = selectedTopics.includes(selection.key);
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {CATEGORY_SELECTIONS.filter((c) => c.module === mod).map((sel) => {
+                  const active = selectedTopics.includes(sel.key);
+                  const tag = getMasteryTag(accuracyMap[sel.key]);
+                  const TagIcon = tag?.icon;
+
                   return (
                     <button
-                      key={selection.key}
-                      onClick={() => toggleTopic(selection.key)}
-                      className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                      key={sel.key}
+                      onClick={() => toggleTopic(sel.key)}
+                      className={`rounded-xl border px-3 py-3 text-left transition-colors ${
                         active
-                          ? "border-primary bg-primary/10 text-heading"
-                          : "border-border-default bg-surface text-slate-gray hover:border-primary/40"
+                          ? "border-primary bg-primary/10"
+                          : "border-border-default bg-surface hover:border-primary/40"
                       }`}
                     >
-                      <span className="inline-flex items-center gap-2">
-                        {active && <Check className="w-4 h-4 text-primary" />}
-                        {selection.category}
-                      </span>
+                      <div className="flex items-start gap-2">
+                        <div
+                          className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                            active
+                              ? "bg-primary border-primary"
+                              : "border-slate-gray/40 bg-surface"
+                          }`}
+                        >
+                          {active && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-gray leading-snug">
+                            {sel.category}
+                          </p>
+                          {tag && TagIcon && (
+                            <span
+                              className={`inline-flex items-center gap-1 mt-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${tag.bgColor} ${tag.textColor}`}
+                            >
+                              <TagIcon className="w-3 h-3" />
+                              {tag.label}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </button>
                   );
                 })}
@@ -167,55 +226,6 @@ export function SelfPracticePlanner() {
               <p className="text-xs text-muted-foreground mt-1">{choice.description}</p>
             </button>
           ))}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-primary/30 bg-surface p-5 sm:p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-heading mb-2">Set Session Time</h2>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {TIME_PRESETS.map((time) => (
-            <button
-              key={time}
-              onClick={() => {
-                setIsCustomTime(false);
-                setSelectedMinutes(time);
-              }}
-              className={`rounded-lg px-3 py-2 text-sm font-medium border ${
-                !isCustomTime && selectedMinutes === time
-                  ? "bg-primary text-white border-primary"
-                  : "bg-surface border-border-default text-slate-gray hover:border-primary/40"
-              }`}
-            >
-              {time} mins
-            </button>
-          ))}
-          <button
-            onClick={() => setIsCustomTime(true)}
-            className={`rounded-lg px-3 py-2 text-sm font-medium border ${
-              isCustomTime
-                ? "bg-primary text-white border-primary"
-                : "bg-surface border-border-default text-slate-gray hover:border-primary/40"
-            }`}
-          >
-            Custom
-          </button>
-        </div>
-        {isCustomTime && (
-          <input
-            type="number"
-            min={5}
-            step={5}
-            value={customMinutes}
-            onChange={(event) => setCustomMinutes(event.target.value)}
-            placeholder="Enter minutes"
-            className="w-44 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-        )}
-        <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
-          <p className="text-sm text-slate-gray flex items-center gap-2">
-            <Clock3 className="w-4 h-4 text-primary" />
-            Estimated questions: <span className="font-semibold">{questionCount}</span>
-          </p>
         </div>
       </section>
 
