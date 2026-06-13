@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { Play, Check, Star, Minus, AlertTriangle } from "lucide-react";
+import { Play, Check } from "lucide-react";
 import type { PracticeMode } from "@/types/question";
 import {
   STANDARD_DEFINITIONS,
@@ -63,7 +63,6 @@ interface MasteryTag {
   label: string;
   bgColor: string;
   textColor: string;
-  icon: React.ElementType;
 }
 
 function getMasteryTag(
@@ -73,25 +72,34 @@ function getMasteryTag(
   const percent = Math.round((stats.correct / stats.total) * 100);
   const { total } = stats;
   if (percent >= 85 && total >= 20) {
-    return { label: "Mastered", bgColor: "bg-green-100", textColor: "text-green-700", icon: Star };
+    return { label: "Mastered", bgColor: "bg-green-100", textColor: "text-green-700" };
   }
   if (percent >= 65 && total >= 15) {
-    return { label: "Proficient", bgColor: "bg-blue-100", textColor: "text-blue-700", icon: Check };
+    return { label: "Proficient", bgColor: "bg-blue-100", textColor: "text-blue-700" };
   }
   if (percent >= 45 && total >= 10) {
-    return { label: "Building up", bgColor: "bg-amber-100", textColor: "text-amber-700", icon: Minus };
+    return { label: "Building up", bgColor: "bg-amber-100", textColor: "text-amber-700" };
   }
   return {
     label: "Just getting started",
     bgColor: "bg-red-50",
     textColor: "text-red-600",
-    icon: AlertTriangle,
   };
 }
+
+const EXAM_QUESTION_COUNT_OPTIONS = [12, 24, 48] as const;
+const DEFAULT_EXAM_QUESTION_COUNT = 12;
+const MIN_CUSTOM_EXAM_QUESTIONS = 1;
+const MAX_CUSTOM_EXAM_QUESTIONS = 200;
 
 export function SelfPracticePlanner() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [selectedMode, setSelectedMode] = useState<PracticeMode>("practice");
+  const [examQuestionCount, setExamQuestionCount] = useState<number>(
+    DEFAULT_EXAM_QUESTION_COUNT,
+  );
+  const [isCustomExamCount, setIsCustomExamCount] = useState(false);
+  const [customExamCount, setCustomExamCount] = useState<string>("");
   const [accuracyMap, setAccuracyMap] = useState<
     Record<string, { correct: number; total: number }>
   >({});
@@ -126,8 +134,11 @@ export function SelfPracticePlanner() {
     const params = new URLSearchParams();
     params.set("mode", selectedMode);
     params.set("topics", selectedTopics.join(","));
+    if (selectedMode === "exam") {
+      params.set("questions", String(examQuestionCount));
+    }
     return `/practice?${params.toString()}`;
-  }, [selectedMode, selectedTopics]);
+  }, [selectedMode, selectedTopics, examQuestionCount]);
 
   const toggleTopic = (key: string) => {
     setSelectedTopics((prev) =>
@@ -166,7 +177,6 @@ export function SelfPracticePlanner() {
                 {CATEGORY_SELECTIONS.filter((c) => c.module === mod).map((sel) => {
                   const active = selectedTopics.includes(sel.key);
                   const tag = getMasteryTag(accuracyMap[sel.key]);
-                  const TagIcon = tag?.icon;
 
                   return (
                     <button
@@ -192,11 +202,10 @@ export function SelfPracticePlanner() {
                           <p className="text-sm font-medium text-slate-gray leading-snug">
                             {sel.category}
                           </p>
-                          {tag && TagIcon && (
+                          {tag && (
                             <span
                               className={`inline-flex items-center gap-1 mt-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${tag.bgColor} ${tag.textColor}`}
                             >
-                              <TagIcon className="w-3 h-3" />
                               {tag.label}
                             </span>
                           )}
@@ -229,6 +238,76 @@ export function SelfPracticePlanner() {
             </button>
           ))}
         </div>
+
+        {selectedMode === "exam" && (
+          <div className="mt-4 pt-4 border-t border-border-subtle">
+            <p className="text-sm font-medium text-slate-gray mb-2">
+              Number of questions
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {EXAM_QUESTION_COUNT_OPTIONS.map((count) => (
+                <button
+                  key={count}
+                  onClick={() => {
+                    setIsCustomExamCount(false);
+                    setExamQuestionCount(count);
+                  }}
+                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                    !isCustomExamCount && examQuestionCount === count
+                      ? "border-primary bg-primary/10 text-heading"
+                      : "border-border-default text-slate-gray hover:border-primary/40"
+                  }`}
+                >
+                  {count} questions
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  setIsCustomExamCount(true);
+                  if (customExamCount) {
+                    const parsed = parseInt(customExamCount, 10);
+                    if (!Number.isNaN(parsed)) {
+                      const clamped = Math.min(
+                        Math.max(parsed, MIN_CUSTOM_EXAM_QUESTIONS),
+                        MAX_CUSTOM_EXAM_QUESTIONS,
+                      );
+                      setExamQuestionCount(clamped);
+                    }
+                  }
+                }}
+                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                  isCustomExamCount
+                    ? "border-primary bg-primary/10 text-heading"
+                    : "border-border-default text-slate-gray hover:border-primary/40"
+                }`}
+              >
+                Custom
+              </button>
+              {isCustomExamCount && (
+                <input
+                  type="number"
+                  min={MIN_CUSTOM_EXAM_QUESTIONS}
+                  max={MAX_CUSTOM_EXAM_QUESTIONS}
+                  value={customExamCount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCustomExamCount(value);
+                    const parsed = parseInt(value, 10);
+                    if (!Number.isNaN(parsed) && parsed > 0) {
+                      const clamped = Math.min(
+                        Math.max(parsed, MIN_CUSTOM_EXAM_QUESTIONS),
+                        MAX_CUSTOM_EXAM_QUESTIONS,
+                      );
+                      setExamQuestionCount(clamped);
+                    }
+                  }}
+                  placeholder="Enter a number"
+                  className="w-36 rounded-lg border border-border-default px-3 py-2 text-sm text-slate-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                />
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       <div className="flex items-center justify-end">
