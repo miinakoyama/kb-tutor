@@ -9,8 +9,9 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   ResponsiveContainer,
+  Tooltip,
 } from "recharts";
-import { Flame, Clock } from "lucide-react";
+import { Flame, Clock, BarChart3 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   calculateMastery,
@@ -67,11 +68,34 @@ function formatTimeSpent(totalSeconds: number): string {
   return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
 }
 
-/**
- * Custom PolarAngleAxis tick that appends a small trend marker (▲/▼/●)
- * after each strand label, colored to show whether mastery improved,
- * declined, or stayed flat since the student's last session.
- */
+function RadarTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; payload: MasteryDatum }>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const d = payload[0];
+  const hasData = d.payload.attempts > 0;
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-surface px-3 py-2 shadow-md text-xs">
+      <p className="font-semibold text-heading mb-1">{d.payload.topic}</p>
+      {hasData ? (
+        <>
+          <p className="text-muted-foreground">Mastery: {d.value}%</p>
+          <p className="text-muted-foreground">
+            {d.payload.correct} / {d.payload.attempts} correct
+          </p>
+        </>
+      ) : (
+        <p className="text-muted-foreground">No attempts yet</p>
+      )}
+    </div>
+  );
+}
+
 function TrendAxisTick(
   props: {
     x?: number | string;
@@ -89,7 +113,7 @@ function TrendAxisTick(
   const trend = fullTopic ? trends.get(fullTopic) : undefined;
 
   return (
-    <text x={x} y={y} textAnchor={textAnchor} fontSize={9} dy={3}>
+    <text x={x} y={y} textAnchor={textAnchor} fontSize={13} dy={3}>
       <tspan fill="#6b7280">{label}</tspan>
       {trend && (
         <tspan fill={TREND_COLOR[trend]} fontWeight="bold">
@@ -173,12 +197,13 @@ export function ProgressMiniWidget() {
 
   return (
     <div className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm flex flex-col h-full">
-      <span className="font-semibold text-primary dark:text-forest mb-4">
-        My Progress
-      </span>
+      <div className="inline-flex items-center gap-2 text-primary dark:text-forest mb-4">
+        <BarChart3 className="w-5 h-5" />
+        <span className="font-semibold">My Progress</span>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 flex-1">
-        <div className="h-[160px] min-w-0">
+        <div className="h-[260px] min-w-0 relative">
           {isChartMounted ? (
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={chartData}>
@@ -200,30 +225,38 @@ export function ProgressMiniWidget() {
                   fill="#16a34a"
                   fillOpacity={0.6}
                   strokeWidth={2}
+                  dot={{ r: 3, fill: "#16a34a", strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: "#16a34a" }}
                 />
+                <Tooltip content={<RadarTooltip />} />
               </RadarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-full w-full animate-pulse rounded-xl bg-surface-muted" />
           )}
+          <div className="absolute bottom-2 right-1 flex flex-col gap-0.5 text-[10px] leading-tight">
+            <span style={{ color: TREND_COLOR.up }}>▲ Improved</span>
+            <span style={{ color: TREND_COLOR.down }}>▼ Declined</span>
+            <span style={{ color: TREND_COLOR.flat }}>● No change</span>
+          </div>
         </div>
 
-        <div className="flex flex-col justify-center gap-6">
-          <div className="flex items-center gap-3">
-            <Flame className="w-5 h-5 text-orange-500 flex-shrink-0" />
+        <div className="flex flex-col justify-center gap-8 pl-36">
+          <div className="flex items-center gap-4">
+            <Flame className="w-8 h-8 text-orange-500 flex-shrink-0" />
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Learning streak</p>
-              <p className="text-base font-semibold text-heading">
+              <p className="text-sm text-muted-foreground">Learning streak</p>
+              <p className="text-2xl font-bold text-heading">
                 {streak} {streak === 1 ? "day" : "days"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Clock className="w-5 h-5 text-primary flex-shrink-0" />
+          <div className="flex items-center gap-4">
+            <Clock className="w-8 h-8 text-primary flex-shrink-0" />
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Time this week</p>
-              <p className="text-base font-semibold text-heading">
+              <p className="text-sm text-muted-foreground">Time this week</p>
+              <p className="text-2xl font-bold text-heading">
                 {formatTimeSpent(timeThisWeek)}
               </p>
             </div>
