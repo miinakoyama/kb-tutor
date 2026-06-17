@@ -18,7 +18,7 @@ test("student can start self practice session from planner @smoke", async ({
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start Practice" })).toBeDisabled();
 
-  await page.getByRole("button", { name: "Select all areas" }).click();
+  await page.getByRole("button", { name: "Select all" }).click();
   await page.getByRole("link", { name: "Start Practice" }).click();
 
   await expect(page).toHaveURL(/\/practice\?mode=practice/);

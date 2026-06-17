@@ -24,3 +24,9 @@ export function resolveRole(
 ): AppRole | null {
   return resolveProfileRole(profileRole) ?? resolveMetadataRole(user);
 }
+
+export function getRoleLandingPath(role: AppRole | null): string {
+  if (role === "admin") return "/content/accounts";
+  if (role === "teacher") return "/teacher-dashboard";
+  return "/";
+}

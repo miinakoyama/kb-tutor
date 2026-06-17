@@ -36,6 +36,10 @@ vi.mock("@/components/shared/Timer", () => ({
   ),
 }));
 
+vi.mock("@/components/shared/NextSessionCTA", () => ({
+  NextSessionCTA: () => <div data-testid="next-session-cta" />,
+}));
+
 function getTrackedEventTypes(): string[] {
   return trackAnalyticsEventMock.mock.calls
     .map((call) => call[0])
@@ -63,6 +67,15 @@ const baseQuestion: Question = {
   correctOptionId: "B",
   source: "manual",
 };
+
+function makeQuestion(id: string, text: string, correctOptionId = "B"): Question {
+  return {
+    ...baseQuestion,
+    id,
+    text,
+    correctOptionId,
+  };
+}
 
 describe("ExamMode onboarding timing + analytics gating", () => {
   beforeEach(() => {
@@ -136,5 +149,54 @@ describe("ExamMode onboarding timing + analytics gating", () => {
       setItemSpy.mockRestore();
     }
   });
-});
 
+  it("counts unanswered submitted exam questions as incorrect and keeps them reviewable", async () => {
+    localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ all_assignments_completed: false }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <ExamMode
+        questions={[
+          makeQuestion("q-1", "Question one prompt"),
+          makeQuestion("q-2", "Question two prompt"),
+        ]}
+        requestedQuestionCount={2}
+        assignmentId="assignment-1"
+        answered={{}}
+      />,
+    );
+
+    await screen.findByText("Question one prompt");
+    fireEvent.click(screen.getByRole("button", { name: /B\s*Option B/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await screen.findByText("Submit Exam?");
+    expect(screen.getByText("You have 1 unanswered question.")).toBeTruthy();
+    const submitButtons = screen.getAllByRole("button", { name: "Submit" });
+    fireEvent.click(submitButtons[submitButtons.length - 1]);
+
+    await screen.findByText("Exam Complete!");
+    expect(screen.getByText("50%")).toBeTruthy();
+    expect(screen.getByText("Correct").previousElementSibling?.textContent).toBe("1");
+    expect(screen.getByText("Incorrect").previousElementSibling?.textContent).toBe("1");
+    expect(screen.getAllByText("Unanswered")[0].previousElementSibling?.textContent).toBe("1");
+    expect(screen.getAllByText("Unanswered")).toHaveLength(1);
+    expect(screen.getByText("Question one prompt")).toBeTruthy();
+    expect(screen.getByText("Question two prompt")).toBeTruthy();
+
+    const unansweredReviewButton = screen.getByText("Question two prompt").closest("button");
+    expect(unansweredReviewButton).not.toBeNull();
+    fireEvent.click(unansweredReviewButton!);
+
+    await screen.findByText("No answer submitted");
+    expect(
+      screen.getByText(
+        "This question was left unanswered. It is counted as incorrect, and the correct option is highlighted above for review.",
+      ),
+    ).toBeTruthy();
+  });
+});

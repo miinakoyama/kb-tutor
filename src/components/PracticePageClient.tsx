@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Home, Loader2 } from "lucide-react";
-import { ModeSelector } from "@/components/ModeSelector";
 import { AdaptivePracticeMode } from "@/components/modes/AdaptivePracticeMode";
 import { ExamMode } from "@/components/modes/ExamMode";
 import { ReviewMode } from "@/components/modes/ReviewMode";
@@ -12,7 +11,6 @@ import type {
   PracticeMode as PracticeModeType,
   Question,
 } from "@/types/question";
-import { MODULES } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
 import { emitAllAssignmentsCompletedEvent } from "@/lib/all-assignments-complete-modal";
 
@@ -41,8 +39,6 @@ const MODULE_CATEGORY_TOPIC_PATTERN =
   /^\s*(?:\[?\s*Module\s+([AB])\s*\]?\s*[-:]\s*)?(.+?)\s*$/i;
 
 interface PracticePageClientProps {
-  moduleParam?: string;
-  topicParam?: string;
   topicsParam?: string;
   modeParam?: string;
   questionsParam?: string;
@@ -55,66 +51,18 @@ function InvalidParamsMessage({ message }: { message: string }) {
       <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
         <p className="text-slate-gray mb-4">{message}</p>
         <Link
-          href="/"
+          href="/self-practice"
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover focus-visible:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <Home className="w-4 h-4" />
-          Back to Home
+          Back to Self Practice
         </Link>
       </div>
     </div>
   );
 }
 
-function validateModuleParam(moduleParam: string | undefined): {
-  isValid: boolean;
-  moduleNum?: number;
-  error?: string;
-} {
-  if (!moduleParam) return { isValid: true };
-  const moduleNum = parseInt(moduleParam, 10);
-  if (isNaN(moduleNum)) {
-    return {
-      isValid: false,
-      error: `Invalid module parameter: "${moduleParam}". Please select a valid module from the home page.`,
-    };
-  }
-  const validModuleIds = MODULES.map((m) => m.id) as readonly number[];
-  if (!validModuleIds.includes(moduleNum)) {
-    return {
-      isValid: false,
-      error: `Module ${moduleNum} does not exist. Available modules: ${validModuleIds.join(", ")}.`,
-    };
-  }
-  return { isValid: true, moduleNum };
-}
-
-function validateTopicParam(
-  topicParam: string | undefined,
-  moduleNum: number | undefined
-): {
-  isValid: boolean;
-  decodedTopic?: string;
-  error?: string;
-} {
-  if (!topicParam) return { isValid: true };
-  const decodedTopic = safeDecode(topicParam);
-  if (moduleNum !== undefined) {
-    const targetModule = MODULES.find((m) => m.id === moduleNum);
-    const topics = targetModule?.topics as readonly string[] | undefined;
-    if (topics && !topics.includes(decodedTopic)) {
-      return {
-        isValid: false,
-        error: `Topic "${decodedTopic}" is not available in Module ${moduleNum}. Please select a valid topic from the home page.`,
-      };
-    }
-  }
-  return { isValid: true, decodedTopic };
-}
-
 export function PracticePageClient({
-  moduleParam,
-  topicParam,
   topicsParam,
   modeParam,
   questionsParam,
@@ -186,38 +134,12 @@ export function PracticePageClient({
     );
   }
 
-  const moduleValidation = validateModuleParam(moduleParam);
-  if (!moduleValidation.isValid) {
-    return <InvalidParamsMessage message={moduleValidation.error!} />;
-  }
-
-  const topicValidation = validateTopicParam(
-    topicParam,
-    moduleValidation.moduleNum
-  );
-  if (!topicValidation.isValid) {
-    return <InvalidParamsMessage message={topicValidation.error!} />;
-  }
-
   let filteredQuestions = snapshotQuestions ?? visibleQuestions;
   let topicName: string | undefined;
   let selectedTopics: string[] = [];
   let requestedQuestionCount: number | undefined;
   const hasAssignmentSnapshot =
     Boolean(assignmentIdParam) && Array.isArray(snapshotQuestions);
-
-  if (!hasAssignmentSnapshot && moduleValidation.moduleNum !== undefined) {
-    filteredQuestions = filteredQuestions.filter(
-      (q) => q.module === moduleValidation.moduleNum
-    );
-  }
-
-  if (!hasAssignmentSnapshot && topicValidation.decodedTopic) {
-    filteredQuestions = filteredQuestions.filter(
-      (q) => q.topic === topicValidation.decodedTopic
-    );
-    topicName = topicValidation.decodedTopic;
-  }
 
   if (!hasAssignmentSnapshot && topicsParam) {
     const decodedTopics = topicsParam
@@ -228,6 +150,11 @@ export function PracticePageClient({
     if (selectedTopics.length > 0) {
       filteredQuestions = filteredQuestions.filter((question) =>
         selectedTopics.some((selection) => {
+          // Standard ID selection (e.g. "3.1.9-12.A") — match directly
+          if (getStandardById(selection)) {
+            return question.standardId === selection;
+          }
+
           const match = selection.match(MODULE_CATEGORY_TOPIC_PATTERN);
           if (!match) {
             return question.topic === selection;
@@ -257,8 +184,8 @@ export function PracticePageClient({
       );
       topicName =
         selectedTopics.length === 1
-          ? selectedTopics[0]
-          : `${selectedTopics.length} selected areas`;
+          ? (getStandardById(selectedTopics[0])?.id ?? selectedTopics[0])
+          : `${selectedTopics.length} standards selected`;
     }
   }
 
@@ -267,15 +194,6 @@ export function PracticePageClient({
     if (!Number.isNaN(parsed) && parsed > 0) {
       requestedQuestionCount = parsed;
     }
-  }
-
-  if (!modeParam && moduleValidation.moduleNum && topicName) {
-    return (
-      <ModeSelector
-        moduleId={moduleValidation.moduleNum}
-        topicName={topicName}
-      />
-    );
   }
 
   if (
@@ -332,7 +250,7 @@ export function PracticePageClient({
       return (
         <ExamMode
           questions={filteredQuestions}
-          topicName={topicName ? `Topic Quiz: ${topicName}` : undefined}
+          topicName={topicName}
           requestedQuestionCount={requestedQuestionCount ?? 10}
           assignmentId={assignmentIdParam}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
@@ -352,9 +270,8 @@ export function PracticePageClient({
       );
     default:
       return (
-        <ModeSelector
-          moduleId={moduleValidation.moduleNum ?? 1}
-          topicName={topicName ?? "All Topics"}
+        <InvalidParamsMessage
+          message="Choose standards and a mode from Self Practice before starting."
         />
       );
   }

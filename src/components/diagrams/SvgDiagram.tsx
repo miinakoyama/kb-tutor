@@ -1,5 +1,5 @@
 import type { SvgDiagramData } from "@/types/question";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 
 interface SvgDiagramProps {
   data: SvgDiagramData;
@@ -61,7 +61,7 @@ const SAFE_ATTR_NAMES = new Set([
   "class",
 ]);
 
-function sanitizeSvg(svg: string): string | null {
+function sanitizeSvg(svg: string, options: { trimViewBox?: boolean } = {}): string | null {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(svg, "image/svg+xml");
@@ -101,7 +101,9 @@ function sanitizeSvg(svg: string): string | null {
     root.removeAttribute("style");
     root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
-    trimViewBoxToContent(root);
+    if (options.trimViewBox) {
+      trimViewBoxToContent(root);
+    }
 
     return new XMLSerializer().serializeToString(root);
   } catch {
@@ -179,11 +181,52 @@ function toSvgDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+function waitForAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => resolve());
+      return;
+    }
+
+    window.setTimeout(resolve, 0);
+  });
+}
+
 export function SvgDiagram({ data }: SvgDiagramProps) {
-  const safeSvgDataUrl = useMemo(() => {
-    const sanitized = sanitizeSvg(data.svg);
-    if (!sanitized) return null;
-    return toSvgDataUrl(sanitized);
+  const [safeSvgDataUrl, setSafeSvgDataUrl] = useState<string | null>(null);
+  const [isRenderReady, setIsRenderReady] = useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    setSafeSvgDataUrl(null);
+    setIsRenderReady(false);
+
+    const prepareSvg = async () => {
+      if (typeof document === "undefined") return;
+
+      try {
+        await document.fonts?.ready;
+      } catch {
+        // Continue with browser fallback fonts if font readiness is unavailable.
+      }
+
+      await waitForAnimationFrame();
+      await waitForAnimationFrame();
+
+      if (isCancelled) return;
+
+      const sanitized = sanitizeSvg(data.svg, { trimViewBox: true });
+      if (isCancelled) return;
+
+      setSafeSvgDataUrl(sanitized ? toSvgDataUrl(sanitized) : null);
+      setIsRenderReady(true);
+    };
+
+    void prepareSvg();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [data.svg]);
 
   return (
@@ -194,20 +237,24 @@ export function SvgDiagram({ data }: SvgDiagramProps) {
         </h3>
       )}
       <div className="flex justify-center items-center rounded-md bg-[var(--diagram-canvas)] p-3">
-        {safeSvgDataUrl ? (
-          // Using <img> instead of next/image because:
-          // - safeSvgDataUrl is a data URL generated at runtime, not a static asset
-          // - next/image doesn't support data URLs and requires static images for optimization
-          // - Data URLs don't benefit from image optimization as they're inline content
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={safeSvgDataUrl}
-            alt={data.title || "Biology diagram"}
-            className="diagram-raster w-full max-w-[520px] min-w-[140px] sm:min-w-[260px] h-auto block"
-          />
-        ) : (
-          <div className="text-sm text-error">Unable to render diagram safely.</div>
-        )}
+        <div className="flex h-[220px] w-full max-w-[520px] min-w-[140px] items-center justify-center sm:min-w-[260px]">
+          {!isRenderReady ? (
+            <div className="h-full w-full" aria-hidden="true" />
+          ) : safeSvgDataUrl ? (
+            // Using <img> instead of next/image because:
+            // - safeSvgDataUrl is a data URL generated at runtime, not a static asset
+            // - next/image doesn't support data URLs and requires static images for optimization
+            // - Data URLs don't benefit from image optimization as they're inline content
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={safeSvgDataUrl}
+              alt={data.title || "Biology diagram"}
+              className="diagram-raster block h-full w-full object-contain"
+            />
+          ) : (
+            <div className="text-sm text-error">Unable to render diagram safely.</div>
+          )}
+        </div>
       </div>
     </div>
   );
