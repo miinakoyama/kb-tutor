@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   BookOpen,
-  CheckCircle2,
+  ChevronRight,
   Download,
   Info,
   Search,
   Timer,
-  TrendingUp,
-  Users,
   X,
 } from "lucide-react";
 import { StudentAvatar } from "@/components/StudentAvatar";
@@ -28,12 +29,14 @@ import type {
 } from "@/lib/analytics/teacher-dashboard-server";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
+  LOW_AND_FAST_MAX_ACCURACY,
+  LOW_AND_FAST_MAX_AVG_TIME_SEC,
+  LOW_AND_FAST_MIN_ATTEMPTS,
   type PerformanceThresholds,
 } from "@/lib/analytics/constants";
 import {
   BAND_LABELS,
   BAND_TONES,
-  describeStandardBands,
   describeStudentBands,
   findStandardBand,
   findStudentBand,
@@ -179,6 +182,7 @@ export default function TeacherDashboardPage() {
 }
 
 function TeacherDashboardContent() {
+  const router = useRouter();
   const [topic, setTopic] = useState<string>("");
   const [classId, setClassId] = useState<string>("");
   const [studentId, setStudentId] = useState<string>("");
@@ -254,6 +258,13 @@ function TeacherDashboardContent() {
     return data.byStudent.filter((row) => row.status === studentFilter);
   }, [studentFilter, data.byStudent]);
 
+  const standardDetailQuery = useMemo(() => {
+    const params = new URLSearchParams({ range, mode, source });
+    if (classId) params.set("classId", classId);
+    if (studentId) params.set("studentId", studentId);
+    return params.toString();
+  }, [range, mode, source, classId, studentId]);
+
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <section className="mb-6">
@@ -283,28 +294,29 @@ function TeacherDashboardContent() {
         onSourceChange={setSource}
       />
 
-      <ModeTabs value={mode} onChange={setMode} />
+      <ModeTabs
+        value={mode}
+        onChange={setMode}
+        thresholds={data.thresholds}
+        defaults={data.defaults}
+        thresholdsAreCustom={data.thresholdsAreCustom}
+        onThresholdsChange={() => setRefreshKey((prev) => prev + 1)}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <KpiCard
           label="Active Students"
           value={`${data.summary.completionRate}%`}
           helper={activeStudentsHelper(data.summary, mode)}
-          icon={CheckCircle2}
           accentClass="text-[#16a34a]"
-          bgClass="bg-[#16a34a]/10"
           info={
             <>
-              <p className="font-semibold text-slate-gray">
-                How is active students computed?
-              </p>
-              <p className="mt-1">
-                <span className="font-mono">
-                  students_with_attempts ÷ students_in_class × 100
-                </span>
-                . A student counts as &quot;active&quot; if they have at least
-                one attempt in the selected date range and mode.
-              </p>
+              Calculated as{" "}
+              <span className="font-mono">
+                students_with_attempts ÷ students_in_class × 100
+              </span>
+              . A student counts as &quot;active&quot; if they have at least
+              one attempt in the selected date range and mode.
             </>
           }
         />
@@ -322,21 +334,15 @@ function TeacherDashboardContent() {
                 ? `${data.summary.totalCorrect.toLocaleString()} correct of ${data.summary.totalAnswered.toLocaleString()} answered`
                 : "no attempts yet"
             }
-            icon={TrendingUp}
             accentClass="text-[#1d4ed8]"
-            bgClass="bg-[#2563eb]/10"
             info={
               <>
-                <p className="font-semibold text-slate-gray">
-                  How is accuracy computed?
-                </p>
-                <p className="mt-1">
-                  <span className="font-mono">
-                    accuracy = correct ÷ answered × 100
-                  </span>{" "}
-                  across all attempts in the active filters. Rounded to the
-                  nearest whole percent.
-                </p>
+                Calculated as{" "}
+                <span className="font-mono">
+                  correct ÷ answered × 100
+                </span>{" "}
+                across all attempts in the active filters, rounded to the
+                nearest whole percent.
               </>
             }
           />
@@ -345,19 +351,12 @@ function TeacherDashboardContent() {
           label="Avg Time / Question"
           value={formatDuration(data.summary.avgTimeSec)}
           helper={avgTimeHelper(data.summary.avgTimeSec)}
-          icon={Timer}
           accentClass="text-[#b45309]"
-          bgClass="bg-[#f59e0b]/10"
           info={
             <>
-              <p className="font-semibold text-slate-gray">
-                How is avg time computed?
-              </p>
-              <p className="mt-1">
-                Mean dwell time per question over the active filters. Attempts
-                older than the time-tracking rollout (no recorded dwell) are
-                excluded.
-              </p>
+              Mean dwell time per question over the active filters. Attempts
+              older than the time-tracking rollout (no recorded dwell) are
+              excluded.
             </>
           }
         />
@@ -373,9 +372,6 @@ function TeacherDashboardContent() {
             <h2 className="text-lg font-semibold text-slate-gray">
               Performance by standard
             </h2>
-            <p className="text-xs text-slate-gray/60">
-              Filter by status to focus on what needs re-teaching.
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusFilterSelect
@@ -400,14 +396,6 @@ function TeacherDashboardContent() {
                 })),
               ]}
             />
-            <PerformanceThresholdsCard
-              thresholds={data.thresholds}
-              defaults={data.defaults}
-              isCustom={data.thresholdsAreCustom}
-              onChange={() => {
-                setRefreshKey((prev) => prev + 1);
-              }}
-            />
             <button
               onClick={() => downloadStandardMetricsCsv(filteredStandards)}
               className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
@@ -425,8 +413,12 @@ function TeacherDashboardContent() {
             <thead>
               <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
                 <th className="w-[34%] px-5 py-3">Standard</th>
-                <th className="w-24 px-3 py-3 text-right">Attempted</th>
-                <th className="w-20 px-3 py-3 text-right">Correct</th>
+                {mode !== "compare" && (
+                  <>
+                    <th className="w-24 px-3 py-3 text-center">Attempted</th>
+                    <th className="w-20 px-3 py-3 text-center">Correct</th>
+                  </>
+                )}
                 {mode === "compare" ? (
                   <>
                     <th className="w-32 px-2 py-3 text-center">Practice</th>
@@ -434,50 +426,18 @@ function TeacherDashboardContent() {
                     <th className="w-32 px-2 py-3 text-center">Review</th>
                   </>
                 ) : (
-                  <th className="px-3 py-3">
-                    <span className="inline-flex items-center gap-1.5">
-                      Accuracy
-                      <InfoPopover
-                        label="How is accuracy computed?"
-                        align="start"
-                      >
-                        <p className="font-semibold text-slate-gray">
-                          Per-standard accuracy
-                        </p>
-                        <p className="mt-1">
-                          <span className="font-mono">
-                            correct ÷ attempted × 100
-                          </span>{" "}
-                          across every attempt on this standard for the visible
-                          roster. Bar color matches the status band on the
-                          right.
-                        </p>
-                      </InfoPopover>
-                    </span>
-                  </th>
+                  <th className="w-32 px-3 py-3 text-center">Accuracy</th>
                 )}
-                <th className="w-24 px-3 py-3">Avg time</th>
-                <th className="w-36 px-5 py-3">
-                  <span className="inline-flex items-center gap-1.5">
-                    Status
-                    <InfoPopover
-                      label="How are standard bands computed?"
-                      align="end"
-                      width="wide"
-                    >
-                      <BandLegend
-                        bands={describeStandardBands(data.thresholds)}
-                      />
-                    </InfoPopover>
-                  </span>
-                </th>
+                <th className="w-24 px-3 py-3 text-center">Avg time</th>
+                <th className="w-36 px-5 py-3">Status</th>
+                <th className="w-8 px-3 py-3" aria-hidden="true" />
               </tr>
             </thead>
             <tbody>
               {filteredStandards.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={mode === "compare" ? 8 : 6}
+                    colSpan={7}
                     className="px-5 py-8 text-center text-sm text-slate-gray/60"
                   >
                     {isLoading
@@ -489,22 +449,35 @@ function TeacherDashboardContent() {
                 filteredStandards.map((row) => (
                   <tr
                     key={row.standardId}
-                    className="border-t border-slate-100 hover:bg-slate-50/40"
+                    onClick={() =>
+                      router.push(
+                        `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`,
+                      )
+                    }
+                    className="cursor-pointer border-t border-slate-100 hover:bg-[#16a34a]/5"
                   >
                     <td className="px-5 py-3">
-                      <p className="font-medium text-slate-gray">
+                      <Link
+                        href={`/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="font-medium text-slate-gray hover:text-[#166534] hover:underline"
+                      >
                         {row.standardId}
-                      </p>
+                      </Link>
                       <p className="text-xs text-slate-gray/60 line-clamp-2 max-w-md">
                         {row.standardLabel}
                       </p>
                     </td>
-                    <td className="px-3 py-3 text-right text-slate-gray">
-                      {row.attempted}
-                    </td>
-                    <td className="px-3 py-3 text-right text-slate-gray">
-                      {row.correct}
-                    </td>
+                    {mode !== "compare" && (
+                      <>
+                        <td className="px-3 py-3 text-center text-slate-gray">
+                          {row.attempted}
+                        </td>
+                        <td className="px-3 py-3 text-center text-slate-gray">
+                          {row.correct}
+                        </td>
+                      </>
+                    )}
                     {mode === "compare" ? (
                       <>
                         <td className="px-3 py-3">
@@ -527,12 +500,21 @@ function TeacherDashboardContent() {
                         </td>
                       </>
                     ) : (
-                      <td className="px-3 py-3">
-                        <AccuracyBar value={row.accuracy} status={row.status} />
+                      <td className="px-3 py-3 text-center">
+                        <AccuracyValue
+                          value={row.accuracy}
+                          hasAttempts={row.attempted > 0}
+                          thresholds={data.thresholds}
+                        />
+                        <p className="mt-0.5 whitespace-nowrap text-[10px] text-slate-gray/50">
+                          {row.studentsAttempted === 0
+                            ? "no students"
+                            : `out of ${row.studentsAttempted} ${row.studentsAttempted === 1 ? "student" : "students"}`}
+                        </p>
                       </td>
                     )}
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-slate-gray/70">
+                    <td className="px-3 py-3 text-center">
+                      <span className="inline-flex items-center justify-center gap-1.5 text-slate-gray/70">
                         <Timer className="w-3.5 h-3.5 text-slate-gray/50" />
                         {row.averageTimeSec}s
                       </span>
@@ -540,10 +522,11 @@ function TeacherDashboardContent() {
                     <td className="px-5 py-3">
                       <StandardStatusBadge
                         status={row.status}
-                        accuracy={row.accuracy}
-                        attempted={row.attempted}
                         thresholds={data.thresholds}
                       />
+                    </td>
+                    <td className="px-3 py-3 text-right text-slate-gray/40">
+                      <ChevronRight className="ml-auto h-4 w-4" />
                     </td>
                   </tr>
                 ))
@@ -575,7 +558,7 @@ function TeacherDashboardContent() {
                 },
                 {
                   value: "low_and_fast",
-                  label: "Clicking w/o engaging",
+                  label: "Click-through",
                   count: data.lowAndFastCount,
                 },
                 {
@@ -610,55 +593,38 @@ function TeacherDashboardContent() {
           </div>
         </div>
 
+        {data.lowAndFastCount > 0 && (
+          <div className="flex items-center gap-2 border-b border-rose-100 bg-rose-50 px-5 py-2.5 text-sm text-rose-700">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <span className="font-medium">
+              {data.lowAndFastCount} {data.lowAndFastCount === 1 ? "student" : "students"} showing
+              click-through behavior
+            </span>
+            <InfoPopover label="What is click-through behavior?">
+              Click-through behavior: avg time &lt; {LOW_AND_FAST_MAX_AVG_TIME_SEC}s per question AND accuracy
+              &lt; {LOW_AND_FAST_MAX_ACCURACY}% (after at least {LOW_AND_FAST_MIN_ATTEMPTS} attempts).
+            </InfoPopover>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
                 <th className="px-5 py-3">Student</th>
-                <th className="px-3 py-3 text-right">Attempted</th>
-                <th className="px-3 py-3 text-right">Correct</th>
-                <th className="px-3 py-3">
-                  <span className="inline-flex items-center gap-1.5">
-                    Accuracy
-                    <InfoPopover
-                      label="How is per-student accuracy computed?"
-                      align="start"
-                    >
-                      <p className="font-semibold text-slate-gray">
-                        Per-student accuracy
-                      </p>
-                      <p className="mt-1">
-                        <span className="font-mono">
-                          correct ÷ attempted × 100
-                        </span>{" "}
-                        across this student&apos;s attempts in the active
-                        filters, rounded to the nearest whole percent.
-                      </p>
-                    </InfoPopover>
-                  </span>
-                </th>
-                <th className="px-3 py-3">Avg time</th>
-                <th className="px-5 py-3">
-                  <span className="inline-flex items-center gap-1.5">
-                    Status
-                    <InfoPopover
-                      label="How are student bands computed?"
-                      align="end"
-                      width="wide"
-                    >
-                      <BandLegend
-                        bands={describeStudentBands(data.thresholds)}
-                      />
-                    </InfoPopover>
-                  </span>
-                </th>
+                <th className="px-3 py-3 text-center">Attempted</th>
+                <th className="px-3 py-3 text-center">Correct</th>
+                <th className="px-3 py-3">Accuracy</th>
+                <th className="px-3 py-3 text-center">Avg time</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="w-8 px-3 py-3" aria-hidden="true" />
               </tr>
             </thead>
             <tbody>
               {filteredStudentRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-5 py-8 text-center text-sm text-slate-gray/60"
                   >
                     {isLoading
@@ -670,15 +636,24 @@ function TeacherDashboardContent() {
                 filteredStudentRows.map((row) => (
                   <tr
                     key={row.studentId}
-                    className="border-t border-slate-100 hover:bg-slate-50/40"
+                    onClick={() =>
+                      router.push(
+                        `/teacher-dashboard/students/${encodeURIComponent(row.studentId)}?${standardDetailQuery}`,
+                      )
+                    }
+                    className="cursor-pointer border-t border-slate-100 hover:bg-[#16a34a]/5"
                   >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <StudentAvatar label={row.label} />
                         <div>
-                          <p className="font-medium text-slate-gray">
+                          <Link
+                            href={`/teacher-dashboard/students/${encodeURIComponent(row.studentId)}?${standardDetailQuery}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="font-medium text-slate-gray hover:text-[#166534] hover:underline"
+                          >
                             {row.label}
-                          </p>
+                          </Link>
                           {row.isLowAndFast && (
                             <p className="text-xs font-medium text-rose-600">
                               Clicking without engaging
@@ -687,29 +662,30 @@ function TeacherDashboardContent() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-right text-slate-gray">
+                    <td className="px-3 py-3 text-center text-slate-gray">
                       {row.attempted}
                     </td>
-                    <td className="px-3 py-3 text-right text-slate-gray">
+                    <td className="px-3 py-3 text-center text-slate-gray">
                       {row.correct}
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="px-3 py-3 text-center">
                       <AccuracyValue
                         value={row.accuracy}
                         hasAttempts={row.attempted > 0}
                         thresholds={data.thresholds}
                       />
                     </td>
-                    <td className="px-3 py-3 text-slate-gray/70">
+                    <td className="px-3 py-3 text-center text-slate-gray/70">
                       {row.attempted > 0 ? `${row.averageTimeSec}s` : "—"}
                     </td>
                     <td className="px-5 py-3">
                       <StudentStatusBadge
                         status={row.status}
-                        accuracy={row.accuracy}
-                        attempted={row.attempted}
                         thresholds={data.thresholds}
                       />
+                    </td>
+                    <td className="px-3 py-3 text-right text-slate-gray/40">
+                      <ChevronRight className="ml-auto h-4 w-4" />
                     </td>
                   </tr>
                 ))
@@ -1037,9 +1013,17 @@ function SourceToggle({
 function ModeTabs({
   value,
   onChange,
+  thresholds,
+  defaults,
+  thresholdsAreCustom,
+  onThresholdsChange,
 }: {
   value: ModeKey;
   onChange: (value: ModeKey) => void;
+  thresholds: PerformanceThresholds;
+  defaults: PerformanceThresholds;
+  thresholdsAreCustom: boolean;
+  onThresholdsChange: () => void;
 }) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
@@ -1064,7 +1048,13 @@ function ModeTabs({
           );
         })}
       </div>
-      <div className="pb-2">
+      <div className="flex items-center gap-2 pb-2">
+        <PerformanceThresholdsCard
+          thresholds={thresholds}
+          defaults={defaults}
+          isCustom={thresholdsAreCustom}
+          onChange={onThresholdsChange}
+        />
         <button
           type="button"
           onClick={() => setIsGuideOpen(true)}
@@ -1144,35 +1134,24 @@ function KpiCard({
   label,
   value,
   helper,
-  icon: Icon,
   accentClass,
-  bgClass,
   info,
 }: {
   label: string;
   value: string;
   helper: string;
-  icon: ComponentType<{ className?: string }>;
   accentClass: string;
-  bgClass: string;
   info?: ReactNode;
 }) {
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between mb-2">
-        <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
-          {label}
-          {info && (
-            <InfoPopover label={`How is ${label} computed?`} align="start">
-              {info}
-            </InfoPopover>
-          )}
-        </div>
-        <span
-          className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${bgClass}`}
-        >
-          <Icon className={`h-4 w-4 ${accentClass}`} />
-        </span>
+      <div className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        {label}
+        {info && (
+          <InfoPopover label={`How is ${label} computed?`} align="start">
+            {info}
+          </InfoPopover>
+        )}
       </div>
       <p className={`text-3xl font-bold ${accentClass}`}>{value}</p>
       <p className="mt-1 text-xs text-slate-gray/60">{helper}</p>
@@ -1198,58 +1177,46 @@ function ModeAccuracyCard({
   };
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between mb-3">
-        <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
-          Accuracy by Mode
-          <InfoPopover
-            label="How is per-mode accuracy computed?"
-            align="start"
-            width="wide"
-          >
-            <p className="font-semibold text-slate-gray">Per-mode accuracy</p>
-            <p className="mt-1">
-              For each mode,{" "}
-              <span className="font-mono">correct ÷ attempted × 100</span>{" "}
-              across attempts in that mode. Colors mirror the standard bands (
-              {thresholds.basicMin}% /{" "}
-              {thresholds.proficientMin}% /{" "}
-              {thresholds.advancedMin}%).
-            </p>
-          </InfoPopover>
-        </div>
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb]/10">
-          <TrendingUp className="h-4 w-4 text-[#1d4ed8]" />
-        </span>
+      <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        Accuracy by Mode
+        <InfoPopover
+          label="How is per-mode accuracy computed?"
+          align="start"
+          width="wide"
+        >
+          For each mode,{" "}
+          <span className="font-mono">correct ÷ attempted × 100</span>{" "}
+          across attempts in that mode. Colors mirror the standard bands (
+          {thresholds.basicMin}% /{" "}
+          {thresholds.proficientMin}% /{" "}
+          {thresholds.advancedMin}%).
+        </InfoPopover>
       </div>
-      <ul className="space-y-2">
+      <ul className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-x-3 gap-y-2">
         {ATTEMPT_MODES.map((m) => {
           const metrics = byMode?.[m];
           const hasAttempts = (metrics?.attempted ?? 0) > 0;
+          const studentsAttempted = metrics?.studentsAttempted ?? 0;
           return (
-            <li key={m} className="flex items-center justify-between gap-3">
+            <li key={m} className="contents">
               <span className="text-xs font-medium text-slate-gray/80">
                 {MODE_LABELS[m]}
               </span>
-              <div className="flex items-baseline gap-2">
-                <span
-                  className={`text-base font-bold ${toneClass(metrics?.accuracy ?? 0, hasAttempts)}`}
-                >
-                  {hasAttempts ? `${metrics?.accuracy ?? 0}%` : "—"}
-                </span>
-                <span className="text-[10px] text-slate-gray/60">
-                  {hasAttempts
-                    ? `${metrics?.correct ?? 0}/${metrics?.attempted ?? 0} answers`
-                    : "no attempts"}
-                </span>
-              </div>
-              {hasAttempts && (
-                <span className="text-[10px] text-slate-gray/50">
-                  {metrics?.studentsAttempted ?? 0}{" "}
-                  {(metrics?.studentsAttempted ?? 0) === 1
-                    ? "student"
-                    : "students"}
-                </span>
-              )}
+              <span
+                className={`text-right text-base font-bold ${toneClass(metrics?.accuracy ?? 0, hasAttempts)}`}
+              >
+                {hasAttempts ? `${metrics?.accuracy ?? 0}%` : "—"}
+              </span>
+              <span className="whitespace-nowrap text-right text-[10px] text-slate-gray/60">
+                {hasAttempts
+                  ? `${metrics?.correct ?? 0}/${metrics?.attempted ?? 0} answers`
+                  : "no attempts"}
+              </span>
+              <span className="whitespace-nowrap text-right text-[10px] text-slate-gray/50">
+                {hasAttempts
+                  ? `${studentsAttempted} ${studentsAttempted === 1 ? "student" : "students"}`
+                  : ""}
+              </span>
             </li>
           );
         })}
@@ -1295,20 +1262,15 @@ function StudentBreakdownCard({
   ];
   return (
     <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between mb-2">
-        <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
-          Student Breakdown
-          <InfoPopover
-            label="How are student bands computed?"
-            align="end"
-            width="wide"
-          >
-            <BandLegend bands={describeStudentBands(thresholds)} />
-          </InfoPopover>
-        </div>
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#16a34a]/10">
-          <Users className="h-4 w-4 text-[#16a34a]" />
-        </span>
+      <div className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+        Student Breakdown
+        <InfoPopover
+          label="How are student bands computed?"
+          align="end"
+          width="wide"
+        >
+          <BandLegend bands={describeStudentBands(thresholds)} />
+        </InfoPopover>
       </div>
       <div className="flex items-center gap-3">
         <DonutChart segments={segments} total={studentsTotal} />
@@ -1421,28 +1383,6 @@ function StatusFilterSelect({
   );
 }
 
-function AccuracyBar({
-  value,
-  status,
-}: {
-  value: number;
-  status: StandardRow["status"];
-}) {
-  return (
-    <div className="flex items-center gap-2 min-w-[140px]">
-      <div className="h-1.5 flex-1 rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full ${BAND_TONES[status].bar}`}
-          style={{ width: `${value}%` }}
-        />
-      </div>
-      <span className={`text-sm font-semibold ${BAND_TONES[status].text}`}>
-        {status === "not_started" ? "—" : `${value}%`}
-      </span>
-    </div>
-  );
-}
-
 function AccuracyValue({
   value,
   hasAttempts,
@@ -1507,64 +1447,33 @@ function ModeAccuracyCell({
 
 function StatusBadgeBase({
   band,
-  accuracy,
-  attempted,
   icon,
 }: {
   band: BandDescriptor;
-  accuracy: number;
-  attempted: number;
   icon?: ReactNode;
 }) {
   const tone = BAND_TONES[band.key];
   return (
-    <span className="inline-flex items-center gap-1">
-      <span
-        className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone.badge}`}
-      >
-        {icon}
-        {band.label}
-      </span>
-      <InfoPopover
-        label={`${band.label} band definition`}
-        align="end"
-        width="wide"
-      >
-        <p className="font-semibold text-slate-gray">
-          {band.label} ({band.range})
-        </p>
-        <p className="mt-1">{band.meaning}</p>
-        {attempted > 0 && (
-          <p className="mt-2 text-slate-gray/80">
-            This row:{" "}
-            <span className="font-mono">
-              accuracy = {accuracy}% over {attempted} attempts
-            </span>
-            .
-          </p>
-        )}
-      </InfoPopover>
+    <span
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone.badge}`}
+    >
+      {icon}
+      {band.label}
     </span>
   );
 }
 
 function StandardStatusBadge({
   status,
-  accuracy,
-  attempted,
   thresholds,
 }: {
   status: StandardRow["status"];
-  accuracy: number;
-  attempted: number;
   thresholds: PerformanceThresholds;
 }) {
   const band = findStandardBand(status, thresholds);
   return (
     <StatusBadgeBase
       band={band}
-      accuracy={accuracy}
-      attempted={attempted}
       icon={
         status === "below_basic" ? (
           <BookOpen className="w-3 h-3 flex-shrink-0" />
@@ -1576,28 +1485,24 @@ function StandardStatusBadge({
 
 function StudentStatusBadge({
   status,
-  accuracy,
-  attempted,
   thresholds,
 }: {
   status: StudentRow["status"];
-  accuracy: number;
-  attempted: number;
   thresholds: PerformanceThresholds;
 }) {
   const band = findStudentBand(status, thresholds);
   return (
-    <StatusBadgeBase band={band} accuracy={accuracy} attempted={attempted} />
+    <StatusBadgeBase band={band} />
   );
 }
 
 function BandLegend({ bands }: { bands: BandDescriptor[] }) {
+  const visibleBands = bands.filter((band) => band.key !== "not_started");
   return (
     <div>
-      <p className="font-semibold text-slate-gray">Performance bands</p>
-      <p className="mt-1">Each row is classified by its accuracy:</p>
+      <p>Each row is classified by its accuracy:</p>
       <ul className="mt-2 space-y-1.5">
-        {bands.map((band) => (
+        {visibleBands.map((band) => (
           <li key={band.key} className="flex items-start gap-2">
             <span
               className="mt-0.5 inline-block h-2.5 w-2.5 flex-shrink-0 rounded-sm"

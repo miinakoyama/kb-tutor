@@ -10,6 +10,7 @@ import {
 import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
 import { loadTeacherThresholds } from "@/lib/analytics/teacher-thresholds";
 import { DEFAULT_PERFORMANCE_THRESHOLDS } from "@/lib/analytics/constants";
+import { resolveTeacherRoster } from "@/lib/analytics/teacher-roster";
 
 /**
  * Raw shape returned by Supabase for the `attempts` table.
@@ -96,57 +97,11 @@ export async function GET(request: Request) {
     .eq("id", user.id)
     .maybeSingle();
   const role = await resolveRoleWithServerFallback(user, currentProfile?.role);
-  if (!role || !["teacher", "admin"].includes(role)) {
+  if (role !== "teacher" && role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let schoolIds: string[] = [];
-  if (role === "teacher") {
-    const [schoolTeachersRes, legacySchoolsRes] = await Promise.all([
-      admin
-        .from("school_teachers")
-        .select("school_id")
-        .eq("teacher_user_id", user.id),
-      admin.from("schools").select("id").eq("teacher_user_id", user.id),
-    ]);
-    if (schoolTeachersRes.error) {
-      console.error("[teacher-dashboard] school_teachers query failed", schoolTeachersRes.error);
-    }
-    if (legacySchoolsRes.error) {
-      console.error("[teacher-dashboard] legacy schools query failed", legacySchoolsRes.error);
-    }
-    schoolIds = Array.from(
-      new Set([
-        ...(schoolTeachersRes.data ?? []).map((row) => row.school_id),
-        ...(legacySchoolsRes.data ?? []).map((row) => row.id),
-      ]),
-    );
-  } else {
-    const { data: allSchools, error: allSchoolsError } = await admin
-      .from("schools")
-      .select("id")
-      .order("name", { ascending: true });
-    if (allSchoolsError) {
-      console.error("[teacher-dashboard] schools query failed", allSchoolsError);
-    }
-    schoolIds = (allSchools ?? []).map((row) => row.id);
-  }
-
-  let schoolRows: { id: string; name: string }[] = [];
-  if (schoolIds.length > 0) {
-    const { data, error } = await admin
-      .from("schools")
-      .select("id,name")
-      .in("id", schoolIds);
-    if (error) {
-      console.error("[teacher-dashboard] school name lookup failed", error);
-    }
-    schoolRows = data ?? [];
-  }
-
-  const classes = schoolRows
-    .map((row) => ({ id: String(row.id), label: String(row.name ?? row.id) }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  const { classes, scopedStudents } = await resolveTeacherRoster(admin, user.id, role);
 
   const { thresholds, isCustom: thresholdsAreCustom } = await loadTeacherThresholds(user.id);
 
@@ -179,61 +134,22 @@ export async function GET(request: Request) {
     filters: { range, mode, source, classId: classId ?? null, studentId: studentId ?? null, topic: topic ?? null },
   };
 
-  if (schoolIds.length === 0) {
+  if (scopedStudents.length === 0) {
     return NextResponse.json(emptyResponse);
   }
 
-  const effectiveClassIds =
-    classId && schoolIds.includes(classId) ? [classId] : schoolIds;
+  const effectiveStudents =
+    classId && classes.some((c) => c.id === classId)
+      ? scopedStudents.filter((student) => student.classId === classId)
+      : scopedStudents;
 
-  const { data: memberRows, error: memberError } = await admin
-    .from("school_members")
-    .select("school_id,student_user_id")
-    .in("school_id", effectiveClassIds);
-  if (memberError) {
-    console.error("[teacher-dashboard] school_members query failed", memberError);
-    return NextResponse.json(
-      { error: "Failed to load class roster" },
-      { status: 500 },
-    );
-  }
-
-  const studentClassMap = new Map<string, string>();
-  for (const row of memberRows ?? []) {
-    const sid = String(row.student_user_id);
-    if (!studentClassMap.has(sid)) {
-      studentClassMap.set(sid, String(row.school_id));
-    }
-  }
-  const scopedStudentIds = Array.from(studentClassMap.keys());
-
-  if (scopedStudentIds.length === 0) {
+  if (effectiveStudents.length === 0) {
     return NextResponse.json(emptyResponse);
   }
 
-  const { data: profileRows, error: profileError } = await admin
-    .from("profiles")
-    .select("id,display_name,student_id,excluded_from_analytics")
-    .in("id", scopedStudentIds);
-  if (profileError) {
-    console.error("[teacher-dashboard] profiles query failed", profileError);
-  }
-
-  const studentMap = new Map<string, string>();
-  const excludedSet = new Set<string>();
-  for (const profile of profileRows ?? []) {
-    const id = String(profile.id);
-    if (profile.excluded_from_analytics === true) {
-      excludedSet.add(id);
-      continue;
-    }
-    studentMap.set(
-      id,
-      String(profile.display_name || profile.student_id || profile.id),
-    );
-  }
-
-  const filteredStudentIds = scopedStudentIds.filter((id) => !excludedSet.has(id));
+  const studentMap = new Map(effectiveStudents.map((s) => [s.id, s.label]));
+  const studentClassMap = new Map(effectiveStudents.map((s) => [s.id, s.classId]));
+  const filteredStudentIds = effectiveStudents.map((s) => s.id);
   const filteredEffectiveStudentIds =
     studentId && filteredStudentIds.includes(studentId)
       ? [studentId]

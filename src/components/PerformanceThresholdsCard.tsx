@@ -145,15 +145,10 @@ export function PerformanceThresholdsCard({
                     width="wide"
                     align="start"
                   >
-                    <p className="font-semibold text-slate-gray">
-                      How bands are computed
-                    </p>
-                    <p className="mt-1">
-                      Students and standards use the same band thresholds.
-                      Accuracy is{" "}
-                      <span className="font-mono">correct ÷ attempted × 100</span>.
-                      Lower bounds are inclusive.
-                    </p>
+                    Students and standards use the same band thresholds.
+                    Accuracy is{" "}
+                    <span className="font-mono">correct ÷ attempted × 100</span>.
+                    Lower bounds are inclusive.
                   </InfoPopover>
                 </h2>
                 <p className="mt-1 text-xs text-slate-gray/70">

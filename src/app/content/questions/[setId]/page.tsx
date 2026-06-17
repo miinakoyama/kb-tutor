@@ -98,6 +98,13 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const editQuestionId = searchParams.get("edit");
+    if (!editQuestionId || questions.length === 0) return;
+    const target = questions.find((q) => q.id === editQuestionId);
+    if (target) setEditingQuestion(target);
+  }, [searchParams, questions]);
+
   const handleDelete = async (id: string) => {
     if (!isGeneratedFromDb || !questionSet) {
       alert(

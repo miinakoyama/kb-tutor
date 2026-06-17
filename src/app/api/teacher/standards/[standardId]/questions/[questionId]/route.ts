@@ -1,0 +1,274 @@
+import { NextResponse } from "next/server";
+import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveTeacherRoster } from "@/lib/analytics/teacher-roster";
+import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
+import { roundPercent } from "@/lib/analytics/teacher-dashboard-server";
+import {
+  addConfidenceSubmission,
+  emptyConfidenceQuadrantCounts,
+  fetchConfidenceEvents,
+  parseConfidenceLevel,
+  toConfidenceQuadrantPercents,
+  type ConfidenceQuadrantPercents,
+} from "@/lib/analytics/confidence";
+import { fetchQuestionPreviews, type QuestionPreview } from "@/lib/analytics/question-preview";
+import { getStandardById } from "@/lib/standards";
+
+interface AttemptQueryRow {
+  user_id: string;
+  question_id: string;
+  mode: string | null;
+  selected_option_id: string;
+  is_correct: boolean;
+  time_spent_sec: number | null;
+  assignment_id: string | null;
+  answered_at: string;
+}
+
+type RangeKey = "7d" | "30d" | "all";
+type ModeFilter = "practice" | "exam" | "review" | "compare" | "all";
+type SourceFilter = "assigned" | "self" | "all";
+
+function parseEnum<T extends string>(
+  raw: string | null,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  return allowed.find((value) => value === raw) ?? fallback;
+}
+
+export interface QuestionDetailChoice {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+  count: number;
+  percent: number;
+}
+
+export interface QuestionDetailResponse {
+  standard: { id: string; label: string } | null;
+  question: {
+    questionId: string;
+    setId: string | null;
+    preview: QuestionPreview | null;
+  };
+  summary: {
+    attempted: number;
+    correct: number;
+    accuracy: number;
+    averageTimeSec: number;
+  };
+  choices: QuestionDetailChoice[];
+  totalStudents: number;
+  confidence: ConfidenceQuadrantPercents;
+  filters: {
+    range: RangeKey;
+    mode: ModeFilter;
+    source: SourceFilter;
+    classId: string | null;
+    studentId: string | null;
+  };
+}
+
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ standardId: string; questionId: string }> },
+) {
+  const { standardId: rawStandardId, questionId: rawQuestionId } = await context.params;
+  const standardId = decodeURIComponent(rawStandardId);
+  const questionId = decodeURIComponent(rawQuestionId);
+
+  const url = new URL(request.url);
+  const studentId = url.searchParams.get("studentId") || undefined;
+  const classId = url.searchParams.get("classId") || undefined;
+  const range = parseEnum<RangeKey>(url.searchParams.get("range"), ["7d", "30d", "all"] as const, "30d");
+  const mode = parseEnum<ModeFilter>(
+    url.searchParams.get("mode"),
+    ["practice", "exam", "review", "compare", "all"] as const,
+    "compare",
+  );
+  const source = parseEnum<SourceFilter>(
+    url.searchParams.get("source"),
+    ["assigned", "self", "all"] as const,
+    "all",
+  );
+
+  const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("id,role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const role = await resolveRoleWithServerFallback(user, currentProfile?.role);
+  if (role !== "teacher" && role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const standardInfo = getStandardById(standardId);
+
+  const filters = {
+    range,
+    mode,
+    source,
+    classId: classId ?? null,
+    studentId: studentId ?? null,
+  };
+
+  const { data: questionRow } = await admin
+    .from("generated_questions")
+    .select("set_id")
+    .eq("id", questionId)
+    .maybeSingle();
+  const setId = questionRow?.set_id ? String(questionRow.set_id) : null;
+
+  const emptyResponse: QuestionDetailResponse = {
+    standard: standardInfo ? { id: standardInfo.id, label: standardInfo.label } : null,
+    question: { questionId, setId, preview: null },
+    summary: { attempted: 0, correct: 0, accuracy: 0, averageTimeSec: 0 },
+    choices: [],
+    totalStudents: 0,
+    confidence: { mastery: 0, misconception: 0, fragile: 0, expected: 0, total: 0 },
+    filters,
+  };
+
+  const { classes, scopedStudents } = await resolveTeacherRoster(admin, user.id, role);
+  if (scopedStudents.length === 0) {
+    return NextResponse.json(emptyResponse);
+  }
+
+  const effectiveStudents =
+    classId && classes.some((c) => c.id === classId)
+      ? scopedStudents.filter((student) => student.classId === classId)
+      : scopedStudents;
+  if (effectiveStudents.length === 0) {
+    return NextResponse.json(emptyResponse);
+  }
+
+  const studentIds =
+    studentId && effectiveStudents.some((s) => s.id === studentId)
+      ? [studentId]
+      : effectiveStudents.map((s) => s.id);
+
+  let attemptsQuery = admin
+    .from("attempts")
+    .select("user_id,question_id,mode,selected_option_id,is_correct,time_spent_sec,assignment_id,answered_at")
+    .in("user_id", studentIds)
+    .eq("standard_id", standardId)
+    .eq("question_id", questionId);
+  if (range !== "all") {
+    const days = range === "7d" ? 7 : 30;
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    attemptsQuery = attemptsQuery.gte("answered_at", from.toISOString());
+  }
+  if (mode !== "all" && mode !== "compare") {
+    attemptsQuery = attemptsQuery.eq("mode", mode);
+  }
+  if (source === "assigned") {
+    attemptsQuery = attemptsQuery.not("assignment_id", "is", null);
+  } else if (source === "self") {
+    attemptsQuery = attemptsQuery.is("assignment_id", null);
+  }
+
+  const { data: attemptsData, error: attemptsError } = await attemptsQuery;
+  if (attemptsError) {
+    console.error("[teacher/standards/questions] attempts query failed", attemptsError);
+    return NextResponse.json({ error: "Failed to load attempts data" }, { status: 500 });
+  }
+
+  const attempts = dedupeAssignmentExamAttempts((attemptsData ?? []) as AttemptQueryRow[]);
+  const { data: previewByQuestionId, error: previewError } = await fetchQuestionPreviews(admin, [questionId]);
+  if (previewError) {
+    return NextResponse.json({ error: previewError }, { status: 500 });
+  }
+  const preview = previewByQuestionId.get(questionId) ?? null;
+
+  if (attempts.length === 0) {
+    return NextResponse.json({
+      ...emptyResponse,
+      question: { questionId, setId, preview },
+    });
+  }
+
+  // --- Summary ---
+  let correct = 0;
+  let timeTotal = 0;
+  let timeCount = 0;
+  for (const row of attempts) {
+    if (row.is_correct) correct += 1;
+    if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
+      timeTotal += row.time_spent_sec;
+      timeCount += 1;
+    }
+  }
+  const accuracy = roundPercent((correct / attempts.length) * 100);
+  const averageTimeSec = timeCount > 0 ? Math.round(timeTotal / timeCount) : 0;
+
+  // --- Per-choice breakdown (latest attempt per student) ---
+  const latestByStudent = new Map<string, AttemptQueryRow>();
+  for (const row of attempts) {
+    const existing = latestByStudent.get(row.user_id);
+    if (!existing || row.answered_at > existing.answered_at) {
+      latestByStudent.set(row.user_id, row);
+    }
+  }
+  const totalStudents = latestByStudent.size;
+  const choiceCounts = new Map<string, number>();
+  for (const row of latestByStudent.values()) {
+    choiceCounts.set(row.selected_option_id, (choiceCounts.get(row.selected_option_id) ?? 0) + 1);
+  }
+  const choices: QuestionDetailChoice[] = (preview?.options ?? []).map((option) => {
+    const count = choiceCounts.get(option.id) ?? 0;
+    return {
+      id: option.id,
+      text: option.text,
+      isCorrect: option.id === preview?.correctOptionId,
+      count,
+      percent: totalStudents > 0 ? roundPercent((count / totalStudents) * 100) : 0,
+    };
+  });
+
+  // --- Confidence quadrants ---
+  const { data: confidenceRows, error: confidenceError } = await fetchConfidenceEvents(
+    admin,
+    studentIds,
+    [questionId],
+  );
+  if (confidenceError) {
+    return NextResponse.json({ error: confidenceError }, { status: 500 });
+  }
+  const confidenceCounts = emptyConfidenceQuadrantCounts();
+  for (const row of confidenceRows) {
+    const level = parseConfidenceLevel(row.payload?.confidenceLevel);
+    const isCorrect = typeof row.payload?.isCorrect === "boolean" ? row.payload.isCorrect : null;
+    if (!level || isCorrect === null) continue;
+    addConfidenceSubmission(confidenceCounts, level, isCorrect);
+  }
+
+  const response: QuestionDetailResponse = {
+    standard: standardInfo ? { id: standardInfo.id, label: standardInfo.label } : null,
+    question: { questionId, setId, preview },
+    summary: {
+      attempted: attempts.length,
+      correct,
+      accuracy,
+      averageTimeSec,
+    },
+    choices,
+    totalStudents,
+    confidence: toConfidenceQuadrantPercents(confidenceCounts),
+    filters,
+  };
+
+  return NextResponse.json(response);
+}
