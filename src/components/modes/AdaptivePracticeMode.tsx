@@ -21,6 +21,8 @@ import {
 import type { AnswerRecord, ConfidenceLevel, GlossaryTerm, Question } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
+import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
+import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
@@ -870,7 +872,7 @@ export function AdaptivePracticeMode({
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="max-w-3xl mx-auto"
+            className="w-full"
           >
             <button
               onClick={() => setSummaryReviewIndex(null)}
@@ -888,6 +890,11 @@ export function AdaptivePracticeMode({
               <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
                 {reviewQuestion.text}
               </p>
+              {reviewQuestion.diagram && (
+                <AdaptiveDiagramViewport className="mb-5">
+                  <DiagramRenderer diagram={reviewQuestion.diagram} />
+                </AdaptiveDiagramViewport>
+              )}
               <div className="space-y-2.5">
                 {reviewQuestion.options.map((opt) => {
                   const isSelected = answerForPanel.selectedOptionId === opt.id;
@@ -941,7 +948,7 @@ export function AdaptivePracticeMode({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-3xl mx-auto space-y-4 pb-8"
+        className="w-full space-y-4 pb-8"
       >
         <div className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
           {topicName && <p className="text-sm text-muted-foreground mb-2">{topicName}</p>}

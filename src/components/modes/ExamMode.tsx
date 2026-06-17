@@ -21,6 +21,7 @@ import {
   X,
   PanelRightOpen,
   PanelRightClose,
+  Lightbulb,
 } from "lucide-react";
 import type { Question, AnswerRecord } from "@/types/question";
 import { OptionButton } from "@/components/shared/OptionButton";
@@ -716,16 +717,6 @@ export function ExamMode({
     );
   }
 
-  if (phase === "confirm") {
-    return (
-      <ConfirmDialog
-        unansweredCount={unansweredCount}
-        onConfirm={confirmSubmit}
-        onCancel={() => setPhase("exam")}
-      />
-    );
-  }
-
   if (phase === "results") {
     const correctCount = Object.values(answers).filter((a) => a.isCorrect).length;
     return (
@@ -752,13 +743,14 @@ export function ExamMode({
   if (phase === "review" && reviewIndex !== null) {
     const q = sessionQuestions[reviewIndex];
     const a = answers[reviewIndex];
+    const hasSubmittedAnswer = Boolean(a?.selectedOptionId);
     const reviewChoicesText = buildChoicesReadText(q);
     const reviewFeedbackText = buildFeedbackReadText(q, a, {
       includeKeyKnowledge: true,
       includeMisconception: true,
     });
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="w-full">
         <button
           onClick={() => setPhase("results")}
           className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
@@ -784,16 +776,16 @@ export function ExamMode({
             </div>
           )}
           <p
-            className={`text-base font-medium text-slate-gray leading-relaxed mb-4 rounded-lg transition-colors ${
+            className={`text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap rounded-lg transition-colors ${
               isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
             }`}
           >
             {q.text}
           </p>
           {q.diagram && (
-            <div className="mb-5">
+            <AdaptiveDiagramViewport className="mb-5">
               <DiagramRenderer diagram={q.diagram} />
-            </div>
+            </AdaptiveDiagramViewport>
           )}
           <div
             className={`rounded-lg transition-colors mt-4 ${
@@ -803,19 +795,32 @@ export function ExamMode({
             <div className="space-y-2.5">
               {q.options.map((opt) => {
                 const isSelected = a?.selectedOptionId === opt.id;
-                const showCorrect = opt.id === q.correctOptionId;
-                const showWrong = isSelected && opt.id !== q.correctOptionId;
+                const isCorrect = opt.id === q.correctOptionId;
+                const wrongSelection = isSelected && !isCorrect;
                 return (
-                  <OptionButton
+                  <div
                     key={opt.id}
-                    option={opt}
-                    isSelected={isSelected}
-                    showCorrect={showCorrect}
-                    showWrong={showWrong}
-                    isAnswered={true}
-                    onSelect={() => {}}
-                    showFeedbackIcon
-                  />
+                    className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
+                      isCorrect
+                        ? "border-primary/40 bg-primary/5"
+                        : wrongSelection
+                          ? "border-error-border bg-error-light"
+                          : "border-border-default bg-surface"
+                    }`}
+                  >
+                    <div className="mt-0.5 flex-shrink-0">
+                      {isCorrect ? (
+                        <CheckCircle2 className="w-4 h-4 text-primary" />
+                      ) : wrongSelection ? (
+                        <XCircle className="w-4 h-4 text-red-400" />
+                      ) : (
+                        <span className="inline-block w-4 h-4" />
+                      )}
+                    </div>
+                    <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
+                      {opt.text}
+                    </p>
+                  </div>
                 );
               })}
             </div>
@@ -833,7 +838,7 @@ export function ExamMode({
               </div>
             )}
           </div>
-          {a?.selectedOptionId && (
+          {hasSubmittedAnswer ? (
             <>
               {isSupported && reviewFeedbackText && (
                 <div
@@ -859,6 +864,33 @@ export function ExamMode({
                 showMisconception
               />
             </>
+          ) : (
+            <div className="mt-5 space-y-3">
+              <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
+                <p className="text-sm font-semibold text-slate-gray mb-1">
+                  No answer submitted
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  This question was left unanswered. It is counted as incorrect,
+                  and the correct option is highlighted above for review.
+                </p>
+              </div>
+              {q.keyKnowledge && (
+                <div className="p-3 rounded-xl border border-primary/20 bg-surface-muted">
+                  <div className="flex items-start gap-2.5">
+                    <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
+                        Key Idea
+                      </p>
+                      <p className="text-sm text-slate-gray leading-relaxed">
+                        {q.keyKnowledge}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -1217,6 +1249,14 @@ export function ExamMode({
           onClose={finishExamOnboarding}
         />
       ) : null}
+
+      {phase === "confirm" ? (
+        <ConfirmDialog
+          unansweredCount={unansweredCount}
+          onConfirm={confirmSubmit}
+          onCancel={() => setPhase("exam")}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1314,7 +1354,10 @@ function ConfirmDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30" onClick={onCancel} />
+      <div
+        className="absolute inset-0 bg-black/20 backdrop-blur-[2px]"
+        onClick={onCancel}
+      />
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -1388,21 +1431,27 @@ function ExamResults({
   onReview: (index: number) => void;
   onRetry: () => void;
 }) {
-  const answeredEntries = questions
-    .map((q, index) => ({ q, index, answer: answers[index] }))
-    .filter(({ answer }) => !!answer?.selectedOptionId);
-  const answeredTotal = answeredEntries.length;
+  const reviewEntries = questions.map((q, index) => ({
+    q,
+    index,
+    answer: answers[index],
+  }));
+  const total = questions.length;
+  const answeredTotal = reviewEntries.filter(
+    ({ answer }) => !!answer?.selectedOptionId,
+  ).length;
+  const unansweredTotal = total - answeredTotal;
+  const incorrectTotal = total - correctCount;
   const scorePercent =
-    answeredTotal > 0 ? Math.round((correctCount / answeredTotal) * 100) : 0;
+    total > 0 ? Math.round((correctCount / total) * 100) : 0;
   const minutes = Math.floor(elapsedMs / 60000);
-  const avgSeconds =
-    answeredTotal > 0 ? Math.round(elapsedMs / 1000 / answeredTotal) : 0;
+  const avgSeconds = total > 0 ? Math.round(elapsedMs / 1000 / total) : 0;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-4xl mx-auto space-y-4 pb-8"
+      className="w-full space-y-4 pb-8"
     >
       <div className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
         {topicName && (
@@ -1426,10 +1475,18 @@ function ExamResults({
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-slate-gray">
-              {answeredTotal - correctCount}
+              {incorrectTotal}
             </p>
             <p className="text-muted-foreground">Incorrect</p>
           </div>
+          {unansweredTotal > 0 && (
+            <div className="text-center">
+              <p className="text-lg font-bold text-slate-gray">
+                {unansweredTotal}
+              </p>
+              <p className="text-muted-foreground">Unanswered</p>
+            </div>
+          )}
           <div className="text-center">
             <p className="text-lg font-bold text-slate-gray">{minutes}m</p>
             <p className="text-muted-foreground">Total time</p>
@@ -1446,7 +1503,8 @@ function ExamResults({
           Review Questions
         </h3>
         <div className="space-y-2">
-          {answeredEntries.map(({ q, index, answer }, position) => {
+          {reviewEntries.map(({ q, index, answer }, position) => {
+            const hasSubmittedAnswer = Boolean(answer?.selectedOptionId);
             const isCorrect = answer?.selectedOptionId === q.correctOptionId;
             const isFlagged = answer?.flagged;
             return (
@@ -1454,7 +1512,11 @@ function ExamResults({
                 key={index}
                 onClick={() => onReview(index)}
                 className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-foreground/5 ${
-                  isCorrect ? "border-primary/20" : "border-error-border"
+                  !hasSubmittedAnswer
+                    ? "border-border-default"
+                    : isCorrect
+                      ? "border-primary/20"
+                      : "border-error-border"
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -1468,7 +1530,7 @@ function ExamResults({
                     {isFlagged && (
                       <Flag className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                     )}
-                    {isCorrect ? (
+                    {!hasSubmittedAnswer ? null : isCorrect ? (
                       <CheckCircle2
                         className="w-4 h-4"
                         style={{ color: PRIMARY_COLOR }}
