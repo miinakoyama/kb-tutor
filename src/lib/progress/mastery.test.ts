@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getStandardsForModule } from "@/lib/standards";
 import {
   calculateMastery,
+  getMasteryBand,
   PROGRESS_TOPICS,
   type AttemptRow,
 } from "@/lib/progress/mastery";
@@ -81,5 +82,16 @@ describe("calculateMastery", () => {
     expect(datum?.level).toBe("measured");
     // (2 + 3) / (3 + 5) => 62.5 => 63%
     expect(datum?.mastery).toBe(63);
+  });
+});
+
+describe("getMasteryBand", () => {
+  it("uses raw accuracy instead of smoothed mastery for rubric bands", () => {
+    expect(getMasteryBand(17, 20)).toBe("mastered");
+  });
+
+  it("requires both the accuracy and minimum attempt count", () => {
+    expect(getMasteryBand(17, 19)).toBe("on_track");
+    expect(getMasteryBand(0, 0)).toBe("no_data");
   });
 });
