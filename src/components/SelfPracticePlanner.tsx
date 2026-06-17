@@ -150,9 +150,6 @@ export function SelfPracticePlanner() {
     <div className="space-y-8">
       <section className="rounded-2xl border border-primary/30 bg-surface p-5 sm:p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-heading mb-2">Choose Topics</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Select one or more categories for practice.
-        </p>
         <div className="flex items-center justify-between gap-4 mb-4">
           <button
             onClick={() =>
