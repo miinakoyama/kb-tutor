@@ -38,7 +38,7 @@ import { useAnalyticsSession } from "@/lib/analytics/session";
 import { NextSessionCTA } from "@/components/shared/NextSessionCTA";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 2;
 const GLOSSARY_FALLBACK_LIMIT = 6;
 const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
 const READ_ALOUD_SPOTLIGHT_DISMISSED_KEY =
