@@ -53,31 +53,9 @@ const STUDENT_STEPS: OnboardingStep[] = [
     type: "modal",
   },
   {
-    title: "Collapse Sidebar",
-    description:
-      "Use the < button at the top of the sidebar to collapse or expand the menu and free up space.",
-    type: "spotlight",
-    targetIds: [TOUR_TARGET_IDS.SIDEBAR_TOGGLE],
-  },
-  {
-    title: "Home",
-    description: "Check what to do today and see your upcoming assignments here.",
-    type: "spotlight",
-    targetIds: [TOUR_TARGET_IDS.HOME],
-    routePath: "/",
-  },
-  {
-    title: "My Assignment",
-    description:
-      "Check assignments from your teacher and due dates. You can start directly from this page.",
-    type: "spotlight",
-    targetIds: [TOUR_TARGET_IDS.STUDENT_ASSIGNMENTS],
-    routePath: "/assignments",
-  },
-  {
     title: "Self Practice",
     description:
-      "Create your own practice session by choosing topic, mode, and time.",
+      "Create your own practice session by choosing topic and mode",
     type: "spotlight",
     targetIds: [TOUR_TARGET_IDS.SELF_PRACTICE],
     routePath: "/self-practice",
@@ -87,14 +65,6 @@ const STUDENT_STEPS: OnboardingStep[] = [
     description: "Each mode supports a different learning goal.",
     type: "modal",
     modeCards: STUDENT_MODE_CARDS,
-  },
-  {
-    title: "My Progress",
-    description:
-      "Track your learning progress and monitor how your performance changes over time.",
-    type: "spotlight",
-    targetIds: [TOUR_TARGET_IDS.PROGRESS],
-    routePath: "/progress",
   },
   {
     title: "Bookmarks",
