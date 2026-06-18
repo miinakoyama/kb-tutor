@@ -14,6 +14,13 @@ export type AttemptRow = {
 
 export type MasteryLevel = "insufficient_data" | "estimated" | "measured";
 
+export type MasteryBand =
+  | "no_data"
+  | "getting_started"
+  | "building_up"
+  | "on_track"
+  | "mastered";
+
 export type ProgressTopic = {
   key: string;
   module: ModuleCode;
@@ -30,6 +37,8 @@ export type MasteryDatum = {
   level: MasteryLevel;
   fill: string;
 };
+
+export type TrendDirection = "up" | "down" | "flat";
 
 const MODULE_ORDER: ModuleCode[] = ["A", "B"];
 
@@ -118,4 +127,57 @@ export function calculateMastery(rows: AttemptRow[]): MasteryDatum[] {
       fill: level === "estimated" ? "#65a30d" : "#2d6a4f",
     };
   });
+}
+
+/**
+ * Classifies progress using raw accuracy and the rubric's minimum attempt
+ * counts. Smoothed mastery remains useful for chart values, but must not
+ * change which rubric band a learner has earned.
+ */
+export function getMasteryBand(correct: number, attempts: number): MasteryBand {
+  if (attempts === 0) return "no_data";
+  const accuracy = (correct / attempts) * 100;
+  if (accuracy >= 85 && attempts >= 20) return "mastered";
+  if (accuracy >= 65 && attempts >= 15) return "on_track";
+  if (accuracy >= 45 && attempts >= 10) return "building_up";
+  return "getting_started";
+}
+
+function toDateKey(value: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(value);
+}
+
+/**
+ * Compares mastery for each topic against mastery computed without the
+ * most recent session's attempts, to surface whether a strand improved,
+ * declined, or stayed flat since the student's last session.
+ */
+export function calculateTrends(
+  rows: AttemptRow[],
+  timeZone: string,
+): Map<string, TrendDirection> {
+  const trends = new Map<string, TrendDirection>();
+  if (rows.length === 0) return trends;
+
+  const dateKeys = rows.map((row) => toDateKey(new Date(row.answered_at), timeZone));
+  const lastSessionKey = dateKeys.reduce((latest, key) => (key > latest ? key : latest));
+  const previousRows = rows.filter((_, i) => dateKeys[i] !== lastSessionKey);
+
+  const current = calculateMastery(rows);
+  const previous = calculateMastery(previousRows);
+
+  for (let i = 0; i < current.length; i += 1) {
+    const cur = current[i];
+    const prev = previous[i];
+    if (cur.attempts === prev.attempts) {
+      trends.set(cur.fullTopic, "flat");
+    } else if (cur.masteryValue > prev.masteryValue) {
+      trends.set(cur.fullTopic, "up");
+    } else if (cur.masteryValue < prev.masteryValue) {
+      trends.set(cur.fullTopic, "down");
+    } else {
+      trends.set(cur.fullTopic, "flat");
+    }
+  }
+  return trends;
 }

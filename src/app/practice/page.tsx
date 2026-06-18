@@ -5,8 +5,6 @@ async function PracticeContent({
   searchParams,
 }: {
   searchParams: Promise<{
-    module?: string;
-    topic?: string;
     topics?: string;
     mode?: string;
     questions?: string;
@@ -17,8 +15,6 @@ async function PracticeContent({
   
   return (
     <PracticePageClient
-      moduleParam={params.module}
-      topicParam={params.topic}
       topicsParam={params.topics}
       modeParam={params.mode}
       questionsParam={params.questions}
@@ -31,8 +27,6 @@ export default async function PracticePage({
   searchParams,
 }: {
   searchParams: Promise<{
-    module?: string;
-    topic?: string;
     topics?: string;
     mode?: string;
     questions?: string;

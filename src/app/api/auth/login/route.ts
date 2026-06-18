@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getRoleLandingPath } from "@/lib/auth/role";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { normalizeStudentId } from "@/lib/auth/student-id";
-
-type AppRole = "student" | "teacher" | "admin";
-
-function getPostLoginPath(role: AppRole | null) {
-  if (role === "admin") return "/content/accounts";
-  if (role === "teacher") return "/teacher-dashboard";
-  return "/";
-}
 
 // Builds the internal Supabase auth email for a student account.
 // Format: {schoolId}_{studentId}@student.local
@@ -212,7 +205,7 @@ async function handleStaffLogin(body: {
     );
   }
 
-  return NextResponse.json({ ok: true, redirectTo: getPostLoginPath(role) });
+  return NextResponse.json({ ok: true, redirectTo: getRoleLandingPath(role) });
 }
 
 export async function POST(request: Request) {

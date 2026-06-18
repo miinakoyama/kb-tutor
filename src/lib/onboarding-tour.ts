@@ -61,7 +61,7 @@ const STUDENT_STEPS: OnboardingStep[] = [
   },
   {
     title: "Home",
-    description: "Check what to do today and see your active assignments here.",
+    description: "Check what to do today and see your upcoming assignments here.",
     type: "spotlight",
     targetIds: [TOUR_TARGET_IDS.HOME],
     routePath: "/",

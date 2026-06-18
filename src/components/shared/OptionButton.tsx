@@ -133,7 +133,9 @@ export function OptionButton({
                 setShowTooltip(!showTooltip);
               }
             }}
-            className="flex-shrink-0 p-2.5 rounded-full text-muted-foreground hover:text-muted-foreground hover:bg-foreground/10 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className={`relative before:absolute before:-inset-2 flex-shrink-0 rounded-full text-muted-foreground hover:text-muted-foreground hover:bg-foreground/10 transition-colors cursor-pointer flex items-center justify-center ${
+              compact ? "w-7 h-7" : "w-8 h-8"
+            }`}
             aria-label={tooltipHeading}
           >
             <Info className="w-4 h-4" />

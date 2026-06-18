@@ -7,9 +7,6 @@ export default function SelfPracticePage() {
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
           Self Practice
         </h1>
-        <p className="text-muted-foreground">
-          Pick topics, mode, and study time to build your own learning session.
-        </p>
       </section>
 
       <SelfPracticePlanner />
