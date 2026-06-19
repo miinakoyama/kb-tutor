@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronRight, Timer } from "lucide-react";
+import { ChevronDown, ChevronRight, Timer } from "lucide-react";
 import { LatexText } from "@/components/shared/LatexText";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import {
   BAND_TONES,
   findStandardBand,
@@ -133,13 +134,12 @@ export default function StandardDetailPage() {
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <Link
-        href={backHref}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-[#166534] hover:text-[#14532d]"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to dashboard
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Teacher dashboard", href: backHref },
+          { label: data.standard?.id ?? standardId },
+        ]}
+      />
 
       <StandardHero standardId={standardId} data={data} thresholds={thresholds} />
 

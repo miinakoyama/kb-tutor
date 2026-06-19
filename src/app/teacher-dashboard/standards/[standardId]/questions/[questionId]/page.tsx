@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, Pencil, Timer } from "lucide-react";
+import { Pencil, Timer } from "lucide-react";
 import { LatexText } from "@/components/shared/LatexText";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import type { QuestionPreview } from "@/lib/analytics/question-preview";
 import type { ConfidenceQuadrantPercents } from "@/lib/analytics/confidence";
 
@@ -107,18 +108,19 @@ export default function QuestionDetailPage() {
 
   const standardQuery = new URLSearchParams(forwardedQuery);
   const backHref = `/teacher-dashboard/standards/${encodeURIComponent(standardId)}${standardQuery.toString() ? `?${standardQuery.toString()}` : ""}`;
+  const dashboardHref = `/teacher-dashboard${forwardedQuery.toString() ? `?${forwardedQuery.toString()}` : ""}`;
 
   const text = data.question.preview?.text ?? "Question text unavailable.";
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <Link
-        href={backHref}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-[#166534] hover:text-[#14532d]"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to standard
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Teacher dashboard", href: dashboardHref },
+          { label: data.standard?.id ?? standardId, href: backHref },
+          { label: qIndex && qTotal ? `Question ${qIndex} of ${qTotal}` : "Question" },
+        ]}
+      />
 
       <section className="rounded-2xl border border-[#16a34a]/25 bg-white p-5 sm:p-6 shadow-sm mb-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
