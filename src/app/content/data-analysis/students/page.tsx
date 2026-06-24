@@ -19,6 +19,7 @@ interface Summary {
 }
 
 interface AttemptRow {
+  id: string;
   schoolId: string;
   studentUserId: string;
   studentId: string;
@@ -191,7 +192,7 @@ function StudentsInner() {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={`${row.studentUserId}-${row.questionId}-${row.answeredAt}`} className="border-b border-border-subtle">
+                  <tr key={row.id} className="border-b border-border-subtle">
                     <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">
                       {new Date(row.answeredAt).toLocaleString()}
                     </td>
