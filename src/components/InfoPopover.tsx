@@ -98,7 +98,7 @@ export function InfoPopover({
           id={panelId}
           role="dialog"
           aria-label={label}
-          className={`absolute top-full z-30 mt-2 ${alignClass} ${widthClass} rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-xs leading-relaxed text-slate-gray shadow-lg`}
+          className={`absolute top-full z-30 mt-2 ${alignClass} ${widthClass} rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-slate-gray shadow-lg`}
         >
           {children}
         </span>

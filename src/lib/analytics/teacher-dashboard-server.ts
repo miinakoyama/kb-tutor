@@ -50,6 +50,7 @@ export interface StandardRow {
   correct: number;
   accuracy: number;
   averageTimeSec: number;
+  studentsAttempted: number;
   status: StandardStatus;
   byMode?: Record<AttemptMode, ModeMetrics>;
 }
@@ -85,7 +86,7 @@ export interface DashboardSummary {
 }
 
 export interface DashboardResponseBody {
-  students: { id: string; label: string; classId: string | null }[];
+  students: { id: string; label: string; classId: string | null; classIds?: string[] }[];
   topics: string[];
   summary: DashboardSummary;
   byStandard: StandardRow[];
@@ -94,7 +95,7 @@ export interface DashboardResponseBody {
   thresholds: PerformanceThresholds;
 }
 
-function classifyPerformance(
+export function classifyPerformance(
   accuracy: number,
   attempted: number,
   thresholds: PerformanceThresholds,
@@ -106,7 +107,7 @@ function classifyPerformance(
   return "below_basic";
 }
 
-function roundPercent(value: number): number {
+export function roundPercent(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(Math.max(0, Math.min(100, value)));
 }
@@ -114,7 +115,7 @@ function roundPercent(value: number): number {
 interface BuildArgs {
   attempts: AttemptRecord[];
   topic?: string;
-  scopedStudents: { id: string; label: string; classId: string | null }[];
+  scopedStudents: { id: string; label: string; classId: string | null; classIds?: string[] }[];
   selectedStudentId: string | null;
   includeModeBreakdown?: boolean;
   /** When omitted, uses the system defaults. Per-teacher overrides should be merged in by the caller. */
@@ -233,6 +234,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     correct: number;
     totalTime: number;
     measuredTimeCount: number;
+    studentIds: Set<string>;
     byMode: Record<AttemptMode, ModeMetrics>;
     byModeTotalTime: Record<AttemptMode, number>;
     byModeMeasuredCount: Record<AttemptMode, number>;
@@ -266,6 +268,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         correct: 0,
         totalTime: 0,
         measuredTimeCount: 0,
+        studentIds: new Set<string>(),
         byMode: emptyModeBreakdown(),
         byModeTotalTime: { practice: 0, exam: 0, review: 0 },
         byModeMeasuredCount: { practice: 0, exam: 0, review: 0 },
@@ -280,6 +283,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
       existing.label = canonical.label;
     }
     existing.attempted += 1;
+    existing.studentIds.add(row.userId);
     if (row.isCorrect) existing.correct += 1;
     if (row.timeSpentSec !== null && Number.isFinite(row.timeSpentSec)) {
       existing.totalTime += row.timeSpentSec;
@@ -333,6 +337,7 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         correct: item.correct,
         accuracy,
         averageTimeSec,
+        studentsAttempted: item.studentIds.size,
         status: classifyPerformance(accuracy, item.attempted, thresholds),
       };
       if (includeModeBreakdown) {

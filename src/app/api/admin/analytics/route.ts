@@ -15,6 +15,7 @@ import {
 } from "@/lib/analytics/pagination";
 
 type AttemptRow = {
+  id: string;
   user_id: string;
   question_id: string;
   assignment_id: string | null;
@@ -148,7 +149,7 @@ async function fetchAttempts(
       let query = admin
         .from("attempts")
         .select(
-          "user_id,question_id,assignment_id,mode,selected_option_id,is_correct,standard_id,standard_label,time_spent_sec,answered_at",
+          "id,user_id,question_id,assignment_id,mode,selected_option_id,is_correct,standard_id,standard_label,time_spent_sec,answered_at",
         )
         .in("user_id", chunk)
         .gte("answered_at", from.toISOString())
@@ -345,6 +346,7 @@ export async function GET(request: Request) {
   const enrichedRows = filteredByStudent.map((row) => {
     const profile = profileMap.get(row.user_id);
     return {
+      id: row.id,
       schoolId: schoolByStudent.get(row.user_id) ?? "",
       studentUserId: row.user_id,
       studentId: profile?.student_id ?? "",

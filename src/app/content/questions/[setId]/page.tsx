@@ -98,6 +98,13 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const editQuestionId = searchParams.get("edit");
+    if (!editQuestionId || questions.length === 0) return;
+    const target = questions.find((q) => q.id === editQuestionId);
+    if (target) setEditingQuestion(target);
+  }, [searchParams, questions]);
+
   const handleDelete = async (id: string) => {
     if (!isGeneratedFromDb || !questionSet) {
       alert(
@@ -258,7 +265,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
@@ -268,7 +275,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   if (!questionSet || questions.length === 0) {
     return (
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="text-center py-16">
           <p className="text-muted-foreground mb-4">
             Question set not found or empty.
@@ -289,7 +296,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     .length;
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <Link
         href="/content/questions"
         className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"

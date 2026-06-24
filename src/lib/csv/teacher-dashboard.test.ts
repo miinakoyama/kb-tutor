@@ -76,6 +76,7 @@ describe("downloadStandardMetricsCsv", () => {
         correct: 7,
         accuracy: 70,
         averageTimeSec: 45,
+        studentsAttempted: 5,
         status: "basic",
       },
     ];
@@ -99,6 +100,7 @@ describe("downloadStandardMetricsCsv", () => {
         correct: 1,
         accuracy: 100,
         averageTimeSec: 0,
+        studentsAttempted: 1,
         status: "advanced",
       },
     ];
@@ -116,6 +118,7 @@ describe("downloadStandardMetricsCsv", () => {
         correct: 5,
         accuracy: 63,
         averageTimeSec: 40,
+        studentsAttempted: 4,
         status: "basic",
         byMode: {
           practice: {
