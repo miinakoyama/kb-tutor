@@ -86,7 +86,7 @@ export interface DashboardSummary {
 }
 
 export interface DashboardResponseBody {
-  students: { id: string; label: string; classId: string | null }[];
+  students: { id: string; label: string; classId: string | null; classIds?: string[] }[];
   topics: string[];
   summary: DashboardSummary;
   byStandard: StandardRow[];
@@ -115,7 +115,7 @@ export function roundPercent(value: number): number {
 interface BuildArgs {
   attempts: AttemptRecord[];
   topic?: string;
-  scopedStudents: { id: string; label: string; classId: string | null }[];
+  scopedStudents: { id: string; label: string; classId: string | null; classIds?: string[] }[];
   selectedStudentId: string | null;
   includeModeBreakdown?: boolean;
   /** When omitted, uses the system defaults. Per-teacher overrides should be merged in by the caller. */

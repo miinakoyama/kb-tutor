@@ -10,7 +10,10 @@ import {
 import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
 import { loadTeacherThresholds } from "@/lib/analytics/teacher-thresholds";
 import { DEFAULT_PERFORMANCE_THRESHOLDS } from "@/lib/analytics/constants";
-import { resolveTeacherRoster } from "@/lib/analytics/teacher-roster";
+import {
+  resolveTeacherRoster,
+  TeacherRosterLookupError,
+} from "@/lib/analytics/teacher-roster";
 
 /**
  * Raw shape returned by Supabase for the `attempts` table.
@@ -101,13 +104,27 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { classes, scopedStudents } = await resolveTeacherRoster(admin, user.id, role);
+  let roster;
+  try {
+    roster = await resolveTeacherRoster(admin, user.id, role);
+  } catch (error) {
+    if (error instanceof TeacherRosterLookupError) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    throw error;
+  }
+  const { classes, scopedStudents } = roster;
 
   const { thresholds, isCustom: thresholdsAreCustom } = await loadTeacherThresholds(user.id);
 
   const emptyResponse = {
     classes,
-    students: [] as { id: string; label: string; classId: string | null }[],
+    students: [] as {
+      id: string;
+      label: string;
+      classId: string | null;
+      classIds?: string[];
+    }[],
     topics: [] as string[],
     summary: {
       completionRate: 0,
@@ -140,7 +157,7 @@ export async function GET(request: Request) {
 
   const effectiveStudents =
     classId && classes.some((c) => c.id === classId)
-      ? scopedStudents.filter((student) => student.classId === classId)
+      ? scopedStudents.filter((student) => student.classIds.includes(classId))
       : scopedStudents;
 
   if (effectiveStudents.length === 0) {
@@ -148,7 +165,15 @@ export async function GET(request: Request) {
   }
 
   const studentMap = new Map(effectiveStudents.map((s) => [s.id, s.label]));
-  const studentClassMap = new Map(effectiveStudents.map((s) => [s.id, s.classId]));
+  const studentClassIdsMap = new Map(
+    effectiveStudents.map((student) => [student.id, student.classIds]),
+  );
+  const studentClassMap = new Map(
+    effectiveStudents.map((student) => [
+      student.id,
+      classId && student.classIds.includes(classId) ? classId : student.classId,
+    ]),
+  );
   const filteredStudentIds = effectiveStudents.map((s) => s.id);
   const filteredEffectiveStudentIds =
     studentId && filteredStudentIds.includes(studentId)
@@ -210,6 +235,7 @@ export async function GET(request: Request) {
       id,
       label: studentMap.get(id) ?? id,
       classId: studentClassMap.get(id) ?? null,
+      classIds: studentClassIdsMap.get(id),
     })),
     selectedStudentId: studentId ?? null,
     includeModeBreakdown: mode === "compare",

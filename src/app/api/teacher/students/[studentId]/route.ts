@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveTeacherRoster } from "@/lib/analytics/teacher-roster";
+import {
+  resolveTeacherRoster,
+  TeacherRosterLookupError,
+} from "@/lib/analytics/teacher-roster";
 import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
 import {
   classifyPerformance,
@@ -200,8 +203,18 @@ export async function GET(
     classId: classId ?? null,
   };
 
-  const { scopedStudents } = await resolveTeacherRoster(admin, user.id, role);
-  const student = scopedStudents.find((s) => s.id === studentId);
+  let roster;
+  try {
+    roster = await resolveTeacherRoster(admin, user.id, role);
+  } catch (error) {
+    if (error instanceof TeacherRosterLookupError) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    throw error;
+  }
+  const student = roster.scopedStudents.find(
+    (s) => s.id === studentId && (!classId || s.classIds.includes(classId)),
+  );
   if (!student) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

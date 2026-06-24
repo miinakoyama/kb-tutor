@@ -10,13 +10,27 @@ export interface RosterClass {
 export interface RosterStudent {
   id: string;
   label: string;
+  /** First school id for legacy UI fields; use `classIds` for membership checks. */
   classId: string | null;
+  classIds: string[];
 }
 
 export interface TeacherRoster {
   classes: RosterClass[];
   /** Students in the teacher's (or admin's) scope, excluding analytics-excluded profiles. */
   scopedStudents: RosterStudent[];
+}
+
+export class TeacherRosterLookupError extends Error {
+  constructor(message = "Failed to load teacher roster.") {
+    super(message);
+    this.name = "TeacherRosterLookupError";
+  }
+}
+
+function failRosterLookup(context: string, error: unknown): never {
+  console.error(`[teacher-roster] ${context} failed`, error);
+  throw new TeacherRosterLookupError();
 }
 
 /**
@@ -41,10 +55,10 @@ export async function resolveTeacherRoster(
       admin.from("schools").select("id").eq("teacher_user_id", userId),
     ]);
     if (schoolTeachersRes.error) {
-      console.error("[teacher-roster] school_teachers query failed", schoolTeachersRes.error);
+      failRosterLookup("school_teachers query", schoolTeachersRes.error);
     }
     if (legacySchoolsRes.error) {
-      console.error("[teacher-roster] legacy schools query failed", legacySchoolsRes.error);
+      failRosterLookup("legacy schools query", legacySchoolsRes.error);
     }
     schoolIds = Array.from(
       new Set([
@@ -58,7 +72,7 @@ export async function resolveTeacherRoster(
       .select("id")
       .order("name", { ascending: true });
     if (allSchoolsError) {
-      console.error("[teacher-roster] schools query failed", allSchoolsError);
+      failRosterLookup("schools query", allSchoolsError);
     }
     schoolIds = (allSchools ?? []).map((row) => row.id);
   }
@@ -70,7 +84,7 @@ export async function resolveTeacherRoster(
       .select("id,name")
       .in("id", schoolIds);
     if (error) {
-      console.error("[teacher-roster] school name lookup failed", error);
+      failRosterLookup("school name lookup", error);
     }
     schoolRows = data ?? [];
   }
@@ -88,15 +102,20 @@ export async function resolveTeacherRoster(
     .select("school_id,student_user_id")
     .in("school_id", schoolIds);
   if (memberError) {
-    console.error("[teacher-roster] school_members query failed", memberError);
-    return { classes, scopedStudents: [] };
+    failRosterLookup("school_members query", memberError);
   }
 
-  const studentClassMap = new Map<string, string>();
+  const studentClassMap = new Map<string, string[]>();
   for (const row of memberRows ?? []) {
     const sid = String(row.student_user_id);
-    if (!studentClassMap.has(sid)) {
-      studentClassMap.set(sid, String(row.school_id));
+    const schoolId = String(row.school_id);
+    const classIds = studentClassMap.get(sid);
+    if (classIds) {
+      if (!classIds.includes(schoolId)) {
+        classIds.push(schoolId);
+      }
+    } else {
+      studentClassMap.set(sid, [schoolId]);
     }
   }
   const scopedStudentIds = Array.from(studentClassMap.keys());
@@ -110,7 +129,7 @@ export async function resolveTeacherRoster(
     .select("id,display_name,student_id,excluded_from_analytics")
     .in("id", scopedStudentIds);
   if (profileError) {
-    console.error("[teacher-roster] profiles query failed", profileError);
+    failRosterLookup("profiles query", profileError);
   }
 
   const scopedStudents: RosterStudent[] = [];
@@ -120,7 +139,8 @@ export async function resolveTeacherRoster(
     scopedStudents.push({
       id,
       label: String(profile.display_name || profile.student_id || profile.id),
-      classId: studentClassMap.get(id) ?? null,
+      classId: studentClassMap.get(id)?.[0] ?? null,
+      classIds: studentClassMap.get(id) ?? [],
     });
   }
 

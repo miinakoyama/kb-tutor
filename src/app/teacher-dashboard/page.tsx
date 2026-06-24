@@ -69,6 +69,7 @@ interface StudentOption {
   id: string;
   label: string;
   classId: string | null;
+  classIds?: string[];
 }
 
 interface DashboardPayload {
@@ -242,7 +243,9 @@ function TeacherDashboardContent() {
 
   const filteredStudents = useMemo(() => {
     if (!classId) return data.students;
-    return data.students.filter((student) => student.classId === classId);
+    return data.students.filter((student) =>
+      (student.classIds ?? [student.classId]).includes(classId),
+    );
   }, [classId, data.students]);
 
   const filteredStandards = useMemo(() => {

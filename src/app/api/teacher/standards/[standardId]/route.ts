@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveTeacherRoster } from "@/lib/analytics/teacher-roster";
+import {
+  resolveTeacherRoster,
+  TeacherRosterLookupError,
+} from "@/lib/analytics/teacher-roster";
 import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
 import {
   classifyPerformance,
@@ -157,14 +160,23 @@ export async function GET(
     filters,
   };
 
-  const { classes, scopedStudents } = await resolveTeacherRoster(admin, user.id, role);
+  let roster;
+  try {
+    roster = await resolveTeacherRoster(admin, user.id, role);
+  } catch (error) {
+    if (error instanceof TeacherRosterLookupError) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    throw error;
+  }
+  const { classes, scopedStudents } = roster;
   if (scopedStudents.length === 0) {
     return NextResponse.json(emptyResponse);
   }
 
   const effectiveStudents =
     classId && classes.some((c) => c.id === classId)
-      ? scopedStudents.filter((student) => student.classId === classId)
+      ? scopedStudents.filter((student) => student.classIds.includes(classId))
       : scopedStudents;
   if (effectiveStudents.length === 0) {
     return NextResponse.json(emptyResponse);
