@@ -155,8 +155,7 @@ export default function ProgressPage() {
                   <PolarRadiusAxis
                     angle={90}
                     domain={[0, 100]}
-                    tick={false}
-                    axisLine={false}
+                    tick={{ fill: "#2c3e2e", fontSize: 10 }}
                   />
                   <Radar
                     name="Mastery %"
