@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, XCircle, Lightbulb } from "lucide-react";
+import { AlertCircle, CheckCircle2, XCircle, Lightbulb } from "lucide-react";
 import type { Question, AnswerRecord } from "@/types/question";
 
 interface FeedbackPanelProps {
@@ -87,12 +87,17 @@ export function FeedbackPanel({
 
       {showMisconception && question.commonMisconception && !displayIsCorrect && (
         <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-400 mb-1">
-            Common Misconception
-          </p>
-          <p className="text-sm text-slate-gray leading-relaxed">
-            {question.commonMisconception}
-          </p>
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-400 mb-1">
+                Common Misconception
+              </p>
+              <p className="text-sm text-slate-gray leading-relaxed">
+                {question.commonMisconception}
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </motion.div>
