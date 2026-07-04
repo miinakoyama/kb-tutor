@@ -1,4 +1,4 @@
-import { getStandardById } from "@/lib/standards";
+import { getAllStandards, getStandardById } from "@/lib/standards";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
   LOW_AND_FAST_MAX_ACCURACY,
@@ -241,6 +241,25 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     byModeStudentIds: Record<AttemptMode, Set<string>>;
   }
   const standardAgg = new Map<string, StandardAgg>();
+  // Pre-seed every known standard so all 23 appear even with zero attempts.
+  for (const std of getAllStandards()) {
+    standardAgg.set(std.id, {
+      label: std.label,
+      attempted: 0,
+      correct: 0,
+      totalTime: 0,
+      measuredTimeCount: 0,
+      studentIds: new Set<string>(),
+      byMode: emptyModeBreakdown(),
+      byModeTotalTime: { practice: 0, exam: 0, review: 0 },
+      byModeMeasuredCount: { practice: 0, exam: 0, review: 0 },
+      byModeStudentIds: {
+        practice: new Set<string>(),
+        exam: new Set<string>(),
+        review: new Set<string>(),
+      },
+    });
+  }
   // Stable id used when DB row has no standardId. We namespace by topic so
   // attempts from unrelated topics don't get merged under a single catch-all
   // bucket (which would mislabel them with whichever row was seen first).
