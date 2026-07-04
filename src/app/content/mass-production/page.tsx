@@ -289,6 +289,18 @@ export default function MassProductionPage() {
     }));
   };
 
+  const handleAutoDistributeDiagrams = () => {
+    const types: (keyof DiagramConfig)[] = ["chart", "table", "flowchart", "diagram"];
+    const base = Math.floor(settings.questionCount / types.length);
+    let remainder = settings.questionCount % types.length;
+    const newConfig: DiagramConfig = { chart: 0, table: 0, flowchart: 0, diagram: 0 };
+    for (const type of types) {
+      newConfig[type] = base + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder -= 1;
+    }
+    setSettings((prev) => ({ ...prev, diagramConfig: newConfig }));
+  };
+
   const handleDiagramCountChange = (type: keyof DiagramConfig, rawValue: string) => {
     const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
     if (isNaN(value)) return;
@@ -727,10 +739,18 @@ export default function MassProductionPage() {
 
           {settings.includeDiagrams && (
             <div className="space-y-4 pl-7">
-              <p className="text-xs text-muted-foreground mb-3">
-                Specify how many questions should include each diagram type.
-                Remaining questions will be text-only.
-              </p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-muted-foreground">
+                  Specify how many questions should include each diagram type.
+                  Remaining questions will be text-only.
+                </p>
+                <button
+                  onClick={handleAutoDistributeDiagrams}
+                  className="text-xs text-primary hover:text-primary-hover font-medium shrink-0 ml-4"
+                >
+                  Auto distribute
+                </button>
+              </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
