@@ -525,16 +525,11 @@ function TeacherDashboardContent() {
                           <ChevronDown
                             className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150 ${collapsedGroups.has(group.key) ? "-rotate-90" : ""}`}
                           />
-                          <span className="text-sm font-semibold text-slate-600">
-                            {group.category}
-                          </span>
                           <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-500">
                             Module {group.module}
                           </span>
-                          <span className="text-xs text-slate-400">
-                            ({group.rows.length}{" "}
-                            {group.rows.length === 1 ? "standard" : "standards"}
-                            )
+                          <span className="text-sm font-semibold text-slate-600">
+                            {group.category}
                           </span>
                         </div>
                       </td>
