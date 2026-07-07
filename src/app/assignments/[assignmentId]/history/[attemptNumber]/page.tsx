@@ -1,8 +1,9 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -29,9 +30,26 @@ interface AttemptDetailPayload {
 }
 
 export default function AssignmentAttemptDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-center text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" />
+          Loading attempt...
+        </main>
+      }
+    >
+      <AttemptDetailContent />
+    </Suspense>
+  );
+}
+
+function AttemptDetailContent() {
   const params = useParams<{ assignmentId: string; attemptNumber: string }>();
+  const searchParams = useSearchParams();
   const assignmentId = params.assignmentId;
   const attemptNumber = params.attemptNumber;
+  const isDirect = searchParams.get("direct") === "1";
 
   const [data, setData] = useState<AttemptDetailPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,16 +84,14 @@ export default function AssignmentAttemptDetailPage() {
     void load();
   }, [load]);
 
-  // Defensive reset for a stale active index after `items` changes
-  // (e.g. a refetch returned fewer items). Doing this in an effect
-  // instead of inline during render avoids React warnings about
-  // setting state while rendering, and the consequent re-render loops.
   useEffect(() => {
     if (activeIndex === null) return;
     if (!data || !data.items[activeIndex]) {
       setActiveIndex(null);
     }
   }, [activeIndex, data]);
+
+  const backToHistory = `/assignments/${encodeURIComponent(assignmentId)}/history`;
 
   if (isLoading) {
     return (
@@ -90,10 +106,11 @@ export default function AssignmentAttemptDetailPage() {
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-4">
         <Link
-          href={`/assignments/${encodeURIComponent(assignmentId)}/history`}
+          href={isDirect ? "/assignments" : backToHistory}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to past attempts
+          <ArrowLeft className="w-4 h-4" />{" "}
+          {isDirect ? "Back to assignments" : "Back to past attempts"}
         </Link>
         <div className="rounded-lg border border-error-border bg-error-light px-4 py-3 text-sm text-error">
           {error ?? "Attempt not found."}
@@ -108,10 +125,51 @@ export default function AssignmentAttemptDetailPage() {
       ? Math.round((summary.correct / summary.total) * 100)
       : 0;
 
+  // --- Direct mode: show only wrong questions, all expanded ---
+  if (isDirect) {
+    const wrongItems = items.filter((item) => !item.answer?.isCorrect);
+    return (
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6">
+        <Link
+          href="/assignments"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to assignments
+        </Link>
+
+        <header className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">
+            Wrong questions
+          </h1>
+          <p className="text-muted-foreground text-sm">{assignment.title}</p>
+          <p className="text-xs text-muted-foreground">
+            Completed {new Date(attempt.completed_at).toLocaleString()} &middot;{" "}
+            Score: {summary.correct} / {summary.total}
+            {summary.total > 0 ? ` (${percent}%)` : ""}
+          </p>
+        </header>
+
+        {wrongItems.length === 0 ? (
+          <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
+            <CheckCircle2 className="w-8 h-8 text-primary mx-auto mb-2" />
+            <p className="text-slate-gray font-medium">All correct!</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              You answered every question correctly in this attempt.
+            </p>
+          </section>
+        ) : (
+          <div className="space-y-4">
+            {wrongItems.map((item, i) => (
+              <WrongQuestionCard key={item.question.id} item={item} index={i} />
+            ))}
+          </div>
+        )}
+      </main>
+    );
+  }
+
+  // --- Normal mode: click-through list ---
   const activeItem = activeIndex !== null ? items[activeIndex] : undefined;
-  // When activeIndex is stale (out of bounds), fall through to the list
-  // view here; the effect above resets the index to null on the next
-  // tick. We deliberately do NOT call setActiveIndex during render.
   if (activeIndex !== null && activeItem) {
     const submittedAnswer =
       activeItem.answer?.selectedOptionId != null
@@ -121,96 +179,94 @@ export default function AssignmentAttemptDetailPage() {
           }
         : null;
     return (
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-4">
-          <button
-            onClick={() => setActiveIndex(null)}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors"
-          >
-            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-              <ArrowLeft className="w-4 h-4 text-heading" />
-            </span>
-            Back to attempt
-          </button>
-          <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
-            <p className="text-sm text-muted-foreground mb-3">
-              Question {activeIndex + 1}
-            </p>
-            <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
-              {activeItem.question.text}
-            </p>
-            <div className="space-y-2.5">
-              {activeItem.question.options.map((opt) => {
-                const isCorrect =
-                  opt.id === activeItem.question.correctOptionId;
-                const isSelected =
-                  activeItem.answer?.selectedOptionId === opt.id;
-                const wrongSelection = isSelected && !isCorrect;
-                return (
-                  <div
-                    key={opt.id}
-                    className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
-                      isCorrect
-                        ? "border-primary/40 bg-primary/5"
-                        : wrongSelection
-                          ? "border-error-border bg-error-light"
-                          : "border-border-default bg-surface"
-                    }`}
-                  >
-                    <div className="mt-0.5 flex-shrink-0">
-                      {isCorrect ? (
-                        <CheckCircle2 className="w-4 h-4 text-primary" />
-                      ) : wrongSelection ? (
-                        <XCircle className="w-4 h-4 text-red-400" />
-                      ) : (
-                        <span className="inline-block w-4 h-4" />
-                      )}
-                    </div>
-                    <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
-                      {opt.text}
-                    </p>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-4">
+        <button
+          onClick={() => setActiveIndex(null)}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors"
+        >
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+            <ArrowLeft className="w-4 h-4 text-heading" />
+          </span>
+          Back to attempt
+        </button>
+        <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+          <p className="text-sm text-muted-foreground mb-3">
+            Question {activeIndex + 1}
+          </p>
+          <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
+            {activeItem.question.text}
+          </p>
+          <div className="space-y-2.5">
+            {activeItem.question.options.map((opt) => {
+              const isCorrect = opt.id === activeItem.question.correctOptionId;
+              const isSelected = activeItem.answer?.selectedOptionId === opt.id;
+              const wrongSelection = isSelected && !isCorrect;
+              return (
+                <div
+                  key={opt.id}
+                  className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
+                    isCorrect
+                      ? "border-primary/40 bg-primary/5"
+                      : wrongSelection
+                        ? "border-error-border bg-error-light"
+                        : "border-border-default bg-surface"
+                  }`}
+                >
+                  <div className="mt-0.5 flex-shrink-0">
+                    {isCorrect ? (
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                    ) : wrongSelection ? (
+                      <XCircle className="w-4 h-4 text-red-400" />
+                    ) : (
+                      <span className="inline-block w-4 h-4" />
+                    )}
                   </div>
-                );
-              })}
-            </div>
-            {submittedAnswer ? (
-              <FeedbackPanel
-                question={activeItem.question}
-                answer={submittedAnswer}
-                showKeyKnowledge
-                showMisconception
-              />
-            ) : (
-              <div className="mt-5 space-y-3">
-                <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
-                  <p className="text-sm font-semibold text-slate-gray mb-1">
-                    No answer submitted
-                  </p>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    This question was left unanswered in this attempt. The
-                    correct option is highlighted above for review.
+                  <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
+                    {opt.text}
                   </p>
                 </div>
-                {activeItem.question.keyKnowledge && (
-                  <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
-                      Key Idea
-                    </p>
-                    <p className="text-sm text-slate-gray leading-relaxed">
-                      {activeItem.question.keyKnowledge}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+              );
+            })}
           </div>
-        </main>
-      );
+          {submittedAnswer ? (
+            <FeedbackPanel
+              question={activeItem.question}
+              answer={submittedAnswer}
+              showKeyKnowledge
+              showMisconception
+            />
+          ) : (
+            <div className="mt-5 space-y-3">
+              <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
+                <p className="text-sm font-semibold text-slate-gray mb-1">
+                  No answer submitted
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  This question was left unanswered in this attempt. The correct
+                  option is highlighted above for review.
+                </p>
+              </div>
+              {activeItem.question.keyKnowledge && (
+                <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
+                    Key Idea
+                  </p>
+                  <p className="text-sm text-slate-gray leading-relaxed">
+                    {activeItem.question.keyKnowledge}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+    );
   }
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-6">
       <Link
-        href={`/assignments/${encodeURIComponent(assignmentId)}/history`}
+        href={backToHistory}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
       >
         <ArrowLeft className="w-4 h-4" /> Back to past attempts
@@ -285,5 +341,94 @@ export default function AssignmentAttemptDetailPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function WrongQuestionCard({
+  item,
+  index,
+}: {
+  item: AttemptItem;
+  index: number;
+}) {
+  const submittedAnswer =
+    item.answer?.selectedOptionId != null
+      ? {
+          selectedOptionId: item.answer.selectedOptionId,
+          isCorrect: item.answer.isCorrect,
+        }
+      : null;
+
+  return (
+    <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+      <p className="text-sm text-muted-foreground mb-3">
+        Wrong question {index + 1}
+      </p>
+      <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
+        {item.question.text}
+      </p>
+      <div className="space-y-2.5">
+        {item.question.options.map((opt) => {
+          const isCorrect = opt.id === item.question.correctOptionId;
+          const isSelected = item.answer?.selectedOptionId === opt.id;
+          const wrongSelection = isSelected && !isCorrect;
+          return (
+            <div
+              key={opt.id}
+              className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
+                isCorrect
+                  ? "border-primary/40 bg-primary/5"
+                  : wrongSelection
+                    ? "border-error-border bg-error-light"
+                    : "border-border-default bg-surface"
+              }`}
+            >
+              <div className="mt-0.5 flex-shrink-0">
+                {isCorrect ? (
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
+                ) : wrongSelection ? (
+                  <XCircle className="w-4 h-4 text-red-400" />
+                ) : (
+                  <span className="inline-block w-4 h-4" />
+                )}
+              </div>
+              <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
+                {opt.text}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      {submittedAnswer ? (
+        <FeedbackPanel
+          question={item.question}
+          answer={submittedAnswer}
+          showKeyKnowledge
+          showMisconception
+        />
+      ) : (
+        <div className="mt-5 space-y-3">
+          <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
+            <p className="text-sm font-semibold text-slate-gray mb-1">
+              No answer submitted
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              This question was left unanswered. The correct option is
+              highlighted above for review.
+            </p>
+          </div>
+          {item.question.keyKnowledge && (
+            <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
+                Key Idea
+              </p>
+              <p className="text-sm text-slate-gray leading-relaxed">
+                {item.question.keyKnowledge}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

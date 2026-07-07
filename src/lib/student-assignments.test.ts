@@ -504,6 +504,7 @@ function makePickAssignment(
     status: overrides.status,
     last_completed_at: overrides.last_completed_at ?? null,
     progress: overrides.progress ?? { answered: 0, total: 10 },
+    accuracy: overrides.accuracy ?? null,
   };
 }
 
