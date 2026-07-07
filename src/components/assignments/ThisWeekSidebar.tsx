@@ -232,7 +232,6 @@ export function ThisWeekSidebar({
         dueMap.set(key, (dueMap.get(key) ?? 0) + 1);
 
         if (
-          assignment.status !== "completed" &&
           dueDate.getTime() >= selectedWeekStartTime &&
           dueDate.getTime() <= selectedWeekEndTime
         ) {
