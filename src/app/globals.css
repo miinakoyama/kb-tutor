@@ -4,7 +4,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f0f4f1;
+  --background: #f8f8f8;
   --foreground: #1f2d1f;
   --surface: #ffffff;
   --surface-muted: #f8faf8;
@@ -26,7 +26,53 @@
   --diagram-canvas: var(--surface-muted);
   --diagram-node-fill: #ffffff;
   --diagram-ink: #1f2d1f;
-  --sidebar-gradient: linear-gradient(135deg, #166534 0%, #15803d 100%);
+  --sidebar-gradient: #0c6b45;
+  --assignment-glass-bg: rgba(255, 255, 255, 0.78);
+  --assignment-glass-bg-strong: rgba(255, 255, 255, 0.86);
+  --assignment-glass-border: rgba(255, 255, 255, 0.9);
+  --assignment-panel-border: rgb(12 107 69 / 0.08);
+  --assignment-card-shadow: inset 0 1px 0 rgb(255 255 255 / 0.96), 0 0 0 1px rgb(226 232 240 / 0.32), 0 10px 24px rgb(31 45 31 / 0.05), 0 2px 6px rgb(31 45 31 / 0.03);
+  --assignment-elevated-shadow: 0 8px 40px rgb(226 230 223 / 0.36), 0 2px 16px rgb(204 210 201 / 0.24);
+  --assignment-search-bg: rgba(255, 255, 255, 0.38);
+  --assignment-search-border: rgba(184, 214, 196, 0.62);
+  --assignment-search-shadow: inset 0 1px 0 rgb(255 255 255 / 0.82), 0 0 0 1px rgb(218 232 223 / 0.1), 0 8px 20px rgb(24 72 46 / 0.03);
+  --assignment-pill-highlight: inset 0 1px 2px rgb(255 255 255 / 0.8);
+  --assignment-mode-practice: #3a5c96;
+  --assignment-mode-practice-bg: #edf2fa;
+  --assignment-mode-exam: #a85179;
+  --assignment-mode-exam-bg: #faedf3;
+  --assignment-mode-review: #8a6216;
+  --assignment-mode-review-bg: #fbf2dc;
+  --assignment-due: #c24f44;
+  --assignment-due-muted: rgb(194 79 68 / 0.5);
+  --assignment-overdue: var(--assignment-due);
+  --assignment-overdue-muted: var(--assignment-due-muted);
+  --assignment-completed: var(--sidebar-gradient);
+  --assignment-completed-muted: rgb(12 107 69 / 0.5);
+  --assignment-cta-bg: rgb(12 107 69 / 0.7);
+  --assignment-cta-bg-strong: rgb(12 107 69 / 0.9);
+  --assignment-cta-bg-hover: rgb(12 107 69 / 0.76);
+  --assignment-cta-bg-active: rgb(12 107 69 / 0.64);
+  --assignment-cta-border: rgb(221 235 226 / 0.92);
+  --assignment-cta-border-hover: rgb(235 245 239 / 0.98);
+  --assignment-cta-shadow: inset 0 1px 1px rgb(255 255 255 / 0.18), inset 0 -1px 1px rgb(255 255 255 / 0.08);
+  --assignment-cta-elevated-shadow: inset 0 1px 2px rgb(255 255 255 / 0.2), 0 4px 10px rgb(7 66 42 / 0.18);
+  --assignment-row-cta-bg: #f1f2f0;
+  --assignment-row-cta-bg-hover: #e8eae7;
+  --assignment-row-cta-bg-active: #dee2dd;
+  --assignment-row-cta-text: #095536;
+  --assignment-row-cta-border: rgba(255, 255, 255, 0.92);
+  --assignment-row-cta-shadow: 0 4px 10px rgb(38 37 31 / 0.08);
+  --assignment-progress-fill: #7fb89d;
+  --assignment-progress-marker-shadow: drop-shadow(0 4px 8px rgb(70 120 156 / 0.22));
+  --assignment-cta-text: #f0f7f3;
+  --assignment-on-accent: #ffffff;
+  --assignment-calendar-nav-bg: rgb(12 107 69 / 0.05);
+  --assignment-calendar-nav-bg-hover: rgb(12 107 69 / 0.12);
+  --assignment-nav-shadow: 0 4px 10px rgb(12 107 69 / 0.14);
+  --assignment-popover-bg: rgba(240, 247, 243, 0.72);
+  --assignment-popover-border: rgba(255, 255, 255, 0.92);
+  --assignment-popover-shadow: 0 8px 18px rgba(38, 37, 31, 0.14);
 }
 
 .dark {
@@ -55,7 +101,44 @@
   --diagram-node-fill: #1e2e24;
   --diagram-ink: #e8f0ea;
   /* Slightly darker sidebar gradient — same brand, less glare next to dark content */
-  --sidebar-gradient: linear-gradient(135deg, #0f3d24 0%, #14532d 100%);
+  --sidebar-gradient: #0c6b45;
+  --assignment-glass-bg: rgba(24, 28, 25, 0.74);
+  --assignment-glass-bg-strong: rgba(28, 33, 29, 0.88);
+  --assignment-glass-border: rgba(232, 240, 234, 0.12);
+  --assignment-panel-border: rgba(143, 191, 159, 0.14);
+  --assignment-card-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 0 0 1px rgb(232 240 234 / 0.08), 0 12px 28px rgb(0 0 0 / 0.22), 0 2px 8px rgb(0 0 0 / 0.2);
+  --assignment-elevated-shadow: 0 16px 42px rgb(0 0 0 / 0.28), 0 2px 12px rgb(0 0 0 / 0.22);
+  --assignment-search-bg: rgba(24, 28, 25, 0.68);
+  --assignment-search-border: rgba(232, 240, 234, 0.14);
+  --assignment-search-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 8px 20px rgb(0 0 0 / 0.22);
+  --assignment-pill-highlight: inset 0 1px 1px rgb(255 255 255 / 0.08);
+  --assignment-mode-practice: #a9c3f0;
+  --assignment-mode-practice-bg: rgba(58, 92, 150, 0.28);
+  --assignment-mode-exam: #e0a2bf;
+  --assignment-mode-exam-bg: rgba(168, 81, 121, 0.26);
+  --assignment-mode-review: #f0cf86;
+  --assignment-mode-review-bg: rgba(251, 242, 220, 0.16);
+  --assignment-due: #fca5a5;
+  --assignment-due-muted: rgb(252 165 165 / 0.5);
+  --assignment-overdue: var(--assignment-due);
+  --assignment-overdue-muted: var(--assignment-due-muted);
+  --assignment-completed-muted: rgb(61 154 98 / 0.5);
+  --assignment-cta-border: rgba(232, 240, 234, 0.2);
+  --assignment-cta-border-hover: rgba(232, 240, 234, 0.32);
+  --assignment-row-cta-bg: rgba(227, 240, 233, 0.18);
+  --assignment-row-cta-bg-hover: rgba(227, 240, 233, 0.24);
+  --assignment-row-cta-bg-active: rgba(227, 240, 233, 0.14);
+  --assignment-row-cta-text: rgba(232, 240, 234, 0.78);
+  --assignment-row-cta-border: rgba(232, 240, 234, 0.18);
+  --assignment-row-cta-shadow: 0 4px 10px rgb(0 0 0 / 0.16);
+  --assignment-progress-fill: #7fb89d;
+  --assignment-progress-marker-shadow: drop-shadow(0 4px 8px rgb(0 0 0 / 0.3));
+  --assignment-calendar-nav-bg: rgb(232 240 234 / 0.08);
+  --assignment-calendar-nav-bg-hover: rgb(232 240 234 / 0.14);
+  --assignment-nav-shadow: 0 4px 10px rgb(0 0 0 / 0.28);
+  --assignment-popover-bg: rgba(28, 33, 29, 0.9);
+  --assignment-popover-border: rgba(232, 240, 234, 0.16);
+  --assignment-popover-shadow: 0 10px 24px rgb(0 0 0 / 0.32);
 }
 
 @theme inline {
@@ -85,7 +168,7 @@
   --color-chart-axis: var(--chart-axis);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-heading: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {

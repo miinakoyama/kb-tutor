@@ -71,6 +71,11 @@ const TEACHER_SECTION: NavSection = {
   ],
 };
 
+const SIDEBAR_MOTION =
+  "duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]";
+const SIDEBAR_TEXT_MOTION =
+  "transition-[opacity,max-width,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]";
+
 const ADMIN_SECTION: NavSection = {
   title: "Admin Console",
   items: [
@@ -314,8 +319,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           data-tour-id={tourTargetId}
           title={collapsed ? label : undefined}
           onClick={closeMobileMenu ? () => setIsOpen(false) : undefined}
-          className={`flex items-center rounded-lg font-medium transition-all ${
-            collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+          className={`flex items-center overflow-hidden rounded-lg font-medium text-base transition-[background-color,color,padding,gap] ${SIDEBAR_MOTION} ${
+            collapsed ? "justify-center gap-0 p-3" : "justify-start gap-3 px-3.5 py-3"
           } ${
             active
               ? "bg-surface/20 text-white shadow-inner"
@@ -323,9 +328,23 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           }`}
         >
           <Icon className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && label}
-          {!collapsed && isBookmarksLink && bookmarkCount > 0 && (
-            <span className="ml-auto bg-surface/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+          <span
+            className={`min-w-0 truncate whitespace-nowrap ${SIDEBAR_TEXT_MOTION} ${
+              collapsed
+                ? "max-w-0 -translate-x-1 opacity-0"
+                : "max-w-[160px] translate-x-0 opacity-100"
+            }`}
+          >
+            {label}
+          </span>
+          {isBookmarksLink && bookmarkCount > 0 && (
+            <span
+              className={`ml-auto bg-surface/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full ${SIDEBAR_TEXT_MOTION} ${
+                collapsed
+                  ? "max-w-0 -translate-x-1 opacity-0"
+                  : "max-w-[48px] translate-x-0 opacity-100"
+              }`}
+            >
               {bookmarkCount}
             </span>
           )}
@@ -336,13 +355,17 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const renderSections = (collapsed: boolean, closeMobileMenu = false) => {
     if (!roleLoaded) return null;
     return navSections.map((section, index) => (
-      <div key={section.title ?? `section-${index}`} className={index > 0 ? "mt-4 pt-4 border-t border-white/10" : ""}>
-        {section.title && !collapsed && (
-          <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-white/50">
+      <div key={section.title ?? `section-${index}`} className={index > 0 ? "mt-5 pt-5 border-t border-white/10" : ""}>
+        {section.title && (
+          <p
+            className={`overflow-hidden px-3 text-xs font-semibold uppercase tracking-wider text-white/50 transition-[opacity,max-height,margin] ${SIDEBAR_MOTION} ${
+              collapsed ? "mb-0 max-h-0 opacity-0" : "mb-2 max-h-5 opacity-100"
+            }`}
+          >
             {section.title}
           </p>
         )}
-        <div className="space-y-1">{renderNavItems(section.items, collapsed, closeMobileMenu)}</div>
+        <div className="space-y-[5px]">{renderNavItems(section.items, collapsed, closeMobileMenu)}</div>
       </div>
     ));
   };
@@ -398,43 +421,55 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const renderUserButton = (collapsed: boolean, closeMobileMenu = false) => (
     <div
       ref={closeMobileMenu ? mobileUserMenuRef : desktopUserMenuRef}
-      className="relative border-t border-white/10 p-3"
+      className="relative border-t border-white/10 p-3.5"
     >
       {renderUserMenuPopup(collapsed, closeMobileMenu)}
       <button
         onClick={() => setShowUserMenu((v) => !v)}
         title={collapsed && userProfile ? getDisplayName(userProfile) : undefined}
-        className={`w-full flex items-center rounded-lg hover:bg-surface/10 transition-colors group ${
-          collapsed ? "justify-center p-2" : "gap-3 px-3 py-2"
+        className={`w-full flex items-center overflow-hidden rounded-lg hover:bg-surface/10 transition-[background-color,padding,gap] ${SIDEBAR_MOTION} group ${
+          collapsed ? "justify-center gap-0 p-2.5" : "justify-start gap-3 px-3.5 py-2.5"
         }`}
       >
         <div className="w-8 h-8 rounded-full bg-surface/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
           {userProfile ? getInitial(userProfile) : "?"}
         </div>
-        {!collapsed && (
-          <>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-medium text-white truncate">
-                {userProfile ? getDisplayName(userProfile) : "Loading..."}
-              </p>
-              <p className="text-xs text-white/60 capitalize">{role}</p>
-            </div>
-            <ChevronUp
-              className={`w-4 h-4 text-white/60 transition-transform ${showUserMenu ? "rotate-180" : ""}`}
-            />
-          </>
-        )}
+        <div
+          className={`min-w-0 flex-1 text-left ${SIDEBAR_TEXT_MOTION} ${
+            collapsed
+              ? "max-w-0 -translate-x-1 opacity-0"
+              : "max-w-[148px] translate-x-0 opacity-100"
+          }`}
+        >
+          <p className="text-sm font-medium text-white truncate">
+            {userProfile ? getDisplayName(userProfile) : "Loading..."}
+          </p>
+          <p className="text-xs text-white/60 capitalize">{role}</p>
+        </div>
+        <ChevronUp
+          className={`w-4 h-4 flex-shrink-0 text-white/60 transition-[opacity,transform] duration-200 ${
+            showUserMenu ? "rotate-180" : ""
+          } ${collapsed ? "opacity-0" : "opacity-100"}`}
+        />
       </button>
     </div>
   );
 
   const desktopSidebarContent = (
     <>
-      <div className={`flex items-center border-b border-white/10 ${
-        isCollapsed ? "justify-center p-3" : "gap-2 px-4 py-4"
+      <div className={`flex items-center border-b border-white/10 transition-[padding,gap] ${SIDEBAR_MOTION} ${
+        isCollapsed ? "justify-center gap-0 p-3.5" : "justify-start gap-2.5 px-5 py-5"
       }`}>
-        {!isCollapsed && <FlaskConical className="w-7 h-7 text-bright flex-shrink-0" />}
-        {!isCollapsed && <span className="font-bold text-white text-lg">CTAG KB Tutor</span>}
+        <div
+          className={`flex min-w-0 items-center gap-2.5 overflow-hidden ${SIDEBAR_TEXT_MOTION} ${
+            isCollapsed
+              ? "max-w-0 -translate-x-1 opacity-0"
+              : "max-w-[190px] translate-x-0 opacity-100"
+          }`}
+        >
+          <FlaskConical className="w-7 h-7 text-bright flex-shrink-0" />
+          <span className="truncate font-bold text-white text-lg">CTAG KB Tutor</span>
+        </div>
         <button
           data-tour-id={TOUR_TARGET_IDS.SIDEBAR_TOGGLE}
           onClick={onToggle}
@@ -450,7 +485,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         </button>
       </div>
 
-      <nav className={`flex-1 py-4 overflow-y-auto ${isCollapsed ? "px-2" : "px-3"}`}>
+      <nav className={`flex-1 py-5 overflow-y-auto transition-[padding] ${SIDEBAR_MOTION} ${isCollapsed ? "px-2.5" : "px-3.5"}`}>
         {renderSections(isCollapsed, false)}
       </nav>
 
@@ -500,7 +535,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             style={{ background: "var(--sidebar-gradient)" }}
           >
             <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
+              <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
                 <div className="flex items-center gap-2">
                   <FlaskConical className="w-7 h-7 text-bright" />
                   <span className="font-bold text-white text-lg">
@@ -515,7 +550,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <nav className="flex-1 px-3 py-4 overflow-y-auto">{renderSections(false, true)}</nav>
+              <nav className="flex-1 px-3.5 py-5 overflow-y-auto">{renderSections(false, true)}</nav>
               {renderUserButton(false, true)}
             </div>
           </motion.aside>
@@ -524,7 +559,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
       <aside
         data-tour-id={TOUR_TARGET_IDS.SIDEBAR_ROOT}
-        className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-hidden transition-all duration-300 ${
+        className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-hidden transition-[width] ${SIDEBAR_MOTION} ${
           isCollapsed ? "lg:w-14" : "lg:w-64"
         }`}
         style={{ background: "var(--sidebar-gradient)" }}
