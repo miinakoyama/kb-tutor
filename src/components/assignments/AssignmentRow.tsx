@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Clock, GraduationCap, NotebookPen, RotateCcw } from "lucide-react";
+import { Calendar } from "lucide-react";
 import type { StudentAssignmentListItem } from "@/lib/student-assignments";
 import { formatDueDateTime } from "@/lib/due-date";
+import {
+  estimateQuestionCount,
+  getAssignmentModeMeta,
+  isAssignmentOverdue,
+} from "@/components/assignments/assignment-design";
+import { InstructorNoteIndicator } from "@/components/assignments/InstructorNoteIndicator";
 
-function estimateQuestionCount(targetMinutes: number): number {
-  return Math.max(6, Math.min(40, Math.round(targetMinutes / 1.8)));
-}
-
-function buildPracticeHref(assignment: StudentAssignmentListItem): string {
+export function buildPracticeHref(assignment: StudentAssignmentListItem): string {
   const questionCount =
     assignment.max_questions ?? estimateQuestionCount(assignment.target_minutes);
   const params = new URLSearchParams({
@@ -21,106 +23,161 @@ function buildPracticeHref(assignment: StudentAssignmentListItem): string {
   return `/practice?${params.toString()}`;
 }
 
-function isOverdue(dueDate: string | null | undefined): boolean {
-  if (!dueDate) return false;
-  const t = new Date(dueDate).getTime();
-  return Number.isFinite(t) && t < Date.now();
-}
-
-const MODE_ICON: Record<
-  "practice" | "exam" | "review",
-  { Icon: typeof NotebookPen; color: string }
-> = {
-  practice: { Icon: NotebookPen, color: "var(--color-sky-600, #0284c7)" },
-  exam: { Icon: GraduationCap, color: "var(--color-orange-600, #ea580c)" },
-  review: { Icon: RotateCcw, color: "var(--color-violet-600, #7c3aed)" },
-};
-
 export function AssignmentRow({
   assignment,
+  isNextStep = false,
 }: {
   assignment: StudentAssignmentListItem;
+  isNextStep?: boolean;
 }) {
   const href = buildPracticeHref(assignment);
-  const overdue = isOverdue(assignment.due_date);
-  const { mode, progress, status } = assignment;
-  const { Icon, color } = MODE_ICON[mode] ?? MODE_ICON.practice;
+  const overdue = isAssignmentOverdue(assignment);
+  const { mode, progress } = assignment;
+  const { Icon, color, label, pillBg, pillBorder } =
+    getAssignmentModeMeta(mode);
 
-  const completionRatio =
-    progress.total > 0 ? Math.min(1, progress.answered / progress.total) : 0;
+  const questionCount =
+    progress.total > 0
+      ? progress.total
+      : (assignment.max_questions ?? estimateQuestionCount(assignment.target_minutes));
 
-  const totalLabel =
-    mode === "review" ? `up to ${progress.total}` : String(progress.total);
+  const ctaLabel = assignment.status === "in_progress" ? "Continue" : "Start";
+  const instructorNote = assignment.instructions?.trim() ?? "";
+  const ctaStyle = isNextStep
+    ? {
+        color: "var(--assignment-cta-text)",
+        background: "var(--assignment-cta-bg-strong)",
+        border: "1.5px solid var(--assignment-glass-border)",
+        boxShadow: "var(--assignment-cta-elevated-shadow)",
+      }
+    : {
+        color: "var(--assignment-row-cta-text)",
+        background: "var(--assignment-row-cta-bg)",
+        border: "1.5px solid var(--assignment-row-cta-border)",
+        boxShadow: "var(--assignment-row-cta-shadow)",
+      };
 
   return (
-    <Link
-      href={href}
-      className="group block rounded-xl border border-border-default bg-surface shadow-sm p-5 hover:border-foreground/30 hover:-translate-y-px transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+    <div
+      className="flex flex-col items-start gap-4 rounded-2xl px-4 sm:flex-row sm:items-center sm:gap-6 sm:px-6"
+      style={{
+        minHeight: 104,
+        paddingTop: 16,
+        paddingBottom: 16,
+        background: "var(--assignment-glass-bg)",
+        border: "1px solid var(--assignment-glass-border)",
+        boxShadow: "var(--assignment-card-shadow)",
+        backdropFilter: "blur(14px) saturate(115%)",
+        WebkitBackdropFilter: "blur(14px) saturate(115%)",
+      }}
     >
       {/* Mode icon */}
       <Icon
-        className="mb-3 flex-shrink-0"
-        style={{ width: 26, height: 26, color }}
+        style={{ width: 24, height: 24, color, flexShrink: 0 }}
         aria-hidden="true"
       />
 
-      {/* Title — 2 lines max */}
-      <p
-        className="font-medium text-slate-gray mb-3 line-clamp-2 leading-snug"
-        style={{ fontSize: 15 }}
-      >
-        {assignment.title}
-      </p>
+      {/* Title + subline */}
+      <div className="flex-1 min-w-0">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p
+            className="truncate text-slate-gray"
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              lineHeight: 1.4,
+              letterSpacing: -0.4,
+              fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+            }}
+          >
+            {assignment.title}
+          </p>
+          {instructorNote && <InstructorNoteIndicator note={instructorNote} />}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <span
+            className="inline-flex items-center rounded-full px-3 py-1"
+            style={{
+              fontSize: 13,
+              lineHeight: 1.5,
+              letterSpacing: -0.1,
+              fontWeight: 500,
+              fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+              color,
+              background: pillBg,
+              border: `1.5px solid ${pillBorder}`,
+              boxShadow: "var(--assignment-pill-highlight)",
+            }}
+          >
+            {label}
+          </span>
+          {questionCount > 0 && (
+            <span
+              className="text-muted-foreground"
+              style={{
+                fontSize: 15,
+                lineHeight: 1.5,
+                letterSpacing: -0.1,
+                fontWeight: 400,
+                fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+              }}
+            >
+              {questionCount} questions
+            </span>
+          )}
+        </div>
+      </div>
 
-      {/* Progress section */}
-      <div className="mb-3">
-        {status === "not_started" ? (
-          progress.total > 0 ? (
-            <p className="text-xs text-muted-foreground">
-              {totalLabel} questions
-            </p>
-          ) : null
-        ) : (
-          progress.total > 0 && (
-            <>
-              <div
-                className="rounded-full overflow-hidden mb-1"
-                style={{
-                  height: 3,
-                  background: "var(--surface-muted)",
-                }}
-                aria-hidden="true"
-              >
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${completionRatio * 100}%`,
-                    background: "var(--primary)",
-                  }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {progress.answered} of {totalLabel}
-              </p>
-            </>
-          )
+      {/* Due date — fixed 180px column */}
+      <div
+        className="hidden sm:flex flex-shrink-0 items-center gap-3"
+        style={{
+          width: 196,
+          color: assignment.due_date
+            ? overdue ? "var(--assignment-overdue)" : "var(--muted-foreground)"
+            : "transparent",
+        }}
+      >
+        {assignment.due_date && (
+          <>
+            <Calendar style={{ width: 13, height: 13 }} aria-hidden="true" />
+            <span
+              style={{
+                fontSize: 15,
+                lineHeight: 1.5,
+                letterSpacing: -0.1,
+                fontWeight: 400,
+                fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+              }}
+            >
+              {formatDueDateTime(assignment.due_date)}
+            </span>
+          </>
         )}
       </div>
 
-      {/* Due date */}
-      <p
-        className="text-xs inline-flex items-center gap-1"
+      {/* CTA button — fixed ~72px */}
+      <Link
+        href={href}
+        className={`inline-flex h-11 w-full flex-shrink-0 items-center justify-center rounded-xl font-bold transition duration-200 hover:-translate-y-px active:translate-y-0 sm:w-[108px] ${
+          isNextStep
+            ? "hover:brightness-110 active:brightness-95"
+            : "hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)]"
+        }`}
         style={{
-          color: overdue ? "var(--error-color)" : "var(--muted-foreground)",
+          fontSize: 16,
+          lineHeight: 1.5,
+          letterSpacing: "0.3px",
+          wordSpacing: "1px",
+          fontWeight: 700,
+          height: 46,
+          borderRadius: 999,
+          fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+          ...ctaStyle,
         }}
       >
-        {overdue && (
-          <Clock className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
-        )}
-        {assignment.due_date
-          ? formatDueDateTime(assignment.due_date)
-          : "No due date"}
-      </p>
-    </Link>
+        {ctaLabel}
+      </Link>
+    </div>
   );
 }
