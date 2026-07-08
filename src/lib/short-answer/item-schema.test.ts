@@ -38,16 +38,16 @@ describe("validateShortAnswerItem", () => {
     expect(validateShortAnswerItem(item)).toMatch(/stimulusType/);
   });
 
-  it("rejects when part maxScores do not sum to pointsPossible", () => {
+  it("rejects when a part rubric point value does not match maxScore", () => {
     const item = clone();
-    item.parts[0].maxScore = 2;
-    expect(validateShortAnswerItem(item)).toMatch(/sum to/);
+    item.parts[0].rubric.pointsPossible = 2;
+    expect(validateShortAnswerItem(item)).toMatch(/must equal maxScore/);
   });
 
-  it("rejects when a rubric score level is missing", () => {
+  it("rejects when a part rubric score level is missing", () => {
     const item = clone();
-    delete (item.scoringRubric.criteria as Record<string, string>)["2"];
-    expect(validateShortAnswerItem(item)).toMatch(/criterion for score 2/);
+    delete item.parts[0].rubric.criteria["1"];
+    expect(validateShortAnswerItem(item)).toMatch(/rubric.criteria must include score 1/);
   });
 
   it("rejects when an annotated score level is missing", () => {

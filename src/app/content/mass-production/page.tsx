@@ -57,12 +57,7 @@ const TOPIC_SELECTION_BY_KEY = new Map(
   TOPIC_SELECTIONS.map((selection) => [selection.key, selection])
 );
 
-interface DiagramConfig {
-  chart: number;
-  table: number;
-  flowchart: number;
-  diagram: number;
-}
+type StimulusConfig = Record<StimulusType, number>;
 
 interface GenerationSettings {
   questionSetName: string;
@@ -72,18 +67,11 @@ interface GenerationSettings {
   standardCounts: Record<string, number>;
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
-  diagramConfig: DiagramConfig;
+  stimulusConfig: StimulusConfig;
   customPrompt: string;
   shortAnswerCount: number;
   generationModelId: string;
   generationTemperature: number;
-  saCoreKC: string;
-}
-
-interface KCOption {
-  code: string;
-  statement: string;
-  standard: string;
 }
 
 function distributeStandardCounts(
@@ -162,17 +150,18 @@ const DEFAULT_SETTINGS: GenerationSettings = {
   ),
   dokLevels: [1, 2, 3],
   includeDiagrams: false,
-  diagramConfig: {
-    chart: 0,
+  stimulusConfig: {
     table: 0,
-    flowchart: 0,
+    line_graph: 0,
+    bar_chart: 0,
     diagram: 0,
+    scenario: 0,
+    illustration: 0,
   },
   customPrompt: "",
   shortAnswerCount: 0,
   generationModelId: DEFAULT_GENERATION_MODEL_ID,
   generationTemperature: DEFAULT_GENERATION_TEMPERATURE,
-  saCoreKC: "",
 };
 
 /** Expand per-standard counts into a flat list of standard codes (one per item). */
@@ -184,13 +173,60 @@ function expandStandardCounts(counts: Record<string, number>): string[] {
   return codes;
 }
 
-function diagramConfigTotal(config: DiagramConfig): number {
-  return config.chart + config.table + config.flowchart + config.diagram;
+const STIMULUS_LABELS: Record<StimulusType, string> = {
+  table: "Data table",
+  line_graph: "Line graph",
+  bar_chart: "Bar chart",
+  diagram: "Diagram",
+  scenario: "Scenario text",
+  illustration: "Illustration",
+};
+
+function stimulusConfigTotal(config: StimulusConfig): number {
+  return Object.values(config).reduce((sum, count) => sum + count, 0);
 }
 
-function takeDiagramCount(
-  remaining: DiagramConfig,
-  key: keyof DiagramConfig,
+function normalizeCount(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : 0;
+}
+
+function readStimulusConfig(raw: Record<string, unknown>): StimulusConfig {
+  const stimulusRaw =
+    raw.stimulusConfig && typeof raw.stimulusConfig === "object"
+      ? (raw.stimulusConfig as Record<string, unknown>)
+      : null;
+  if (stimulusRaw) {
+    return {
+      table: normalizeCount(stimulusRaw.table),
+      line_graph: normalizeCount(stimulusRaw.line_graph),
+      bar_chart: normalizeCount(stimulusRaw.bar_chart),
+      diagram: normalizeCount(stimulusRaw.diagram),
+      scenario: normalizeCount(stimulusRaw.scenario),
+      illustration: normalizeCount(stimulusRaw.illustration),
+    };
+  }
+
+  const legacyRaw =
+    raw.diagramConfig && typeof raw.diagramConfig === "object"
+      ? (raw.diagramConfig as Record<string, unknown>)
+      : {};
+  const chart = normalizeCount(legacyRaw.chart);
+  return {
+    table: normalizeCount(legacyRaw.table),
+    line_graph: Math.ceil(chart / 2),
+    bar_chart: Math.floor(chart / 2),
+    diagram:
+      normalizeCount(legacyRaw.diagram) + normalizeCount(legacyRaw.flowchart),
+    scenario: 0,
+    illustration: 0,
+  };
+}
+
+function takeStimulusCount(
+  remaining: StimulusConfig,
+  key: StimulusType,
   capacity: number,
 ): number {
   const count = Math.min(remaining[key], capacity);
@@ -198,39 +234,37 @@ function takeDiagramCount(
   return count;
 }
 
-function splitDiagramConfig(
-  config: DiagramConfig,
+function splitStimulusConfig(
+  config: StimulusConfig,
   mcqCapacity: number,
-): { mcqDiagramConfig: DiagramConfig; saqDiagramConfig: DiagramConfig } {
+): { mcqStimulusConfig: StimulusConfig; saqStimulusConfig: StimulusConfig } {
   const remaining = { ...config };
   let capacity = Math.max(0, mcqCapacity);
-  const mcqDiagramConfig: DiagramConfig = {
-    chart: takeDiagramCount(remaining, "chart", capacity),
+  const mcqStimulusConfig: StimulusConfig = {
     table: 0,
-    flowchart: 0,
+    line_graph: 0,
+    bar_chart: 0,
     diagram: 0,
+    scenario: 0,
+    illustration: 0,
   };
-  capacity -= mcqDiagramConfig.chart;
-  mcqDiagramConfig.table = takeDiagramCount(remaining, "table", capacity);
-  capacity -= mcqDiagramConfig.table;
-  mcqDiagramConfig.flowchart = takeDiagramCount(remaining, "flowchart", capacity);
-  capacity -= mcqDiagramConfig.flowchart;
-  mcqDiagramConfig.diagram = takeDiagramCount(remaining, "diagram", capacity);
+
+  for (const key of Object.keys(mcqStimulusConfig) as StimulusType[]) {
+    mcqStimulusConfig[key] = takeStimulusCount(remaining, key, capacity);
+    capacity -= mcqStimulusConfig[key];
+  }
 
   return {
-    mcqDiagramConfig,
-    saqDiagramConfig: remaining,
+    mcqStimulusConfig,
+    saqStimulusConfig: remaining,
   };
 }
 
-function expandShortAnswerStimulusTypes(config: DiagramConfig, total: number): Array<StimulusType | undefined> {
+function expandStimulusTypes(config: StimulusConfig, total: number): Array<StimulusType | undefined> {
   const stimulusTypes: Array<StimulusType | undefined> = [];
-  for (let i = 0; i < config.chart; i++) {
-    stimulusTypes.push(i % 2 === 0 ? "line_graph" : "bar_chart");
+  for (const key of Object.keys(config) as StimulusType[]) {
+    for (let i = 0; i < config[key]; i++) stimulusTypes.push(key);
   }
-  for (let i = 0; i < config.table; i++) stimulusTypes.push("table");
-  for (let i = 0; i < config.flowchart; i++) stimulusTypes.push("diagram");
-  for (let i = 0; i < config.diagram; i++) stimulusTypes.push("diagram");
   while (stimulusTypes.length < total) stimulusTypes.push(undefined);
   return stimulusTypes.slice(0, total);
 }
@@ -253,7 +287,9 @@ function buildShortAnswerQuestion(
     correctOptionId: "",
     questionType: "open-ended",
     shortAnswer: item,
+    kcCode: item.blueprint.anchorKc,
     source: "generated",
+    includeInSelfPractice: true,
   };
 }
 
@@ -265,7 +301,6 @@ export default function MassProductionPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showShortAnswerOptions, setShowShortAnswerOptions] = useState(false);
   const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -274,7 +309,6 @@ export default function MassProductionPage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
   const [selectedSchoolIds, setSelectedSchoolIds] = useState<string[]>([]);
-  const [kcOptions, setKcOptions] = useState<KCOption[]>([]);
 
   useEffect(() => {
     async function loadSchools() {
@@ -320,6 +354,7 @@ export default function MassProductionPage() {
               : typeof legacy.saTemperature === "number"
                 ? legacy.saTemperature
                 : DEFAULT_SETTINGS.generationTemperature,
+          stimulusConfig: readStimulusConfig(legacy),
         };
 
         const normalizedTopics = Array.isArray(merged.topics)
@@ -382,39 +417,6 @@ export default function MassProductionPage() {
   }, [settings]);
 
   useEffect(() => {
-    const standards = ALL_STANDARDS
-      .map((standard) => standard.id)
-      .filter((standardId) => (settings.standardCounts[standardId] ?? 0) > 0);
-    if (standards.length === 0) {
-      setKcOptions([]);
-      return;
-    }
-    const controller = new AbortController();
-    async function loadKcs() {
-      try {
-        const params = new URLSearchParams();
-        params.set("standards", standards.join(","));
-        const res = await fetch(`/api/short-answer/kcs?${params.toString()}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          setKcOptions([]);
-          return;
-        }
-        const json = (await res.json()) as { kcs?: KCOption[] };
-        setKcOptions(json.kcs ?? []);
-      } catch (err) {
-        if (!(err instanceof DOMException && err.name === "AbortError")) {
-          setKcOptions([]);
-        }
-      }
-    }
-    void loadKcs();
-    return () => controller.abort();
-  }, [settings.standardCounts]);
-
-  useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isGenerating) {
       setElapsedTime(0);
@@ -425,7 +427,7 @@ export default function MassProductionPage() {
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  const totalDiagramCount = diagramConfigTotal(settings.diagramConfig);
+  const totalStimulusCount = stimulusConfigTotal(settings.stimulusConfig);
   const totalQuestionTarget = settings.questionCount + settings.shortAnswerCount;
   const totalAssignedStandardCount = ALL_STANDARDS.reduce(
     (sum, standard) => sum + (settings.standardCounts[standard.id] ?? 0),
@@ -446,7 +448,7 @@ export default function MassProductionPage() {
     settings.shortAnswerCount,
   );
 
-  const textOnlyCount = Math.max(0, totalQuestionTarget - totalDiagramCount);
+  const textOnlyCount = Math.max(0, totalQuestionTarget - totalStimulusCount);
 
   const getStandardsForSelection = (selectionKey: string) => {
     const selection = TOPIC_SELECTION_BY_KEY.get(selectionKey);
@@ -508,13 +510,13 @@ export default function MassProductionPage() {
     });
   };
 
-  const handleDiagramCountChange = (type: keyof DiagramConfig, rawValue: string) => {
+  const handleStimulusCountChange = (type: StimulusType, rawValue: string) => {
     const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
     if (isNaN(value)) return;
     setSettings((prev) => ({
       ...prev,
-      diagramConfig: {
-        ...prev.diagramConfig,
+      stimulusConfig: {
+        ...prev.stimulusConfig,
         [type]: Math.max(0, Math.min(value, prev.questionCount + prev.shortAnswerCount)),
       },
     }));
@@ -545,8 +547,8 @@ export default function MassProductionPage() {
         return;
       }
     }
-    if (totalDiagramCount > totalQuestionTarget) {
-      setError("Total diagram count cannot exceed MCQ count + short-answer count.");
+    if (totalStimulusCount > totalQuestionTarget) {
+      setError("Total stimulus count cannot exceed MCQ count + short-answer count.");
       return;
     }
     if (totalQuestionTarget > 0) {
@@ -587,67 +589,76 @@ export default function MassProductionPage() {
       const mergedQuestions: Question[] = [];
       let generationModel: { id?: string; label?: string } | undefined;
       const runWarnings: string[] = [];
-      const { mcqDiagramConfig, saqDiagramConfig } = splitDiagramConfig(
-        settings.includeDiagrams ? settings.diagramConfig : DEFAULT_SETTINGS.diagramConfig,
+      const { mcqStimulusConfig, saqStimulusConfig } = splitStimulusConfig(
+        settings.includeDiagrams ? settings.stimulusConfig : DEFAULT_SETTINGS.stimulusConfig,
         settings.questionCount,
       );
 
-      // ── MCQ generation (unchanged single call) ──────────────────────────
+      // ── MCQ generation (one HTTP call per item) ─────────────────────────
       if (wantMcq) {
-        setProgress("Generating multiple-choice questions...");
-        const mcqActiveStandardIds = activeStandardIds.filter(
-          (standardId) => (mcqCounts[standardId] ?? 0) > 0,
+        const codes = expandStandardCounts(mcqCounts);
+        const stimulusTypes = expandStimulusTypes(
+          settings.includeDiagrams ? mcqStimulusConfig : DEFAULT_SETTINGS.stimulusConfig,
+          codes.length,
         );
-        const payload = {
-          ...settings,
-          topics: TOPIC_SELECTIONS.filter((selection) =>
-            getStandardsForSelection(selection.key).some(
-              (standard) => (mcqCounts[standard.id] ?? 0) > 0,
-            ),
-          ).map((selection) => selection.key),
-          standards: mcqActiveStandardIds,
-          questionSetName: trimmedSetName,
-          questionCount: settings.questionCount,
-          generationModelId: settings.generationModelId,
-          generationTemperature: settings.generationTemperature,
-          includeDiagrams: diagramConfigTotal(mcqDiagramConfig) > 0,
-          diagramConfig: mcqDiagramConfig,
-          standardCounts: Object.fromEntries(
-            mcqActiveStandardIds.map((standardId) => [
-              standardId,
-              mcqCounts[standardId] ?? 0,
-            ]),
-          ),
-        };
+        let succeeded = 0;
 
-        const response = await fetch("/api/generate-questions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!response.ok) {
+        for (let i = 0; i < codes.length; i++) {
+          setProgress(`Generating multiple-choice question ${i + 1} of ${codes.length}...`);
+          const standardId = codes[i];
+          const payload = {
+            ...settings,
+            topics: TOPIC_SELECTIONS.filter((selection) =>
+              getStandardsForSelection(selection.key).some(
+                (standard) => standard.id === standardId,
+              ),
+            ).map((selection) => selection.key),
+            standards: [standardId],
+            questionSetName: trimmedSetName,
+            questionCount: 1,
+            generationModelId: settings.generationModelId,
+            generationTemperature: settings.generationTemperature,
+            includeDiagrams: stimulusTypes[i] !== undefined,
+            stimulusType: stimulusTypes[i],
+            standardCounts: { [standardId]: 1 },
+          };
+
+          const response = await fetch("/api/generate-questions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            const data = (await response.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            runWarnings.push(
+              `MCQ item ${i + 1} (${standardId}) failed: ${data.error ?? response.status}`,
+            );
+            continue;
+          }
           const data = await response.json();
-          throw new Error(data.error || "Failed to generate questions");
+          mergedQuestions.push(...(data.questions as Question[]));
+          generationModel = {
+            id: data.generationModelId,
+            label: data.generationModelLabel,
+          };
+          succeeded += 1;
         }
-        const data = await response.json();
-        mergedQuestions.push(...(data.questions as Question[]));
-        generationModel = {
-          id: data.generationModelId,
-          label: data.generationModelLabel,
-        };
+
+        if (succeeded === 0 && settings.questionCount > 0) {
+          setWarnings(runWarnings);
+          throw new Error("No multiple-choice questions were generated.");
+        }
       }
 
       // ── Short-answer generation (one HTTP call per item) ────────────────
       if (wantShortAnswer) {
         const codes = expandStandardCounts(saqCounts);
-        const stimulusTypes = expandShortAnswerStimulusTypes(
-          settings.includeDiagrams ? saqDiagramConfig : DEFAULT_SETTINGS.diagramConfig,
+        const stimulusTypes = expandStimulusTypes(
+          settings.includeDiagrams ? saqStimulusConfig : DEFAULT_SETTINGS.stimulusConfig,
           codes.length,
         );
-        const fixedCoreKC = settings.saCoreKC.trim() || undefined;
-        const fixedCoreKCStandard = fixedCoreKC
-          ? kcOptions.find((kc) => kc.code === fixedCoreKC)?.standard
-          : undefined;
         let succeeded = 0;
         for (let i = 0; i < codes.length; i++) {
           setProgress(
@@ -659,8 +670,6 @@ export default function MassProductionPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 standardCode: codes[i],
-                fixedCoreKC:
-                  fixedCoreKCStandard === codes[i] ? fixedCoreKC : undefined,
                 stimulusType: stimulusTypes[i],
                 modelId: settings.generationModelId,
                 temperature: settings.generationTemperature,
@@ -1106,10 +1115,10 @@ export default function MassProductionPage() {
 
         </section>
 
-        {/* Diagram Settings */}
+        {/* Stimulus Settings */}
         <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
-            Diagram Settings
+            Stimulus Settings
           </h2>
 
           <label className="flex items-center gap-3 mb-4 cursor-pointer">
@@ -1120,9 +1129,9 @@ export default function MassProductionPage() {
                 setSettings((prev) => ({
                   ...prev,
                   includeDiagrams: e.target.checked,
-                  diagramConfig: e.target.checked
-                    ? prev.diagramConfig
-                    : DEFAULT_SETTINGS.diagramConfig,
+                  stimulusConfig: e.target.checked
+                    ? prev.stimulusConfig
+                    : DEFAULT_SETTINGS.stimulusConfig,
                 }))
               }
               className="w-4 h-4 rounded border-border-default text-primary focus:ring-primary/50"
@@ -1140,70 +1149,30 @@ export default function MassProductionPage() {
                 questions will use text-only prompts.
               </p>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-gray mb-1">
-                    Charts (Line/Bar)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.diagramConfig.chart || ""}
-                    onChange={(e) => handleDiagramCountChange("chart", e.target.value)}
-                    placeholder="0"
-                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-gray mb-1">
-                    Tables
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.diagramConfig.table || ""}
-                    onChange={(e) => handleDiagramCountChange("table", e.target.value)}
-                    placeholder="0"
-                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-gray mb-1">
-                    Flowcharts
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.diagramConfig.flowchart || ""}
-                    onChange={(e) => handleDiagramCountChange("flowchart", e.target.value)}
-                    placeholder="0"
-                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-gray mb-1">
-                    Biology Diagrams
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.diagramConfig.diagram || ""}
-                    onChange={(e) => handleDiagramCountChange("diagram", e.target.value)}
-                    placeholder="0"
-                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-                  />
-                </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                {(Object.keys(STIMULUS_LABELS) as StimulusType[]).map((type) => (
+                  <div key={type}>
+                    <label className="block text-sm text-slate-gray mb-1">
+                      {STIMULUS_LABELS[type]}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={settings.stimulusConfig[type] || ""}
+                      onChange={(e) => handleStimulusCountChange(type, e.target.value)}
+                      placeholder="0"
+                      className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+                    />
+                  </div>
+                ))}
               </div>
 
               <div className="mt-4 p-3 rounded-lg bg-slate-gray/5">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Diagram questions:</span>
+                  <span className="text-muted-foreground">Stimulus questions:</span>
                   <span className="font-medium text-slate-gray">
-                    {totalDiagramCount}
+                    {totalStimulusCount}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">
@@ -1219,66 +1188,6 @@ export default function MassProductionPage() {
                   </span>
                 </div>
               </div>
-            </div>
-          )}
-        </section>
-
-        {/* Short-answer Options */}
-        <section className="rounded-xl border border-primary/30 bg-surface shadow-sm overflow-hidden">
-          <button
-            onClick={() => setShowShortAnswerOptions(!showShortAnswerOptions)}
-            className="w-full flex items-center justify-between p-6 text-left hover:bg-foreground/5"
-          >
-            <div>
-              <h2 className="text-lg font-medium text-slate-gray">
-                Short-answer Options
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Applies to the {settings.shortAnswerCount} short-answer item
-                {settings.shortAnswerCount === 1 ? "" : "s"}. Defaults are
-                recommended.
-              </p>
-            </div>
-            {showShortAnswerOptions ? (
-              <ChevronUp className="w-5 h-5 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-muted-foreground" />
-            )}
-          </button>
-
-          {showShortAnswerOptions && (
-            <div className="px-6 pb-6 border-t border-border-subtle pt-4 space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-gray mb-2">
-                    Pinned Anchor KC (optional)
-                  </label>
-                  <select
-                    value={settings.saCoreKC}
-                    onChange={(e) =>
-                      setSettings((prev) => ({ ...prev, saCoreKC: e.target.value }))
-                    }
-                    className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                  >
-                    <option value="">Auto select from the selected standards</option>
-                    {kcOptions.map((kc) => (
-                      <option key={kc.code} value={kc.code}>
-                        {kc.code} — {kc.statement}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Options are limited to standards with count greater than 0.
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Short-answer items use the shared model, temperature, diagram
-                settings, and per-standard counts above. MCQ and short-answer
-                totals are split proportionally across standards at generation
-                time. Each short-answer item is generated in its own request; if
-                one fails the others are kept.
-              </p>
             </div>
           )}
         </section>

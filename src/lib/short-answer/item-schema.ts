@@ -264,7 +264,7 @@ export function validateShortAnswerItem(
   if (!Array.isArray(parts) || parts.length < 2 || parts.length > 3) {
     return "item.parts must contain 2 or 3 parts";
   }
-  let partPointsTotal = 0;
+  let totalPoints = 0;
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     if (!isRecord(part)) return `item.parts[${i}] must be an object`;
@@ -293,11 +293,27 @@ export function validateShortAnswerItem(
     ) {
       return `Part ${PART_LABELS[i]} maxScore must be a positive integer`;
     }
-    partPointsTotal += part.maxScore;
-    if (!isNonEmptyString(part.scoringGuidance)) {
-      return `Part ${PART_LABELS[i]} scoringGuidance is required`;
-    }
-    if (containsPlaceholder(part.scoringGuidance)) {
+    totalPoints += part.maxScore;
+    const partRubric = part.rubric;
+    if (isRecord(partRubric)) {
+      if (partRubric.pointsPossible !== part.maxScore) {
+        return `Part ${PART_LABELS[i]} rubric.pointsPossible must equal maxScore`;
+      }
+      if (!isRecord(partRubric.criteria)) {
+        return `Part ${PART_LABELS[i]} rubric.criteria must be an object`;
+      }
+      for (let score = 0; score <= part.maxScore; score++) {
+        const text = partRubric.criteria[String(score)];
+        if (!isNonEmptyString(text)) {
+          return `Part ${PART_LABELS[i]} rubric.criteria must include score ${score}`;
+        }
+        if (containsPlaceholder(text)) {
+          return `Part ${PART_LABELS[i]} rubric contains unresolved placeholder text`;
+        }
+      }
+    } else if (!isNonEmptyString(part.scoringGuidance)) {
+      return `Part ${PART_LABELS[i]} rubric is required`;
+    } else if (containsPlaceholder(part.scoringGuidance)) {
       return `Part ${PART_LABELS[i]} scoringGuidance contains unresolved placeholder text`;
     }
     if (
@@ -306,31 +322,6 @@ export function validateShortAnswerItem(
       part.maxLength < 1
     ) {
       return `Part ${PART_LABELS[i]} maxLength must be a positive integer`;
-    }
-  }
-
-  const rubric = item.scoringRubric;
-  if (!isRecord(rubric)) return "item.scoringRubric must be an object";
-  const pointsPossible = rubric.pointsPossible;
-  if (
-    typeof pointsPossible !== "number" ||
-    !Number.isInteger(pointsPossible) ||
-    pointsPossible < 1
-  ) {
-    return "scoringRubric.pointsPossible must be a positive integer";
-  }
-  if (partPointsTotal !== pointsPossible) {
-    return `part maxScores must sum to scoringRubric.pointsPossible (${partPointsTotal} != ${pointsPossible})`;
-  }
-  const criteria = rubric.criteria;
-  if (!isRecord(criteria)) return "scoringRubric.criteria must be an object";
-  for (let score = 0; score <= pointsPossible; score++) {
-    const text = criteria[String(score)];
-    if (!isNonEmptyString(text)) {
-      return `scoringRubric.criteria must include a non-empty criterion for score ${score}`;
-    }
-    if (containsPlaceholder(text)) {
-      return "scoringRubric contains unresolved placeholder text";
     }
   }
 
@@ -351,16 +342,16 @@ export function validateShortAnswerItem(
     return "item.annotatedResponses must be an array";
   }
   const requiredScores = new Set<number>();
-  for (let score = 0; score <= pointsPossible; score++) requiredScores.add(score);
+  for (let score = 0; score <= totalPoints; score++) requiredScores.add(score);
   for (const response of annotated) {
     if (!isRecord(response)) return "annotatedResponses entries must be objects";
     if (
       typeof response.score !== "number" ||
       !Number.isInteger(response.score) ||
       response.score < 0 ||
-      response.score > pointsPossible
+      response.score > totalPoints
     ) {
-      return `annotatedResponses.score must be an integer in 0..${pointsPossible}`;
+      return `annotatedResponses.score must be an integer in 0..${totalPoints}`;
     }
     requiredScores.delete(response.score);
     if (!isNonEmptyString(response.response)) {
@@ -390,12 +381,14 @@ export function validateShortAnswerItem(
   }
 
   const generation = item.generation;
-  if (!isRecord(generation)) return "item.generation must be an object";
-  if (generation.method !== "method2_blueprint_rag_l2") {
-    return 'item.generation.method must be "method2_blueprint_rag_l2"';
-  }
-  if (!isNonEmptyString(generation.modelId)) {
-    return "item.generation.modelId is required";
+  if (generation !== undefined) {
+    if (!isRecord(generation)) return "item.generation must be an object";
+    if (!isNonEmptyString(generation.method)) {
+      return "item.generation.method is required";
+    }
+    if (!isNonEmptyString(generation.modelId)) {
+      return "item.generation.modelId is required";
+    }
   }
 
   return null;

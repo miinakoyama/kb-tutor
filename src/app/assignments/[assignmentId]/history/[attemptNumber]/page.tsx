@@ -12,12 +12,15 @@ import {
   XCircle,
 } from "lucide-react";
 import type { Question } from "@/types/question";
+import type { AssignmentHistoryAnswer } from "@/lib/assignments/history";
+import { isShortAnswerQuestion } from "@/lib/short-answer/question-guards";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
+import { AssignmentShortAnswerAttemptReview } from "@/components/assignments/AssignmentShortAnswerAttemptReview";
 import { isBookmarked, toggleBookmark } from "@/lib/storage";
 
 interface AttemptItem {
   question: Question;
-  answer: { selectedOptionId: string | null; isCorrect: boolean } | null;
+  answer: AssignmentHistoryAnswer | null;
 }
 
 interface AttemptDetailPayload {
@@ -207,13 +210,6 @@ function AttemptDetailContent() {
   // --- Normal mode: click-through list ---
   const activeItem = activeIndex !== null ? items[activeIndex] : undefined;
   if (activeIndex !== null && activeItem) {
-    const submittedAnswer =
-      activeItem.answer?.selectedOptionId != null
-        ? {
-            selectedOptionId: activeItem.answer.selectedOptionId,
-            isCorrect: activeItem.answer.isCorrect,
-          }
-        : null;
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-4">
         <button
@@ -229,71 +225,7 @@ function AttemptDetailContent() {
           <p className="text-sm text-muted-foreground mb-3">
             Question {activeIndex + 1}
           </p>
-          <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
-            {activeItem.question.text}
-          </p>
-          <div className="space-y-2.5">
-            {activeItem.question.options.map((opt) => {
-              const isCorrect = opt.id === activeItem.question.correctOptionId;
-              const isSelected = activeItem.answer?.selectedOptionId === opt.id;
-              const wrongSelection = isSelected && !isCorrect;
-              return (
-                <div
-                  key={opt.id}
-                  className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
-                    isCorrect
-                      ? "border-primary/40 bg-primary/5"
-                      : wrongSelection
-                        ? "border-error-border bg-error-light"
-                        : "border-border-default bg-surface"
-                  }`}
-                >
-                  <div className="mt-0.5 flex-shrink-0">
-                    {isCorrect ? (
-                      <CheckCircle2 className="w-4 h-4 text-primary" />
-                    ) : wrongSelection ? (
-                      <XCircle className="w-4 h-4 text-red-400" />
-                    ) : (
-                      <span className="inline-block w-4 h-4" />
-                    )}
-                  </div>
-                  <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
-                    {opt.text}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-          {submittedAnswer ? (
-            <FeedbackPanel
-              question={activeItem.question}
-              answer={submittedAnswer}
-              showKeyKnowledge
-              showMisconception
-            />
-          ) : (
-            <div className="mt-5 space-y-3">
-              <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
-                <p className="text-sm font-semibold text-slate-gray mb-1">
-                  No answer submitted
-                </p>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  This question was left unanswered in this attempt. The correct
-                  option is highlighted above for review.
-                </p>
-              </div>
-              {activeItem.question.keyKnowledge && (
-                <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
-                    Key Idea
-                  </p>
-                  <p className="text-sm text-slate-gray leading-relaxed">
-                    {activeItem.question.keyKnowledge}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+          <AttemptQuestionReview item={activeItem} showKeyKnowledge />
         </div>
       </main>
     );
@@ -341,6 +273,9 @@ function AttemptDetailContent() {
             {items.map((item, index) => {
               const hasAnswer = item.answer !== null;
               const isCorrect = !!item.answer?.isCorrect;
+              const previewText = isShortAnswerQuestion(item.question)
+                ? item.question.shortAnswer?.stem ?? item.question.text
+                : item.question.text;
               return (
                 <button
                   key={`${item.question.id}-${index}`}
@@ -358,7 +293,7 @@ function AttemptDetailContent() {
                       {index + 1}
                     </span>
                     <p className="flex-1 text-sm text-slate-gray line-clamp-1">
-                      {item.question.text}
+                      {previewText}
                     </p>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {isCorrect ? (
@@ -380,25 +315,32 @@ function AttemptDetailContent() {
   );
 }
 
-function WrongQuestionCard({
+function AttemptQuestionReview({
   item,
-  label,
+  showKeyKnowledge = false,
 }: {
   item: AttemptItem;
-  label: string;
+  showKeyKnowledge?: boolean;
 }) {
-  const [bookmarked, setBookmarked] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return isBookmarked(item.question.id);
-  });
-
-  const handleBookmark = () => {
-    const next = toggleBookmark(item.question.id);
-    setBookmarked(next);
-  };
+  if (isShortAnswerQuestion(item.question) && item.question.shortAnswer) {
+    const answer =
+      item.answer?.kind === "short-answer"
+        ? item.answer
+        : {
+            kind: "short-answer" as const,
+            parts: item.question.shortAnswer.parts.map((part) => ({
+              partLabel: part.label,
+              attempts: [],
+              isCorrect: false,
+            })),
+            isCorrect: false,
+            answered: false,
+          };
+    return <AssignmentShortAnswerAttemptReview question={item.question} answer={answer} />;
+  }
 
   const submittedAnswer =
-    item.answer?.selectedOptionId != null
+    item.answer?.kind === "mcq" && item.answer.selectedOptionId != null
       ? {
           selectedOptionId: item.answer.selectedOptionId,
           isCorrect: item.answer.isCorrect,
@@ -406,31 +348,14 @@ function WrongQuestionCard({
       : null;
 
   return (
-    <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <button
-          type="button"
-          onClick={handleBookmark}
-          aria-label={bookmarked ? "Remove bookmark" : "Bookmark question"}
-          className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
-        >
-          <Bookmark
-            className="w-4 h-4"
-            style={bookmarked ? { fill: "currentColor", color: "var(--primary)" } : undefined}
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-
+    <>
       <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
         {item.question.text}
       </p>
-
       <div className="space-y-2.5">
         {item.question.options.map((opt) => {
           const isCorrect = opt.id === item.question.correctOptionId;
-          const isSelected = item.answer?.selectedOptionId === opt.id;
+          const isSelected = item.answer?.kind === "mcq" && item.answer.selectedOptionId === opt.id;
           const wrongSelection = isSelected && !isCorrect;
           return (
             <div
@@ -459,13 +384,76 @@ function WrongQuestionCard({
           );
         })}
       </div>
-
-      {submittedAnswer && (
+      {submittedAnswer ? (
         <FeedbackPanel
           question={item.question}
           answer={submittedAnswer}
+          showKeyKnowledge={showKeyKnowledge}
+          showMisconception={showKeyKnowledge}
         />
+      ) : (
+        <div className="mt-5 space-y-3">
+          <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
+            <p className="text-sm font-semibold text-slate-gray mb-1">
+              No answer submitted
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              This question was left unanswered in this attempt. The correct
+              option is highlighted above for review.
+            </p>
+          </div>
+          {showKeyKnowledge && item.question.keyKnowledge && (
+            <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
+                Key Idea
+              </p>
+              <p className="text-sm text-slate-gray leading-relaxed">
+                {item.question.keyKnowledge}
+              </p>
+            </div>
+          )}
+        </div>
       )}
+    </>
+  );
+}
+
+function WrongQuestionCard({
+  item,
+  label,
+}: {
+  item: AttemptItem;
+  label: string;
+}) {
+  const [bookmarked, setBookmarked] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return isBookmarked(item.question.id);
+  });
+
+  const handleBookmark = () => {
+    const next = toggleBookmark(item.question.id);
+    setBookmarked(next);
+  };
+
+  return (
+    <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <button
+          type="button"
+          onClick={handleBookmark}
+          aria-label={bookmarked ? "Remove bookmark" : "Bookmark question"}
+          className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+        >
+          <Bookmark
+            className="w-4 h-4"
+            style={bookmarked ? { fill: "currentColor", color: "var(--primary)" } : undefined}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+
+      <AttemptQuestionReview item={item} />
     </div>
   );
 }

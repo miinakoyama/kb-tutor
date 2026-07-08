@@ -455,7 +455,14 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
               question={question}
               item={question.shortAnswer}
               index={index}
+              onEdit={() => handleEdit(question)}
               onDelete={() => handleDelete(question.id)}
+              includeInSelfPractice={question.includeInSelfPractice}
+              onToggleIncludeInSelfPractice={
+                isGeneratedFromDb
+                  ? () => void handleToggleIncludeInSelfPractice(question)
+                  : undefined
+              }
               isEditable={isGeneratedFromDb}
             />
           ) : (

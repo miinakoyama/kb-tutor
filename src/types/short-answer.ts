@@ -83,12 +83,20 @@ export interface ShortAnswerPart {
   label: PartLabel;
   prompt: string;
   taskType: TaskType;
-  /** Integer >= 1; part maxScores sum to scoringRubric.pointsPossible. */
+  /** Integer >= 1. Total item points are the sum of part maxScores. */
   maxScore: number;
-  /** Part rubric criteria text. */
+  /** Structured part-level rubric used for grading and feedback. */
+  rubric: PartRubric;
+  /** Legacy part rubric text retained for older saved items. */
   scoringGuidance: string;
   /** Character limit for the answer textarea. */
   maxLength: number;
+}
+
+export interface PartRubric {
+  pointsPossible: number;
+  /** Criteria text for each score level "0".."N" for this part. */
+  criteria: Record<string, string>;
 }
 
 export interface HolisticRubric {
@@ -153,7 +161,8 @@ export interface ShortAnswerItem {
   stem: string;
   stimulus: StimulusAsset;
   parts: ShortAnswerPart[];
-  scoringRubric: HolisticRubric;
+  /** Legacy holistic rubric retained only for older saved items. New items omit it. */
+  scoringRubric?: HolisticRubric;
   keyTerms: KeyTerm[];
   annotatedResponses: AnnotatedResponse[];
   blueprint: ItemBlueprint;

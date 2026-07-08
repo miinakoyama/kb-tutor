@@ -3,6 +3,7 @@
 import { PenLine } from "lucide-react";
 import type { ShortAnswerItem } from "@/types/short-answer";
 import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
+import { formatPartRubric, totalShortAnswerPoints } from "@/lib/short-answer/grading/common";
 
 interface ShortAnswerQuestionDetailsProps {
   item: ShortAnswerItem;
@@ -16,9 +17,7 @@ export function ShortAnswerQuestionDetails({
   item,
   className,
 }: ShortAnswerQuestionDetailsProps) {
-  const rubricScores = Object.keys(item.scoringRubric.criteria).sort(
-    (a, b) => Number(b) - Number(a),
-  );
+  const totalPoints = totalShortAnswerPoints(item);
 
   return (
     <div
@@ -36,7 +35,7 @@ export function ShortAnswerQuestionDetails({
           {item.parts.length} part{item.parts.length === 1 ? "" : "s"}
         </span>
         <span className="rounded bg-slate-gray/10 px-2 py-0.5 text-muted-foreground">
-          {item.scoringRubric.pointsPossible} pts total
+          {totalPoints} pts total
         </span>
       </div>
 
@@ -65,27 +64,14 @@ export function ShortAnswerQuestionDetails({
               </span>
             </div>
             <p className="text-sm whitespace-pre-wrap text-slate-gray">{part.prompt}</p>
-            <p className="mt-1.5 text-xs whitespace-pre-line text-muted-foreground">
-              {part.scoringGuidance}
+            <p className="mt-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Part Rubric
+            </p>
+            <p className="mt-1 text-xs whitespace-pre-line text-muted-foreground">
+              {formatPartRubric(part)}
             </p>
           </div>
         ))}
-      </div>
-
-      <div>
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Holistic rubric ({item.scoringRubric.pointsPossible} points)
-        </p>
-        <div className="space-y-1 rounded-md border border-border-default bg-surface px-3 py-2">
-          {rubricScores.map((score) => (
-            <div key={score} className="flex gap-2 text-sm">
-              <span className="shrink-0 font-semibold text-slate-gray">{score}:</span>
-              <span className="text-muted-foreground">
-                {item.scoringRubric.criteria[score]}
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

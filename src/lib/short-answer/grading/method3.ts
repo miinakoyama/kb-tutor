@@ -10,8 +10,10 @@
 
 import { chatComplete } from "@/lib/llm/client";
 import {
+  formatPartRubric,
   normalizeScore,
   extractFeedbackText,
+  totalShortAnswerPoints,
 } from "./common";
 import type { MethodGradeInput, MethodGradeOutput } from "./types";
 import type { GradingConfidence } from "@/types/short-answer";
@@ -38,7 +40,7 @@ function normalizeConfidence(value: unknown): GradingConfidence {
 
 function buildBoundaryExamples(input: MethodGradeInput): string {
   const { item, part } = input;
-  const pointsPossible = item.scoringRubric.pointsPossible;
+  const pointsPossible = totalShortAnswerPoints(item);
   const full = item.annotatedResponses.find((r) => r.score === pointsPossible);
   const zero = item.annotatedResponses.find((r) => r.score === 0);
   if (!full && !zero) {
@@ -91,6 +93,7 @@ export async function gradeWithMethod3(
 ): Promise<MethodGradeOutput> {
   const { item, part, studentResponse, modelId, temperature } = input;
   const t0 = Date.now();
+  const partRubric = formatPartRubric(part);
 
   const systemPrompt = [
     "You are an expert Keystone Biology constructed-response grader.",
@@ -132,7 +135,7 @@ export async function gradeWithMethod3(
     "",
     `Part ${part.label} prompt (${part.maxScore} point${part.maxScore > 1 ? "s" : ""}):\n${part.prompt}`,
     "",
-    `Item-specific rubric:\n${part.scoringGuidance}`,
+    `Item-specific rubric:\n${partRubric}`,
     "",
     `Boundary examples:\n${buildBoundaryExamples(input)}`,
     "",

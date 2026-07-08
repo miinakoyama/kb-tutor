@@ -35,8 +35,7 @@ Runs the Method2 blueprint→item pipeline (no study-guide RAG) and returns **on
 {
   "blueprint": { "targetStandard": "3.1.9-12.A", "anchorKc": "KC-A-03", "...": "..." },
   "item": { "stem": "...", "stimulus": { "type": "table", "title": "...", "tableMarkdown": "..." },
-            "parts": [ { "label": "A", "prompt": "...", "taskType": "recall_identify", "maxScore": 1, "scoringGuidance": "..." } ],
-            "scoringRubric": { "pointsPossible": 3, "criteria": { "3": "...", "2": "...", "1": "...", "0": "..." } },
+            "parts": [ { "label": "A", "prompt": "...", "taskType": "recall_identify", "maxScore": 1, "rubric": { "pointsPossible": 1, "criteria": { "1": "...", "0": "..." } }, "scoringGuidance": "..." } ],
             "annotatedResponses": [ { "score": 3, "response": "...", "annotation": "..." } ],
             "keyTerms": [ { "term": "...", "definition": "..." } ] },
   "grounding": {

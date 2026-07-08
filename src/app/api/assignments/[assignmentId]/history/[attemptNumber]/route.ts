@@ -2,22 +2,24 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Question } from "@/types/question";
+import {
+  buildHistoryAnswerForQuestion,
+  buildLatestMcqAttemptsByQuestion,
+  buildShortAnswerAttemptsByQuestion,
+  isHistoryAnswerAnswered,
+  isHistoryAnswerCorrect,
+  orderedQuestionIdsFromAttempts,
+  summarizeHistoryItems,
+  type AssignmentHistoryItem,
+  type McqAttemptRow,
+  type ShortAnswerAttemptRow,
+} from "@/lib/assignments/history";
 
 /**
  * GET /api/assignments/[assignmentId]/history/[attemptNumber]
  *
- * Returns the per-question detail of a single past run for the current
- * student. The questions list is reconstructed by:
- *   - For practice / exam assignments: starting from the question snapshot
- *     (deterministic content), then overlaying the student's latest attempt
- *     for each snapshot question within the (prev, current] completion
- *     window.
- *   - For review assignments: the snapshot isn't present, so we fall back to
- *     the actual attempts in the window and look up question payloads in
- *     generated_questions / assignment_question_snapshots as a backup.
- *
- * The shape returned mirrors `ExamResults` / `FeedbackPanel` consumers:
- * `{ question: Question, answer: { selectedOptionId, isCorrect } | null }`.
+ * Returns per-question detail for one completed run. Supports both MCQ
+ * (`attempts`) and short-answer (`short_answer_attempts`) items.
  */
 export async function GET(
   _request: NextRequest,
@@ -89,7 +91,6 @@ export async function GET(
     return NextResponse.json({ error: "Attempt not found" }, { status: 404 });
   }
 
-  // Find the previous completion to scope attempts to (prev, current].
   const { data: prevCompletion } = await admin
     .from("assignment_completions")
     .select("completed_at")
@@ -104,66 +105,55 @@ export async function GET(
       : null;
   const completedAt = String(completion.completed_at);
 
-  const attemptsQuery = admin
-    .from("attempts")
-    .select("question_id,selected_option_id,is_correct,answered_at,topic,standard_id")
-    .eq("assignment_id", normalizedAssignmentId)
-    .eq("user_id", user.id)
-    .lte("answered_at", completedAt)
-    .order("answered_at", { ascending: true });
-  if (prevCompletedAt) {
-    attemptsQuery.gt("answered_at", prevCompletedAt);
-  }
-  const { data: attemptRows, error: attemptsError } = await attemptsQuery;
+  const [{ data: attemptRows, error: attemptsError }, { data: saqRows, error: saqError }] =
+    await Promise.all([
+      admin
+        .from("attempts")
+        .select("question_id,selected_option_id,is_correct,answered_at,topic,standard_id")
+        .eq("assignment_id", normalizedAssignmentId)
+        .eq("user_id", user.id)
+        .lte("answered_at", completedAt)
+        .order("answered_at", { ascending: true }),
+      admin
+        .from("short_answer_attempts")
+        .select(
+          "question_id,part_label,attempt_number,response_text,is_correct,feedback,answered_at",
+        )
+        .eq("assignment_id", normalizedAssignmentId)
+        .eq("user_id", user.id)
+        .lte("answered_at", completedAt)
+        .order("answered_at", { ascending: true }),
+    ]);
   if (attemptsError) {
     return NextResponse.json({ error: attemptsError.message }, { status: 400 });
   }
-
-  type LatestAttempt = {
-    selectedOptionId: string | null;
-    isCorrect: boolean;
-    answeredAt: number;
-  };
-  const latestByQuestion = new Map<string, LatestAttempt>();
-  for (const row of attemptRows ?? []) {
-    const qid = String(row.question_id);
-    const answeredAt =
-      typeof row.answered_at === "string" ? row.answered_at : null;
-    const ms = answeredAt ? new Date(answeredAt).getTime() : NaN;
-    if (Number.isNaN(ms)) continue;
-    const next: LatestAttempt = {
-      selectedOptionId:
-        typeof row.selected_option_id === "string"
-          ? row.selected_option_id
-          : null,
-      isCorrect: Boolean(row.is_correct),
-      answeredAt: ms,
-    };
-    const prior = latestByQuestion.get(qid);
-    if (!prior || ms >= prior.answeredAt) {
-      latestByQuestion.set(qid, next);
-    }
+  if (saqError) {
+    return NextResponse.json({ error: saqError.message }, { status: 400 });
   }
 
-  const mode = String(assignment.mode ?? "practice");
+  const mcqRows = (attemptRows ?? []) as McqAttemptRow[];
+  const shortAnswerRows = (saqRows ?? []) as ShortAnswerAttemptRow[];
+  const mcqLatest = buildLatestMcqAttemptsByQuestion(
+    mcqRows,
+    prevCompletedAt,
+    completedAt,
+  );
+  const saqByQuestion = buildShortAnswerAttemptsByQuestion(
+    shortAnswerRows,
+    prevCompletedAt,
+    completedAt,
+  );
 
-  type ItemPayload = {
-    question: Question;
-    answer: { selectedOptionId: string | null; isCorrect: boolean } | null;
-  };
-  const items: ItemPayload[] = [];
+  const mode = String(assignment.mode ?? "practice");
+  const items: AssignmentHistoryItem[] = [];
 
   if (mode === "review") {
-    // No snapshot; reconstruct from the attempts themselves in the order
-    // they were answered.
-    const orderedQuestionIds: string[] = [];
-    const seen = new Set<string>();
-    for (const row of attemptRows ?? []) {
-      const qid = String(row.question_id);
-      if (seen.has(qid)) continue;
-      seen.add(qid);
-      orderedQuestionIds.push(qid);
-    }
+    const orderedQuestionIds = orderedQuestionIdsFromAttempts(
+      mcqRows,
+      shortAnswerRows,
+      prevCompletedAt,
+      completedAt,
+    );
     if (orderedQuestionIds.length > 0) {
       const payloadById = await loadQuestionPayloads(
         admin,
@@ -173,15 +163,13 @@ export async function GET(
       for (const qid of orderedQuestionIds) {
         const payload = payloadById.get(qid);
         if (!payload) continue;
-        const latest = latestByQuestion.get(qid);
         items.push({
           question: payload,
-          answer: latest
-            ? {
-                selectedOptionId: latest.selectedOptionId,
-                isCorrect: latest.isCorrect,
-              }
-            : null,
+          answer: buildHistoryAnswerForQuestion(
+            payload,
+            mcqLatest.get(qid),
+            saqByQuestion.get(qid),
+          ),
         });
       }
     }
@@ -197,21 +185,19 @@ export async function GET(
     for (const row of snapshotRows ?? []) {
       const payload = row.payload as Question | null | undefined;
       if (!payload || !payload.id) continue;
-      const latest = latestByQuestion.get(String(row.question_id));
+      const qid = String(row.question_id);
       items.push({
         question: payload,
-        answer: latest
-          ? {
-              selectedOptionId: latest.selectedOptionId,
-              isCorrect: latest.isCorrect,
-            }
-          : null,
+        answer: buildHistoryAnswerForQuestion(
+          payload,
+          mcqLatest.get(qid),
+          saqByQuestion.get(qid),
+        ),
       });
     }
   }
 
-  const correctCount = items.filter((item) => item.answer?.isCorrect).length;
-  const answeredCount = items.filter((item) => item.answer !== null).length;
+  const summary = summarizeHistoryItems(items);
 
   return NextResponse.json({
     assignment: {
@@ -224,11 +210,7 @@ export async function GET(
       started_at: String(completion.started_at),
       completed_at: completedAt,
     },
-    summary: {
-      total: items.length,
-      answered: answeredCount,
-      correct: correctCount,
-    },
+    summary,
     items,
   });
 }

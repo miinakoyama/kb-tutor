@@ -55,11 +55,15 @@ export function buildAnsweredMap(
     }
     const qid = typeof row.question_id === "string" ? row.question_id : "";
     if (!qid) continue;
+    const selectedOptionId =
+      typeof row.selected_option_id === "string"
+        ? row.selected_option_id
+        : null;
+    // Short-answer summary rows are derived from short_answer_attempts so a
+    // single resolved part cannot mark the whole question complete.
+    if (selectedOptionId === "short-answer") continue;
     map[qid] = {
-      selectedOptionId:
-        typeof row.selected_option_id === "string"
-          ? row.selected_option_id
-          : null,
+      selectedOptionId,
       isCorrect: Boolean(row.is_correct),
       answeredAt,
     };

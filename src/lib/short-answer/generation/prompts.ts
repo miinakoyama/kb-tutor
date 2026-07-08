@@ -298,23 +298,6 @@ export function buildItemPrompt(
     };
   }
 
-  const rubricTemplate =
-    partCount === 2
-      ? {
-          points_possible: 3,
-          "3": "Thorough — BOTH: [bullet A] AND [bullet B]",
-          "2": "Partial — fulfilling ONE of the two bullets",
-          "1": "Minimal — partially addressing one bullet",
-          "0": "Insufficient evidence",
-        }
-      : {
-          points_possible: 3,
-          "3": "Thorough — by ALL of: [bullet A] AND [bullet B] AND [bullet C]",
-          "2": "Partial — fulfilling TWO of the bullets",
-          "1": "Minimal — fulfilling ONE of the bullets",
-          "0": "Insufficient evidence",
-        };
-
   const partRubricTemplate =
     partCount === 2
       ? {
@@ -362,12 +345,10 @@ export function buildItemPrompt(
     "     ONE core point.",
     "   Each part must target its assigned KC while staying coherent with the same shared item context.",
     "4. Each part question must match its task_type and target the KC assigned in the blueprint (kc_code).",
-    `5. Write one holistic 0-3 rubric AND per-part analytic rubrics. The holistic 3-point level lists ${partCount} bullets`,
-    `   (one per part) joined by AND; 2 = ${partCount === 2 ? "ONE bullet (partial)" : "two bullets"}; 1 = ${partCount === 2 ? "partially addresses one bullet" : "one bullet"}; 0 = insufficient.`,
-    "   Match the exact style of the anchors.",
+    "5. Write per-part analytic rubrics only. Do not write a holistic rubric.",
     "   The part_rubrics points_possible values must sum to 3. For 3-part items use 1 point per part; for 2-part items assign 1 point to Part A and 2 points to Part B.",
-    "   Also provide annotated_responses for total scores 0, 1, 2, and 3. Each annotation must explain why that sample earns that score.",
-    "   IMPORTANT: the rubricTemplate shown in the schema is only a shape guide.",
+    "   Also provide annotated_responses for total scores 0, 1, 2, and 3. Each annotation must explain why that sample earns that total score.",
+    "   IMPORTANT: the part_rubrics template shown in the schema is only a shape guide.",
     "   You must replace every placeholder with concrete biology-specific credit criteria for THIS item.",
     "   Do NOT output [bullet A], [bullet B], [bullet C], [Part A concept], or any other unresolved template text.",
     "6. Use a specific, plausible biology context when possible; avoid generic textbook-only scenarios if a concrete investigation or organism/system context preserves alignment.",
@@ -392,7 +373,6 @@ export function buildItemPrompt(
         illustration_prompt: "<image-generation prompt string — only when type=illustration, else omit>",
       },
       parts: partSchema,
-      scoring_rubric: rubricTemplate,
       part_rubrics: partRubricTemplate,
       annotated_responses: [
         { score: 3, response: "Full-credit sample student response", annotation: "Why it earns 3 points" },

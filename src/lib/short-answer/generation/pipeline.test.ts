@@ -87,13 +87,6 @@ function itemJSON(stimulusType: StimulusType) {
       "Part B": { task_type: "Explain Mechanism", question: "Explain how the order of bases determines the protein produced." },
       "Part C": { task_type: "Prediction", question: "Predict how changing one base could affect the protein." },
     },
-    scoring_rubric: {
-      points_possible: 3,
-      "3": "Names DNA and explains sequence-to-protein and predicts the mutation effect.",
-      "2": "Two of the three ideas are correct and complete.",
-      "1": "One idea is correct.",
-      "0": "No correct biology.",
-    },
     part_rubrics: {
       "Part A": { points_possible: 1, criteria: { "1": "Correctly names DNA.", "0": "Does not name DNA." } },
       "Part B": { points_possible: 1, criteria: { "1": "Links base order to amino-acid order.", "0": "No mechanism given." } },
@@ -144,6 +137,8 @@ describe("generateShortAnswerItem", () => {
     expect(retrieveStudyGuideForCoreKC).toHaveBeenCalledTimes(1);
     expect(out.item.stimulus.type).toBe("scenario");
     expect(out.item.parts).toHaveLength(3);
+    expect(out.item.parts[0].rubric.criteria["1"]).toContain("DNA");
+    expect(out.item.scoringRubric).toBeUndefined();
     expect(out.metadata.method).toBe("method2_blueprint_rag_l2");
     expect(out.metadata.useStudyGuideRag).toBe(true);
     expect(out.metadata.telerLevel).toBe(2);

@@ -66,18 +66,32 @@ export function normalizeFeedback(value: unknown): string {
   return extractFeedbackText(value) ?? "No feedback returned.";
 }
 
+export function totalShortAnswerPoints(item: ShortAnswerItem): number {
+  return item.parts.reduce((sum, part) => sum + part.maxScore, 0);
+}
+
+export function formatPartRubric(part: ShortAnswerPart): string {
+  if (part.rubric) {
+    return Object.entries(part.rubric.criteria)
+      .sort(([a], [b]) => Number(b) - Number(a))
+      .map(([score, text]) => `${score} point${Number(score) === 1 ? "" : "s"}: ${text}`)
+      .join("\n");
+  }
+  return part.scoringGuidance;
+}
+
 /**
  * The model answer for a failed final attempt: from the item's full-credit
- * annotated response (score = pointsPossible). Spec assumption "Model answer
- * source". If a per-part slice cannot be isolated we return the whole
- * full-credit response, which is written per-part in generated items.
+ * annotated response (score = sum of part points). If a per-part slice cannot
+ * be isolated we return the whole full-credit response, which is written
+ * per-part in generated items.
  */
 export function deriveModelAnswer(
   item: ShortAnswerItem,
   part: ShortAnswerPart,
 ): string | undefined {
   const full = item.annotatedResponses.find(
-    (r) => r.score === item.scoringRubric.pointsPossible,
+    (r) => r.score === totalShortAnswerPoints(item),
   );
   if (!full) return undefined;
   const text = full.response;

@@ -1,16 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Trash2, PenLine } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, PenLine, Edit2 } from "lucide-react";
 import type { Question } from "@/types/question";
 import type { ShortAnswerItem } from "@/types/short-answer";
 import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
+import { formatPartRubric } from "@/lib/short-answer/grading/common";
 
 interface ShortAnswerPreviewCardProps {
   question: Question;
   item: ShortAnswerItem;
   index: number;
+  onEdit: () => void;
   onDelete: () => void;
+  includeInSelfPractice?: boolean;
+  onToggleIncludeInSelfPractice?: () => void;
   isEditable?: boolean;
 }
 
@@ -18,13 +22,13 @@ export function ShortAnswerPreviewCard({
   question,
   item,
   index,
+  onEdit,
   onDelete,
+  includeInSelfPractice,
+  onToggleIncludeInSelfPractice,
   isEditable = true,
 }: ShortAnswerPreviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const rubricScores = Object.keys(item.scoringRubric.criteria).sort(
-    (a, b) => Number(b) - Number(a),
-  );
 
   return (
     <div className="rounded-xl border border-border-default bg-surface shadow-sm overflow-hidden transition-colors">
@@ -74,7 +78,43 @@ export function ShortAnswerPreviewCard({
           </div>
 
           {isEditable && (
-            <div className="flex flex-shrink-0 items-center gap-3">
+            <div className="flex flex-shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
+              {onToggleIncludeInSelfPractice && (
+                <div className="flex items-center gap-2">
+                  <span
+                    id={`sp-label-${question.id}`}
+                    className="text-xs font-medium text-muted-foreground whitespace-nowrap"
+                  >
+                    Self Practice
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-labelledby={`sp-label-${question.id}`}
+                    aria-checked={includeInSelfPractice === true}
+                    onClick={onToggleIncludeInSelfPractice}
+                    className={`flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 ${
+                      includeInSelfPractice === true
+                        ? "justify-end bg-primary"
+                        : "justify-start bg-surface-muted"
+                    }`}
+                    title={
+                      includeInSelfPractice === true
+                        ? "Included in Self Practice question bank"
+                        : "Not included in Self Practice"
+                    }
+                  >
+                    <span className="pointer-events-none h-5 w-5 rounded-full bg-surface shadow-sm" />
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={onEdit}
+                className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                title="Edit"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
               <button
                 onClick={onDelete}
                 className="p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-error-light transition-colors"
@@ -110,27 +150,14 @@ export function ShortAnswerPreviewCard({
                   </span>
                 </div>
                 <p className="text-sm text-slate-gray">{part.prompt}</p>
-                <p className="mt-2 text-xs whitespace-pre-line text-muted-foreground">
-                  {part.scoringGuidance}
+                <p className="mt-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Part Rubric
+                </p>
+                <p className="mt-1 text-xs whitespace-pre-line text-muted-foreground">
+                  {formatPartRubric(part)}
                 </p>
               </div>
             ))}
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              Holistic Rubric ({item.scoringRubric.pointsPossible} points)
-            </p>
-            <div className="space-y-1">
-              {rubricScores.map((score) => (
-                <div key={score} className="flex gap-2 text-sm">
-                  <span className="font-semibold text-slate-gray shrink-0">{score}:</span>
-                  <span className="text-muted-foreground">
-                    {item.scoringRubric.criteria[score]}
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
 
           {item.annotatedResponses.length > 0 && (

@@ -103,13 +103,6 @@ Rules:
     "Part B": { "task_type": "<from blueprint>", "question": "<student-facing question>" },
     "Part C": { "task_type": "<from blueprint>", "question": "<student-facing question>" }
   },
-  "scoring_rubric": {
-    "points_possible": 3,
-    "3": "<full-credit holistic criteria>",
-    "2": "<partial-credit criteria>",
-    "1": "<minimal-credit criteria>",
-    "0": "<insufficient evidence criteria>"
-  },
   "part_rubrics": {
     "Part A": { "points_possible": 1, "criteria": { "1": "<Part A credit criterion>", "0": "<no-credit criterion>" } },
     "Part B": { "points_possible": 1, "criteria": { "1": "<Part B credit criterion>", "0": "<no-credit criterion>" } },
@@ -139,7 +132,7 @@ Rules:
 - diagram: provide complete safe inline SVG in `diagram_spec`; no script/event handlers; readable non-overlapping labels.
 - illustration: provide `illustration_prompt` only; optional downstream image generation may convert it to `image_b64`; do not require multimodal judging for generation.
 
-**6. Validation** (before returning the item): required blueprint keys exist; anchor/core KC valid; `selected_kcs` valid; `task_sequence` part KCs valid; task types are valid taxonomy names; stimulus type valid; final item has stem, stimulus_asset, parts, scoring_rubric, part_rubrics, annotated_responses; stimulus asset has required field for its type; part rubrics exist for every generated part; rubric points sum to 3; annotated responses include 0/1/2/3; no unresolved placeholders. Use retry-on-invalid-output around both LLM calls.
+**6. Validation** (before returning the item): required blueprint keys exist; anchor/core KC valid; `selected_kcs` valid; `task_sequence` part KCs valid; task types are valid taxonomy names; stimulus type valid; final item has stem, stimulus_asset, parts, part_rubrics, annotated_responses; stimulus asset has required field for its type; part rubrics exist for every generated part; rubric points sum to 3; annotated responses include 0/1/2/3; no unresolved placeholders. Use retry-on-invalid-output around both LLM calls.
 
 **7. Output**
 

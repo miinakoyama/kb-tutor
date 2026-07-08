@@ -17,7 +17,7 @@ Short-answer items live in the existing `generated_questions.payload` (and `assi
 | `stem` | `string` | Context passage. Required, non-empty. |
 | `stimulus` | `StimulusAsset` | Exactly one typed stimulus. |
 | `parts` | `ShortAnswerPart[]` | 2–3 entries, labels `"A"`,`"B"`,`"C"` in order. |
-| `scoringRubric` | `HolisticRubric` | `pointsPossible` + criteria for each score level 0..N. |
+| `scoringRubric` | `HolisticRubric` | Legacy-only holistic rubric. New generated items omit it. |
 | `keyTerms` | `{ term: string; definition: string }[]` | Completion section + glossary chips. |
 | `annotatedResponses` | `AnnotatedResponse[]` | One per score level 0..pointsPossible; score-max entry is the model-answer source. |
 | `blueprint` | `ItemBlueprint` | Retained per FR-036. |
@@ -30,8 +30,9 @@ Short-answer items live in the existing `generated_questions.payload` (and `assi
 | `label` | `"A" \| "B" \| "C"` | |
 | `prompt` | `string` | Student-facing question; asks exactly one thing. |
 | `taskType` | `TaskType` | `recall_identify \| explain_mechanism \| evaluation_justification \| experimental_design \| apply_concept \| synthesis_design` |
-| `maxScore` | `number` | Integer ≥1; part maxScores sum to `scoringRubric.pointsPossible`. |
-| `scoringGuidance` | `string` | Part rubric criteria text. |
+| `maxScore` | `number` | Integer ≥1; item total is the sum of all part `maxScore` values. |
+| `rubric` | `PartRubric` | Required part-level criteria used for grading and feedback. |
+| `scoringGuidance` | `string` | Legacy part rubric text fallback. |
 | `maxLength` | `number` | Character limit for the textarea (default 500). |
 
 ### StimulusAsset (discriminated union on `type`)

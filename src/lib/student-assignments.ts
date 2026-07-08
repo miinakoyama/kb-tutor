@@ -258,6 +258,10 @@ async function fetchAssignmentList(
     if (!Number.isFinite(answeredAtMs)) continue;
 
     const qid = String(row.question_id);
+    const selectedOptionId =
+      typeof row.selected_option_id === "string" ? row.selected_option_id : null;
+    // Short-answer progress is counted only when every part is resolved.
+    if (selectedOptionId === "short-answer") continue;
     const isCorrect = Boolean(row.is_correct);
 
     if (answeredAtMs > lastCompletedMs) {

@@ -11,6 +11,7 @@ import type { PartLabel, ShortAnswerItem, ShortAnswerPart } from "@/types/short-
 import { isShortAnswerItem } from "@/lib/short-answer/item-schema";
 
 interface StoredPayload {
+  id?: string;
   questionType?: string;
   shortAnswer?: unknown;
 }
@@ -18,9 +19,16 @@ interface StoredPayload {
 function extractShortAnswer(payload: unknown): ShortAnswerItem | null {
   if (!payload || typeof payload !== "object") return null;
   const record = payload as StoredPayload;
+  if (isShortAnswerItem(payload)) return payload;
   if (record.questionType !== "open-ended") return null;
   if (!isShortAnswerItem(record.shortAnswer)) return null;
   return record.shortAnswer;
+}
+
+function payloadId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as StoredPayload;
+  return typeof record.id === "string" && record.id.trim() ? record.id : null;
 }
 
 export interface LoadedItem {
@@ -48,6 +56,16 @@ export async function loadShortAnswerPart(
       .eq("question_id", questionId)
       .maybeSingle();
     payload = data?.payload ?? null;
+
+    if (!payload) {
+      const { data: snapshots } = await supabase
+        .from("assignment_question_snapshots")
+        .select("payload")
+        .eq("assignment_id", assignmentId);
+      payload =
+        (snapshots ?? []).find((row) => payloadId(row.payload) === questionId)
+          ?.payload ?? null;
+    }
   } else {
     const { data } = await supabase
       .from("generated_questions")

@@ -9,7 +9,7 @@
  */
 
 import { chatComplete } from "@/lib/llm/client";
-import { normalizeScore, normalizeFeedback } from "./common";
+import { formatPartRubric, normalizeScore, normalizeFeedback } from "./common";
 import type { MethodGradeInput, MethodGradeOutput } from "./types";
 
 interface Stage1Response {
@@ -28,6 +28,7 @@ export async function gradeWithMethod2(
 
   const t0 = Date.now();
   let totalTokens = 0;
+  const partRubric = formatPartRubric(part);
 
   const stage1System = [
     "You are a scoring engine for Pennsylvania Keystone Biology",
@@ -92,7 +93,7 @@ export async function gradeWithMethod2(
     `Part ${part.label} prompt: ${part.prompt}`,
     "",
     "Rubric:",
-    part.scoringGuidance,
+    partRubric,
     "",
     "Student response:",
     studentResponse.trim() || "(no response)",
@@ -162,7 +163,7 @@ export async function gradeWithMethod2(
     `Part ${part.label} prompt: ${part.prompt}`,
     "",
     "Rubric:",
-    part.scoringGuidance,
+    partRubric,
     "",
     "Student response:",
     studentResponse.trim() || "(no response)",

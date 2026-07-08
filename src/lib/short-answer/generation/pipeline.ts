@@ -204,7 +204,6 @@ interface RawItem {
   stem: string;
   stimulus_asset: Record<string, unknown> & { type: string; title: string };
   parts: Record<string, { task_type?: string; question: string } | undefined>;
-  scoring_rubric: Record<string, unknown>;
   part_rubrics: Record<string, { points_possible: number; criteria: Record<string, string> } | undefined>;
   annotated_responses: Array<{ score: number; response: string; annotation: string }>;
 }
@@ -280,7 +279,6 @@ function validateRawItem(parsed: unknown, blueprintStimulus: StimulusType): stri
     "stem",
     "stimulus_asset",
     "parts",
-    "scoring_rubric",
     "part_rubrics",
     "annotated_responses",
   ]) {
@@ -309,13 +307,6 @@ function validateRawItem(parsed: unknown, blueprintStimulus: StimulusType): stri
     }
     if (containsPlaceholder(part.question)) {
       return `parts.${key}.question contains unresolved placeholder text`;
-    }
-  }
-
-  const rubric = item.scoring_rubric as Record<string, unknown>;
-  for (const score of ["0", "1", "2", "3"]) {
-    if (typeof rubric[score] !== "string" || containsPlaceholder(rubric[score])) {
-      return `scoring_rubric.${score} must be concrete text`;
     }
   }
 
@@ -556,12 +547,15 @@ function mapItem(
       prompt: rawPart.question,
       taskType,
       maxScore,
+      rubric: {
+        pointsPossible: maxScore,
+        criteria: rubric.criteria,
+      },
       scoringGuidance: partScoringGuidance(rubric.criteria),
       maxLength: MAX_LENGTH_BY_POINTS[maxScore] ?? 600,
     });
   }
 
-  const rubric = raw.scoring_rubric as Record<string, string>;
   const annotated: AnnotatedResponse[] = raw.annotated_responses.map((r) => ({
     score: r.score,
     response: r.response,
@@ -572,15 +566,6 @@ function mapItem(
     stem: raw.stem,
     stimulus: mapStimulus(raw.stimulus_asset),
     parts,
-    scoringRubric: {
-      pointsPossible: 3,
-      criteria: {
-        "0": String(rubric["0"]),
-        "1": String(rubric["1"]),
-        "2": String(rubric["2"]),
-        "3": String(rubric["3"]),
-      },
-    },
     keyTerms: keyTermsFromKCs(camelBlueprint.selectedKcs, standardKCs),
     annotatedResponses: annotated,
     blueprint: camelBlueprint,

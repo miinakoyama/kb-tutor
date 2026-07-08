@@ -11,6 +11,11 @@ import {
   collectQuestionIds,
   type AnsweredMap,
 } from "@/lib/assignments/answered-map";
+import {
+  applyAssignmentRunFilter,
+  resolveAssignmentRunAfter,
+} from "@/lib/short-answer/assignment-run";
+import { mergeShortAnswerIntoAnsweredMap } from "@/lib/short-answer/question-completion";
 import type { Question } from "@/types/question";
 
 async function getRequester() {
@@ -253,6 +258,30 @@ export async function GET(
         .in("question_id", questionIds)
         .order("answered_at", { ascending: true });
       answered = buildAnsweredMap(attemptRows ?? [], { lastCompletedAt });
+
+      const assignmentRunAfter = await resolveAssignmentRunAfter(
+        admin,
+        normalizedAssignmentId,
+        requester.id,
+      );
+      let saqQuery = admin
+        .from("short_answer_attempts")
+        .select(
+          "id, question_id, part_label, attempt_number, response_text, feedback, is_correct, answered_at",
+        )
+        .eq("user_id", requester.id)
+        .eq("assignment_id", normalizedAssignmentId)
+        .in("question_id", questionIds);
+      saqQuery = applyAssignmentRunFilter(
+        saqQuery,
+        normalizedAssignmentId,
+        assignmentRunAfter,
+      );
+      const { data: saqRows } = await saqQuery;
+      answered = mergeShortAnswerIntoAnsweredMap(answered, questions, saqRows ?? [], {
+        lastCompletedAt,
+        maxAttemptsPerPart: assignmentMode === "exam" ? 1 : 2,
+      });
     }
   }
 

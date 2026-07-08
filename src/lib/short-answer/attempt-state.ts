@@ -46,7 +46,10 @@ function initialRuntime(index: number): PartRuntimeState {
 export function buildPartRuntimesFromStoredAttempts(
   parts: ShortAnswerPart[],
   rows: StoredShortAnswerAttempt[],
+  options?: { maxAttemptsPerPart?: number },
 ): { runtimes: PartRuntimeState[]; allResolved: boolean } {
+  const maxAttemptsPerPart = options?.maxAttemptsPerPart ?? MAX_SHORT_ANSWER_ATTEMPTS;
+
   const partStates = parts.map((part) => {
     const partRows = rows
       .filter((row) => row.part_label === part.label)
@@ -62,13 +65,15 @@ export function buildPartRuntimesFromStoredAttempts(
     const latestRow = partRows[partRows.length - 1];
     const resolved =
       attempts.some((attempt) => attempt.correct) ||
-      attempts.length >= MAX_SHORT_ANSWER_ATTEMPTS;
+      attempts.length >= maxAttemptsPerPart;
 
     return {
       attempts,
       latestFeedback: latestRow?.feedback ?? null,
       latestAttemptId: latestRow?.id ?? null,
-      triesLeft: resolved ? 0 : Math.max(0, MAX_SHORT_ANSWER_ATTEMPTS - attempts.length),
+      triesLeft: resolved
+        ? 0
+        : Math.max(0, maxAttemptsPerPart - attempts.length),
       resolved,
     };
   });

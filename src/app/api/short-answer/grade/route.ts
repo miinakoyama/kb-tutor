@@ -6,12 +6,14 @@ import {
   applyAssignmentRunFilter,
   resolveAssignmentRunAfter,
 } from "@/lib/short-answer/assignment-run";
+import { evaluateShortAnswerQuestionCompletion } from "@/lib/short-answer/question-completion";
 import { loadShortAnswerPart } from "@/lib/short-answer/load-item";
 import { resolveFeedbackConfig } from "@/lib/short-answer/settings";
 import { gradePart } from "@/lib/short-answer/grading";
 import { emptySubmissionFeedback, feedbackToPlainText } from "@/lib/short-answer/grading/common";
-import type { GradedFeedback, PartLabel } from "@/types/short-answer";
+import type { GradedFeedback, PartLabel, ShortAnswerPart } from "@/types/short-answer";
 import type { PracticeMode } from "@/types/question";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface GradeRequestBody {
   questionId: string;
@@ -57,6 +59,68 @@ function parseBody(raw: unknown): GradeRequestBody | null {
     mode: b.mode as PracticeMode,
     clientAttemptId: b.clientAttemptId,
   };
+}
+
+async function maybeRecordQuestionSummary(
+  supabase: SupabaseClient,
+  params: {
+    userId: string;
+    questionId: string;
+    assignmentId: string | null | undefined;
+    assignmentRunAfter: string | null;
+    mode: PracticeMode;
+    standardId: string;
+    parts: ShortAnswerPart[];
+    maxAttemptsPerPart: number;
+  },
+): Promise<void> {
+  let query = supabase
+    .from("short_answer_attempts")
+    .select(
+      "id, part_label, attempt_number, response_text, feedback, is_correct, answered_at",
+    )
+    .eq("user_id", params.userId)
+    .eq("question_id", params.questionId);
+  if (params.assignmentId) {
+    query = query.eq("assignment_id", params.assignmentId);
+    query = applyAssignmentRunFilter(
+      query,
+      params.assignmentId,
+      params.assignmentRunAfter,
+    );
+  } else {
+    query = query.is("assignment_id", null);
+  }
+  const { data: rows } = await query;
+  const completion = evaluateShortAnswerQuestionCompletion(
+    params.parts,
+    rows ?? [],
+    { maxAttemptsPerPart: params.maxAttemptsPerPart },
+  );
+  if (!completion.allResolved || !completion.latestAnsweredAt) return;
+
+  let existingQuery = supabase
+    .from("attempts")
+    .select("id")
+    .eq("user_id", params.userId)
+    .eq("question_id", params.questionId)
+    .eq("selected_option_id", "short-answer");
+  existingQuery = params.assignmentId
+    ? existingQuery.eq("assignment_id", params.assignmentId)
+    : existingQuery.is("assignment_id", null);
+  const { data: existingSummary } = await existingQuery.maybeSingle();
+  if (existingSummary) return;
+
+  await supabase.from("attempts").insert({
+    user_id: params.userId,
+    assignment_id: params.assignmentId ?? null,
+    question_id: params.questionId,
+    selected_option_id: "short-answer",
+    is_correct: completion.allCorrect,
+    mode: params.mode,
+    standard_id: params.standardId,
+    answered_at: completion.latestAnsweredAt,
+  });
 }
 
 export async function POST(request: Request) {
@@ -309,17 +373,16 @@ export async function POST(request: Request) {
     );
   }
 
-  // Summary row into `attempts` on resolution keeps existing analytics working.
   if (resolved) {
-    await supabase.from("attempts").insert({
-      user_id: user.id,
-      assignment_id: body.assignmentId,
-      question_id: body.questionId,
-      selected_option_id: "short-answer",
-      is_correct: correct,
+    await maybeRecordQuestionSummary(supabase, {
+      userId: user.id,
+      questionId: body.questionId,
+      assignmentId: body.assignmentId,
+      assignmentRunAfter,
       mode: body.mode,
-      standard_id: item.blueprint.targetStandard,
-      answered_at: answeredAt,
+      standardId: item.blueprint.targetStandard,
+      parts: item.parts,
+      maxAttemptsPerPart: maxAttempts,
     });
   }
 

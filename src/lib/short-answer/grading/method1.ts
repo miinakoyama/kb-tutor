@@ -11,6 +11,7 @@
 
 import { chatComplete } from "@/lib/llm/client";
 import { retrieveFromKB } from "./retrieval";
+import { formatPartRubric } from "./common";
 import type { MethodGradeInput, MethodGradeOutput } from "./types";
 
 interface Method1Parsed {
@@ -36,6 +37,7 @@ export async function gradeWithMethod1(
   const isMultiPoint = part.maxScore > 1;
   const taskType = part.taskType;
   const gaps = priorGaps ?? {};
+  const partRubric = formatPartRubric(part);
 
   const receiveItems: string[] = [
     "1. The question stem",
@@ -102,7 +104,7 @@ export async function gradeWithMethod1(
   const scoringUserParts = [
     `QUESTION STEM:\n${item.stem}`,
     `SUB-PART ${part.label} (worth ${part.maxScore} pt${part.maxScore > 1 ? "s" : ""}):\n${part.prompt}`,
-    `SCORING GUIDANCE:\n${part.scoringGuidance}`,
+    `SCORING GUIDANCE:\n${partRubric}`,
     Object.keys(gaps).length > 0
       ? `PRIOR PART GAPS (context only):\n${Object.entries(gaps)
           .map(([label, gap]) => `Part ${label}: ${gap}`)

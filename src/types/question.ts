@@ -127,6 +127,8 @@ export interface Question {
   sidebarTerms?: GlossaryTerm[];
   focusHint?: string;
   keyKnowledge?: string;
+  kcCode?: string;
+  kcStatement?: string;
 
   rationaleQuestion?: RationaleQuestion;
 

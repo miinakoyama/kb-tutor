@@ -11,6 +11,13 @@
       "prompt": "Identify the molecule in the table that carries the genetic code from the nucleus to the ribosome.",
       "taskType": "Recall / Identify / Classify",
       "maxScore": 1,
+      "rubric": {
+        "pointsPossible": 1,
+        "criteria": {
+          "1": "Names mRNA (messenger RNA) as the molecule that carries the code to the ribosome.",
+          "0": "Does not name mRNA or names a different molecule."
+        }
+      },
       "scoringGuidance": "Full credit: names mRNA (messenger RNA) as the molecule that carries the code to the ribosome.",
       "maxLength": 300
     },
@@ -19,6 +26,13 @@
       "prompt": "Explain how the sequence of bases in the mRNA determines the sequence of amino acids in the polypeptide.",
       "taskType": "Explain Mechanism",
       "maxScore": 1,
+      "rubric": {
+        "pointsPossible": 1,
+        "criteria": {
+          "1": "Explains that ribosomes read mRNA in three-base codons and each codon specifies one amino acid, so base order sets amino acid order.",
+          "0": "Does not connect codons/base order to amino acid order."
+        }
+      },
       "scoringGuidance": "Full credit: explains that ribosomes read mRNA in three-base codons and each codon specifies one amino acid, so the base order sets the amino acid order.",
       "maxLength": 500
     },
@@ -27,19 +41,17 @@
       "prompt": "Predict how a change in one DNA base could affect the final protein, and justify your prediction.",
       "taskType": "Prediction",
       "maxScore": 1,
+      "rubric": {
+        "pointsPossible": 1,
+        "criteria": {
+          "1": "Predicts a possible codon/amino-acid change and connects it to a possible change in protein shape or function.",
+          "0": "Gives no valid prediction or does not connect the base change to protein structure or function."
+        }
+      },
       "scoringGuidance": "Full credit: predicts a possible change to a codon that could change (or not change) an amino acid, and connects that to a possible change in the protein's shape or function.",
       "maxLength": 500
     }
   ],
-  "scoringRubric": {
-    "pointsPossible": 3,
-    "criteria": {
-      "0": "No parts answered correctly, or responses show no understanding of how DNA directs protein synthesis.",
-      "1": "One part answered correctly; limited understanding of the DNA-to-protein pathway.",
-      "2": "Two parts answered correctly; partial understanding of how base sequence determines protein structure.",
-      "3": "All three parts answered correctly; clear understanding of transcription, translation, and the effect of mutations."
-    }
-  },
   "keyTerms": [
     { "term": "mRNA", "definition": "A single-stranded RNA molecule that carries the genetic code from DNA to the ribosome." },
     { "term": "codon", "definition": "A sequence of three mRNA bases that specifies one amino acid." },
