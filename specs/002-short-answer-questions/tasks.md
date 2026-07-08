@@ -145,7 +145,7 @@
 ## Phase 7: Polish & Cross-Cutting Concerns
 
 - [ ] T057 [P] Accessibility pass over `src/components/short-answer/`: WCAG 2.1 AA contrast on verdict colors, keyboard navigation + focus traps in modals/tour, aria-live for feedback arrival and countdown, 360px layout check (constitution II)
-- [ ] T058 [P] English-only + design-consistency sweep of all new UI strings and components against the existing green/forest design tokens in `src/app/globals.css` (constitution I, spec FR-002)
+- [ ] T058 [P] English-only + design-consistency sweep of all new UI strings and components against the `/assignments` page style (spec FR-002): frosted-glass card tokens (`--assignment-glass-bg*`, `--assignment-card-shadow`, `--assignment-elevated-shadow`), `rounded-2xl` cards, pill-shaped controls, uppercase muted section headings, green/forest + error tokens from `src/app/globals.css` (constitution I)
 - [ ] T059 Run `npm run lint` and `npm test`; fix all failures introduced by this feature
 - [ ] T060 Execute quickstart.md end-to-end (all four "Verify" sections) against a local dev environment with real API keys; record results in the PR description
 - [ ] T061 [P] Write the capacity note for the PR: LLM calls per submission by method, expected classroom-burst concurrency, timeout/retry behavior (constitution III); include the Principle V third-party data justification from plan.md
@@ -196,6 +196,6 @@
 ## Notes
 
 - Grading/generation prompts must match `reference-pipeline.md` verbatim where specified — do not "improve" prompt wording during porting (method comparability depends on it)
-- All new UI text in English; styling from existing design tokens, not the mockups' palette
+- All new UI text in English; styling follows the `/assignments` page design system (frosted-glass cards, `rounded-2xl`, pill controls, green/forest palette via existing tokens), not the mockups' palette
 - Never expose method/model/temperature or LLM keys to student clients; grade route resolves config server-side
 - Commit after each task or logical group
