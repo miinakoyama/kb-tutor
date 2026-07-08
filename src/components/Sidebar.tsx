@@ -15,6 +15,7 @@ import {
   Bookmark,
   NotebookPen,
   School,
+  StickyNote,
   Users,
   LayoutDashboard,
   Settings,
@@ -59,6 +60,7 @@ const STUDENT_SECTION: NavSection = {
     { href: "/self-practice", label: "Self Practice", icon: NotebookPen },
     { href: "/progress", label: "My Progress", icon: BarChart3 },
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
+    { href: "/my-notes", label: "My Notes", icon: StickyNote },
   ],
 };
 

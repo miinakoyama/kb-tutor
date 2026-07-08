@@ -1,0 +1,112 @@
+{
+  "stem": "A biology class is studying how genetic information in DNA is used to build proteins. The teacher provides data on a short segment of a gene and the molecules produced from it in a healthy cell.",
+  "stimulus": {
+    "type": "table",
+    "title": "Molecules produced from a gene segment",
+    "tableMarkdown": "| Stage | Molecule | Location in cell |\n| --- | --- | --- |\n| 1 | DNA template strand | Nucleus |\n| 2 | mRNA transcript | Nucleus to cytoplasm |\n| 3 | Polypeptide (protein) | Ribosome |"
+  },
+  "parts": [
+    {
+      "label": "A",
+      "prompt": "Identify the molecule in the table that carries the genetic code from the nucleus to the ribosome.",
+      "taskType": "Recall / Identify / Classify",
+      "maxScore": 1,
+      "scoringGuidance": "Full credit: names mRNA (messenger RNA) as the molecule that carries the code to the ribosome.",
+      "maxLength": 300
+    },
+    {
+      "label": "B",
+      "prompt": "Explain how the sequence of bases in the mRNA determines the sequence of amino acids in the polypeptide.",
+      "taskType": "Explain Mechanism",
+      "maxScore": 1,
+      "scoringGuidance": "Full credit: explains that ribosomes read mRNA in three-base codons and each codon specifies one amino acid, so the base order sets the amino acid order.",
+      "maxLength": 500
+    },
+    {
+      "label": "C",
+      "prompt": "Predict how a change in one DNA base could affect the final protein, and justify your prediction.",
+      "taskType": "Prediction",
+      "maxScore": 1,
+      "scoringGuidance": "Full credit: predicts a possible change to a codon that could change (or not change) an amino acid, and connects that to a possible change in the protein's shape or function.",
+      "maxLength": 500
+    }
+  ],
+  "scoringRubric": {
+    "pointsPossible": 3,
+    "criteria": {
+      "0": "No parts answered correctly, or responses show no understanding of how DNA directs protein synthesis.",
+      "1": "One part answered correctly; limited understanding of the DNA-to-protein pathway.",
+      "2": "Two parts answered correctly; partial understanding of how base sequence determines protein structure.",
+      "3": "All three parts answered correctly; clear understanding of transcription, translation, and the effect of mutations."
+    }
+  },
+  "keyTerms": [
+    { "term": "mRNA", "definition": "A single-stranded RNA molecule that carries the genetic code from DNA to the ribosome." },
+    { "term": "codon", "definition": "A sequence of three mRNA bases that specifies one amino acid." },
+    { "term": "translation", "definition": "The process in which ribosomes read mRNA codons to build a polypeptide." }
+  ],
+  "annotatedResponses": [
+    {
+      "score": 0,
+      "response": "Part A: DNA. Part B: The protein just forms. Part C: Nothing happens.",
+      "annotation": "No part is correct; the response does not identify mRNA or describe the codon-to-amino-acid relationship."
+    },
+    {
+      "score": 1,
+      "response": "Part A: mRNA carries the code to the ribosome. Part B: The bases make the protein. Part C: The protein changes.",
+      "annotation": "Only Part A is correct; Parts B and C lack the codon mechanism and a justified prediction."
+    },
+    {
+      "score": 2,
+      "response": "Part A: mRNA. Part B: Ribosomes read mRNA in codons of three bases and each codon codes for one amino acid, so the base order sets the amino acid order. Part C: The protein might change.",
+      "annotation": "Parts A and B are correct; Part C states a possible change but gives no justification connecting it to protein shape or function."
+    },
+    {
+      "score": 3,
+      "response": "Part A: mRNA carries the genetic code from the nucleus to the ribosome. Part B: The ribosome reads the mRNA in three-base codons, and each codon specifies one amino acid, so the order of bases determines the order of amino acids in the polypeptide. Part C: If one DNA base changes, the matching mRNA codon can change and specify a different amino acid; that new amino acid could alter the protein's three-dimensional shape and change or disrupt its function.",
+      "annotation": "All three parts are correct: mRNA is identified, the codon-to-amino-acid mechanism is explained, and the mutation prediction is justified through protein structure and function."
+    }
+  ],
+  "blueprint": {
+    "targetStandard": "3.1.9-12.A",
+    "anchorKc": "3.1.9-12.A3",
+    "coreKc": "3.1.9-12.A3",
+    "selectedKcs": ["3.1.9-12.A2", "3.1.9-12.A3", "3.1.9-12.A7"],
+    "supportingKcs": ["3.1.9-12.A2", "3.1.9-12.A7"],
+    "stemAffordance": "A table listing the molecules produced as a gene is expressed, giving concrete referents for each part.",
+    "compatibilityRationale": "All three KCs sit on the central-dogma pathway and share the single gene-expression scenario.",
+    "cognitiveDemand": "Progresses from identification to mechanism to justified prediction.",
+    "keyConcepts": ["transcription", "translation", "mutation"],
+    "taskSequence": {
+      "A": { "kcCode": "3.1.9-12.A3", "taskType": "Recall / Identify / Classify", "function": "Identify the information-carrying molecule from the stimulus." },
+      "B": { "kcCode": "3.1.9-12.A3", "taskType": "Explain Mechanism", "function": "Explain the codon-to-amino-acid mechanism." },
+      "C": { "kcCode": "3.1.9-12.A7", "taskType": "Prediction", "function": "Predict and justify the effect of a mutation." }
+    },
+    "stimulusType": "table",
+    "evidencePattern": "Students cite rows of the table to ground their answers.",
+    "expectedResponseElements": [
+      "mRNA named as the carrier molecule",
+      "codons of three bases each specifying one amino acid",
+      "a justified prediction linking a base change to protein function"
+    ],
+    "commonIncompleteResponses": [
+      "naming DNA instead of mRNA in Part A",
+      "omitting the three-base codon detail in Part B",
+      "predicting a change in Part C without justifying it"
+    ]
+  },
+  "generation": {
+    "method": "method2_blueprint_rag_l2",
+    "useBlueprint": true,
+    "useStudyGuideRag": true,
+    "telerLevel": 2,
+    "modelId": "sample-fixture",
+    "temperature": 1,
+    "grounding": {
+      "studyGuide": { "empty": true, "chunkIds": [] },
+      "rubric": { "empty": false, "items": ["2025ModASampler-Q1"] },
+      "cards": { "empty": false, "cardIds": ["2025A-Q1A"] }
+    },
+    "generatedAt": "2026-07-08T00:00:00.000Z"
+  }
+}

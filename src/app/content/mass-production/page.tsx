@@ -13,13 +13,22 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import type { DOKLevel } from "@/types/question";
+import type { DOKLevel, Question } from "@/types/question";
+import type { ShortAnswerItem, StimulusType } from "@/types/short-answer";
 import {
   getAllStandards,
+  getStandardById,
   getStandardsByFilter,
   getStandardsForModule,
+  getModuleNumberForStandard,
+  getTopicForStandard,
   type ModuleCode,
 } from "@/lib/standards";
+import {
+  GENERATION_MODELS,
+  DEFAULT_GENERATION_MODEL_ID,
+  DEFAULT_GENERATION_TEMPERATURE,
+} from "@/lib/llm/models";
 
 const ALL_STANDARDS = getAllStandards();
 const ALL_STANDARD_IDS = new Set(ALL_STANDARDS.map((item) => item.id));
@@ -65,6 +74,16 @@ interface GenerationSettings {
   includeDiagrams: boolean;
   diagramConfig: DiagramConfig;
   customPrompt: string;
+  shortAnswerCount: number;
+  generationModelId: string;
+  generationTemperature: number;
+  saCoreKC: string;
+}
+
+interface KCOption {
+  code: string;
+  statement: string;
+  standard: string;
 }
 
 function distributeStandardCounts(
@@ -81,6 +100,55 @@ function distributeStandardCounts(
     if (remainder > 0) remainder -= 1;
   }
   return counts;
+}
+
+/** Split per-standard totals into MCQ and short-answer portions (largest-remainder). */
+function splitStandardCountsByType(
+  activeStandardIds: string[],
+  standardCounts: Record<string, number>,
+  mcqTotal: number,
+  saqTotal: number,
+): { mcqCounts: Record<string, number>; saqCounts: Record<string, number> } {
+  const zeroed = Object.fromEntries(activeStandardIds.map((id) => [id, 0]));
+  if (activeStandardIds.length === 0) {
+    return { mcqCounts: zeroed, saqCounts: zeroed };
+  }
+
+  const allocate = (total: number): Record<string, number> => {
+    if (total <= 0) return { ...zeroed };
+
+    const weights = activeStandardIds.map((id) => ({
+      id,
+      weight: standardCounts[id] ?? 0,
+    }));
+    const weightSum = weights.reduce((sum, row) => sum + row.weight, 0);
+
+    if (weightSum <= 0) {
+      return distributeStandardCounts(activeStandardIds, total);
+    }
+
+    const fractions = weights.map((row) => {
+      const exact = (total * row.weight) / weightSum;
+      return { id: row.id, exact, floor: Math.floor(exact) };
+    });
+    const result = Object.fromEntries(
+      fractions.map((row) => [row.id, row.floor]),
+    );
+    let remainder = total - fractions.reduce((sum, row) => sum + row.floor, 0);
+    const byRemainder = [...fractions].sort(
+      (a, b) => b.exact - b.floor - (a.exact - a.floor),
+    );
+    for (let i = 0; remainder > 0; i += 1) {
+      result[byRemainder[i % byRemainder.length].id] += 1;
+      remainder -= 1;
+    }
+    return result;
+  };
+
+  return {
+    mcqCounts: allocate(mcqTotal),
+    saqCounts: allocate(saqTotal),
+  };
 }
 
 const DEFAULT_SETTINGS: GenerationSettings = {
@@ -101,7 +169,93 @@ const DEFAULT_SETTINGS: GenerationSettings = {
     diagram: 0,
   },
   customPrompt: "",
+  shortAnswerCount: 0,
+  generationModelId: DEFAULT_GENERATION_MODEL_ID,
+  generationTemperature: DEFAULT_GENERATION_TEMPERATURE,
+  saCoreKC: "",
 };
+
+/** Expand per-standard counts into a flat list of standard codes (one per item). */
+function expandStandardCounts(counts: Record<string, number>): string[] {
+  const codes: string[] = [];
+  for (const [standardId, count] of Object.entries(counts)) {
+    for (let i = 0; i < count; i++) codes.push(standardId);
+  }
+  return codes;
+}
+
+function diagramConfigTotal(config: DiagramConfig): number {
+  return config.chart + config.table + config.flowchart + config.diagram;
+}
+
+function takeDiagramCount(
+  remaining: DiagramConfig,
+  key: keyof DiagramConfig,
+  capacity: number,
+): number {
+  const count = Math.min(remaining[key], capacity);
+  remaining[key] -= count;
+  return count;
+}
+
+function splitDiagramConfig(
+  config: DiagramConfig,
+  mcqCapacity: number,
+): { mcqDiagramConfig: DiagramConfig; saqDiagramConfig: DiagramConfig } {
+  const remaining = { ...config };
+  let capacity = Math.max(0, mcqCapacity);
+  const mcqDiagramConfig: DiagramConfig = {
+    chart: takeDiagramCount(remaining, "chart", capacity),
+    table: 0,
+    flowchart: 0,
+    diagram: 0,
+  };
+  capacity -= mcqDiagramConfig.chart;
+  mcqDiagramConfig.table = takeDiagramCount(remaining, "table", capacity);
+  capacity -= mcqDiagramConfig.table;
+  mcqDiagramConfig.flowchart = takeDiagramCount(remaining, "flowchart", capacity);
+  capacity -= mcqDiagramConfig.flowchart;
+  mcqDiagramConfig.diagram = takeDiagramCount(remaining, "diagram", capacity);
+
+  return {
+    mcqDiagramConfig,
+    saqDiagramConfig: remaining,
+  };
+}
+
+function expandShortAnswerStimulusTypes(config: DiagramConfig, total: number): Array<StimulusType | undefined> {
+  const stimulusTypes: Array<StimulusType | undefined> = [];
+  for (let i = 0; i < config.chart; i++) {
+    stimulusTypes.push(i % 2 === 0 ? "line_graph" : "bar_chart");
+  }
+  for (let i = 0; i < config.table; i++) stimulusTypes.push("table");
+  for (let i = 0; i < config.flowchart; i++) stimulusTypes.push("diagram");
+  for (let i = 0; i < config.diagram; i++) stimulusTypes.push("diagram");
+  while (stimulusTypes.length < total) stimulusTypes.push(undefined);
+  return stimulusTypes.slice(0, total);
+}
+
+function buildShortAnswerQuestion(
+  item: ShortAnswerItem,
+  standardId: string,
+  id: string,
+): Question {
+  const standard = getStandardById(standardId);
+  return {
+    id,
+    module: getModuleNumberForStandard(standardId),
+    topic: getTopicForStandard(standardId),
+    standardId,
+    standardLabel: standard?.label,
+    text: item.parts[0]?.prompt ?? item.stem,
+    imageUrl: null,
+    options: [],
+    correctOptionId: "",
+    questionType: "open-ended",
+    shortAnswer: item,
+    source: "generated",
+  };
+}
 
 const STORAGE_KEY = "massProductionSettings";
 
@@ -111,12 +265,16 @@ export default function MassProductionPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showShortAnswerOptions, setShowShortAnswerOptions] = useState(false);
   const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
   const [selectedSchoolIds, setSelectedSchoolIds] = useState<string[]>([]);
+  const [kcOptions, setKcOptions] = useState<KCOption[]>([]);
 
   useEffect(() => {
     async function loadSchools() {
@@ -146,7 +304,23 @@ export default function MassProductionPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const merged: GenerationSettings = { ...DEFAULT_SETTINGS, ...parsed };
+        const legacy = parsed as Record<string, unknown>;
+        const merged: GenerationSettings = {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          generationModelId:
+            typeof legacy.generationModelId === "string"
+              ? legacy.generationModelId
+              : typeof legacy.saModelId === "string"
+                ? legacy.saModelId
+                : DEFAULT_SETTINGS.generationModelId,
+          generationTemperature:
+            typeof legacy.generationTemperature === "number"
+              ? legacy.generationTemperature
+              : typeof legacy.saTemperature === "number"
+                ? legacy.saTemperature
+                : DEFAULT_SETTINGS.generationTemperature,
+        };
 
         const normalizedTopics = Array.isArray(merged.topics)
           ? merged.topics.filter((topic): topic is string =>
@@ -180,10 +354,13 @@ export default function MassProductionPage() {
           (sum, count) => sum + count,
           0
         );
+        const totalTarget =
+          (typeof merged.questionCount === "number" ? merged.questionCount : 0) +
+          (typeof merged.shortAnswerCount === "number" ? merged.shortAnswerCount : 0);
         const resolvedStandardCounts =
-          assignedTotal === merged.questionCount
+          assignedTotal === totalTarget
             ? normalizedStandardCounts
-            : distributeStandardCounts(selectedStandards, merged.questionCount);
+            : distributeStandardCounts(selectedStandards, totalTarget);
 
         setSettings({
           ...merged,
@@ -205,6 +382,39 @@ export default function MassProductionPage() {
   }, [settings]);
 
   useEffect(() => {
+    const standards = ALL_STANDARDS
+      .map((standard) => standard.id)
+      .filter((standardId) => (settings.standardCounts[standardId] ?? 0) > 0);
+    if (standards.length === 0) {
+      setKcOptions([]);
+      return;
+    }
+    const controller = new AbortController();
+    async function loadKcs() {
+      try {
+        const params = new URLSearchParams();
+        params.set("standards", standards.join(","));
+        const res = await fetch(`/api/short-answer/kcs?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          setKcOptions([]);
+          return;
+        }
+        const json = (await res.json()) as { kcs?: KCOption[] };
+        setKcOptions(json.kcs ?? []);
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          setKcOptions([]);
+        }
+      }
+    }
+    void loadKcs();
+    return () => controller.abort();
+  }, [settings.standardCounts]);
+
+  useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isGenerating) {
       setElapsedTime(0);
@@ -215,22 +425,28 @@ export default function MassProductionPage() {
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  const totalDiagramCount =
-    settings.diagramConfig.chart +
-    settings.diagramConfig.table +
-    settings.diagramConfig.flowchart +
-    settings.diagramConfig.diagram;
+  const totalDiagramCount = diagramConfigTotal(settings.diagramConfig);
+  const totalQuestionTarget = settings.questionCount + settings.shortAnswerCount;
   const totalAssignedStandardCount = ALL_STANDARDS.reduce(
     (sum, standard) => sum + (settings.standardCounts[standard.id] ?? 0),
     0
   );
   const isStandardCountValid =
-    totalAssignedStandardCount === settings.questionCount;
+    totalQuestionTarget === 0
+      ? totalAssignedStandardCount === 0
+      : totalAssignedStandardCount === totalQuestionTarget;
   const activeStandardIds = ALL_STANDARDS
     .map((standard) => standard.id)
     .filter((standardId) => (settings.standardCounts[standardId] ?? 0) > 0);
 
-  const textOnlyCount = Math.max(0, settings.questionCount - totalDiagramCount);
+  const { mcqCounts, saqCounts } = splitStandardCountsByType(
+    activeStandardIds,
+    settings.standardCounts,
+    settings.questionCount,
+    settings.shortAnswerCount,
+  );
+
+  const textOnlyCount = Math.max(0, totalQuestionTarget - totalDiagramCount);
 
   const getStandardsForSelection = (selectionKey: string) => {
     const selection = TOPIC_SELECTION_BY_KEY.get(selectionKey);
@@ -246,7 +462,7 @@ export default function MassProductionPage() {
       ...prev,
       standardCounts: distributeStandardCounts(
         ALL_STANDARDS.map((item) => item.id),
-        prev.questionCount
+        prev.questionCount + prev.shortAnswerCount,
       ),
     }));
   };
@@ -280,13 +496,16 @@ export default function MassProductionPage() {
   const handleStandardCountChange = (standardId: string, rawValue: string) => {
     const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
     if (isNaN(value)) return;
-    setSettings((prev) => ({
-      ...prev,
-      standardCounts: {
-        ...prev.standardCounts,
-        [standardId]: Math.max(0, Math.min(value, prev.questionCount)),
-      },
-    }));
+    setSettings((prev) => {
+      const maxCount = prev.questionCount + prev.shortAnswerCount;
+      return {
+        ...prev,
+        standardCounts: {
+          ...prev.standardCounts,
+          [standardId]: Math.max(0, Math.min(value, maxCount)),
+        },
+      };
+    });
   };
 
   const handleDiagramCountChange = (type: keyof DiagramConfig, rawValue: string) => {
@@ -296,7 +515,7 @@ export default function MassProductionPage() {
       ...prev,
       diagramConfig: {
         ...prev.diagramConfig,
-        [type]: Math.max(0, Math.min(value, prev.questionCount)),
+        [type]: Math.max(0, Math.min(value, prev.questionCount + prev.shortAnswerCount)),
       },
     }));
   };
@@ -309,27 +528,38 @@ export default function MassProductionPage() {
 
   const handleGenerate = async () => {
     const trimmedSetName = settings.questionSetName.trim();
+    const wantMcq = settings.questionCount > 0;
+    const wantShortAnswer = settings.shortAnswerCount > 0;
+
     if (!trimmedSetName) {
       setError("Please enter a question set name.");
       return;
     }
-    if (settings.dokLevels.length === 0) {
-      setError("Please select at least one DOK level.");
+    if (!wantMcq && !wantShortAnswer) {
+      setError("Set an MCQ count or a short-answer count greater than 0.");
       return;
     }
-    if (activeStandardIds.length === 0) {
-      setError("Please set count > 0 for at least one standard.");
+    if (wantMcq) {
+      if (settings.dokLevels.length === 0) {
+        setError("Please select at least one DOK level.");
+        return;
+      }
+    }
+    if (totalDiagramCount > totalQuestionTarget) {
+      setError("Total diagram count cannot exceed MCQ count + short-answer count.");
       return;
     }
-    if (totalAssignedStandardCount !== settings.questionCount) {
-      setError(
-        `Standard counts must sum to ${settings.questionCount}. Current total: ${totalAssignedStandardCount}.`
-      );
-      return;
-    }
-    if (totalDiagramCount > settings.questionCount) {
-      setError("Total diagram count cannot exceed question count.");
-      return;
+    if (totalQuestionTarget > 0) {
+      if (activeStandardIds.length === 0) {
+        setError("Please set count > 0 for at least one standard.");
+        return;
+      }
+      if (!isStandardCountValid) {
+        setError(
+          `Standard counts must sum to ${totalQuestionTarget} (MCQ ${settings.questionCount} + short-answer ${settings.shortAnswerCount}). Current total: ${totalAssignedStandardCount}.`,
+        );
+        return;
+      }
     }
     if (selectedSchoolIds.length === 0) {
       setError("Select at least one school to attach this question set.");
@@ -348,50 +578,144 @@ export default function MassProductionPage() {
     }
 
     setError(null);
+    setWarnings([]);
+    setProgress(null);
     setIsGenerating(true);
 
     try {
-      const payload = {
-        ...settings,
-        topics: TOPIC_SELECTIONS.filter((selection) =>
-          getStandardsForSelection(selection.key).some(
-            (standard) => (settings.standardCounts[standard.id] ?? 0) > 0
-          )
-        ).map((selection) => selection.key),
-        standards: activeStandardIds,
-        questionSetName: trimmedSetName,
-        standardCounts: Object.fromEntries(
-          activeStandardIds.map((standardId) => [
-            standardId,
-            settings.standardCounts[standardId] ?? 0,
-          ])
-        ),
-      };
+      const generatedAt = new Date().toISOString();
+      const mergedQuestions: Question[] = [];
+      let generationModel: { id?: string; label?: string } | undefined;
+      const runWarnings: string[] = [];
+      const { mcqDiagramConfig, saqDiagramConfig } = splitDiagramConfig(
+        settings.includeDiagrams ? settings.diagramConfig : DEFAULT_SETTINGS.diagramConfig,
+        settings.questionCount,
+      );
 
-      const response = await fetch("/api/generate-questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      // ── MCQ generation (unchanged single call) ──────────────────────────
+      if (wantMcq) {
+        setProgress("Generating multiple-choice questions...");
+        const mcqActiveStandardIds = activeStandardIds.filter(
+          (standardId) => (mcqCounts[standardId] ?? 0) > 0,
+        );
+        const payload = {
+          ...settings,
+          topics: TOPIC_SELECTIONS.filter((selection) =>
+            getStandardsForSelection(selection.key).some(
+              (standard) => (mcqCounts[standard.id] ?? 0) > 0,
+            ),
+          ).map((selection) => selection.key),
+          standards: mcqActiveStandardIds,
+          questionSetName: trimmedSetName,
+          questionCount: settings.questionCount,
+          generationModelId: settings.generationModelId,
+          generationTemperature: settings.generationTemperature,
+          includeDiagrams: diagramConfigTotal(mcqDiagramConfig) > 0,
+          diagramConfig: mcqDiagramConfig,
+          standardCounts: Object.fromEntries(
+            mcqActiveStandardIds.map((standardId) => [
+              standardId,
+              mcqCounts[standardId] ?? 0,
+            ]),
+          ),
+        };
 
-      if (!response.ok) {
+        const response = await fetch("/api/generate-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Failed to generate questions");
+        }
         const data = await response.json();
-        throw new Error(data.error || "Failed to generate questions");
+        mergedQuestions.push(...(data.questions as Question[]));
+        generationModel = {
+          id: data.generationModelId,
+          label: data.generationModelLabel,
+        };
       }
 
-      const data = await response.json();
+      // ── Short-answer generation (one HTTP call per item) ────────────────
+      if (wantShortAnswer) {
+        const codes = expandStandardCounts(saqCounts);
+        const stimulusTypes = expandShortAnswerStimulusTypes(
+          settings.includeDiagrams ? saqDiagramConfig : DEFAULT_SETTINGS.diagramConfig,
+          codes.length,
+        );
+        const fixedCoreKC = settings.saCoreKC.trim() || undefined;
+        const fixedCoreKCStandard = fixedCoreKC
+          ? kcOptions.find((kc) => kc.code === fixedCoreKC)?.standard
+          : undefined;
+        let succeeded = 0;
+        for (let i = 0; i < codes.length; i++) {
+          setProgress(
+            `Generating short-answer item ${i + 1} of ${codes.length}...`,
+          );
+          try {
+            const res = await fetch("/api/short-answer/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                standardCode: codes[i],
+                fixedCoreKC:
+                  fixedCoreKCStandard === codes[i] ? fixedCoreKC : undefined,
+                stimulusType: stimulusTypes[i],
+                modelId: settings.generationModelId,
+                temperature: settings.generationTemperature,
+              }),
+            });
+            if (!res.ok) {
+              const data = (await res.json().catch(() => ({}))) as {
+                error?: string;
+                stage?: string;
+              };
+              const detail =
+                data.stage != null
+                  ? `${data.error ?? res.status} (stage: ${data.stage})`
+                  : (data.error ?? String(res.status));
+              runWarnings.push(
+                `Short-answer item ${i + 1} (${codes[i]}) failed: ${detail}`,
+              );
+              continue;
+            }
+            const { item } = (await res.json()) as { item: ShortAnswerItem };
+            mergedQuestions.push(
+              buildShortAnswerQuestion(
+                item,
+                codes[i],
+                `sa-${generatedAt}-${i}`,
+              ),
+            );
+            succeeded += 1;
+          } catch {
+            runWarnings.push(
+              `Short-answer item ${i + 1} (${codes[i]}) failed: network error`,
+            );
+          }
+        }
+        if (!generationModel && succeeded > 0) {
+          const model = GENERATION_MODELS.find((m) => m.id === settings.generationModelId);
+          generationModel = { id: model?.id, label: model?.label };
+        }
+      }
 
-      const generatedAt = new Date().toISOString();
+      if (mergedQuestions.length === 0) {
+        setWarnings(runWarnings);
+        throw new Error(
+          "No questions were generated. See the details below and try again.",
+        );
+      }
+
+      setProgress("Saving question set...");
       const { addGeneratedQuestionSet } = await import("@/lib/question-storage");
       const setId = await addGeneratedQuestionSet(
-        data.questions,
+        mergedQuestions,
         trimmedSetName,
         generatedAt,
         {
-          generationModel: {
-            id: data.generationModelId,
-            label: data.generationModelLabel,
-          },
+          generationModel,
           schoolLinks: selectedSchoolIds.map((schoolId) => ({ schoolId })),
         },
       );
@@ -399,6 +723,7 @@ export default function MassProductionPage() {
       router.push(`/content/questions/${encodeURIComponent(setId)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
+      setProgress(null);
       setIsGenerating(false);
     }
   };
@@ -501,43 +826,118 @@ export default function MassProductionPage() {
             Basic Settings
           </h2>
 
-          {/* Question Count */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-gray mb-2">
-              Number of Questions
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={settings.questionCount || ""}
-              onChange={(e) => {
-                const rawValue = e.target.value;
-                if (rawValue === "") {
-                  setSettings((prev) => ({ ...prev, questionCount: 0 }));
-                  return;
-                }
-                const value = parseInt(rawValue, 10);
-                if (!isNaN(value)) {
-                  const nextCount = Math.max(0, Math.min(20, value));
+          {/* Question Counts (MCQ + short-answer) */}
+          <div className="mb-6 flex flex-wrap gap-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-2">
+                MCQ Count
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={settings.questionCount || ""}
+                onChange={(e) => {
+                  const rawValue = e.target.value;
+                  if (rawValue === "") {
+                    setSettings((prev) => ({ ...prev, questionCount: 0 }));
+                    return;
+                  }
+                  const value = parseInt(rawValue, 10);
+                  if (!isNaN(value)) {
+                    const nextCount = Math.max(0, Math.min(20, value));
+                    setSettings((prev) => ({
+                      ...prev,
+                      questionCount: nextCount,
+                    }));
+                  }
+                }}
+                placeholder="5"
+                className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                0-20 multiple-choice questions
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-2">
+                Short-answer Count
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={settings.shortAnswerCount || ""}
+                onChange={(e) => {
+                  const rawValue = e.target.value;
+                  if (rawValue === "") {
+                    setSettings((prev) => ({ ...prev, shortAnswerCount: 0 }));
+                    return;
+                  }
+                  const value = parseInt(rawValue, 10);
+                  if (!isNaN(value)) {
+                    setSettings((prev) => ({
+                      ...prev,
+                      shortAnswerCount: Math.max(0, Math.min(20, value)),
+                    }));
+                  }
+                }}
+                placeholder="0"
+                className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                0-20 constructed-response items
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-2">
+                Generation Model
+              </label>
+              <select
+                value={settings.generationModelId}
+                onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
-                    questionCount: nextCount,
-                  }));
+                    generationModelId: e.target.value,
+                  }))
                 }
-              }}
-              onBlur={() => {
-                if (settings.questionCount < 1) {
+                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+              >
+                {GENERATION_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Used for both multiple-choice and short-answer generation.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-2">
+                Temperature
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={2}
+                step={0.1}
+                value={settings.generationTemperature}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
                   setSettings((prev) => ({
                     ...prev,
-                    questionCount: 1,
+                    generationTemperature: Number.isNaN(value)
+                      ? DEFAULT_GENERATION_TEMPERATURE
+                      : Math.max(0, Math.min(2, value)),
                   }));
-                }
-              }}
-              placeholder="5"
-              className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-            />
-            <p className="text-xs text-muted-foreground mt-1">1-20 questions per batch</p>
+                }}
+                className="w-28 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm text-center"
+              />
+            </div>
           </div>
 
           {/* Topic and Standard Selection */}
@@ -648,11 +1048,18 @@ export default function MassProductionPage() {
             >
               <span className="font-medium">
                 Total standard counts: {totalAssignedStandardCount} /{" "}
-                {settings.questionCount} questions
+                {totalQuestionTarget} questions
               </span>
+              {totalQuestionTarget > 0 && (
+                <span className="block text-xs mt-0.5 opacity-80">
+                  MCQ {settings.questionCount} + short-answer{" "}
+                  {settings.shortAnswerCount}
+                </span>
+              )}
               {!isStandardCountValid && (
                 <span className="block text-xs mt-1">
-                  Adjust counts so the total matches the number of questions.
+                  Adjust counts so the total matches MCQ count + short-answer
+                  count.
                 </span>
               )}
             </div>
@@ -721,15 +1128,16 @@ export default function MassProductionPage() {
               className="w-4 h-4 rounded border-border-default text-primary focus:ring-primary/50"
             />
             <span className="text-sm font-medium text-slate-gray">
-              Include questions with diagrams
+              Include questions with diagrams or data displays
             </span>
           </label>
 
           {settings.includeDiagrams && (
             <div className="space-y-4 pl-7">
               <p className="text-xs text-muted-foreground mb-3">
-                Specify how many questions should include each diagram type.
-                Remaining questions will be text-only.
+                Specify how many generated questions should include each shared
+                stimulus type across MCQ and short-answer items. Remaining
+                questions will use text-only prompts.
               </p>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -807,10 +1215,70 @@ export default function MassProductionPage() {
                 <div className="flex justify-between text-sm mt-1 pt-1 border-t border-border-subtle">
                   <span className="text-muted-foreground">Total:</span>
                   <span className="font-medium text-slate-gray">
-                    {settings.questionCount}
+                    {totalQuestionTarget}
                   </span>
                 </div>
               </div>
+            </div>
+          )}
+        </section>
+
+        {/* Short-answer Options */}
+        <section className="rounded-xl border border-primary/30 bg-surface shadow-sm overflow-hidden">
+          <button
+            onClick={() => setShowShortAnswerOptions(!showShortAnswerOptions)}
+            className="w-full flex items-center justify-between p-6 text-left hover:bg-foreground/5"
+          >
+            <div>
+              <h2 className="text-lg font-medium text-slate-gray">
+                Short-answer Options
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Applies to the {settings.shortAnswerCount} short-answer item
+                {settings.shortAnswerCount === 1 ? "" : "s"}. Defaults are
+                recommended.
+              </p>
+            </div>
+            {showShortAnswerOptions ? (
+              <ChevronUp className="w-5 h-5 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+            )}
+          </button>
+
+          {showShortAnswerOptions && (
+            <div className="px-6 pb-6 border-t border-border-subtle pt-4 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-gray mb-2">
+                    Pinned Anchor KC (optional)
+                  </label>
+                  <select
+                    value={settings.saCoreKC}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, saCoreKC: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  >
+                    <option value="">Auto select from the selected standards</option>
+                    {kcOptions.map((kc) => (
+                      <option key={kc.code} value={kc.code}>
+                        {kc.code} — {kc.statement}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Options are limited to standards with count greater than 0.
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Short-answer items use the shared model, temperature, diagram
+                settings, and per-standard counts above. MCQ and short-answer
+                totals are split proportionally across standards at generation
+                time. Each short-answer item is generated in its own request; if
+                one fails the others are kept.
+              </p>
             </div>
           )}
         </section>
@@ -862,8 +1330,23 @@ export default function MassProductionPage() {
           </div>
         )}
 
+        {/* Per-item warnings (failed short-answer items) */}
+        {warnings.length > 0 && (
+          <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+            <p className="font-medium mb-1">Some items could not be generated:</p>
+            <ul className="list-disc pl-5 space-y-0.5">
+              {warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Generate Button */}
         <div className="flex items-center justify-end gap-4">
+          {isGenerating && progress && (
+            <span className="text-sm text-muted-foreground">{progress}</span>
+          )}
           {isGenerating && (
             <span className="text-sm text-muted-foreground">
               Elapsed: {formatTime(elapsedTime)}

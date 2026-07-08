@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { AnswerRecord, ConfidenceLevel, GlossaryTerm, Question } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
+import { ShortAnswerQuestionView } from "@/components/short-answer/ShortAnswerQuestionView";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
@@ -80,6 +81,8 @@ interface AdaptivePracticeModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  /** Assignment retry boundary (= last_completed_at for the current run). */
+  assignmentRunAfter?: string | null;
   /** Fires when the completion API reports every school assignment is done. */
   onAllSchoolAssignmentsCompleted?: () => void;
 }
@@ -98,6 +101,7 @@ export function AdaptivePracticeMode({
   backHref = "/self-practice",
   showBackLink = false,
   answered,
+  assignmentRunAfter,
   onAllSchoolAssignmentsCompleted,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
@@ -238,6 +242,13 @@ export function AdaptivePracticeMode({
     setSelectedOptionId(null);
   }, [currentIndex]);
 
+  // True while the current short-answer question was resolved during this
+  // visit (keeps the live view mounted so the completion section stays up).
+  const [saqResolvedThisVisit, setSaqResolvedThisVisit] = useState(false);
+  useEffect(() => {
+    setSaqResolvedThisVisit(false);
+  }, [currentIndex]);
+
   useEffect(() => {
     // When the student reaches the summary screen after finishing every
     // question in an assignment session, tell the server so the assignment is
@@ -270,13 +281,17 @@ export function AdaptivePracticeMode({
   ]);
 
   const question = sessionQuestions[currentIndex];
+  const isShortAnswerQuestion =
+    question?.questionType === "open-ended" && Boolean(question?.shortAnswer);
   const attempts = useMemo(
     () => attemptsByIndex[currentIndex] ?? [],
     [attemptsByIndex, currentIndex]
   );
   const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
   const isCorrect = !!lastAttempt?.isCorrect;
-  const isCompleted = isCorrect || attempts.length >= MAX_ATTEMPTS;
+  const isCompleted = isShortAnswerQuestion
+    ? Boolean(finalAnswers[currentIndex])
+    : isCorrect || attempts.length >= MAX_ATTEMPTS;
   const isRetryReady = retryReadyByIndex[currentIndex] ?? attempts.length === 0;
   const isAwaitingRetry = !isCompleted && attempts.length > 0 && !isRetryReady;
   const showScaffold = attempts.length >= 1 && !isCorrect;
@@ -1078,6 +1093,45 @@ export function AdaptivePracticeMode({
       <div className="flex flex-col gap-3 flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 pb-2">
+            {isShortAnswerQuestion && question.shortAnswer ? (
+              finalAnswer && !saqResolvedThisVisit ? (
+                <div className="rounded-2xl border border-[color:var(--assignment-glass-border)] bg-[color:var(--assignment-glass-bg)] p-6 text-center">
+                  <CheckCircle2 className="mx-auto h-8 w-8 text-primary" />
+                  <p className="mt-3 text-sm font-semibold text-slate-gray">
+                    You already completed this question.
+                  </p>
+                  <p className="mt-1 text-[13px] text-muted-foreground">
+                    Use the Next button below to continue.
+                  </p>
+                </div>
+              ) : (
+                <ShortAnswerQuestionView
+                  key={question.id}
+                  item={question.shortAnswer}
+                  questionId={question.id}
+                  questionSetId={question.questionSetId ?? null}
+                  assignmentId={assignmentId ?? null}
+                  assignmentRunAfter={assignmentRunAfter ?? null}
+                  mode={mode}
+                  continueLabel={
+                    isAssignmentRun && currentIndex === totalQuestions - 1
+                      ? "View Results"
+                      : `Continue to Q${currentIndex + 2}`
+                  }
+                  onContinue={handleNext}
+                  onAllPartsResolved={({ correctParts, totalParts }) => {
+                    setSaqResolvedThisVisit(true);
+                    setFinalAnswers((prev) => ({
+                      ...prev,
+                      [currentIndex]: {
+                        selectedOptionId: "short-answer",
+                        isCorrect: correctParts === totalParts,
+                      },
+                    }));
+                  }}
+                />
+              )
+            ) : (
             <QuestionDisplay
               question={question}
               questionNumber={currentIndex + 1}
@@ -1182,6 +1236,7 @@ export function AdaptivePracticeMode({
                 ) : undefined
               }
             />
+            )}
           </div>
 
           <div className="flex-shrink-0 pt-2">
@@ -1196,7 +1251,15 @@ export function AdaptivePracticeMode({
               </button>
 
               {!isCompleted ? (
-                canTryAgain ? (
+                isShortAnswerQuestion ? (
+                  <button
+                    disabled
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-primary opacity-40 cursor-not-allowed text-[13px]"
+                  >
+                    Answer all parts to continue
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                ) : canTryAgain ? (
                   <button
                     onClick={() => {
                       setSelectedOptionId(null);

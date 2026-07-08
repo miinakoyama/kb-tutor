@@ -169,6 +169,23 @@ export async function GET(
       hasInProgressRun = (inProgressRows ?? []).length > 0;
 
       if (!hasInProgressRun) {
+        const { data: saqInProgressRows, error: saqInProgressError } = await admin
+          .from("short_answer_attempts")
+          .select("answered_at")
+          .eq("assignment_id", normalizedAssignmentId)
+          .eq("user_id", requester.id)
+          .gt("answered_at", lastCompletedAt)
+          .limit(1);
+        if (saqInProgressError) {
+          return NextResponse.json(
+            { error: saqInProgressError.message },
+            { status: 400 },
+          );
+        }
+        hasInProgressRun = (saqInProgressRows ?? []).length > 0;
+      }
+
+      if (!hasInProgressRun) {
         return NextResponse.json(
           {
             error: "Maximum attempts reached for this assignment.",

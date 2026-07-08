@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateWithGemini, parseGeneratedQuestions } from "@/lib/gemini";
+import { chatComplete } from "@/lib/llm/client";
+import {
+  DEFAULT_GENERATION_MODEL_ID,
+  DEFAULT_GENERATION_TEMPERATURE,
+  findGenerationModelById,
+  isValidTemperature,
+} from "@/lib/llm/models";
 import { buildGenerationPrompt } from "@/lib/prompts";
 import type { Question, DOKLevel } from "@/types/question";
 import { getAllStandards, getStandardById } from "@/lib/standards";
@@ -20,6 +27,8 @@ interface GenerationSettings {
     diagram: number;
   };
   customPrompt: string;
+  generationModelId?: string;
+  generationTemperature?: number;
 }
 
 const MAX_GENERATION_ATTEMPTS = 5;
@@ -126,8 +135,51 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
       return false;
     }
   }
+
+  if (
+    s.generationModelId !== undefined &&
+    (typeof s.generationModelId !== "string" || !findGenerationModelById(s.generationModelId))
+  ) {
+    return false;
+  }
+
+  if (
+    s.generationTemperature !== undefined &&
+    !isValidTemperature(s.generationTemperature)
+  ) {
+    return false;
+  }
   
   return true;
+}
+
+async function generateWithSelectedModel(
+  prompt: string,
+  modelId: string,
+  temperature: number,
+): Promise<{ text: string; modelId: string; modelLabel: string }> {
+  const model = findGenerationModelById(modelId);
+  if (!model) {
+    throw new Error(`Unknown generation model: ${modelId}`);
+  }
+  if (model.provider === "google" && modelId === "gemini-3.1-flash-lite-preview") {
+    return generateWithGemini(prompt);
+  }
+
+  const result = await chatComplete({
+    model: modelId,
+    temperature,
+    maxTokens: 12288,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You generate standards-aligned biology multiple-choice questions. Return only a JSON array.",
+      },
+      { role: "user", content: prompt },
+    ],
+  });
+  return { text: result.content, modelId, modelLabel: model.label };
 }
 
 function validateQuestion(
@@ -396,13 +448,6 @@ function tryNormalizeStandardDistribution(
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY is not configured. Please add it to your environment variables." },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
     
     if (!validateSettings(body)) {
@@ -413,6 +458,9 @@ export async function POST(request: NextRequest) {
     }
 
     const basePrompt = buildGenerationPrompt(body);
+    const selectedModelId = body.generationModelId ?? DEFAULT_GENERATION_MODEL_ID;
+    const selectedTemperature =
+      body.generationTemperature ?? DEFAULT_GENERATION_TEMPERATURE;
     const allowedStandardIds = new Set<string>(body.standards);
     let validQuestions: Question[] = [];
     let generationModelId: string | null = null;
@@ -436,7 +484,11 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        const generated = await generateWithGemini(finalPrompt);
+        const generated = await generateWithSelectedModel(
+          finalPrompt,
+          selectedModelId,
+          selectedTemperature,
+        );
         const responseText = generated.text;
         generationModelId = generated.modelId;
         generationModelLabel = generated.modelLabel;

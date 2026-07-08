@@ -200,3 +200,44 @@ body {
   filter: invert(1);
   opacity: 0.94;
 }
+
+/* Short-answer selection highlighting */
+mark.sa-hl {
+  background: #fef08a;
+  border-radius: 2px;
+  cursor: pointer;
+  color: inherit;
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.dark mark.sa-hl {
+  background: rgba(253, 224, 71, 0.42);
+}
+
+mark.sa-hl.sa-hl-demo {
+  outline: 2px solid rgba(234, 179, 8, 0.6);
+}
+
+/* "My Notes" lined-notebook textarea */
+.sa-notebook {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent calc(2em - 1px),
+    rgba(12, 107, 69, 0.14) calc(2em - 1px),
+    rgba(12, 107, 69, 0.14) 2em
+  );
+  background-attachment: local;
+}
+
+.dark .sa-notebook {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent calc(2em - 1px),
+    rgba(143, 191, 159, 0.2) calc(2em - 1px),
+    rgba(143, 191, 159, 0.2) 2em
+  );
+}

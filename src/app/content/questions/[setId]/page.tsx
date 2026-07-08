@@ -19,6 +19,7 @@ import questionsData from "@/data/questions.json";
 import questionSetsData from "@/data/question-sets.json";
 import type { Question, QuestionSet } from "@/types/question";
 import { QuestionPreviewCard } from "@/components/mass-production/QuestionPreviewCard";
+import { ShortAnswerPreviewCard } from "@/components/mass-production/ShortAnswerPreviewCard";
 import { QuestionEditModal } from "@/components/mass-production/QuestionEditModal";
 import { downloadAsJson, downloadAsText, downloadAsTsv } from "@/lib/export-utils";
 import {
@@ -447,22 +448,33 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
       {/* Question List */}
       <div className="space-y-4 mb-8">
-        {questions.map((question, index) => (
-          <QuestionPreviewCard
-            key={question.id}
-            question={question}
-            index={index}
-            onEdit={() => handleEdit(question)}
-            onDelete={() => handleDelete(question.id)}
-            includeInSelfPractice={question.includeInSelfPractice}
-            onToggleIncludeInSelfPractice={
-              isGeneratedFromDb
-                ? () => void handleToggleIncludeInSelfPractice(question)
-                : undefined
-            }
-            isEditable={isGeneratedFromDb}
-          />
-        ))}
+        {questions.map((question, index) =>
+          question.questionType === "open-ended" && question.shortAnswer ? (
+            <ShortAnswerPreviewCard
+              key={question.id}
+              question={question}
+              item={question.shortAnswer}
+              index={index}
+              onDelete={() => handleDelete(question.id)}
+              isEditable={isGeneratedFromDb}
+            />
+          ) : (
+            <QuestionPreviewCard
+              key={question.id}
+              question={question}
+              index={index}
+              onEdit={() => handleEdit(question)}
+              onDelete={() => handleDelete(question.id)}
+              includeInSelfPractice={question.includeInSelfPractice}
+              onToggleIncludeInSelfPractice={
+                isGeneratedFromDb
+                  ? () => void handleToggleIncludeInSelfPractice(question)
+                  : undefined
+              }
+              isEditable={isGeneratedFromDb}
+            />
+          ),
+        )}
       </div>
 
       {editingQuestion && (
