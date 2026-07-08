@@ -175,7 +175,7 @@ async function fetchAssignmentList(
       .in("assignment_id", orderedIds),
     supabase
       .from("attempts")
-      .select("assignment_id,question_id,answered_at,is_correct")
+      .select("assignment_id,question_id,selected_option_id,answered_at,is_correct")
       .eq("user_id", studentUserId)
       .in("assignment_id", orderedIds),
     admin

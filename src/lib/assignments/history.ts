@@ -132,9 +132,9 @@ export function buildShortAnswerAttemptsByQuestion(
     if (!partLabel) continue;
 
     const qid = String(row.question_id);
-    const feedback = isGradedFeedback(row.feedback)
+    const feedback: GradedFeedback = isGradedFeedback(row.feedback)
       ? row.feedback
-      : { verdict: "incorrect" as const, segments: [] };
+      : { verdict: "good_try", segments: [] };
 
     const list = grouped.get(qid) ?? [];
     list.push({
