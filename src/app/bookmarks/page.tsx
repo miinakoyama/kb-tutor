@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -95,6 +95,14 @@ const ASSIGNMENT_SECONDARY_BUTTON_STYLE = {
 } as const;
 
 export default function BookmarksPage() {
+  return (
+    <Suspense>
+      <BookmarksPageContent />
+    </Suspense>
+  );
+}
+
+function BookmarksPageContent() {
   const searchParams = useSearchParams();
   const { visibleQuestions, isLoaded } = useQuestions();
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
