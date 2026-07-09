@@ -242,7 +242,6 @@ export default function ProgressPage() {
                   <PolarAngleAxis
                     dataKey="topic"
                     tick={{ fill: "#2c3e2e", fontSize: 11 }}
-                    tickMargin={14}
                   />
                   <PolarRadiusAxis
                     angle={90}
