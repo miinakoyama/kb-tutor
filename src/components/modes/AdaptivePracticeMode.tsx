@@ -27,6 +27,7 @@ import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
+import { QuestionNoteDrawer } from "@/components/notes/QuestionNoteDrawer";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
@@ -1369,6 +1370,8 @@ export function AdaptivePracticeMode({
           ) : null}
         </div>
       </div>
+
+      {question ? <QuestionNoteDrawer questionId={question.id} /> : null}
 
       {activeFeatureSpotlight === "read-aloud" ? (
         <FeatureSpotlight

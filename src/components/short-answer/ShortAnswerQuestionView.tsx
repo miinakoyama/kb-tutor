@@ -579,6 +579,7 @@ export function ShortAnswerQuestionView({
                 keyTerms={item.keyTerms}
                 continueLabel={continueLabel}
                 onContinue={onContinue}
+                showNotes={false}
                 showContinueButton={showCompletionContinue}
               />
             </div>
