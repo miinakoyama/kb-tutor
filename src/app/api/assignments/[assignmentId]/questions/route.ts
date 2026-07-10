@@ -11,6 +11,11 @@ import {
   collectQuestionIds,
   type AnsweredMap,
 } from "@/lib/assignments/answered-map";
+import {
+  applyAssignmentRunFilter,
+  resolveAssignmentRunAfter,
+} from "@/lib/short-answer/assignment-run";
+import { mergeShortAnswerIntoAnsweredMap } from "@/lib/short-answer/question-completion";
 import type { Question } from "@/types/question";
 
 async function getRequester() {
@@ -169,6 +174,23 @@ export async function GET(
       hasInProgressRun = (inProgressRows ?? []).length > 0;
 
       if (!hasInProgressRun) {
+        const { data: saqInProgressRows, error: saqInProgressError } = await admin
+          .from("short_answer_attempts")
+          .select("answered_at")
+          .eq("assignment_id", normalizedAssignmentId)
+          .eq("user_id", requester.id)
+          .gt("answered_at", lastCompletedAt)
+          .limit(1);
+        if (saqInProgressError) {
+          return NextResponse.json(
+            { error: saqInProgressError.message },
+            { status: 400 },
+          );
+        }
+        hasInProgressRun = (saqInProgressRows ?? []).length > 0;
+      }
+
+      if (!hasInProgressRun) {
         return NextResponse.json(
           {
             error: "Maximum attempts reached for this assignment.",
@@ -236,6 +258,30 @@ export async function GET(
         .in("question_id", questionIds)
         .order("answered_at", { ascending: true });
       answered = buildAnsweredMap(attemptRows ?? [], { lastCompletedAt });
+
+      const assignmentRunAfter = await resolveAssignmentRunAfter(
+        admin,
+        normalizedAssignmentId,
+        requester.id,
+      );
+      let saqQuery = admin
+        .from("short_answer_attempts")
+        .select(
+          "id, question_id, part_label, attempt_number, response_text, feedback, is_correct, answered_at",
+        )
+        .eq("user_id", requester.id)
+        .eq("assignment_id", normalizedAssignmentId)
+        .in("question_id", questionIds);
+      saqQuery = applyAssignmentRunFilter(
+        saqQuery,
+        normalizedAssignmentId,
+        assignmentRunAfter,
+      );
+      const { data: saqRows } = await saqQuery;
+      answered = mergeShortAnswerIntoAnsweredMap(answered, questions, saqRows ?? [], {
+        lastCompletedAt,
+        maxAttemptsPerPart: assignmentMode === "exam" ? 1 : 2,
+      });
     }
   }
 

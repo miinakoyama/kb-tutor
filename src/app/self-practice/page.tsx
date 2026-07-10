@@ -2,14 +2,19 @@ import { SelfPracticePlanner } from "@/components/SelfPracticePlanner";
 
 export default function SelfPracticePage() {
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <section className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
+    <main className="min-h-screen bg-background text-foreground">
+      <div
+        className="mx-auto w-full px-4 pb-16 pt-6 sm:px-6 sm:pt-8 lg:px-10 xl:px-12"
+        style={{ maxWidth: 1500 }}
+      >
+        <section className="mb-8">
+        <h1 className="font-heading mb-2 text-2xl font-bold text-heading sm:text-3xl">
           Self Practice
         </h1>
-      </section>
+        </section>
 
-      <SelfPracticePlanner />
+        <SelfPracticePlanner />
+      </div>
     </main>
   );
 }

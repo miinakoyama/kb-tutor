@@ -45,6 +45,9 @@ export function PracticeHeader({
   rightSlot,
 }: PracticeHeaderProps) {
   const modeLabel = customModeLabel ?? MODE_LABELS[mode];
+  const hasModeLabelText = modeLabel.trim().length > 0;
+  const showModeLabel = mode !== "practice" && hasModeLabelText;
+  const showTopicName = Boolean(topicName) && topicName !== "Self Practice";
   const isBackToHome = backHref === "/";
   const backLabel = isBackToHome ? "Back to Home" : "Back to Mode Selection";
   const showProgress = currentQuestion !== undefined && totalQuestions !== undefined;
@@ -73,16 +76,16 @@ export function PracticeHeader({
       <div className={compactSpacing ? "mb-2" : "mb-3"}>
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
-            {topicName && (
+            {showTopicName && (
               <h1 className="text-xl font-bold font-heading text-heading mb-1">
                 {topicName}
               </h1>
             )}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-              <span className="text-primary font-medium">{modeLabel}</span>
+              {showModeLabel && <span className="text-primary font-medium">{modeLabel}</span>}
               {showProgress && (
                 <>
-                  <span className="text-muted-foreground">·</span>
+                  {showModeLabel && <span className="text-muted-foreground">·</span>}
                   <span className="text-muted-foreground">
                     {useAnsweredProgress
                       ? `${answeredCount} of ${totalQuestions} answered`

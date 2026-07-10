@@ -3,6 +3,8 @@ import { Check } from "lucide-react";
 import type { Question } from "@/types/question";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
+import { isShortAnswerQuestion } from "@/lib/short-answer/question-guards";
+import { ShortAnswerQuestionDetails } from "./ShortAnswerQuestionDetails";
 
 interface QuestionDetailsProps {
   question: Question;
@@ -14,7 +16,14 @@ interface QuestionDetailsProps {
  * notes. Used in the existing-set picker and the assignment detail page.
  */
 export function QuestionDetails({ question, className }: QuestionDetailsProps) {
+  if (isShortAnswerQuestion(question) && question.shortAnswer) {
+    return (
+      <ShortAnswerQuestionDetails item={question.shortAnswer} className={className} />
+    );
+  }
+
   const hasVisual = Boolean(question.imageUrl) || Boolean(question.diagram);
+  const hasOptions = question.options.length > 0;
   const hasTeacherNotes = Boolean(
     question.focusHint ?? question.keyKnowledge ?? question.commonMisconception,
   );
@@ -45,6 +54,7 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
         </div>
       )}
 
+      {hasOptions ? (
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
           Answer options
@@ -85,6 +95,9 @@ export function QuestionDetails({ question, className }: QuestionDetailsProps) {
           })}
         </ul>
       </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No answer options available.</p>
+      )}
 
       {hasTeacherNotes && (
         <div className="rounded-md border border-border-default bg-surface px-3 py-2 space-y-1.5 text-xs text-slate-gray">

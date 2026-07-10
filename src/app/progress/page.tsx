@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Flame } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Flame, Quote } from "lucide-react";
 import {
   Radar,
   RadarChart,
@@ -25,12 +25,47 @@ import { syncTimeZoneFromDb } from "@/lib/timezone-settings";
 
 const PROGRESS_LOOKBACK_DAYS = 365;
 const PROGRESS_FETCH_LIMIT = 2000;
+const QUOTE_FALLBACK = "Keep showing up. Progress compounds over time.";
+const ASSIGNMENT_CARD_STYLE = {
+  background: "var(--assignment-glass-bg)",
+  border: "1px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-card-shadow)",
+  backdropFilter: "blur(14px) saturate(115%)",
+  WebkitBackdropFilter: "blur(14px) saturate(115%)",
+} as const;
+
+const ASSIGNMENT_PANEL_STYLE = {
+  background: "var(--assignment-glass-bg)",
+  border: "1px solid var(--assignment-panel-border)",
+  boxShadow: "var(--assignment-card-shadow)",
+  backdropFilter: "blur(14px) saturate(115%)",
+  WebkitBackdropFilter: "blur(14px) saturate(115%)",
+} as const;
+
+function splitQuoteAndAuthor(rawQuote: string): { quote: string; author: string | null } {
+  const normalized = rawQuote.trim();
+  const separators = [" – ", " - "];
+
+  for (const separator of separators) {
+    const splitIndex = normalized.lastIndexOf(separator);
+    if (splitIndex === -1) continue;
+
+    const quote = normalized.slice(0, splitIndex).trim();
+    const author = normalized.slice(splitIndex + separator.length).trim();
+    if (quote.length > 0 && author.length > 0) {
+      return { quote, author };
+    }
+  }
+
+  return { quote: normalized, author: null };
+}
 
 export default function ProgressPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
   const [isChartMounted, setIsChartMounted] = useState(false);
+  const [dailyQuote, setDailyQuote] = useState(QUOTE_FALLBACK);
   const [masteryData, setMasteryData] = useState<MasteryDatum[]>(() =>
     PROGRESS_TOPICS.map(({ key }) => ({
       topic: key,
@@ -46,6 +81,47 @@ export default function ProgressPage() {
 
   useEffect(() => {
     setIsChartMounted(true);
+  }, []);
+
+  const { quote: quoteText, author: quoteAuthor } = splitQuoteAndAuthor(dailyQuote);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadDailyQuote = async () => {
+      try {
+        const response = await fetch("/progress-quotes.txt");
+        if (!response.ok) {
+          throw new Error("Failed to load quotes");
+        }
+
+        const text = await response.text();
+        const quotes = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0);
+
+        if (quotes.length === 0) {
+          throw new Error("No quotes found");
+        }
+
+        const randomIndex = Math.floor(Math.random() * quotes.length);
+        const quote = quotes[randomIndex] ?? QUOTE_FALLBACK;
+        if (isActive) {
+          setDailyQuote(quote);
+        }
+      } catch {
+        if (isActive) {
+          setDailyQuote(QUOTE_FALLBACK);
+        }
+      }
+    };
+
+    void loadDailyQuote();
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -100,50 +176,65 @@ export default function ProgressPage() {
     void loadProgress();
   }, []);
 
-  const attemptedTopicCount = useMemo(
-    () => masteryData.filter((item) => item.attempts > 0).length,
-    [masteryData],
-  );
-
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-8">
+      <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-8 tracking-[-0.02em]">
         My Progress
       </h1>
 
       <div className="space-y-8">
         {errorMessage && (
-          <section className="rounded-lg border border-error-border bg-error-light px-4 py-3">
+          <section className="rounded-2xl border border-error-border bg-error-light/90 px-4 py-3 shadow-sm">
             <p className="text-sm text-error">{errorMessage}</p>
           </section>
         )}
 
-        <section className="rounded-lg border border-leaf/30 bg-surface p-6 shadow-sm">
-          <h2 className="text-lg font-medium text-slate-gray mb-4 flex items-center gap-2">
-            <Flame className="w-5 h-5 text-orange-500" />
-            Learning Streak
-          </h2>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-bold text-leaf">
-              {isLoading ? "--" : streak}
-            </span>
-            <span className="text-slate-gray">days in a row</span>
-          </div>
-        </section>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section
+            className="rounded-2xl p-6"
+            style={ASSIGNMENT_CARD_STYLE}
+          >
+            <h2 className="text-lg font-medium text-slate-gray mb-4 flex items-center gap-2">
+              <Flame className="w-5 h-5 text-orange-500" />
+              Learning Streak
+            </h2>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold text-leaf">
+                {isLoading ? "--" : streak}
+              </span>
+              <span className="text-slate-gray">days in a row</span>
+            </div>
+          </section>
 
-        <section className="rounded-lg border border-leaf/30 bg-surface p-6 shadow-sm">
+          <section
+            className="rounded-2xl p-6"
+            style={ASSIGNMENT_CARD_STYLE}
+          >
+            <h2 className="text-lg font-medium text-slate-gray mb-4 flex items-center gap-2">
+              <Quote className="w-5 h-5 text-primary" />
+              Daily Quote
+            </h2>
+            <p className="text-slate-gray leading-relaxed">{quoteText}</p>
+            {quoteAuthor ? (
+              <p className="mt-2 text-sm text-muted-foreground">- {quoteAuthor}</p>
+            ) : null}
+          </section>
+        </div>
+
+        <section
+          className="rounded-2xl p-6"
+          style={ASSIGNMENT_PANEL_STYLE}
+        >
           <h2 className="text-lg font-medium text-slate-gray mb-2">
             Topic Mastery
           </h2>
-          <p className="text-sm text-slate-gray/80 mb-4">
-            Mastery by module/category topics.
-          </p>
-          <p className="text-xs text-muted-foreground mb-3">
-            {isLoading
-              ? "Loading progress..."
-              : `${attemptedTopicCount}/${masteryData.length} topics have attempt data (estimated until enough attempts).`}
-          </p>
-          <div className="h-[280px] sm:h-[360px] md:h-[400px] min-h-[200px] w-full min-w-0">
+          <div
+            className="h-[280px] sm:h-[360px] md:h-[400px] min-h-[200px] w-full min-w-0 rounded-xl p-2"
+            style={{
+              background: "var(--assignment-glass-bg-strong)",
+              border: "1px solid var(--assignment-glass-border)",
+            }}
+          >
             {isChartMounted ? (
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={masteryData}>
@@ -167,9 +258,10 @@ export default function ProgressPage() {
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#f8f6f3",
-                      border: "1px solid #2d6a4f",
+                      backgroundColor: "var(--assignment-popover-bg)",
+                      border: "1px solid var(--assignment-popover-border)",
                       borderRadius: "8px",
+                      boxShadow: "var(--assignment-popover-shadow)",
                     }}
                     formatter={(value, _name, item) => {
                       const payload = item?.payload as MasteryDatum | undefined;

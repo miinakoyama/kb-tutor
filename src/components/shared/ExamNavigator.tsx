@@ -53,13 +53,14 @@ export function ExamNavigator({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors rounded-t-lg ${
+            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors rounded-t-lg inline-flex items-center justify-center gap-1 whitespace-nowrap ${
               activeTab === tab.id
                 ? "text-forest border-b-2 border-primary"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {tab.label} ({tab.count})
+            <span>{tab.label}</span>
+            <span>({tab.count})</span>
           </button>
         ))}
       </div>

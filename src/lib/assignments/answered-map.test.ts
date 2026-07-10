@@ -111,6 +111,26 @@ describe("buildAnsweredMap", () => {
     );
     expect(map).toEqual({});
   });
+
+  it("ignores short-answer summary rows from the attempts table", () => {
+    const map = buildAnsweredMap(
+      [
+        row({
+          question_id: "q1",
+          selected_option_id: "short-answer",
+          is_correct: true,
+        }),
+        row({
+          question_id: "q2",
+          selected_option_id: "b",
+          is_correct: false,
+        }),
+      ],
+      { lastCompletedAt: null },
+    );
+    expect(map.q1).toBeUndefined();
+    expect(map.q2.selectedOptionId).toBe("b");
+  });
 });
 
 describe("countAnsweredQuestions", () => {

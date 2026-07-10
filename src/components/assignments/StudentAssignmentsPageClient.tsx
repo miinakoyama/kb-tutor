@@ -12,5 +12,9 @@ export function StudentAssignmentsPageClient({
   assignments,
   loadError,
 }: StudentAssignmentsPageClientProps) {
-  return <StudentAssignmentsList assignments={assignments} loadError={loadError} />;
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <StudentAssignmentsList assignments={assignments} loadError={loadError} />
+    </div>
+  );
 }

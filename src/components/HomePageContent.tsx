@@ -263,7 +263,7 @@ function TodoRow({ assignment }: { assignment: StudentAssignmentListItem }) {
       </div>
       <Link
         href={href}
-        className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary-hover transition-colors"
+        className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 bg-primary text-white text-xs font-semibold hover:bg-primary-hover transition-colors"
       >
         <Play className="w-3.5 h-3.5" />
         {ctaLabel}

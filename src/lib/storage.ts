@@ -210,6 +210,21 @@ function computeIncorrectIds(history: StoredAnswer[]): string[] {
   return Array.from(wrongCountByQuestion.keys());
 }
 
+function computeFirstTryIncorrectIds(history: StoredAnswer[]): string[] {
+  const firstOutcomeByQuestion = new Map<string, boolean>();
+  const sortedByTime = [...history].sort((a, b) => a.timestamp - b.timestamp);
+
+  for (const answer of sortedByTime) {
+    if (!firstOutcomeByQuestion.has(answer.questionId)) {
+      firstOutcomeByQuestion.set(answer.questionId, answer.isCorrect);
+    }
+  }
+
+  return Array.from(firstOutcomeByQuestion.entries())
+    .filter(([, isCorrect]) => !isCorrect)
+    .map(([questionId]) => questionId);
+}
+
 function computeIncorrectCounts(history: StoredAnswer[]): Map<string, number> {
   const wrongCountByQuestion = new Map<string, number>();
   for (const answer of history) {
@@ -232,6 +247,18 @@ export function getIncorrectQuestionIds(): string[] {
 /** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
 export async function fetchIncorrectQuestionIds(): Promise<string[]> {
   return computeIncorrectIds(await fetchAnswerHistory());
+}
+
+/**
+ * Synchronous cache read. Prefer `fetchFirstTryIncorrectQuestionIds()` when possible.
+ */
+export function getFirstTryIncorrectQuestionIds(): string[] {
+  return computeFirstTryIncorrectIds(getAnswerHistory());
+}
+
+/** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
+export async function fetchFirstTryIncorrectQuestionIds(): Promise<string[]> {
+  return computeFirstTryIncorrectIds(await fetchAnswerHistory());
 }
 
 /**

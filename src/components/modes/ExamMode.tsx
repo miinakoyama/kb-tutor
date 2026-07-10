@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Flag,
+  Bookmark,
   RotateCcw,
   ArrowLeft,
   CheckCircle2,
@@ -22,19 +23,22 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Lightbulb,
+  BookOpen,
 } from "lucide-react";
 import type { Question, AnswerRecord } from "@/types/question";
+import type { GradedFeedback, PartLabel, ShortAnswerItem } from "@/types/short-answer";
+import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
+import { FeedbackBlock } from "@/components/short-answer/FeedbackBlock";
 import { OptionButton } from "@/components/shared/OptionButton";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ExamNavigator } from "@/components/shared/ExamNavigator";
 import { Timer } from "@/components/shared/Timer";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
-import { saveAnswer, saveAnswerBatch } from "@/lib/storage";
+import { fetchBookmarkIds, saveAnswer, saveAnswerBatch, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
-import { badgeAmber, calloutAmber, calloutAmberIcon } from "@/lib/ui/status-badge-styles";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
@@ -42,7 +46,6 @@ import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
-import { NextSessionCTA } from "@/components/shared/NextSessionCTA";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
@@ -80,11 +83,63 @@ interface ExamModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  /** Assignment retry boundary (= last_completed_at for the current run). */
+  assignmentRunAfter?: string | null;
   /** Fires when the completion API reports every school assignment is done. */
   onAllSchoolAssignmentsCompleted?: () => void;
 }
 
 type ExamPhase = "config" | "exam" | "confirm" | "results" | "review";
+
+interface SaqPartResult {
+  score: number;
+  maxScore: number;
+  correct: boolean;
+  feedback: GradedFeedback | null;
+  gradingStatus?: "graded" | "skipped" | "failed";
+}
+
+function isSaqQuestion(
+  q: Question | undefined,
+): q is Question & { shortAnswer: ShortAnswerItem } {
+  return q?.questionType === "open-ended" && Boolean(q?.shortAnswer);
+}
+
+function examQuestionPreviewText(q: Question): string {
+  return isSaqQuestion(q) ? q.shortAnswer.stem : q.text;
+}
+
+function extractPartText(response: string, label: PartLabel): string | null {
+  const labels: PartLabel[] = ["A", "B", "C"];
+  const start = response.search(new RegExp(`\\bPart\\s+${label}\\s*:`, "i"));
+  if (start < 0) return null;
+  const contentStart = response.indexOf(":", start) + 1;
+  const laterLabels = labels.filter((candidate) => candidate > label);
+  let end = response.length;
+  for (const candidate of laterLabels) {
+    const next = response.search(new RegExp(`\\bPart\\s+${candidate}\\s*:`, "i"));
+    if (next > contentStart && next < end) end = next;
+  }
+  const text = response.slice(contentStart, end).trim();
+  return text.length > 0 ? text : null;
+}
+
+function sampleAnswerForPart(item: ShortAnswerItem, label: PartLabel): string | null {
+  const maxScore = item.parts.reduce((sum, part) => sum + part.maxScore, 0);
+  const exemplar = [...item.annotatedResponses]
+    .sort((a, b) => b.score - a.score)
+    .find((response) => response.score >= maxScore);
+  if (exemplar) {
+    const extracted = extractPartText(exemplar.response, label);
+    if (extracted) return extracted;
+  }
+
+  const part = item.parts.find((candidate) => candidate.label === label);
+  if (!part) return null;
+  const criteria = part.rubric.criteria[String(part.maxScore)];
+  if (criteria && criteria.trim().length > 0) return criteria.trim();
+  return part.scoringGuidance.trim().length > 0 ? part.scoringGuidance.trim() : null;
+}
 
 /** Seconds stored on attempts; `null` in DB means time was not measured. */
 function dwellMsToRecordedSec(ms: number): number | null {
@@ -126,6 +181,7 @@ export function ExamMode({
     requestedQuestionCount ?? 20
   );
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
+  const [bookmarkedQuestionIds, setBookmarkedQuestionIds] = useState<Set<string>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
@@ -134,6 +190,15 @@ export function ExamMode({
   const [supportsHover, setSupportsHover] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [isInitialized, setIsInitialized] = useState(!requestedQuestionCount);
+  /** Short-answer responses held locally per question index until submit. */
+  const [saqResponses, setSaqResponses] = useState<
+    Record<number, Partial<Record<PartLabel, string>>>
+  >({});
+  /** Per-part grading results, filled at exam submit. */
+  const [saqResults, setSaqResults] = useState<
+    Record<number, Partial<Record<PartLabel, SaqPartResult>>>
+  >({});
+  const [isGradingSaq, setIsGradingSaq] = useState(false);
   const [examOnboardingStep, setExamOnboardingStep] =
     useState<ExamOnboardingStep | null>(null);
   const [isNavigatorSpotlightReady, setIsNavigatorSpotlightReady] =
@@ -144,6 +209,7 @@ export function ExamMode({
   const assignmentPersistedDwellMsRef = useRef<Record<number, number>>({});
   const visitRef = useRef<{ index: number; startMs: number } | null>(null);
   const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const examRunStartedAtRef = useRef(new Date().toISOString());
 
   const clearBlurFlushTimer = useCallback(() => {
     if (blurFlushTimerRef.current === null) return;
@@ -245,8 +311,6 @@ export function ExamMode({
     toggleSpeak,
   } = useTextToSpeech();
   const isQuestionReading = isSpeaking && currentSection === "question";
-  const isChoicesReading = isSpeaking && currentSection === "choices";
-  const isFeedbackReading = isSpeaking && currentSection === "feedback";
 
   useEffect(() => {
     if (!requestedQuestionCount) return;
@@ -268,6 +332,7 @@ export function ExamMode({
       }
       ordered = pool.slice(0, requestedQuestionCount);
     }
+    examRunStartedAtRef.current = new Date().toISOString();
     setSessionQuestions(ordered);
 
     if (isAssignmentRun && answered) {
@@ -300,6 +365,23 @@ export function ExamMode({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    if (sessionQuestions.length === 0) {
+      setBookmarkedQuestionIds(new Set());
+      return;
+    }
+    void fetchBookmarkIds().then((ids) => {
+      const bookmarked = new Set(ids);
+      setBookmarkedQuestionIds(
+        new Set(
+          sessionQuestions
+            .map((question) => question.id)
+            .filter((id) => bookmarked.has(id)),
+        ),
+      );
+    });
+  }, [sessionQuestions]);
 
   const finishExamOnboarding = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -409,6 +491,25 @@ export function ExamMode({
     [assignmentId, currentIndex, phase, reviewIndex, sessionQuestions],
   );
 
+  const handleBookmarkToggle = useCallback(() => {
+    const activeQuestion = sessionQuestions[currentIndex];
+    if (!activeQuestion) return;
+    const nextBookmarked = toggleBookmark(activeQuestion.id);
+    setBookmarkedQuestionIds((prev) => {
+      const next = new Set(prev);
+      if (nextBookmarked) next.add(activeQuestion.id);
+      else next.delete(activeQuestion.id);
+      return next;
+    });
+    trackAnalyticsEvent({
+      eventType: nextBookmarked ? "bookmark_added" : "bookmark_removed",
+      mode: phase === "review" ? "review" : "exam",
+      questionId: activeQuestion.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+  }, [assignmentId, currentIndex, phase, sessionQuestions]);
+
   // Fire `review_mode_entered` / `review_mode_exited` when the exam's "review"
   // phase (post-submit review of wrong answers) is entered or left. This is
   // separate from the per-item `review_item_opened` events above.
@@ -436,6 +537,22 @@ export function ExamMode({
   const isNavigatorOpen = supportsHover
     ? isNavigatorHovered || isNavigatorPinnedOpen
     : isNavigatorPinnedOpen;
+  const assignmentPrimaryButtonStyle = {
+    color: "var(--assignment-cta-text)",
+    background: "var(--assignment-cta-bg-strong)",
+    border: "1.5px solid var(--assignment-cta-border-hover)",
+    boxShadow: "var(--assignment-cta-elevated-shadow)",
+  };
+  const assignmentSecondaryButtonStyle = {
+    color: "var(--assignment-row-cta-text)",
+    background: "var(--assignment-row-cta-bg)",
+    border: "1.5px solid var(--assignment-row-cta-border)",
+    boxShadow: "var(--assignment-row-cta-shadow)",
+  };
+  const assignmentPrimaryButtonClass =
+    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
+  const assignmentSecondaryButtonClass =
+    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -495,6 +612,7 @@ export function ExamMode({
     }
     
     resetExamDwellTracking();
+    examRunStartedAtRef.current = new Date().toISOString();
     setSessionQuestions(selectedQuestions);
     setAnswers({});
     setCurrentIndex(0);
@@ -566,6 +684,135 @@ export function ExamMode({
     ]
   );
 
+  const handleSaqResponseChange = useCallback(
+    (index: number, label: PartLabel, value: string) => {
+      const q = sessionQuestions[index];
+      if (!isSaqQuestion(q)) return;
+      setSaqResponses((prev) => {
+        const next = { ...(prev[index] ?? {}), [label]: value };
+        const allFilled = q.shortAnswer.parts.every(
+          (part) => (next[part.label] ?? "").trim().length > 0,
+        );
+        setAnswers((prevAnswers) => ({
+          ...prevAnswers,
+          [index]: {
+            ...prevAnswers[index],
+            selectedOptionId: allFilled ? "short-answer" : "",
+            isCorrect: false,
+          },
+        }));
+        return { ...prev, [index]: next };
+      });
+    },
+    [sessionQuestions],
+  );
+
+  /**
+   * Exam deferral (FR-037): grade every touched short-answer part in one pass
+   * at submit time (mode 'exam', single attempt). Grading failures never block
+   * submission — the part is counted incorrect with no feedback.
+   */
+  const gradeShortAnswerQuestions = useCallback(async (): Promise<
+    Record<number, boolean>
+  > => {
+    const resultUpdates: Record<
+      number,
+      Partial<Record<PartLabel, SaqPartResult>>
+    > = {};
+    const correctness: Record<number, boolean> = {};
+
+    for (let i = 0; i < sessionQuestions.length; i++) {
+      const q = sessionQuestions[i];
+      if (!isSaqQuestion(q)) continue;
+      const responses = saqResponses[i] ?? {};
+      const touched = q.shortAnswer.parts.some(
+        (part) => (responses[part.label] ?? "").trim().length > 0,
+      );
+      if (!touched) continue;
+
+      const partResults: Partial<Record<PartLabel, SaqPartResult>> = {};
+      let allCorrect = true;
+      for (const part of q.shortAnswer.parts) {
+        const text = responses[part.label] ?? "";
+        if (text.trim().length === 0) {
+          partResults[part.label] = {
+            score: 0,
+            maxScore: part.maxScore,
+            correct: false,
+            feedback: null,
+            gradingStatus: "skipped",
+          };
+          allCorrect = false;
+          continue;
+        }
+        try {
+          const res = await fetch("/api/short-answer/grade", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              questionId: q.id,
+              questionSetId: q.questionSetId ?? null,
+              assignmentId: assignmentId ?? null,
+              sessionId: assignmentId ? null : sessionIdRef.current,
+              practiceRunAfter: assignmentId
+                ? null
+                : examRunStartedAtRef.current,
+              partLabel: part.label,
+              studentResponse: text,
+              attemptNumber: 1,
+              mode: "exam",
+              clientAttemptId: crypto.randomUUID(),
+            }),
+          });
+          if (res.ok) {
+            const data = (await res.json()) as {
+              score: number;
+              maxScore: number;
+              correct: boolean;
+              feedback: GradedFeedback;
+            };
+            partResults[part.label] = {
+              score: data.score,
+              maxScore: data.maxScore,
+              correct: data.correct,
+              feedback: data.feedback,
+              gradingStatus: "graded",
+            };
+            if (!data.correct) allCorrect = false;
+            continue;
+          }
+        } catch {
+          // fall through to the incorrect fallback below
+        }
+        partResults[part.label] = {
+          score: 0,
+          maxScore: part.maxScore,
+          correct: false,
+          feedback: null,
+          gradingStatus: "failed",
+        };
+        allCorrect = false;
+      }
+      resultUpdates[i] = partResults;
+      correctness[i] = allCorrect;
+    }
+
+    setSaqResults((prev) => ({ ...prev, ...resultUpdates }));
+    setAnswers((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(correctness)) {
+        const i = Number(key);
+        next[i] = {
+          ...next[i],
+          selectedOptionId: "short-answer",
+          isCorrect: correctness[i],
+        };
+      }
+      return next;
+    });
+    return correctness;
+  }, [assignmentId, saqResponses, sessionQuestions]);
+
   const toggleFlag = useCallback(() => {
     setAnswers((prev) => {
       const existing = prev[currentIndex];
@@ -581,13 +828,23 @@ export function ExamMode({
     setPhase("confirm");
   }, []);
 
-  const confirmSubmit = useCallback(() => {
+  const confirmSubmit = useCallback(async () => {
     const student = getStudentById(DEFAULT_STUDENT_ID);
     flushQuestionVisit();
 
+    // Grade deferred short-answer parts before showing results. The grade
+    // route persists both detailed and summary rows server-side.
+    setIsGradingSaq(true);
+    try {
+      await gradeShortAnswerQuestions();
+    } finally {
+      setIsGradingSaq(false);
+    }
+
     // Assignment runs persist per-question in handleOptionClick to support
     // mid-exam resume, so the batch save would duplicate rows. Skip it here
-    // and rely on the completion POST below instead.
+    // and rely on the completion POST below instead. Short-answer questions
+    // are excluded: the grade route already wrote their attempt rows.
     if (!isAssignmentRun) {
       const batch = sessionQuestions.map((q, i) => {
         const a = answers[i];
@@ -597,22 +854,29 @@ export function ExamMode({
         const totalDwellMs = questionDwellMsRef.current[i] ?? 0;
         const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
         return {
-          questionId: q.id,
-          selectedOptionId: a?.selectedOptionId ?? "",
-          isCorrect: a?.isCorrect ?? false,
-          timestamp: Date.now(),
-          mode: "exam" as const,
-          module: q.module,
-          topic: q.topic,
-          standardId: resolvedStandard.id,
-          standardLabel: resolvedStandard.label,
-          ...(timeSpentSec !== null ? { timeSpentSec } : {}),
-          studentId: student?.id,
-          classId: student?.classId,
-          teacherId: student?.teacherId,
+          isSaq: isSaqQuestion(q),
+          record: {
+            questionId: q.id,
+            selectedOptionId: a?.selectedOptionId ?? "",
+            isCorrect: a?.isCorrect ?? false,
+            timestamp: Date.now(),
+            mode: "exam" as const,
+            module: q.module,
+            topic: q.topic,
+            standardId: resolvedStandard.id,
+            standardLabel: resolvedStandard.label,
+            ...(timeSpentSec !== null ? { timeSpentSec } : {}),
+            studentId: student?.id,
+            classId: student?.classId,
+            teacherId: student?.teacherId,
+          },
         };
       });
-      saveAnswerBatch(batch.filter((b) => b.selectedOptionId));
+      saveAnswerBatch(
+        batch
+          .filter((b) => !b.isSaq && b.record.selectedOptionId)
+          .map((b) => b.record),
+      );
     }
 
     if (isAssignmentRun && assignmentId) {
@@ -620,6 +884,7 @@ export function ExamMode({
       // This avoids under-reporting when a learner answers once and then
       // spends more time reviewing before submitting.
       sessionQuestions.forEach((q, i) => {
+        if (isSaqQuestion(q)) return;
         const a = answers[i];
         if (!a?.selectedOptionId) return;
         // Only questions persisted in this browser session should be eligible
@@ -697,6 +962,7 @@ export function ExamMode({
     answers,
     sessionQuestions,
     flushQuestionVisit,
+    gradeShortAnswerQuestions,
     isAssignmentRun,
     assignmentId,
     answeredCount,
@@ -723,18 +989,25 @@ export function ExamMode({
       <ExamResults
         questions={sessionQuestions}
         answers={answers}
+        saqResults={saqResults}
         correctCount={correctCount}
         elapsedMs={elapsedMs}
         topicName={topicName}
-        assignmentId={assignmentId}
         onReview={(index) => {
           setReviewIndex(index);
           setPhase("review");
         }}
         onRetry={() => {
-          setPhase("config");
+          resetExamDwellTracking();
+          setElapsedMs(0);
           setAnswers({});
+          setSaqResponses({});
+          setSaqResults({});
+          examRunStartedAtRef.current = new Date().toISOString();
           setCurrentIndex(0);
+          setReviewIndex(null);
+          setIsNavigatorPinnedOpen(false);
+          setPhase("exam");
         }}
       />
     );
@@ -743,8 +1016,105 @@ export function ExamMode({
   if (phase === "review" && reviewIndex !== null) {
     const q = sessionQuestions[reviewIndex];
     const a = answers[reviewIndex];
+    if (isSaqQuestion(q)) {
+      return (
+        <div className="w-full">
+          <button
+            onClick={() => setPhase("results")}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
+          >
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+              <ArrowLeft className="w-4 h-4 text-heading" />
+            </span>
+            Back to Results
+          </button>
+          <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+            <p className="text-sm text-muted-foreground mb-3">
+              Question {reviewIndex + 1}
+            </p>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+              <div className="lg:sticky lg:top-4 lg:self-start">
+                <StimulusPanel
+                  stem={q.shortAnswer.stem}
+                  stimulus={q.shortAnswer.stimulus}
+                  showHighlightHint={false}
+                />
+              </div>
+              <div className="flex flex-col gap-4">
+              {q.shortAnswer.parts.map((part) => {
+                const result = saqResults[reviewIndex]?.[part.label];
+                const text = saqResponses[reviewIndex]?.[part.label] ?? "";
+                const sampleAnswer = sampleAnswerForPart(q.shortAnswer, part.label);
+                return (
+                  <div
+                    key={part.label}
+                    className="rounded-xl border border-border-default bg-surface p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Part {part.label}
+                      </p>
+                      {result ? (
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                            result.correct
+                              ? "bg-emerald-100 text-emerald-800"
+                              : result.gradingStatus === "failed"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
+                          {result.gradingStatus === "failed"
+                            ? "Could not grade"
+                            : result.correct
+                              ? "Correct"
+                              : "Incorrect"}{" "}
+                          · {result.score}/{result.maxScore}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                          Not answered
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[15px] leading-relaxed text-slate-gray">
+                      {part.prompt}
+                    </p>
+                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      You wrote
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-muted px-3 py-2 text-sm italic text-slate-gray">
+                      {text.trim().length > 0 ? `“${text}”` : "(no answer)"}
+                    </p>
+                    {result?.feedback && result.feedback.segments.length > 0 && (
+                      <FeedbackBlock
+                        feedback={result.feedback}
+                        triesLeft={0}
+                        isFinalAttempt
+                      />
+                    )}
+                    {sampleAnswer && (
+                      <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                          Sample answer
+                        </p>
+                        <p className="mt-1 text-[13px] leading-relaxed text-slate-gray">
+                          {sampleAnswer}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     const hasSubmittedAnswer = Boolean(a?.selectedOptionId);
     const reviewChoicesText = buildChoicesReadText(q);
+    const reviewQuestionAndChoicesReadText = `${q.text} ${reviewChoicesText}`.trim();
     const reviewFeedbackText = buildFeedbackReadText(q, a, {
       includeKeyKnowledge: true,
       includeMisconception: true,
@@ -761,20 +1131,21 @@ export function ExamMode({
           Back to Results
         </button>
         <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
-          <p className="text-sm text-muted-foreground mb-3">Question {reviewIndex + 1}</p>
-          {isSupported && (
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <p className="text-sm text-muted-foreground">Question {reviewIndex + 1}</p>
+            {isSupported ? (
               <ReadAloudButton
                 section="question"
-                label="Question"
-                text={q.text}
+                label="Question and choices"
+                text={reviewQuestionAndChoicesReadText}
                 isSpeaking={isSpeaking}
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
                 onPlay={handleReadAloud}
+                iconOnly
               />
-            </div>
-          )}
+            ) : null}
+          </div>
           <p
             className={`text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap rounded-lg transition-colors ${
               isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
@@ -789,7 +1160,7 @@ export function ExamMode({
           )}
           <div
             className={`rounded-lg transition-colors mt-4 ${
-              isChoicesReading ? "bg-primary/10 px-3 py-2" : ""
+              isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
             }`}
           >
             <div className="space-y-2.5">
@@ -824,46 +1195,16 @@ export function ExamMode({
                 );
               })}
             </div>
-            {isSupported && (
-              <div className="mt-4 mb-2">
-              <ReadAloudButton
-                section="choices"
-                label="Choices"
-                text={reviewChoicesText}
-                isSpeaking={isSpeaking}
-                currentSection={currentSection}
-                onToggle={toggleSpeak}
-                onPlay={handleReadAloud}
-              />
-              </div>
-            )}
           </div>
           {hasSubmittedAnswer ? (
-            <>
-              {isSupported && reviewFeedbackText && (
-                <div
-                  className={`mt-4 mb-2 rounded-lg transition-colors ${
-                    isFeedbackReading ? "bg-primary/10 px-3 py-2" : ""
-                  }`}
-                >
-                  <ReadAloudButton
-                    section="feedback"
-                    label="Feedback"
-                    text={reviewFeedbackText}
-                    isSpeaking={isSpeaking}
-                    currentSection={currentSection}
-                    onToggle={toggleSpeak}
-                    onPlay={handleReadAloud}
-                  />
-                </div>
-              )}
-              <FeedbackPanel
-                question={q}
-                answer={a}
-                showKeyKnowledge
-                showMisconception
-              />
-            </>
+            <FeedbackPanel
+              question={q}
+              answer={a}
+              showKeyKnowledge
+              showMisconception
+              feedbackReadText={reviewFeedbackText}
+              onReadAloud={handleReadAloud}
+            />
           ) : (
             <div className="mt-5 space-y-3">
               <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
@@ -914,7 +1255,8 @@ export function ExamMode({
           </p>
           <Link
             href="/self-practice"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover"
+            className={assignmentPrimaryButtonClass}
+            style={assignmentPrimaryButtonStyle}
           >
             Back to Self Practice
           </Link>
@@ -936,13 +1278,66 @@ export function ExamMode({
   }
 
   const unansweredLabel = Math.max(0, unansweredCount);
+  const questionAndChoicesReadText = `${question.text} ${choicesReadText}`.trim();
+  const isCurrentQuestionBookmarked = bookmarkedQuestionIds.has(question.id);
+  const examQuestionControls = (
+    <div className="mt-4 flex items-center justify-between gap-2">
+      <button
+        onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
+        disabled={currentIndex === 0}
+        className={assignmentSecondaryButtonClass}
+        style={assignmentSecondaryButtonStyle}
+      >
+        <ChevronLeft className="w-3.5 h-3.5" />
+        Previous
+      </button>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleBookmarkToggle}
+          className={assignmentSecondaryButtonClass}
+          style={assignmentSecondaryButtonStyle}
+        >
+          <Bookmark
+            className={`w-3.5 h-3.5 ${isCurrentQuestionBookmarked ? "fill-current" : ""}`}
+          />
+          {isCurrentQuestionBookmarked ? "Bookmarked" : "Bookmark"}
+        </button>
+
+        <button
+          onClick={toggleFlag}
+          data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
+          className={assignmentSecondaryButtonClass}
+          style={assignmentSecondaryButtonStyle}
+        >
+          <Flag
+            className={`w-3.5 h-3.5 ${answers[currentIndex]?.flagged ? "fill-current" : ""}`}
+          />
+          Mark for review
+        </button>
+      </div>
+
+      <button
+        onClick={() =>
+          currentIndex < totalQuestions - 1 && setCurrentIndex((i) => i + 1)
+        }
+        disabled={currentIndex === totalQuestions - 1}
+        data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
+        className={assignmentPrimaryButtonClass}
+        style={assignmentPrimaryButtonStyle}
+      >
+        Next
+        <ChevronRight className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
       <PracticeHeader
-        topicName={topicName}
+        topicName={undefined}
         mode="exam"
-        modeLabel="Mock Exam"
+        modeLabel=""
         backHref="/self-practice"
         showBackLink={false}
         inlineProgress
@@ -958,7 +1353,8 @@ export function ExamMode({
             />
             <button
               onClick={handleSubmit}
-              className="px-5 py-2 min-h-[44px] text-sm font-semibold rounded-2xl text-white bg-primary hover:bg-primary-hover shadow-sm hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              className={assignmentPrimaryButtonClass}
+              style={assignmentPrimaryButtonStyle}
             >
               Submit
             </button>
@@ -984,22 +1380,77 @@ export function ExamMode({
                 {isSupported && (
                   <ReadAloudButton
                     section="question"
-                    label="Question"
-                    text={question.text}
+                    label="Question and choices"
+                    text={questionAndChoicesReadText}
                     isSpeaking={isSpeaking}
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
                     onPlay={handleReadAloud}
+                    iconOnly
                   />
                 )}
               </div>
-              <p
-                className={`text-[15px] font-medium text-slate-gray leading-relaxed mb-3 whitespace-pre-wrap rounded-lg transition-colors ${
+              {isSaqQuestion(question) ? (
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+                  <div className="lg:sticky lg:top-4 lg:self-start">
+                    <StimulusPanel
+                      stem={question.shortAnswer.stem}
+                      stimulus={question.shortAnswer.stimulus}
+                      showHighlightHint={false}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-4">
+                  {question.shortAnswer.parts.map((part) => {
+                    const value =
+                      saqResponses[currentIndex]?.[part.label] ?? "";
+                    return (
+                      <div
+                        key={part.label}
+                        className="rounded-xl border border-border-default bg-surface p-4"
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Part {part.label}
+                        </p>
+                        <p className="mt-1 text-[15px] leading-relaxed text-slate-gray">
+                          {part.prompt}
+                        </p>
+                        <textarea
+                          value={value}
+                          onChange={(e) =>
+                            handleSaqResponseChange(
+                              currentIndex,
+                              part.label,
+                              e.target.value,
+                            )
+                          }
+                          maxLength={part.maxLength}
+                          rows={3}
+                          placeholder="Type your answer…"
+                          aria-label={`Answer for Part ${part.label}`}
+                          className="mt-2 w-full resize-none rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        />
+                        <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                          {value.length}/{part.maxLength}
+                        </p>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[12px] text-muted-foreground">
+                    Your answers are graded after you submit the exam.
+                  </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+              <div
+                className={`prose prose-sm max-w-none text-slate-gray mb-3 rounded-lg transition-colors ${
                   isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
                 }`}
               >
-                {question.text}
-              </p>
+                <p className="whitespace-pre-wrap text-[15px] font-medium leading-relaxed">
+                  {question.text}
+                </p>
+              </div>
               {question.diagram && (
                 <AdaptiveDiagramViewport className="mb-4" maxHeightClassName="max-h-[300px]">
                   <DiagramRenderer diagram={question.diagram} />
@@ -1007,7 +1458,7 @@ export function ExamMode({
               )}
               <div
                 className={`rounded-lg transition-colors ${
-                  isChoicesReading ? "bg-primary/10 px-3 py-2" : ""
+                  isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
                 }`}
               >
                 <div className="space-y-2 mt-1.5">
@@ -1028,20 +1479,11 @@ export function ExamMode({
                     );
                   })}
                 </div>
-                {isSupported && (
-                  <div className="mt-2">
-                  <ReadAloudButton
-                    section="choices"
-                    label="Choices"
-                    text={choicesReadText}
-                    isSpeaking={isSpeaking}
-                    currentSection={currentSection}
-                    onToggle={toggleSpeak}
-                    onPlay={handleReadAloud}
-                  />
-                  </div>
-                )}
               </div>
+
+                </>
+              )}
+              {examQuestionControls}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1121,47 +1563,6 @@ export function ExamMode({
             </>
           )}
         </AnimatePresence>
-      </div>
-
-      <div className="flex-shrink-0 pt-2">
-        <div className="flex items-center justify-between bg-surface-muted rounded-xl p-2.5 border border-primary/20">
-          <button
-            onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
-            disabled={currentIndex === 0}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg border border-border-default bg-surface text-slate-gray font-medium hover:bg-foreground/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            Previous
-          </button>
-
-          <button
-            onClick={toggleFlag}
-            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-[13px] font-medium transition-colors ${
-              answers[currentIndex]?.flagged
-                ? badgeAmber
-                : "text-muted-foreground hover:text-muted-foreground border border-border-subtle hover:border-border-default"
-            }`}
-          >
-            <Flag
-              className={`w-3.5 h-3.5 ${answers[currentIndex]?.flagged ? "fill-amber-500" : ""}`}
-            />
-            Mark for review
-          </button>
-
-          <button
-            onClick={() =>
-              currentIndex < totalQuestions - 1 &&
-              setCurrentIndex((i) => i + 1)
-            }
-            disabled={currentIndex === totalQuestions - 1}
-            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg text-white font-medium bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
-          >
-            Next
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
       </div>
 
       {examOnboardingStep === "intro" ? (
@@ -1253,9 +1654,23 @@ export function ExamMode({
       {phase === "confirm" ? (
         <ConfirmDialog
           unansweredCount={unansweredCount}
-          onConfirm={confirmSubmit}
+          onConfirm={() => void confirmSubmit()}
           onCancel={() => setPhase("exam")}
         />
+      ) : null}
+
+      {isGradingSaq ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="rounded-2xl bg-surface px-8 py-6 text-center shadow-2xl">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="mt-3 text-sm font-semibold text-slate-gray">
+              Grading your written answers…
+            </p>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              This can take a few seconds per part.
+            </p>
+          </div>
+        </div>
       ) : null}
     </div>
   );
@@ -1352,6 +1767,21 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const assignmentPrimaryButtonStyle = {
+    color: "var(--assignment-cta-text)",
+    background: "var(--assignment-cta-bg-strong)",
+    border: "1.5px solid var(--assignment-cta-border-hover)",
+    boxShadow: "var(--assignment-cta-elevated-shadow)",
+    fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+  };
+  const assignmentSecondaryButtonStyle = {
+    color: "var(--assignment-row-cta-text)",
+    background: "var(--assignment-row-cta-bg)",
+    border: "1.5px solid var(--assignment-row-cta-border)",
+    boxShadow: "var(--assignment-row-cta-shadow)",
+    fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
@@ -1361,43 +1791,52 @@ function ConfirmDialog({
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative bg-surface rounded-xl border border-primary/30 shadow-xl p-6 max-w-sm w-[90vw]"
+        className="relative w-[92vw] max-w-lg rounded-2xl p-7 sm:p-8"
+        style={{
+          background: "var(--assignment-glass-bg)",
+          border: "1px solid var(--assignment-glass-border)",
+          boxShadow: "var(--assignment-card-shadow)",
+          backdropFilter: "blur(14px) saturate(115%)",
+          WebkitBackdropFilter: "blur(14px) saturate(115%)",
+        }}
       >
         <button
           onClick={onCancel}
-          className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground hover:text-foreground"
+          className="absolute right-3 top-3 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-surface/40 hover:text-foreground"
         >
           <X className="w-4 h-4" />
         </button>
 
-        <h3 className="text-lg font-bold text-slate-gray mb-2">
+        <h3 className="mb-2 text-center text-xl font-bold text-slate-gray">
           Submit Exam?
         </h3>
 
         {unansweredCount > 0 && (
-          <div className={`flex items-start gap-2 p-3 mb-4 ${calloutAmber}`}>
-            <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${calloutAmberIcon}`} />
-            <p className="text-sm text-slate-gray">
+          <div className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <p>
               You have {unansweredCount} unanswered{" "}
               {unansweredCount === 1 ? "question" : "questions"}.
             </p>
           </div>
         )}
 
-        <p className="text-sm text-muted-foreground mb-5">
+        <p className="mb-5 text-center text-sm text-muted-foreground">
           Once submitted, you cannot change your answers. Are you sure?
         </p>
 
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-lg border border-border-default text-slate-gray font-medium hover:bg-foreground/5 transition-colors text-sm"
+            className="flex-1 rounded-full px-4 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)]"
+            style={assignmentSecondaryButtonStyle}
           >
             Go Back
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2.5 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors text-sm"
+            className="flex-1 rounded-full px-4 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)]"
+            style={assignmentPrimaryButtonStyle}
           >
             Submit
           </button>
@@ -1410,24 +1849,19 @@ function ConfirmDialog({
 function ExamResults({
   questions,
   answers,
+  saqResults,
   correctCount,
   elapsedMs,
   topicName,
-  assignmentId,
   onReview,
   onRetry,
 }: {
   questions: Question[];
   answers: Record<number, AnswerRecord>;
+  saqResults: Record<number, Partial<Record<PartLabel, SaqPartResult>>>;
   correctCount: number;
   elapsedMs: number;
   topicName?: string;
-  /**
-   * Optional — when this results screen is shown after finishing an
-   * assignment, pass it so the "Next" CTA can exclude that assignment
-   * from its suggestion candidates.
-   */
-  assignmentId?: string;
   onReview: (index: number) => void;
   onRetry: () => void;
 }) {
@@ -1446,6 +1880,22 @@ function ExamResults({
     total > 0 ? Math.round((correctCount / total) * 100) : 0;
   const minutes = Math.floor(elapsedMs / 60000);
   const avgSeconds = total > 0 ? Math.round(elapsedMs / 1000 / total) : 0;
+  const assignmentPrimaryButtonStyle = {
+    color: "var(--assignment-cta-text)",
+    background: "var(--assignment-cta-bg-strong)",
+    border: "1.5px solid var(--assignment-cta-border-hover)",
+    boxShadow: "var(--assignment-cta-elevated-shadow)",
+  };
+  const assignmentSecondaryButtonStyle = {
+    color: "var(--assignment-row-cta-text)",
+    background: "var(--assignment-row-cta-bg)",
+    border: "1.5px solid var(--assignment-row-cta-border)",
+    boxShadow: "var(--assignment-row-cta-shadow)",
+  };
+  const assignmentPrimaryButtonClass =
+    "inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)]";
+  const assignmentSecondaryButtonClass =
+    "inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)]";
 
   return (
     <motion.div
@@ -1505,8 +1955,20 @@ function ExamResults({
         <div className="space-y-2">
           {reviewEntries.map(({ q, index, answer }, position) => {
             const hasSubmittedAnswer = Boolean(answer?.selectedOptionId);
-            const isCorrect = answer?.selectedOptionId === q.correctOptionId;
+            const isShortAnswer = answer?.selectedOptionId === "short-answer";
+            const isCorrect = isShortAnswer
+              ? Boolean(answer?.isCorrect)
+              : answer?.selectedOptionId === q.correctOptionId;
             const isFlagged = answer?.flagged;
+            const saqPartResults = isShortAnswer && isSaqQuestion(q)
+              ? q.shortAnswer.parts.map(
+                  (part) => saqResults[index]?.[part.label],
+                )
+              : null;
+            const saqCorrectParts = saqPartResults
+              ? saqPartResults.filter((r) => r?.correct).length
+              : 0;
+            const saqTotalParts = saqPartResults?.length ?? 0;
             return (
               <button
                 key={index}
@@ -1516,7 +1978,9 @@ function ExamResults({
                     ? "border-border-default"
                     : isCorrect
                       ? "border-primary/20"
-                      : "border-error-border"
+                      : saqPartResults && saqCorrectParts > 0
+                        ? "border-amber-300"
+                        : "border-error-border"
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -1524,13 +1988,26 @@ function ExamResults({
                     {position + 1}
                   </span>
                   <p className="flex-1 text-sm text-slate-gray line-clamp-1">
-                    {q.text}
+                    {examQuestionPreviewText(q)}
                   </p>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {isFlagged && (
                       <Flag className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                     )}
-                    {!hasSubmittedAnswer ? null : isCorrect ? (
+                    {!hasSubmittedAnswer ? null : saqPartResults ? (
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+                        style={
+                          isCorrect
+                            ? { color: PRIMARY_COLOR, background: "color-mix(in srgb, var(--primary) 12%, transparent)" }
+                            : saqCorrectParts > 0
+                              ? { color: "#b45309", background: "rgba(180, 83, 9, 0.12)" }
+                              : { color: "#dc2626", background: "rgba(220, 38, 38, 0.12)" }
+                        }
+                      >
+                        {saqCorrectParts}/{saqTotalParts}
+                      </span>
+                    ) : isCorrect ? (
                       <CheckCircle2
                         className="w-4 h-4"
                         style={{ color: PRIMARY_COLOR }}
@@ -1546,31 +2023,23 @@ function ExamResults({
         </div>
       </div>
 
-      {/*
-        Same action hierarchy as the Practice / Review summary:
-          1. NextSessionCTA owns the primary filled-green styling and points
-             at the most urgent unfinished assignment, or Self Practice when
-             everything is done. This is what we want students to actually
-             do next.
-          2. Try Again ('redo this exam') and Back to Home ('stop') are
-             demoted to outlined / muted styles so they don't fight the
-             forward path for attention.
-      */}
       <div className="flex flex-col items-center gap-3">
-        <NextSessionCTA excludeAssignmentId={assignmentId} />
         <div className="flex flex-wrap gap-3 justify-center">
           <button
             onClick={onRetry}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-primary/30 text-heading font-medium hover:bg-primary/5 transition-colors"
+            className={assignmentSecondaryButtonClass}
+            style={assignmentSecondaryButtonStyle}
           >
             <RotateCcw className="w-4 h-4" />
             Try Again
           </button>
           <Link
-            href="/"
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-border-default text-slate-gray font-medium hover:bg-foreground/5 transition-colors"
+            href="/self-practice"
+            className={assignmentPrimaryButtonClass}
+            style={assignmentPrimaryButtonStyle}
           >
-            Back to Home
+            <BookOpen className="w-4 h-4" />
+            Practice Other Topics
           </Link>
         </div>
       </div>
