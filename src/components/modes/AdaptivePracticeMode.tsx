@@ -1157,6 +1157,7 @@ export function AdaptivePracticeMode({
                   questionId={question.id}
                   questionSetId={question.questionSetId ?? null}
                   assignmentId={assignmentId ?? null}
+                  sessionId={assignmentId ? null : sessionId}
                   assignmentRunAfter={assignmentRunAfter ?? null}
                   mode={mode}
                   continueLabel={

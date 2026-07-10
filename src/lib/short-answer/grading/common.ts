@@ -81,28 +81,17 @@ export function formatPartRubric(part: ShortAnswerPart): string {
 }
 
 /**
- * The model answer for a failed final attempt: from the item's full-credit
- * annotated response (score = sum of part points). If a per-part slice cannot
- * be isolated we return the whole full-credit response, which is written
- * per-part in generated items.
+ * Full-credit rubric text for a part, used as the "what was missing" context
+ * for exam mode's single-attempt closure feedback when the grading method
+ * didn't return a diagnosedGap (method 3 never does; method 2 only returns a
+ * short failure-type code).
  */
-export function deriveModelAnswer(
-  item: ShortAnswerItem,
-  part: ShortAnswerPart,
-): string | undefined {
-  const full = item.annotatedResponses.find(
-    (r) => r.score === totalShortAnswerPoints(item),
-  );
-  if (!full) return undefined;
-  const text = full.response;
-  // Generated items key each part inside the full response as "Part A: ...".
-  const marker = new RegExp(
-    `Part\\s*${part.label}\\s*[:\\-]\\s*([\\s\\S]*?)(?=Part\\s*[ABC]\\s*[:\\-]|$)`,
-    "i",
-  );
-  const match = text.match(marker);
-  const sliced = match?.[1]?.trim();
-  return sliced && sliced.length > 0 ? sliced : text.trim();
+export function partFullCreditCriteria(part: ShortAnswerPart): string {
+  const criteria = part.rubric.criteria[String(part.maxScore)];
+  if (criteria && criteria.trim().length > 0) return criteria.trim();
+  return part.scoringGuidance.trim().length > 0
+    ? part.scoringGuidance.trim()
+    : "the correct concept for this part";
 }
 
 /**
@@ -125,33 +114,25 @@ export function selectGlossaryTerms(
 export interface BuildFeedbackParams {
   rawFeedback: string;
   correct: boolean;
-  /** True when no further attempts remain (attempt 2, or exam single attempt). */
+  /** True when no further attempts remain (real attempt 2, or exam's single attempt). */
   isFinalAttempt: boolean;
-  /** 1 or 2; attempt-2 finals use LLM closure feedback instead of annotated model answer. */
-  attemptNumber?: number;
   item: ShortAnswerItem;
-  part: ShortAnswerPart;
   attemptsRemaining: number;
+  /** The student's own submitted text, used to pick glossary terms they didn't use. */
+  studentResponse: string;
 }
 
 /**
  * Compose the structured feedback block shown to the student.
- * - correct → "correct" verdict, single confirming segment, no model answer.
+ * - correct → "correct" verdict, single confirming segment.
  * - incorrect, attempt remaining → Socratic segments (what's off + a guiding
- *   question), glossary chips, NO model answer (FR-007/FR-021).
- * - incorrect, final attempt (attempt 2) → LLM closure feedback in segments
- *   (reference attempt2 pipeline; no annotated model-answer card).
- * - incorrect, final attempt (single-attempt / exam) → plain model answer only.
+ *   question), glossary chips (FR-007/FR-021).
+ * - incorrect, final attempt → LLM closure feedback in segments (the caller
+ *   generates this via the attempt2 pipeline for both a real attempt 2 and
+ *   exam mode's single attempt).
  */
 export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback {
-  const {
-    rawFeedback,
-    correct,
-    isFinalAttempt,
-    attemptNumber = 1,
-    item,
-    part,
-  } = params;
+  const { rawFeedback, correct, isFinalAttempt, item } = params;
 
   if (correct) {
     return {
@@ -160,18 +141,10 @@ export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback
     };
   }
 
-  if (isFinalAttempt && attemptNumber === 2) {
-    return {
-      verdict: "heres_the_idea",
-      segments: [{ label: "", text: rawFeedback }],
-    };
-  }
-
   if (isFinalAttempt) {
     return {
       verdict: "heres_the_idea",
-      segments: [],
-      modelAnswer: deriveModelAnswer(item, part) ?? rawFeedback,
+      segments: [{ label: "", text: rawFeedback }],
     };
   }
 
@@ -179,7 +152,7 @@ export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback
   return {
     verdict,
     segments: [{ label: "", text: rawFeedback }],
-    glossaryTerms: selectGlossaryTerms(item, params.rawFeedback),
+    glossaryTerms: selectGlossaryTerms(item, params.studentResponse),
   };
 }
 

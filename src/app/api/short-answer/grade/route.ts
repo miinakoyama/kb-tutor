@@ -19,6 +19,8 @@ interface GradeRequestBody {
   questionId: string;
   questionSetId?: string | null;
   assignmentId?: string | null;
+  sessionId?: string | null;
+  practiceRunAfter?: string | null;
   partLabel: PartLabel;
   studentResponse: string;
   attemptNumber: number;
@@ -31,16 +33,30 @@ const PART_LABELS: PartLabel[] = ["A", "B", "C"];
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function resolveAssignmentSchoolId(
+interface AssignmentMetadata {
+  schoolId: string | null;
+  mode: PracticeMode;
+}
+
+function toPracticeMode(value: unknown): PracticeMode {
+  return value === "practice" || value === "exam" || value === "review"
+    ? value
+    : "practice";
+}
+
+async function resolveAssignmentMetadata(
   admin: SupabaseClient,
   assignmentId: string,
-): Promise<string | null> {
+): Promise<AssignmentMetadata> {
   const { data } = await admin
     .from("assignments")
-    .select("school_id")
+    .select("school_id, mode")
     .eq("id", assignmentId)
     .maybeSingle();
-  return typeof data?.school_id === "string" ? data.school_id : null;
+  return {
+    schoolId: typeof data?.school_id === "string" ? data.school_id : null,
+    mode: toPracticeMode(data?.mode),
+  };
 }
 
 function parseBody(raw: unknown): GradeRequestBody | null {
@@ -56,6 +72,14 @@ function parseBody(raw: unknown): GradeRequestBody | null {
   if (typeof b.clientAttemptId !== "string" || !UUID_RE.test(b.clientAttemptId)) {
     return null;
   }
+  if (b.sessionId != null && (typeof b.sessionId !== "string" || !UUID_RE.test(b.sessionId))) {
+    return null;
+  }
+  const practiceRunAfter =
+    typeof b.practiceRunAfter === "string" &&
+    Number.isFinite(Date.parse(b.practiceRunAfter))
+      ? b.practiceRunAfter
+      : null;
   const priorGaps =
     b.priorGaps && typeof b.priorGaps === "object"
       ? (b.priorGaps as Record<string, string>)
@@ -64,6 +88,8 @@ function parseBody(raw: unknown): GradeRequestBody | null {
     questionId: b.questionId,
     questionSetId: typeof b.questionSetId === "string" ? b.questionSetId : null,
     assignmentId: typeof b.assignmentId === "string" ? b.assignmentId : null,
+    sessionId: typeof b.sessionId === "string" ? b.sessionId : null,
+    practiceRunAfter,
     partLabel: b.partLabel as PartLabel,
     studentResponse: b.studentResponse,
     attemptNumber: b.attemptNumber,
@@ -80,6 +106,7 @@ async function maybeRecordQuestionSummary(
     questionId: string;
     assignmentId: string | null | undefined;
     assignmentRunAfter: string | null;
+    practiceRunAfter?: string | null;
     mode: PracticeMode;
     standardId: string;
     parts: ShortAnswerPart[];
@@ -102,6 +129,9 @@ async function maybeRecordQuestionSummary(
     );
   } else {
     query = query.is("assignment_id", null);
+    if (params.practiceRunAfter) {
+      query = query.gt("answered_at", params.practiceRunAfter);
+    }
   }
   const { data: rows } = await query;
   const completion = evaluateShortAnswerQuestionCompletion(
@@ -120,6 +150,11 @@ async function maybeRecordQuestionSummary(
   existingQuery = params.assignmentId
     ? existingQuery.eq("assignment_id", params.assignmentId)
     : existingQuery.is("assignment_id", null);
+  if (params.assignmentId && params.assignmentRunAfter) {
+    existingQuery = existingQuery.gt("answered_at", params.assignmentRunAfter);
+  } else if (!params.assignmentId && params.practiceRunAfter) {
+    existingQuery = existingQuery.gt("answered_at", params.practiceRunAfter);
+  }
   const { data: existingSummary } = await existingQuery.maybeSingle();
   if (existingSummary) return;
 
@@ -155,30 +190,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request body" }, { status: 400 });
   }
 
-  // Idempotent replay: return the stored result for a known clientAttemptId.
-  const { data: existing } = await supabase
-    .from("short_answer_attempts")
-    .select(
-      "id, score, max_score, is_correct, feedback, confidence, attempt_number",
-    )
-    .eq("client_attempt_id", body.clientAttemptId)
-    .maybeSingle();
-  if (existing) {
-    const maxAttempts = body.mode === "exam" ? 1 : 2;
-    const resolved =
-      existing.is_correct || existing.attempt_number >= maxAttempts;
-    return NextResponse.json({
-      attemptId: existing.id,
-      score: existing.score,
-      maxScore: existing.max_score,
-      correct: existing.is_correct,
-      resolved,
-      feedback: existing.feedback,
-      confidence: existing.confidence ?? undefined,
-      triesLeft: resolved ? 0 : Math.max(0, maxAttempts - existing.attempt_number),
-    });
-  }
-
   const loaded = await (async () => {
     if (body.assignmentId) {
       const admin = createSupabaseAdminClient();
@@ -190,6 +201,10 @@ export async function POST(request: Request) {
       if (!allowed) {
         return { forbidden: true as const, admin: null, assignmentRunAfter: null };
       }
+      const assignmentMetadata = await resolveAssignmentMetadata(
+        admin,
+        body.assignmentId,
+      );
       const item = await loadShortAnswerPart(admin, {
         questionId: body.questionId,
         partLabel: body.partLabel,
@@ -200,16 +215,13 @@ export async function POST(request: Request) {
         body.assignmentId,
         user.id,
       );
-      const assignmentSchoolId = await resolveAssignmentSchoolId(
-        admin,
-        body.assignmentId,
-      );
       return {
         forbidden: false as const,
         item,
         admin,
         assignmentRunAfter,
-        assignmentSchoolId,
+        assignmentSchoolId: assignmentMetadata.schoolId,
+        effectiveMode: assignmentMetadata.mode,
       };
     }
 
@@ -224,6 +236,7 @@ export async function POST(request: Request) {
       admin: null,
       assignmentRunAfter: null as string | null,
       assignmentSchoolId: null as string | null,
+      effectiveMode: body.mode,
     };
   })();
 
@@ -239,6 +252,7 @@ export async function POST(request: Request) {
   const { item, part } = loaded.item;
   const assignmentRunAfter = loaded.assignmentRunAfter;
   const assignmentSchoolId = loaded.assignmentSchoolId;
+  const effectiveMode = loaded.effectiveMode;
 
   if (body.studentResponse.length > part.maxLength) {
     return NextResponse.json(
@@ -247,7 +261,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const maxAttempts = body.mode === "exam" ? 1 : 2;
+  const maxAttempts = effectiveMode === "exam" ? 1 : 2;
+
+  // Idempotent replay: return the stored result for a known clientAttemptId.
+  const { data: existing } = await supabase
+    .from("short_answer_attempts")
+    .select(
+      "id, score, max_score, is_correct, feedback, confidence, attempt_number",
+    )
+    .eq("client_attempt_id", body.clientAttemptId)
+    .maybeSingle();
+  if (existing) {
+    const resolved =
+      existing.is_correct || existing.attempt_number >= maxAttempts;
+    return NextResponse.json({
+      attemptId: existing.id,
+      score: existing.score,
+      maxScore: existing.max_score,
+      correct: existing.is_correct,
+      resolved,
+      feedback: existing.feedback,
+      confidence: existing.confidence ?? undefined,
+      triesLeft: resolved ? 0 : Math.max(0, maxAttempts - existing.attempt_number),
+    });
+  }
 
   // Enforce the attempt cap: reject if the slot is taken or the part resolved.
   let priorQuery = supabase
@@ -265,13 +302,19 @@ export async function POST(request: Request) {
     );
   } else {
     priorQuery = priorQuery.is("assignment_id", null);
+    priorQuery = body.sessionId
+      ? priorQuery.eq("session_id", body.sessionId)
+      : priorQuery.is("session_id", null);
+    if (body.practiceRunAfter) {
+      priorQuery = priorQuery.gt("answered_at", body.practiceRunAfter);
+    }
   }
   const { data: priorAttempts } = await priorQuery;
   const attempts = priorAttempts ?? [];
   const alreadyResolved =
     attempts.some((a) => a.is_correct) || attempts.length >= maxAttempts;
   const slotTaken = attempts.some((a) => a.attempt_number === body.attemptNumber);
-  if (alreadyResolved || slotTaken) {
+  if (body.attemptNumber > maxAttempts || alreadyResolved || slotTaken) {
     return NextResponse.json(
       { error: "Attempt cap reached or part already resolved" },
       { status: 409 },
@@ -315,6 +358,9 @@ export async function POST(request: Request) {
         body.assignmentId,
         assignmentRunAfter,
       );
+      if (!body.assignmentId && body.practiceRunAfter) {
+        attempt1Query = attempt1Query.gt("answered_at", body.practiceRunAfter);
+      }
       const { data: attempt1Row } = await attempt1Query.maybeSingle();
       if (attempt1Row) {
         attempt1Feedback = feedbackToPlainText(
@@ -370,11 +416,12 @@ export async function POST(request: Request) {
       question_id: body.questionId,
       question_set_id: body.questionSetId,
       assignment_id: body.assignmentId,
+      session_id: body.assignmentId ? null : body.sessionId,
       assignment_run_after: body.assignmentId ? assignmentRunAfter : null,
       part_label: body.partLabel,
       attempt_number: body.attemptNumber,
       client_attempt_id: body.clientAttemptId,
-      mode: body.mode,
+      mode: effectiveMode,
       response_text: body.studentResponse,
       score,
       max_score: part.maxScore,
@@ -406,7 +453,8 @@ export async function POST(request: Request) {
       questionId: body.questionId,
       assignmentId: body.assignmentId,
       assignmentRunAfter,
-      mode: body.mode,
+      practiceRunAfter: body.assignmentId ? null : body.practiceRunAfter,
+      mode: effectiveMode,
       standardId: item.blueprint.targetStandard,
       parts: item.parts,
       maxAttemptsPerPart: maxAttempts,

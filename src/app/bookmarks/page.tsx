@@ -347,9 +347,13 @@ function BookmarksPageContent() {
     allowRemoveBookmark: boolean,
   ) => {
     if (groups.length === 0) {
+      const message =
+        section === "needs"
+          ? "Questions you answer incorrectly will appear here."
+          : "Questions you bookmark will appear here.";
       return (
         <div className="rounded-xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
-          No questions in this section yet.
+          {message}
         </div>
       );
     }

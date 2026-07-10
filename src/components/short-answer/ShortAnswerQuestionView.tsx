@@ -95,6 +95,7 @@ interface ShortAnswerQuestionViewProps {
   questionId: string;
   questionSetId?: string | null;
   assignmentId?: string | null;
+  sessionId?: string | null;
   /** Assignment retry boundary (= last_completed_at when the current run started). */
   assignmentRunAfter?: string | null;
   mode: "practice" | "review";
@@ -109,6 +110,7 @@ export function ShortAnswerQuestionView({
   questionId,
   questionSetId,
   assignmentId,
+  sessionId = null,
   assignmentRunAfter = null,
   mode,
   continueLabel,
@@ -317,6 +319,7 @@ export function ShortAnswerQuestionView({
             questionId,
             questionSetId: questionSetId ?? null,
             assignmentId: assignmentId ?? null,
+            sessionId: assignmentId ? null : sessionId,
             partLabel: part.label,
             studentResponse: response,
             attemptNumber,
@@ -385,7 +388,16 @@ export function ShortAnswerQuestionView({
         );
       }
     },
-    [assignmentId, hydrateFromServer, item.parts, mode, questionId, questionSetId, runtimes],
+    [
+      assignmentId,
+      hydrateFromServer,
+      item.parts,
+      mode,
+      questionId,
+      questionSetId,
+      runtimes,
+      sessionId,
+    ],
   );
 
   // Fire the all-resolved callback once.

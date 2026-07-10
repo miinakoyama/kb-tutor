@@ -9,8 +9,8 @@ import type { PartGradingResult } from "@/types/short-answer";
 import { gradeWithMethod1 } from "./method1";
 import { gradeWithMethod2 } from "./method2";
 import { gradeWithMethod3 } from "./method3";
-import { buildAttempt2StudentFeedback } from "./attempt2";
-import { buildGradedFeedback, selectGlossaryTerms } from "./common";
+import { buildAttempt2StudentFeedback, generateAttempt2Feedback } from "./attempt2";
+import { buildGradedFeedback, partFullCreditCriteria, selectGlossaryTerms } from "./common";
 import type { MethodGradeInput, MethodGradeOutput } from "./types";
 import type { GradingMethod } from "@/types/short-answer";
 
@@ -68,35 +68,55 @@ export async function gradePart(
   let latencyMs = output.latencyMs;
   let studentFeedback = output.feedback;
 
-  if (attemptNumber === 2 && maxAttempts > 1) {
-    const attempt2 = await buildAttempt2StudentFeedback({
-      attempt1Feedback,
-      attempt1Gap,
-      itemStem: input.item.stem,
-      partLabel: input.part.label,
-      partPrompt: input.part.prompt,
-      studentResponse: input.studentResponse,
-      modelId: input.modelId,
-      temperature: input.temperature,
-      fallbackGap: output.diagnosedGap,
-    });
-    studentFeedback = attempt2.feedback;
-    tokenCount += attempt2.tokenCount;
-    latencyMs += attempt2.latencyMs;
-  }
-
   const correct = output.score >= input.part.maxScore;
   const attemptsRemaining = correct ? 0 : Math.max(0, maxAttempts - attemptNumber);
   const isFinalAttempt = correct || attemptsRemaining === 0;
+
+  if (!correct && isFinalAttempt) {
+    if (attemptNumber === 2 && maxAttempts > 1) {
+      // Real second attempt: classify how well it resolves attempt 1's gap.
+      const attempt2 = await buildAttempt2StudentFeedback({
+        attempt1Feedback,
+        attempt1Gap,
+        itemStem: input.item.stem,
+        partLabel: input.part.label,
+        partPrompt: input.part.prompt,
+        studentResponse: input.studentResponse,
+        modelId: input.modelId,
+        temperature: input.temperature,
+        fallbackGap: output.diagnosedGap,
+      });
+      studentFeedback = attempt2.feedback;
+      tokenCount += attempt2.tokenCount;
+      latencyMs += attempt2.latencyMs;
+    } else {
+      // Exam mode's single attempt has no real attempt 1 to compare against,
+      // so skip resolution classification and go straight to declarative
+      // closure feedback for the gap this grading pass just diagnosed.
+      const closure = await generateAttempt2Feedback({
+        resolution: "not_at_all",
+        attempt1Feedback: "",
+        attempt1Gap: output.diagnosedGap?.trim() || partFullCreditCriteria(input.part),
+        questionStem: input.item.stem,
+        partLabel: input.part.label,
+        partPrompt: input.part.prompt,
+        studentResponse: input.studentResponse,
+        modelId: input.modelId,
+        temperature: input.temperature,
+      });
+      studentFeedback = closure.feedback;
+      tokenCount += closure.tokenCount;
+      latencyMs += closure.latencyMs;
+    }
+  }
 
   const feedback = buildGradedFeedback({
     rawFeedback: studentFeedback,
     correct,
     isFinalAttempt,
-    attemptNumber,
     item: input.item,
-    part: input.part,
     attemptsRemaining,
+    studentResponse: input.studentResponse,
   });
 
   return {

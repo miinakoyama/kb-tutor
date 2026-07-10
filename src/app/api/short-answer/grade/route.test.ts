@@ -7,6 +7,18 @@ const item = sampleItem as ShortAnswerItem;
 let currentUser: { id: string } | null = { id: "student-1" };
 const tableState: Record<string, { select: unknown }> = {};
 const adminTableState: Record<string, { select: unknown }> = {};
+const adminQueryCalls: Array<{
+  table: string;
+  method: "eq" | "is" | "gt" | "insert";
+  column?: string;
+  value?: unknown;
+}> = [];
+const serverQueryCalls: Array<{
+  table: string;
+  method: "eq" | "is" | "gt";
+  column: string;
+  value: unknown;
+}> = [];
 let insertResult: { data: unknown; error: unknown } = {
   data: { id: "attempt-1" },
   error: null,
@@ -16,6 +28,7 @@ const loadPart = vi.fn();
 const resolveConfig = vi.fn();
 const gradePart = vi.fn();
 const canStudentAccessAssignment = vi.fn();
+const resolveAssignmentRunAfter = vi.fn();
 
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: () => ({
@@ -23,16 +36,41 @@ vi.mock("@/lib/supabase/admin", () => ({
       const builder: Record<string, unknown> = {};
       const chain = () => builder;
       builder.select = chain;
-      builder.eq = chain;
-      builder.is = chain;
-      builder.gt = chain;
+      builder.eq = (column: string, value: unknown) => {
+        adminQueryCalls.push({ table, method: "eq", column, value });
+        return builder;
+      };
+      builder.is = (column: string, value: null) => {
+        adminQueryCalls.push({ table, method: "is", column, value });
+        return builder;
+      };
+      builder.gt = (column: string, value: string) => {
+        adminQueryCalls.push({ table, method: "gt", column, value });
+        return builder;
+      };
       builder.maybeSingle = async () => ({
-        data: adminTableState[table]?.select ?? null,
+        data: Array.isArray(adminTableState[table]?.select)
+          ? ((adminTableState[table]?.select as unknown[])[0] ?? null)
+          : (adminTableState[table]?.select ?? null),
       });
-      builder.insert = () => ({
-        select: () => ({
-          single: async () => insertResult,
-        }),
+      builder.insert = (value: unknown) => {
+        adminQueryCalls.push({ table, method: "insert", value });
+        return {
+          select: () => ({
+            single: async () => insertResult,
+          }),
+          then: (resolve: (value: { data: null; error: null }) => void) =>
+            resolve({ data: null, error: null }),
+        };
+      };
+      Object.defineProperty(builder, "then", {
+        value: (resolve: (value: { data: unknown[]; error: null }) => void) => {
+          const selected = adminTableState[table]?.select;
+          resolve({
+            data: Array.isArray(selected) ? selected : selected ? [selected] : [],
+            error: null,
+          });
+        },
       });
       return builder;
     },
@@ -50,9 +88,18 @@ vi.mock("@/lib/supabase/server", () => ({
       const builder: Record<string, unknown> = {};
       const chain = () => builder;
       builder.select = chain;
-      builder.eq = chain;
-      builder.is = chain;
-      builder.gt = chain;
+      builder.eq = (column: string, value: unknown) => {
+        serverQueryCalls.push({ table, method: "eq", column, value });
+        return builder;
+      };
+      builder.is = (column: string, value: null) => {
+        serverQueryCalls.push({ table, method: "is", column, value });
+        return builder;
+      };
+      builder.gt = (column: string, value: string) => {
+        serverQueryCalls.push({ table, method: "gt", column, value });
+        return builder;
+      };
       builder.maybeSingle = async () => ({
         data: tableState[table]?.select ?? null,
       });
@@ -69,9 +116,19 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/short-answer/assignment-run", () => ({
-  resolveAssignmentRunAfter: vi.fn().mockResolvedValue(null),
-  applyAssignmentRunFilter: (query: { is: (col: string, val: null) => unknown }) =>
-    query.is("assignment_run_after", null),
+  resolveAssignmentRunAfter: (...args: unknown[]) =>
+    resolveAssignmentRunAfter(...args),
+  applyAssignmentRunFilter: (
+    query: {
+      is: (col: string, val: null) => unknown;
+      gt: (col: string, val: string) => unknown;
+    },
+    assignmentId: string | null | undefined,
+    assignmentRunAfter: string | null | undefined,
+  ) =>
+    assignmentId && assignmentRunAfter
+      ? query.gt("answered_at", assignmentRunAfter)
+      : query.is("assignment_run_after", null),
 }));
 
 vi.mock("@/lib/short-answer/load-item", () => ({
@@ -112,13 +169,19 @@ describe("POST /api/short-answer/grade", () => {
     currentUser = { id: "student-1" };
     for (const key of Object.keys(tableState)) delete tableState[key];
     for (const key of Object.keys(adminTableState)) delete adminTableState[key];
-    adminTableState["assignments"] = { select: { school_id: "school-1" } };
+    adminQueryCalls.length = 0;
+    serverQueryCalls.length = 0;
+    adminTableState["assignments"] = {
+      select: { school_id: "school-1", mode: "practice" },
+    };
     insertResult = { data: { id: "attempt-1" }, error: null };
     loadPart.mockReset();
     resolveConfig.mockReset();
     gradePart.mockReset();
     canStudentAccessAssignment.mockReset();
+    resolveAssignmentRunAfter.mockReset();
     canStudentAccessAssignment.mockResolvedValue(true);
+    resolveAssignmentRunAfter.mockResolvedValue(null);
     loadPart.mockResolvedValue({ item, part: item.parts[0] });
     resolveConfig.mockResolvedValue({
       method: "2",
@@ -177,6 +240,37 @@ describe("POST /api/short-answer/grade", () => {
     const json = await res.json();
     expect(json.score).toBe(0);
     expect(json.feedback.verdict).toBe("no_response");
+  });
+
+  it("scopes self-practice attempt caps to the current exam run boundary", async () => {
+    gradePart.mockResolvedValue({
+      score: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+      confidence: "high",
+      diagnosedGap: null,
+      tokenCount: 12,
+      latencyMs: 100,
+    });
+    const { POST } = await load();
+    const runStartedAt = "2026-07-10T10:00:00.000Z";
+
+    const res = await POST(
+      makeRequest({
+        ...validBody,
+        mode: "exam",
+        sessionId: "22222222-2222-4222-8222-222222222222",
+        practiceRunAfter: runStartedAt,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(serverQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "gt",
+      column: "answered_at",
+      value: runStartedAt,
+    });
   });
 
   it("returns 502 and writes nothing when grading fails", async () => {
@@ -245,6 +339,92 @@ describe("POST /api/short-answer/grade", () => {
     );
     expect(resolveConfig).toHaveBeenCalledWith("student-1", {
       schoolId: "school-1",
+    });
+  });
+
+  it("scopes short-answer summary lookup to the current assignment run", async () => {
+    resolveAssignmentRunAfter.mockResolvedValue("2026-04-10T10:00:00.000Z");
+    adminTableState["short_answer_attempts"] = {
+      select: item.parts.map((part) => ({
+        id: `attempt-${part.label}`,
+        question_id: validBody.questionId,
+        part_label: part.label,
+        attempt_number: 1,
+        response_text: "answer",
+        feedback: { verdict: "correct", segments: [] },
+        is_correct: true,
+        answered_at: "2026-04-11T10:00:00.000Z",
+      })),
+    };
+    gradePart.mockResolvedValue({
+      score: 1,
+      maxScore: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+    });
+
+    const { POST } = await load();
+    const res = await POST(
+      makeRequest({ ...validBody, assignmentId: "asg-1" }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(adminQueryCalls).toContainEqual({
+      table: "attempts",
+      method: "gt",
+      column: "answered_at",
+      value: "2026-04-10T10:00:00.000Z",
+    });
+  });
+
+  it("uses the server-side assignment mode for the attempt cap", async () => {
+    adminTableState["assignments"] = {
+      select: { school_id: "school-1", mode: "exam" },
+    };
+
+    const { POST } = await load();
+    const res = await POST(
+      makeRequest({
+        ...validBody,
+        assignmentId: "asg-1",
+        mode: "practice",
+        attemptNumber: 2,
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(gradePart).not.toHaveBeenCalled();
+  });
+
+  it("scopes non-assignment attempt caps to the current session", async () => {
+    gradePart.mockResolvedValue({
+      score: 1,
+      maxScore: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+    });
+
+    const { POST } = await load();
+    const res = await POST(
+      makeRequest({
+        ...validBody,
+        sessionId: "22222222-2222-4222-8222-222222222222",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(serverQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "eq",
+      column: "session_id",
+      value: "22222222-2222-4222-8222-222222222222",
+    });
+    expect(adminQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "insert",
+      value: expect.objectContaining({
+        session_id: "22222222-2222-4222-8222-222222222222",
+      }),
     });
   });
 });

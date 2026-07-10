@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { canStudentAccessAssignment } from "./access";
 
 function makeAdmin(tables: Record<string, unknown>) {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGradedFeedback,
-  deriveModelAnswer,
   emptySubmissionFeedback,
   extractFeedbackText,
   normalizeScore,
@@ -11,7 +10,6 @@ import sampleItem from "@/data/short-answer/sample-item.json";
 import type { ShortAnswerItem } from "@/types/short-answer";
 
 const item = sampleItem as ShortAnswerItem;
-const partA = item.parts[0];
 
 describe("normalizeScore", () => {
   it("clamps and rounds to [0, maxScore]", () => {
@@ -38,8 +36,8 @@ describe("buildGradedFeedback", () => {
       correct: true,
       isFinalAttempt: true,
       item,
-      part: partA,
       attemptsRemaining: 0,
+      studentResponse: "It's mRNA.",
     });
     expect(fb.verdict).toBe("correct");
     expect(fb.segments).toHaveLength(1);
@@ -53,8 +51,8 @@ describe("buildGradedFeedback", () => {
       correct: false,
       isFinalAttempt: false,
       item,
-      part: partA,
       attemptsRemaining: 1,
+      studentResponse: "It's DNA.",
     });
     expect(fb.verdict).toBe("good_try");
     expect(fb.segments).toHaveLength(1);
@@ -64,45 +62,35 @@ describe("buildGradedFeedback", () => {
     expect(Array.isArray(fb.glossaryTerms)).toBe(true);
   });
 
-  it("shows annotated model answer on a failed single-attempt final", () => {
+  it("selects glossary terms missing from the student's own response, not the feedback text", () => {
     const fb = buildGradedFeedback({
-      rawFeedback: "Still not quite.",
+      rawFeedback:
+        "You named DNA, but this part asks about the messenger molecule. What travels to the ribosome?",
       correct: false,
-      isFinalAttempt: true,
-      attemptNumber: 1,
+      isFinalAttempt: false,
       item,
-      part: partA,
-      attemptsRemaining: 0,
+      attemptsRemaining: 1,
+      studentResponse: "I think the mRNA travels there.",
     });
-    expect(fb.verdict).toBe("heres_the_idea");
-    expect(fb.segments).toHaveLength(0);
-    expect(fb.modelAnswer).toContain("mRNA");
+    expect(fb.glossaryTerms).not.toContain("mRNA");
+    expect(fb.glossaryTerms).toContain("codon");
+    expect(fb.glossaryTerms).toContain("translation");
   });
 
-  it("shows attempt-2 closure feedback instead of the annotated model answer", () => {
+  it("shows LLM closure feedback (not a static model answer) on any final incorrect attempt", () => {
     const fb = buildGradedFeedback({
       rawFeedback:
         "Thanks for revising. The messenger RNA carries the genetic code from the nucleus to the ribosome.",
       correct: false,
       isFinalAttempt: true,
-      attemptNumber: 2,
       item,
-      part: partA,
       attemptsRemaining: 0,
+      studentResponse: "I think it might be DNA still.",
     });
     expect(fb.verdict).toBe("heres_the_idea");
     expect(fb.segments).toHaveLength(1);
     expect(fb.segments[0].text).toContain("messenger RNA");
     expect(fb.modelAnswer).toBeUndefined();
-  });
-});
-
-describe("deriveModelAnswer", () => {
-  it("extracts the Part A slice from the full-credit annotated response", () => {
-    const answer = deriveModelAnswer(item, partA);
-    expect(answer).toBeTruthy();
-    expect(answer).toContain("mRNA");
-    expect(answer).not.toContain("Part B");
   });
 });
 

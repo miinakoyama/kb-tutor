@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS "public"."short_answer_attempts" (
   "question_id" text NOT NULL,
   "question_set_id" text REFERENCES "public"."generated_question_sets" ("id") ON DELETE SET NULL,
   "assignment_id" text,
+  "session_id" uuid REFERENCES "public"."analytics_sessions" ("id") ON DELETE SET NULL,
   "part_label" text NOT NULL,
   "attempt_number" smallint NOT NULL,
   "client_attempt_id" uuid NOT NULL UNIQUE,
@@ -55,6 +56,8 @@ CREATE INDEX IF NOT EXISTS "short_answer_attempts_user_question_idx"
   ON "public"."short_answer_attempts" (user_id, question_id);
 CREATE INDEX IF NOT EXISTS "short_answer_attempts_assignment_idx"
   ON "public"."short_answer_attempts" (assignment_id);
+CREATE INDEX IF NOT EXISTS "short_answer_attempts_session_idx"
+  ON "public"."short_answer_attempts" (session_id);
 CREATE INDEX IF NOT EXISTS "short_answer_attempts_answered_at_idx"
   ON "public"."short_answer_attempts" (answered_at);
 CREATE INDEX IF NOT EXISTS "short_answer_attempts_method_model_idx"

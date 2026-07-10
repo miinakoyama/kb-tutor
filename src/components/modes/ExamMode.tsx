@@ -96,12 +96,49 @@ interface SaqPartResult {
   maxScore: number;
   correct: boolean;
   feedback: GradedFeedback | null;
+  gradingStatus?: "graded" | "skipped" | "failed";
 }
 
 function isSaqQuestion(
   q: Question | undefined,
 ): q is Question & { shortAnswer: ShortAnswerItem } {
   return q?.questionType === "open-ended" && Boolean(q?.shortAnswer);
+}
+
+function examQuestionPreviewText(q: Question): string {
+  return isSaqQuestion(q) ? q.shortAnswer.stem : q.text;
+}
+
+function extractPartText(response: string, label: PartLabel): string | null {
+  const labels: PartLabel[] = ["A", "B", "C"];
+  const start = response.search(new RegExp(`\\bPart\\s+${label}\\s*:`, "i"));
+  if (start < 0) return null;
+  const contentStart = response.indexOf(":", start) + 1;
+  const laterLabels = labels.filter((candidate) => candidate > label);
+  let end = response.length;
+  for (const candidate of laterLabels) {
+    const next = response.search(new RegExp(`\\bPart\\s+${candidate}\\s*:`, "i"));
+    if (next > contentStart && next < end) end = next;
+  }
+  const text = response.slice(contentStart, end).trim();
+  return text.length > 0 ? text : null;
+}
+
+function sampleAnswerForPart(item: ShortAnswerItem, label: PartLabel): string | null {
+  const maxScore = item.parts.reduce((sum, part) => sum + part.maxScore, 0);
+  const exemplar = [...item.annotatedResponses]
+    .sort((a, b) => b.score - a.score)
+    .find((response) => response.score >= maxScore);
+  if (exemplar) {
+    const extracted = extractPartText(exemplar.response, label);
+    if (extracted) return extracted;
+  }
+
+  const part = item.parts.find((candidate) => candidate.label === label);
+  if (!part) return null;
+  const criteria = part.rubric.criteria[String(part.maxScore)];
+  if (criteria && criteria.trim().length > 0) return criteria.trim();
+  return part.scoringGuidance.trim().length > 0 ? part.scoringGuidance.trim() : null;
 }
 
 /** Seconds stored on attempts; `null` in DB means time was not measured. */
@@ -172,6 +209,7 @@ export function ExamMode({
   const assignmentPersistedDwellMsRef = useRef<Record<number, number>>({});
   const visitRef = useRef<{ index: number; startMs: number } | null>(null);
   const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const examRunStartedAtRef = useRef(new Date().toISOString());
 
   const clearBlurFlushTimer = useCallback(() => {
     if (blurFlushTimerRef.current === null) return;
@@ -294,6 +332,7 @@ export function ExamMode({
       }
       ordered = pool.slice(0, requestedQuestionCount);
     }
+    examRunStartedAtRef.current = new Date().toISOString();
     setSessionQuestions(ordered);
 
     if (isAssignmentRun && answered) {
@@ -573,6 +612,7 @@ export function ExamMode({
     }
     
     resetExamDwellTracking();
+    examRunStartedAtRef.current = new Date().toISOString();
     setSessionQuestions(selectedQuestions);
     setAnswers({});
     setCurrentIndex(0);
@@ -694,6 +734,17 @@ export function ExamMode({
       let allCorrect = true;
       for (const part of q.shortAnswer.parts) {
         const text = responses[part.label] ?? "";
+        if (text.trim().length === 0) {
+          partResults[part.label] = {
+            score: 0,
+            maxScore: part.maxScore,
+            correct: false,
+            feedback: null,
+            gradingStatus: "skipped",
+          };
+          allCorrect = false;
+          continue;
+        }
         try {
           const res = await fetch("/api/short-answer/grade", {
             method: "POST",
@@ -702,6 +753,10 @@ export function ExamMode({
               questionId: q.id,
               questionSetId: q.questionSetId ?? null,
               assignmentId: assignmentId ?? null,
+              sessionId: assignmentId ? null : sessionIdRef.current,
+              practiceRunAfter: assignmentId
+                ? null
+                : examRunStartedAtRef.current,
               partLabel: part.label,
               studentResponse: text,
               attemptNumber: 1,
@@ -721,6 +776,7 @@ export function ExamMode({
               maxScore: data.maxScore,
               correct: data.correct,
               feedback: data.feedback,
+              gradingStatus: "graded",
             };
             if (!data.correct) allCorrect = false;
             continue;
@@ -733,6 +789,7 @@ export function ExamMode({
           maxScore: part.maxScore,
           correct: false,
           feedback: null,
+          gradingStatus: "failed",
         };
         allCorrect = false;
       }
@@ -932,6 +989,7 @@ export function ExamMode({
       <ExamResults
         questions={sessionQuestions}
         answers={answers}
+        saqResults={saqResults}
         correctCount={correctCount}
         elapsedMs={elapsedMs}
         topicName={topicName}
@@ -940,13 +998,16 @@ export function ExamMode({
           setPhase("review");
         }}
         onRetry={() => {
-            resetExamDwellTracking();
-            setElapsedMs(0);
+          resetExamDwellTracking();
+          setElapsedMs(0);
           setAnswers({});
+          setSaqResponses({});
+          setSaqResults({});
+          examRunStartedAtRef.current = new Date().toISOString();
           setCurrentIndex(0);
-            setReviewIndex(null);
-            setIsNavigatorPinnedOpen(false);
-            setPhase("exam");
+          setReviewIndex(null);
+          setIsNavigatorPinnedOpen(false);
+          setPhase("exam");
         }}
       />
     );
@@ -983,6 +1044,7 @@ export function ExamMode({
               {q.shortAnswer.parts.map((part) => {
                 const result = saqResults[reviewIndex]?.[part.label];
                 const text = saqResponses[reviewIndex]?.[part.label] ?? "";
+                const sampleAnswer = sampleAnswerForPart(q.shortAnswer, part.label);
                 return (
                   <div
                     key={part.label}
@@ -997,11 +1059,17 @@ export function ExamMode({
                           className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                             result.correct
                               ? "bg-emerald-100 text-emerald-800"
-                              : "bg-rose-100 text-rose-800"
+                              : result.gradingStatus === "failed"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-rose-100 text-rose-800"
                           }`}
                         >
-                          {result.correct ? "Correct" : "Incorrect"} ·{" "}
-                          {result.score}/{result.maxScore}
+                          {result.gradingStatus === "failed"
+                            ? "Could not grade"
+                            : result.correct
+                              ? "Correct"
+                              : "Incorrect"}{" "}
+                          · {result.score}/{result.maxScore}
                         </span>
                       ) : (
                         <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
@@ -1018,12 +1086,22 @@ export function ExamMode({
                     <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-muted px-3 py-2 text-sm italic text-slate-gray">
                       {text.trim().length > 0 ? `“${text}”` : "(no answer)"}
                     </p>
-                    {result?.feedback && (
+                    {result?.feedback && result.feedback.segments.length > 0 && (
                       <FeedbackBlock
                         feedback={result.feedback}
                         triesLeft={0}
                         isFinalAttempt
                       />
+                    )}
+                    {sampleAnswer && (
+                      <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                          Sample answer
+                        </p>
+                        <p className="mt-1 text-[13px] leading-relaxed text-slate-gray">
+                          {sampleAnswer}
+                        </p>
+                      </div>
                     )}
                   </div>
                 );
@@ -1202,6 +1280,57 @@ export function ExamMode({
   const unansweredLabel = Math.max(0, unansweredCount);
   const questionAndChoicesReadText = `${question.text} ${choicesReadText}`.trim();
   const isCurrentQuestionBookmarked = bookmarkedQuestionIds.has(question.id);
+  const examQuestionControls = (
+    <div className="mt-4 flex items-center justify-between gap-2">
+      <button
+        onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
+        disabled={currentIndex === 0}
+        className={assignmentSecondaryButtonClass}
+        style={assignmentSecondaryButtonStyle}
+      >
+        <ChevronLeft className="w-3.5 h-3.5" />
+        Previous
+      </button>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleBookmarkToggle}
+          className={assignmentSecondaryButtonClass}
+          style={assignmentSecondaryButtonStyle}
+        >
+          <Bookmark
+            className={`w-3.5 h-3.5 ${isCurrentQuestionBookmarked ? "fill-current" : ""}`}
+          />
+          {isCurrentQuestionBookmarked ? "Bookmarked" : "Bookmark"}
+        </button>
+
+        <button
+          onClick={toggleFlag}
+          data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
+          className={assignmentSecondaryButtonClass}
+          style={assignmentSecondaryButtonStyle}
+        >
+          <Flag
+            className={`w-3.5 h-3.5 ${answers[currentIndex]?.flagged ? "fill-current" : ""}`}
+          />
+          Mark for review
+        </button>
+      </div>
+
+      <button
+        onClick={() =>
+          currentIndex < totalQuestions - 1 && setCurrentIndex((i) => i + 1)
+        }
+        disabled={currentIndex === totalQuestions - 1}
+        data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
+        className={assignmentPrimaryButtonClass}
+        style={assignmentPrimaryButtonStyle}
+      >
+        Next
+        <ChevronRight className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -1352,58 +1481,9 @@ export function ExamMode({
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-between">
-                <button
-                  onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
-                  disabled={currentIndex === 0}
-                  className={assignmentSecondaryButtonClass}
-                  style={assignmentSecondaryButtonStyle}
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  Previous
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleBookmarkToggle}
-                    className={assignmentSecondaryButtonClass}
-                    style={assignmentSecondaryButtonStyle}
-                  >
-                    <Bookmark
-                      className={`w-3.5 h-3.5 ${isCurrentQuestionBookmarked ? "fill-current" : ""}`}
-                    />
-                    {isCurrentQuestionBookmarked ? "Bookmarked" : "Bookmark"}
-                  </button>
-
-                  <button
-                    onClick={toggleFlag}
-                    data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
-                    className={assignmentSecondaryButtonClass}
-                    style={assignmentSecondaryButtonStyle}
-                  >
-                    <Flag
-                      className={`w-3.5 h-3.5 ${answers[currentIndex]?.flagged ? "fill-current" : ""}`}
-                    />
-                    Mark for review
-                  </button>
-                </div>
-
-                <button
-                  onClick={() =>
-                    currentIndex < totalQuestions - 1 &&
-                    setCurrentIndex((i) => i + 1)
-                  }
-                  disabled={currentIndex === totalQuestions - 1}
-                  data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
-                  className={assignmentPrimaryButtonClass}
-                  style={assignmentPrimaryButtonStyle}
-                >
-                  Next
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
                 </>
               )}
+              {examQuestionControls}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1769,6 +1849,7 @@ function ConfirmDialog({
 function ExamResults({
   questions,
   answers,
+  saqResults,
   correctCount,
   elapsedMs,
   topicName,
@@ -1777,6 +1858,7 @@ function ExamResults({
 }: {
   questions: Question[];
   answers: Record<number, AnswerRecord>;
+  saqResults: Record<number, Partial<Record<PartLabel, SaqPartResult>>>;
   correctCount: number;
   elapsedMs: number;
   topicName?: string;
@@ -1873,8 +1955,20 @@ function ExamResults({
         <div className="space-y-2">
           {reviewEntries.map(({ q, index, answer }, position) => {
             const hasSubmittedAnswer = Boolean(answer?.selectedOptionId);
-            const isCorrect = answer?.selectedOptionId === q.correctOptionId;
+            const isShortAnswer = answer?.selectedOptionId === "short-answer";
+            const isCorrect = isShortAnswer
+              ? Boolean(answer?.isCorrect)
+              : answer?.selectedOptionId === q.correctOptionId;
             const isFlagged = answer?.flagged;
+            const saqPartResults = isShortAnswer && isSaqQuestion(q)
+              ? q.shortAnswer.parts.map(
+                  (part) => saqResults[index]?.[part.label],
+                )
+              : null;
+            const saqCorrectParts = saqPartResults
+              ? saqPartResults.filter((r) => r?.correct).length
+              : 0;
+            const saqTotalParts = saqPartResults?.length ?? 0;
             return (
               <button
                 key={index}
@@ -1884,7 +1978,9 @@ function ExamResults({
                     ? "border-border-default"
                     : isCorrect
                       ? "border-primary/20"
-                      : "border-error-border"
+                      : saqPartResults && saqCorrectParts > 0
+                        ? "border-amber-300"
+                        : "border-error-border"
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -1892,13 +1988,26 @@ function ExamResults({
                     {position + 1}
                   </span>
                   <p className="flex-1 text-sm text-slate-gray line-clamp-1">
-                    {q.text}
+                    {examQuestionPreviewText(q)}
                   </p>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {isFlagged && (
                       <Flag className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                     )}
-                    {!hasSubmittedAnswer ? null : isCorrect ? (
+                    {!hasSubmittedAnswer ? null : saqPartResults ? (
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+                        style={
+                          isCorrect
+                            ? { color: PRIMARY_COLOR, background: "color-mix(in srgb, var(--primary) 12%, transparent)" }
+                            : saqCorrectParts > 0
+                              ? { color: "#b45309", background: "rgba(180, 83, 9, 0.12)" }
+                              : { color: "#dc2626", background: "rgba(220, 38, 38, 0.12)" }
+                        }
+                      >
+                        {saqCorrectParts}/{saqTotalParts}
+                      </span>
+                    ) : isCorrect ? (
                       <CheckCircle2
                         className="w-4 h-4"
                         style={{ color: PRIMARY_COLOR }}

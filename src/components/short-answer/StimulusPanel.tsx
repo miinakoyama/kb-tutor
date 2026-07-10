@@ -183,8 +183,8 @@ function IllustrationStimulusView({
   title: string;
 }) {
   if (imageB64) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={`data:image/png;base64,${imageB64}`}
         alt={title}
