@@ -56,8 +56,8 @@ const STUDENT_SECTION: NavSection = {
     { href: "/", label: "Home", icon: Home },
     { href: "/assignments", label: "My Assignment", icon: ClipboardList },
     { href: "/self-practice", label: "Self Practice", icon: NotebookPen },
-    { href: "/progress", label: "My Progress", icon: BarChart3 },
     { href: "/bookmarks", label: "Review", icon: Bookmark },
+    { href: "/progress", label: "My Progress", icon: BarChart3 },
   ],
 };
 
