@@ -196,6 +196,9 @@ describe("GET /api/feedback-reports", () => {
       data: [
         {
           id: ATTEMPT_ID,
+          user_id: "student-1",
+          question_id: "sa-sample-0001",
+          part_label: "A",
           response_text: "Stomata close to conserve water.",
           score: 0,
           max_score: 1,
@@ -280,6 +283,32 @@ describe("GET /api/feedback-reports", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.reports[0].attempt).toBeNull();
+    expect(json.reports[0].questionPreview).toBeNull();
+  });
+
+  it("does not enrich a forged report whose attempt belongs to a different student", async () => {
+    adminResults["short_answer_attempts"] = {
+      data: [
+        {
+          id: ATTEMPT_ID,
+          user_id: "other-student",
+          question_id: "sa-sample-0001",
+          part_label: "A",
+          response_text: "Private answer",
+          score: 1,
+          max_score: 1,
+          feedback: { verdict: "correct", segments: [] },
+          method: "2",
+          model_id: "gpt-5.4",
+          confidence: null,
+        },
+      ],
+    };
+    const { GET } = await load();
+    const res = await GET(makeGet());
+    const json = await res.json();
+    expect(json.reports[0].attempt).toBeNull();
+    expect(json.reports[0].questionPreview).toBeNull();
   });
 });
 

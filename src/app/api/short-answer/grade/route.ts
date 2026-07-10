@@ -77,7 +77,7 @@ async function maybeRecordQuestionSummary(
   let query = supabase
     .from("short_answer_attempts")
     .select(
-      "id, part_label, attempt_number, response_text, feedback, is_correct, answered_at",
+      "id, question_id, part_label, attempt_number, response_text, feedback, is_correct, answered_at",
     )
     .eq("user_id", params.userId)
     .eq("question_id", params.questionId);

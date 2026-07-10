@@ -11,7 +11,7 @@ const PART_LABELS = new Set<PartLabel>(["A", "B", "C"]);
 
 export type ShortAnswerAttemptDbRow = {
   id?: unknown;
-  question_id?: unknown;
+  question_id: unknown;
   part_label: unknown;
   attempt_number: unknown;
   response_text: unknown;

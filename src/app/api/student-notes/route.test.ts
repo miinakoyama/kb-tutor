@@ -6,12 +6,13 @@ let noteRows: Array<{
   note_text: string;
   updated_at: string;
 }> = [];
+let mcqAttemptRows: Array<{ question_id: string }> = [];
+let saqAttemptRows: Array<{ question_id: string }> = [];
 let questionRows: Array<{ id: string; payload: unknown }> = [];
 
-vi.mock("@/lib/supabase/server", () => ({
-  createSupabaseServerClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: currentUser } }) },
-    from: () => ({
+function serverTable(table: string) {
+  if (table === "student_question_notes") {
+    return {
       select: () => ({
         eq: () => ({
           order: () => ({
@@ -23,7 +24,36 @@ vi.mock("@/lib/supabase/server", () => ({
           }),
         }),
       }),
-    }),
+    };
+  }
+
+  if (table === "attempts") {
+    return {
+      select: () => ({
+        eq: () => ({
+          in: async () => ({ data: mcqAttemptRows, error: null }),
+        }),
+      }),
+    };
+  }
+
+  if (table === "short_answer_attempts") {
+    return {
+      select: () => ({
+        eq: () => ({
+          in: async () => ({ data: saqAttemptRows, error: null }),
+        }),
+      }),
+    };
+  }
+
+  return { select: () => ({}) };
+}
+
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServerClient: async () => ({
+    auth: { getUser: async () => ({ data: { user: currentUser } }) },
+    from: (table: string) => serverTable(table),
   }),
 }));
 
@@ -61,6 +91,8 @@ describe("GET /api/student-notes", () => {
         updated_at: "2026-07-07T12:00:00Z",
       },
     ];
+    mcqAttemptRows = [];
+    saqAttemptRows = [{ question_id: "sa-0001" }];
     questionRows = [
       {
         id: "sa-0001",
@@ -101,5 +133,14 @@ describe("GET /api/student-notes", () => {
     );
     expect(deleted.question.available).toBe(false);
     expect(deleted.noteText).toBe("This one is gone.");
+  });
+
+  it("does not enrich a note for an unanswered question", async () => {
+    saqAttemptRows = [];
+    const { GET } = await load();
+    const res = await GET(makeRequest());
+    const json = await res.json();
+    expect(json.notes[0].question.available).toBe(false);
+    expect(json.notes[0].question.preview).toBeNull();
   });
 });

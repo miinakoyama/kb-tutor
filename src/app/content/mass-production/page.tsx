@@ -102,7 +102,7 @@ function splitStandardCountsByType(
     return { mcqCounts: zeroed, saqCounts: zeroed };
   }
 
-  const allocate = (total: number): Record<string, number> => {
+  const allocateWithinStandardTotals = (total: number): Record<string, number> => {
     if (total <= 0) return { ...zeroed };
 
     const weights = activeStandardIds.map((id) => ({
@@ -117,26 +117,44 @@ function splitStandardCountsByType(
 
     const fractions = weights.map((row) => {
       const exact = (total * row.weight) / weightSum;
-      return { id: row.id, exact, floor: Math.floor(exact) };
+      const cap = Math.max(0, Math.floor(row.weight));
+      return { id: row.id, exact, cap, count: Math.min(cap, Math.floor(exact)) };
     });
     const result = Object.fromEntries(
-      fractions.map((row) => [row.id, row.floor]),
+      fractions.map((row) => [row.id, row.count]),
     );
-    let remainder = total - fractions.reduce((sum, row) => sum + row.floor, 0);
+    let remainder = total - fractions.reduce((sum, row) => sum + row.count, 0);
     const byRemainder = [...fractions].sort(
-      (a, b) => b.exact - b.floor - (a.exact - a.floor),
+      (a, b) => b.exact - Math.floor(b.exact) - (a.exact - Math.floor(a.exact)),
     );
-    for (let i = 0; remainder > 0; i += 1) {
-      result[byRemainder[i % byRemainder.length].id] += 1;
+    for (const row of byRemainder) {
+      if (remainder <= 0) break;
+      if (result[row.id] >= row.cap) continue;
+      result[row.id] += 1;
       remainder -= 1;
     }
     return result;
   };
 
-  return {
-    mcqCounts: allocate(mcqTotal),
-    saqCounts: allocate(saqTotal),
-  };
+  if (mcqTotal <= saqTotal) {
+    const mcqCounts = allocateWithinStandardTotals(mcqTotal);
+    const saqCounts = Object.fromEntries(
+      activeStandardIds.map((id) => [
+        id,
+        Math.max(0, (standardCounts[id] ?? 0) - (mcqCounts[id] ?? 0)),
+      ]),
+    );
+    return { mcqCounts, saqCounts };
+  }
+
+  const saqCounts = allocateWithinStandardTotals(saqTotal);
+  const mcqCounts = Object.fromEntries(
+    activeStandardIds.map((id) => [
+      id,
+      Math.max(0, (standardCounts[id] ?? 0) - (saqCounts[id] ?? 0)),
+    ]),
+  );
+  return { mcqCounts, saqCounts };
 }
 
 const DEFAULT_SETTINGS: GenerationSettings = {

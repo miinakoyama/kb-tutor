@@ -67,17 +67,47 @@ export async function GET(request: Request) {
 
   const notes = noteRows ?? [];
   const questionIds = notes.map((n) => String(n.question_id));
+  const authorizedQuestionIds = new Set<string>();
 
-  // Question payloads are joined with the admin client: RLS hides other
-  // users' generated sets from students, but previews of the student's own
-  // answered questions are safe to show.
-  const payloadById = new Map<string, NotePayload>();
   if (questionIds.length > 0) {
+    const [{ data: mcqAttempts }, { data: saqAttempts }] = await Promise.all([
+      supabase
+        .from("attempts")
+        .select("question_id")
+        .eq("user_id", user.id)
+        .in("question_id", questionIds),
+      supabase
+        .from("short_answer_attempts")
+        .select("question_id")
+        .eq("user_id", user.id)
+        .in("question_id", questionIds),
+    ]);
+
+    for (const row of mcqAttempts ?? []) {
+      if (typeof row.question_id === "string") {
+        authorizedQuestionIds.add(row.question_id);
+      }
+    }
+    for (const row of saqAttempts ?? []) {
+      if (typeof row.question_id === "string") {
+        authorizedQuestionIds.add(row.question_id);
+      }
+    }
+  }
+
+  // Question payloads are joined with the admin client only after proving the
+  // current user has answered the question. Otherwise a forged self-scoped note
+  // could leak previews of generated questions outside the student's access.
+  const payloadById = new Map<string, NotePayload>();
+  const previewQuestionIds = questionIds.filter((id) =>
+    authorizedQuestionIds.has(id),
+  );
+  if (previewQuestionIds.length > 0) {
     const admin = createSupabaseAdminClient();
     const { data: questionRows } = await admin
       .from("generated_questions")
       .select("id, payload")
-      .in("id", questionIds);
+      .in("id", previewQuestionIds);
     for (const row of questionRows ?? []) {
       payloadById.set(String(row.id), row.payload as NotePayload);
     }

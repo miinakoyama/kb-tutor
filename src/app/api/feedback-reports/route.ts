@@ -14,6 +14,20 @@ interface ReportRequestBody {
   note?: string;
 }
 
+interface ReportAttemptRow {
+  id: unknown;
+  user_id: unknown;
+  question_id: unknown;
+  part_label: unknown;
+  response_text?: unknown;
+  score?: unknown;
+  max_score?: unknown;
+  feedback?: unknown;
+  method?: unknown;
+  model_id?: unknown;
+  confidence?: unknown;
+}
+
 function parseBody(raw: unknown): ReportRequestBody | null {
   if (!raw || typeof raw !== "object") return null;
   const b = raw as Record<string, unknown>;
@@ -187,28 +201,48 @@ export async function GET(request: Request) {
 
   const attemptIds = Array.from(new Set(reports.map((r) => String(r.attempt_id))));
   const studentIds = Array.from(new Set(reports.map((r) => String(r.student_user_id))));
-  const questionIds = Array.from(new Set(reports.map((r) => String(r.question_id))));
 
-  const [attemptsRes, profilesRes, questionsRes] = await Promise.all([
+  const [attemptsRes, profilesRes] = await Promise.all([
     attemptIds.length > 0
       ? admin
           .from("short_answer_attempts")
           .select(
-            "id, response_text, score, max_score, feedback, method, model_id, confidence",
+            "id, user_id, question_id, part_label, response_text, score, max_score, feedback, method, model_id, confidence",
           )
           .in("id", attemptIds)
       : Promise.resolve({ data: [] }),
     studentIds.length > 0
       ? admin.from("profiles").select("id, display_name").in("id", studentIds)
       : Promise.resolve({ data: [] }),
-    questionIds.length > 0
-      ? admin.from("generated_questions").select("id, payload").in("id", questionIds)
-      : Promise.resolve({ data: [] }),
   ]);
 
-  const attemptById = new Map(
-    (attemptsRes.data ?? []).map((a) => [String(a.id), a]),
+  const attemptRows = (attemptsRes.data ?? []) as ReportAttemptRow[];
+  const rawAttemptById = new Map(
+    attemptRows.map((a) => [String(a.id), a]),
   );
+  const verifiedAttemptByReportId = new Map<string, ReportAttemptRow>();
+  const verifiedQuestionIds = new Set<string>();
+  for (const report of reports) {
+    const attempt = rawAttemptById.get(String(report.attempt_id));
+    if (
+      attempt &&
+      String(attempt.user_id) === String(report.student_user_id) &&
+      String(attempt.question_id) === String(report.question_id) &&
+      String(attempt.part_label) === String(report.part_label)
+    ) {
+      verifiedAttemptByReportId.set(String(report.id), attempt);
+      verifiedQuestionIds.add(String(report.question_id));
+    }
+  }
+
+  const questionsRes =
+    verifiedQuestionIds.size > 0
+      ? await admin
+          .from("generated_questions")
+          .select("id, payload")
+          .in("id", Array.from(verifiedQuestionIds))
+      : { data: [] };
+
   const nameById = new Map(
     (profilesRes.data ?? []).map((p) => [
       String(p.id),
@@ -226,7 +260,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     reports: reports.map((report) => {
-      const attempt = attemptById.get(String(report.attempt_id));
+      const attempt = verifiedAttemptByReportId.get(String(report.id));
       return {
         id: String(report.id),
         createdAt: String(report.created_at),
@@ -236,7 +270,7 @@ export async function GET(request: Request) {
         },
         questionId: String(report.question_id),
         questionPreview: previewFromPayload(
-          payloadById.get(String(report.question_id)) ?? null,
+          attempt ? (payloadById.get(String(report.question_id)) ?? null) : null,
         ),
         partLabel: String(report.part_label),
         note: report.note ?? null,
