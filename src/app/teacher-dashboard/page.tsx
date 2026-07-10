@@ -17,6 +17,8 @@ import {
 import { StudentAvatar } from "@/components/StudentAvatar";
 import { InfoPopover } from "@/components/InfoPopover";
 import { PerformanceThresholdsCard } from "@/components/PerformanceThresholdsCard";
+import { FeedbackSettingsCard } from "@/components/short-answer/FeedbackSettingsCard";
+import { FeedbackReportsSection } from "@/components/short-answer/FeedbackReportsSection";
 import {
   downloadStandardMetricsCsv,
   downloadStudentMetricsCsv,
@@ -43,6 +45,7 @@ import {
   type BandDescriptor,
 } from "@/lib/analytics/band-display";
 type RangeKey = "7d" | "30d" | "all";
+type DashboardSection = "analytics" | "feedbackReports" | "feedbackSettings";
 type ModeKey = "compare" | "practice" | "exam" | "review";
 type AttemptModeKey = "practice" | "exam" | "review";
 type SourceKey = "assigned" | "self" | "all";
@@ -194,6 +197,7 @@ function TeacherDashboardContent() {
     useState<StandardStatusFilter>("all");
   const [studentFilter, setStudentFilter] =
     useState<StudentStatusFilter>("all");
+  const [section, setSection] = useState<DashboardSection>("analytics");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -278,35 +282,39 @@ function TeacherDashboardContent() {
         </div>
       </section>
 
-      <FiltersBar
-        topic={topic}
-        classId={classId}
-        studentId={studentId}
-        range={range}
-        source={source}
-        topics={data.topics}
-        classes={data.classes}
-        students={filteredStudents}
-        onTopicChange={setTopic}
-        onClassChange={(value) => {
-          setClassId(value);
-          setStudentId("");
-        }}
-        onStudentChange={setStudentId}
-        onRangeChange={setRange}
-        onSourceChange={setSource}
-      />
+      <DashboardSectionTabs value={section} onChange={setSection} />
 
-      <ModeTabs
-        value={mode}
-        onChange={setMode}
-        thresholds={data.thresholds}
-        defaults={data.defaults}
-        thresholdsAreCustom={data.thresholdsAreCustom}
-        onThresholdsChange={() => setRefreshKey((prev) => prev + 1)}
-      />
+      {section === "analytics" && (
+        <>
+          <FiltersBar
+            topic={topic}
+            classId={classId}
+            studentId={studentId}
+            range={range}
+            source={source}
+            topics={data.topics}
+            classes={data.classes}
+            students={filteredStudents}
+            onTopicChange={setTopic}
+            onClassChange={(value) => {
+              setClassId(value);
+              setStudentId("");
+            }}
+            onStudentChange={setStudentId}
+            onRangeChange={setRange}
+            onSourceChange={setSource}
+          />
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          <ModeTabs
+            value={mode}
+            onChange={setMode}
+            thresholds={data.thresholds}
+            defaults={data.defaults}
+            thresholdsAreCustom={data.thresholdsAreCustom}
+            onThresholdsChange={() => setRefreshKey((prev) => prev + 1)}
+          />
+
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <KpiCard
           label="Active Students"
           value={`${data.summary.completionRate}%`}
@@ -367,9 +375,9 @@ function TeacherDashboardContent() {
           summary={data.summary}
           thresholds={data.thresholds}
         />
-      </section>
+          </section>
 
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mb-6">
+          <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mb-6">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-gray">
@@ -537,9 +545,9 @@ function TeacherDashboardContent() {
             </tbody>
           </table>
         </div>
-      </section>
+          </section>
 
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm">
+          <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-gray">
@@ -696,16 +704,61 @@ function TeacherDashboardContent() {
             </tbody>
           </table>
         </div>
-      </section>
+          </section>
 
-      {isLoading &&
-        data.byStandard.length === 0 &&
-        data.byStudent.length === 0 && (
-          <p className="text-sm text-slate-gray/60 mt-4">
-            Loading dashboard data...
-          </p>
-        )}
+          {isLoading &&
+            data.byStandard.length === 0 &&
+            data.byStudent.length === 0 && (
+              <p className="text-sm text-slate-gray/60 mt-4">
+                Loading dashboard data...
+              </p>
+            )}
+        </>
+      )}
+
+      {section === "feedbackReports" && (
+        <FeedbackReportsSection />
+      )}
+
+      {section === "feedbackSettings" && (
+        <FeedbackSettingsCard />
+      )}
     </main>
+  );
+}
+
+function DashboardSectionTabs({
+  value,
+  onChange,
+}: {
+  value: DashboardSection;
+  onChange: (value: DashboardSection) => void;
+}) {
+  const tabs: Array<{ value: DashboardSection; label: string }> = [
+    { value: "analytics", label: "Analytics" },
+    { value: "feedbackReports", label: "Feedback reports" },
+    { value: "feedbackSettings", label: "Feedback settings" },
+  ];
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-slate-200">
+      {tabs.map((tab) => {
+        const active = tab.value === value;
+        return (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => onChange(tab.value)}
+            className={`-mb-px border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
+              active
+                ? "border-[#16a34a] text-[#14532d]"
+                : "border-transparent text-slate-gray/60 hover:text-slate-gray"
+            }`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

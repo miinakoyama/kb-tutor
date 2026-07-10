@@ -44,6 +44,14 @@ export type StudentAssignmentListItem = {
   status: StudentAssignmentStatus;
   last_completed_at: string | null;
   progress: StudentAssignmentProgress;
+  /**
+   * Accuracy of the most relevant run (0–100 integer), or null when the
+   * student hasn't answered any questions yet (not_started).
+   * - in_progress: correct / answered in the current run (latest attempt
+   *   per question).
+   * - completed:   correct / answered in the last completed run window.
+   */
+  accuracy: number | null;
 };
 
 export type StudentAssignmentListResult = {
@@ -65,6 +73,7 @@ type AssignmentBaseFields = Omit<
   | "progress"
   | "completed_attempts"
   | "recorded_completion_count"
+  | "accuracy"
 >;
 
 function toAssignmentBase(row: Record<string, unknown>): AssignmentBaseFields {
@@ -166,14 +175,15 @@ async function fetchAssignmentList(
       .in("assignment_id", orderedIds),
     supabase
       .from("attempts")
-      .select("assignment_id,question_id,answered_at")
+      .select("assignment_id,question_id,selected_option_id,answered_at,is_correct")
       .eq("user_id", studentUserId)
       .in("assignment_id", orderedIds),
     admin
       .from("assignment_completions")
-      .select("assignment_id")
+      .select("assignment_id,completed_at,attempt_number")
       .eq("student_user_id", studentUserId)
-      .in("assignment_id", orderedIds),
+      .in("assignment_id", orderedIds)
+      .order("attempt_number", { ascending: true }),
   ]);
 
   if (targetsError) {
@@ -198,12 +208,23 @@ async function fetchAssignmentList(
   }
 
   const completedAttemptsByAssignment = new Map<string, number>();
+  // Sorted ascending by attempt_number (guaranteed by the DB ORDER clause).
+  const completionWindowsByAssignment = new Map<
+    string,
+    Array<{ completed_at: string }>
+  >();
   for (const row of completionRows ?? []) {
     const id = String(row.assignment_id);
     completedAttemptsByAssignment.set(
       id,
       (completedAttemptsByAssignment.get(id) ?? 0) + 1,
     );
+    if (!completionWindowsByAssignment.has(id)) {
+      completionWindowsByAssignment.set(id, []);
+    }
+    completionWindowsByAssignment
+      .get(id)!
+      .push({ completed_at: String(row.completed_at) });
   }
 
   const snapshotCountByAssignment = new Map<string, number>();
@@ -215,24 +236,73 @@ async function fetchAssignmentList(
     );
   }
 
-  // Only count attempts from the _current_ run, i.e. answered strictly after
-  // last_completed_at. This way when a student Restarts a completed
-  // assignment, progress resets to 0/N without needing a destructive action.
+  // Build per-question "latest attempt" maps for two run windows:
+  //   currentRunLatest  — attempts after last_completed_at  (in_progress accuracy)
+  //   lastRunLatest     — attempts within the last completed run window (completed accuracy)
+  // We also rebuild answeredQuestionsByAssignment here so we touch attemptRows only once.
+  type LatestEntry = { isCorrect: boolean; answeredAt: number };
   const answeredQuestionsByAssignment = new Map<string, Set<string>>();
+  const currentRunLatest = new Map<string, Map<string, LatestEntry>>();
+  const lastRunLatest = new Map<string, Map<string, LatestEntry>>();
+
   for (const row of attemptRows ?? []) {
     const id = String(row.assignment_id);
     const lastCompletedAt = lastCompletedByAssignment.get(id) ?? null;
-    if (lastCompletedAt) {
-      const answeredAt = row.answered_at as string | null | undefined;
-      if (!answeredAt) continue;
-      if (new Date(answeredAt).getTime() <= new Date(lastCompletedAt).getTime()) {
-        continue;
+    const lastCompletedMs = lastCompletedAt
+      ? new Date(lastCompletedAt).getTime()
+      : -Infinity;
+
+    const answeredAtStr = row.answered_at as string | null | undefined;
+    if (!answeredAtStr) continue;
+    const answeredAtMs = new Date(answeredAtStr).getTime();
+    if (!Number.isFinite(answeredAtMs)) continue;
+
+    const qid = String(row.question_id);
+    // Short-answer rows in `attempts` are summary rows written only after every
+    // part is resolved, so they count as completed assignment questions.
+    const isCorrect = Boolean(row.is_correct);
+
+    if (answeredAtMs > lastCompletedMs) {
+      // Current (in-progress) run
+      if (!answeredQuestionsByAssignment.has(id)) {
+        answeredQuestionsByAssignment.set(id, new Set());
+      }
+      answeredQuestionsByAssignment.get(id)!.add(qid);
+
+      if (!currentRunLatest.has(id)) currentRunLatest.set(id, new Map());
+      const runMap = currentRunLatest.get(id)!;
+      const prior = runMap.get(qid);
+      if (!prior || answeredAtMs >= prior.answeredAt) {
+        runMap.set(qid, { isCorrect, answeredAt: answeredAtMs });
+      }
+    } else if (lastCompletedAt) {
+      // Potentially within the last completed run window: (prevCompleted, lastCompleted]
+      const completions = completionWindowsByAssignment.get(id);
+      const prevCompletedMs =
+        completions && completions.length >= 2
+          ? new Date(completions[completions.length - 2].completed_at).getTime()
+          : -Infinity;
+
+      if (answeredAtMs > prevCompletedMs) {
+        if (!lastRunLatest.has(id)) lastRunLatest.set(id, new Map());
+        const runMap = lastRunLatest.get(id)!;
+        const prior = runMap.get(qid);
+        if (!prior || answeredAtMs >= prior.answeredAt) {
+          runMap.set(qid, { isCorrect, answeredAt: answeredAtMs });
+        }
       }
     }
-    if (!answeredQuestionsByAssignment.has(id)) {
-      answeredQuestionsByAssignment.set(id, new Set());
+  }
+
+  function computeAccuracy(
+    latest: Map<string, LatestEntry> | undefined,
+  ): number | null {
+    if (!latest || latest.size === 0) return null;
+    let correct = 0;
+    for (const entry of latest.values()) {
+      if (entry.isCorrect) correct += 1;
     }
-    answeredQuestionsByAssignment.get(id)!.add(String(row.question_id));
+    return Math.round((correct / latest.size) * 100);
   }
 
   const baseById = new Map<string, AssignmentBaseFields>(
@@ -257,11 +327,18 @@ async function fetchAssignmentList(
         answeredCount: answeredSet.size,
       });
       const recordedCount = completedAttemptsByAssignment.get(id) ?? 0;
+      const accuracy =
+        status === "in_progress"
+          ? computeAccuracy(currentRunLatest.get(id))
+          : status === "completed"
+            ? computeAccuracy(lastRunLatest.get(id))
+            : null;
       return {
         ...base,
         status,
         last_completed_at: lastCompletedAt,
         progress,
+        accuracy,
         completed_attempts:
           recordedCount ||
           // Pre-history-table assignments may have a last_completed_at

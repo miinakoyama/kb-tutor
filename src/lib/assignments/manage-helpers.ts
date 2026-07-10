@@ -11,6 +11,8 @@ import type {
   RationaleQuestion,
 } from "@/types/question";
 import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
+import { isShortAnswerItem } from "@/lib/short-answer/item-schema";
+import type { ShortAnswerItem } from "@/types/short-answer";
 
 export type AssignmentSourceType = "existing_set" | "generated_now" | "manual";
 export type AssignmentMode = "practice" | "exam" | "review";
@@ -440,8 +442,6 @@ export function normalizeQuestionPayload(
 ): Question | null {
   if (!raw || typeof raw !== "object") return null;
   const question = raw as Record<string, unknown>;
-  const text = typeof question.text === "string" ? question.text.trim() : "";
-  if (!text) return null;
 
   const topic =
     typeof question.topic === "string" && question.topic.trim()
@@ -451,6 +451,76 @@ export function normalizeQuestionPayload(
     typeof question.module === "number" && Number.isFinite(question.module)
       ? Math.max(1, Math.round(question.module))
       : 1;
+
+  const id =
+    typeof question.id === "string" && question.id.trim()
+      ? question.id
+      : `assignment-${sourceType}-${Date.now()}-${index + 1}`;
+
+  const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
+    question.inlineTerms,
+    question.sidebarTerms,
+    `${sourceType}-${index + 1}`,
+  );
+
+  const imageUrl =
+    typeof question.imageUrl === "string" && question.imageUrl.trim()
+      ? question.imageUrl
+      : null;
+
+  const diagram = asDiagram(question.diagram);
+
+  const baseFields = {
+    id,
+    module: moduleNumber,
+    topic,
+    standardId:
+      typeof question.standardId === "string" ? question.standardId : undefined,
+    standardLabel:
+      typeof question.standardLabel === "string"
+        ? question.standardLabel
+        : undefined,
+    imageUrl,
+    explanation: asOptionalString(question.explanation),
+    focusHint: asOptionalString(question.focusHint),
+    keyKnowledge: asOptionalString(question.keyKnowledge),
+    commonMisconception: asOptionalString(question.commonMisconception),
+    dok: asDokLevel(question.dok),
+    rationaleQuestion: asRationaleQuestion(question.rationaleQuestion),
+    inlineTerms,
+    sidebarTerms,
+    diagram,
+    source: "generated" as const,
+    isVisible: true,
+    generatedAt: new Date().toISOString(),
+  };
+
+  const questionType = asQuestionType(question.questionType);
+  const shortAnswerRaw = question.shortAnswer;
+  const isOpenEnded =
+    questionType === "open-ended" || isShortAnswerItem(shortAnswerRaw);
+
+  if (isOpenEnded) {
+    if (!isShortAnswerItem(shortAnswerRaw)) return null;
+    const shortAnswer: ShortAnswerItem = shortAnswerRaw;
+    const text =
+      (typeof question.text === "string" ? question.text.trim() : "") ||
+      shortAnswer.parts[0]?.prompt.trim() ||
+      shortAnswer.stem.trim();
+    if (!text) return null;
+
+    return {
+      ...baseFields,
+      text,
+      options: [],
+      correctOptionId: "",
+      questionType: "open-ended",
+      shortAnswer,
+    };
+  }
+
+  const text = typeof question.text === "string" ? question.text.trim() : "";
+  if (!text) return null;
 
   const optionsRaw = Array.isArray(question.options) ? question.options : [];
   const options = optionsRaw
@@ -478,49 +548,12 @@ export function normalizeQuestionPayload(
       ? question.correctOptionId
       : options[0].id;
 
-  const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
-    question.inlineTerms,
-    question.sidebarTerms,
-    `${sourceType}-${index + 1}`,
-  );
-
-  const imageUrl =
-    typeof question.imageUrl === "string" && question.imageUrl.trim()
-      ? question.imageUrl
-      : null;
-
-  const diagram = asDiagram(question.diagram);
-
   return {
-    id:
-      typeof question.id === "string" && question.id.trim()
-        ? question.id
-        : `assignment-${sourceType}-${Date.now()}-${index + 1}`,
-    module: moduleNumber,
-    topic,
-    standardId:
-      typeof question.standardId === "string" ? question.standardId : undefined,
-    standardLabel:
-      typeof question.standardLabel === "string"
-        ? question.standardLabel
-        : undefined,
+    ...baseFields,
     text,
-    imageUrl,
     options,
     correctOptionId,
-    explanation: asOptionalString(question.explanation),
-    focusHint: asOptionalString(question.focusHint),
-    keyKnowledge: asOptionalString(question.keyKnowledge),
-    commonMisconception: asOptionalString(question.commonMisconception),
-    dok: asDokLevel(question.dok),
     questionType: asQuestionType(question.questionType),
-    rationaleQuestion: asRationaleQuestion(question.rationaleQuestion),
-    inlineTerms,
-    sidebarTerms,
-    diagram,
-    source: "generated",
-    isVisible: true,
-    generatedAt: new Date().toISOString(),
   };
 }
 

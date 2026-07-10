@@ -24,7 +24,6 @@ interface QuestionDisplayProps {
   onOptionClick: (optionId: string) => void;
   renderQuestionText?: (text: string) => ReactNode;
   feedbackSlot?: ReactNode;
-  feedbackReadText?: string;
   belowOptionsSlot?: ReactNode;
   showOptionFeedbackIcons?: boolean;
   onReadAloud?: (section: ReadSection) => void;
@@ -45,7 +44,6 @@ export function QuestionDisplay({
   onOptionClick,
   renderQuestionText,
   feedbackSlot,
-  feedbackReadText,
   belowOptionsSlot,
   showOptionFeedbackIcons = false,
   onReadAloud,
@@ -54,15 +52,14 @@ export function QuestionDisplay({
 }: QuestionDisplayProps) {
   const isAnswered = currentAnswer !== undefined;
   const choicesReadText = buildChoicesReadText(question);
+  const questionAndChoicesReadText = `${question.text} ${choicesReadText}`.trim();
   const {
     isSupported,
     isSpeaking,
     currentSection,
     toggleSpeak,
   } = useTextToSpeech();
-  const isQuestionReading = isSpeaking && currentSection === "question";
-  const isChoicesReading = isSpeaking && currentSection === "choices";
-  const isFeedbackReading = isSpeaking && currentSection === "feedback";
+  const isQuestionAndChoicesReading = isSpeaking && currentSection === "question";
 
   return (
     <AnimatePresence mode="wait">
@@ -87,15 +84,19 @@ export function QuestionDisplay({
           </div>
           <div className="flex items-center gap-2">
             {isSupported && (
-              <div className="relative" data-tour-id={questionReadAloudTourId}>
+              <div
+                className="relative"
+                data-tour-id={questionReadAloudTourId ?? choicesReadAloudTourId}
+              >
                 <ReadAloudButton
                   section="question"
-                  label="Question"
-                  text={question.text}
+                  label="Question and choices"
+                  text={questionAndChoicesReadText}
                   isSpeaking={isSpeaking}
                   currentSection={currentSection}
                   onToggle={toggleSpeak}
                   onPlay={onReadAloud}
+                  iconOnly
                 />
               </div>
             )}
@@ -105,7 +106,7 @@ export function QuestionDisplay({
 
         <div
           className={`prose prose-sm max-w-none text-slate-gray ${compactLayout ? "mb-4" : "mb-5"} rounded-lg transition-colors ${
-            isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
+            isQuestionAndChoicesReading ? "bg-primary/10 px-3 py-2" : ""
           }`}
         >
           {renderQuestionText ? (
@@ -144,27 +145,9 @@ export function QuestionDisplay({
 
         <div
           className={`rounded-lg transition-colors mb-3 ${
-            isChoicesReading ? "bg-primary/10 px-3 py-2" : ""
+            isQuestionAndChoicesReading ? "bg-primary/10 px-3 py-2" : ""
           }`}
         >
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Choices
-            </p>
-            {isSupported && (
-              <div data-tour-id={choicesReadAloudTourId}>
-                <ReadAloudButton
-                  section="choices"
-                  label="Choices"
-                  text={choicesReadText}
-                  isSpeaking={isSpeaking}
-                  currentSection={currentSection}
-                  onToggle={toggleSpeak}
-                  onPlay={onReadAloud}
-                />
-              </div>
-            )}
-          </div>
           <div className={`${compactLayout ? "space-y-2 mt-1.5" : "space-y-2.5 mt-2"}`}>
             {question.options.map((opt) => {
               const isSelected = isAnswered
@@ -193,33 +176,10 @@ export function QuestionDisplay({
           </div>
         </div>
 
-        {isSupported && isAnswered && feedbackReadText && (
-          <div
-            className={`mt-4 mb-2 rounded-lg transition-colors ${
-              isFeedbackReading ? "bg-primary/10 px-3 py-2" : ""
-            }`}
-          >
-            <ReadAloudButton
-              section="feedback"
-              label="Feedback"
-              text={feedbackReadText}
-              isSpeaking={isSpeaking}
-              currentSection={currentSection}
-              onToggle={toggleSpeak}
-              onPlay={onReadAloud}
-            />
-          </div>
-        )}
-
         {feedbackSlot}
 
         {belowOptionsSlot}
 
-        {!isAnswered && !belowOptionsSlot && (
-          <p className="mt-5 text-center text-sm text-muted-foreground italic">
-            Select an answer to see feedback
-          </p>
-        )}
       </motion.div>
     </AnimatePresence>
   );

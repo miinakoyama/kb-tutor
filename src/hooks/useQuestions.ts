@@ -13,6 +13,7 @@ import {
 } from "@/lib/question-storage";
 import { fetchStudentSelfPracticeQuestions } from "@/lib/school-generated-questions";
 import { getDefaultStandardForTopic } from "@/lib/standards";
+import { filterRenderableQuestions } from "@/lib/short-answer/question-guards";
 
 const fileQuestions = questionsData as Question[];
 
@@ -68,10 +69,10 @@ export function useQuestions() {
 
     if (resolved === "student") {
       const { questions } = await fetchStudentSelfPracticeQuestions(supabase);
-      setDynamicQuestions(questions.map(withStandard));
+      setDynamicQuestions(filterRenderableQuestions(questions).map(withStandard));
     } else {
       const { questions } = await getAllGeneratedQuestionSets();
-      setDynamicQuestions(questions.map(withStandard));
+      setDynamicQuestions(filterRenderableQuestions(questions).map(withStandard));
     }
 
     setIsLoaded(true);

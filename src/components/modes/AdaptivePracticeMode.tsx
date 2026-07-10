@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
-  Home,
   Bookmark,
   Lightbulb,
   Send,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 import type { AnswerRecord, ConfidenceLevel, GlossaryTerm, Question } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
+import { ShortAnswerQuestionView } from "@/components/short-answer/ShortAnswerQuestionView";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
@@ -27,6 +27,7 @@ import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
+import { QuestionNoteDrawer } from "@/components/notes/QuestionNoteDrawer";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
@@ -35,7 +36,6 @@ import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
-import { NextSessionCTA } from "@/components/shared/NextSessionCTA";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const MAX_ATTEMPTS = 2;
@@ -67,6 +67,7 @@ interface AdaptivePracticeModeProps {
   questionCount?: number;
   assignmentId?: string;
   mode?: "practice" | "review";
+  preferReviewTopicsCta?: boolean;
   backHref?: string;
   showBackLink?: boolean;
   /**
@@ -80,6 +81,8 @@ interface AdaptivePracticeModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  /** Assignment retry boundary (= last_completed_at for the current run). */
+  assignmentRunAfter?: string | null;
   /** Fires when the completion API reports every school assignment is done. */
   onAllSchoolAssignmentsCompleted?: () => void;
 }
@@ -95,9 +98,11 @@ export function AdaptivePracticeMode({
   questionCount,
   assignmentId,
   mode = "practice",
+  preferReviewTopicsCta = false,
   backHref = "/self-practice",
   showBackLink = false,
   answered,
+  assignmentRunAfter,
   onAllSchoolAssignmentsCompleted,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
@@ -270,13 +275,17 @@ export function AdaptivePracticeMode({
   ]);
 
   const question = sessionQuestions[currentIndex];
+  const isShortAnswerQuestion =
+    question?.questionType === "open-ended" && Boolean(question?.shortAnswer);
   const attempts = useMemo(
     () => attemptsByIndex[currentIndex] ?? [],
     [attemptsByIndex, currentIndex]
   );
   const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
   const isCorrect = !!lastAttempt?.isCorrect;
-  const isCompleted = isCorrect || attempts.length >= MAX_ATTEMPTS;
+  const isCompleted = isShortAnswerQuestion
+    ? Boolean(finalAnswers[currentIndex])
+    : isCorrect || attempts.length >= MAX_ATTEMPTS;
   const isRetryReady = retryReadyByIndex[currentIndex] ?? attempts.length === 0;
   const isAwaitingRetry = !isCompleted && attempts.length > 0 && !isRetryReady;
   const showScaffold = attempts.length >= 1 && !isCorrect;
@@ -285,6 +294,22 @@ export function AdaptivePracticeMode({
   const totalQuestions = sessionQuestions.length;
   const completedCount = Object.keys(finalAnswers).length;
   const allCompleted = completedCount === totalQuestions && totalQuestions > 0;
+  const assignmentPrimaryButtonStyle = {
+    color: "var(--assignment-cta-text)",
+    background: "var(--assignment-cta-bg-strong)",
+    border: "1.5px solid var(--assignment-cta-border-hover)",
+    boxShadow: "var(--assignment-cta-elevated-shadow)",
+  };
+  const assignmentSecondaryButtonStyle = {
+    color: "var(--assignment-row-cta-text)",
+    background: "var(--assignment-row-cta-bg)",
+    border: "1.5px solid var(--assignment-row-cta-border)",
+    boxShadow: "var(--assignment-row-cta-shadow)",
+  };
+  const assignmentPrimaryButtonClass =
+    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
+  const assignmentSecondaryButtonClass =
+    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
 
   useEffect(() => {
     if (!question || showSummary) {
@@ -853,6 +878,10 @@ export function AdaptivePracticeMode({
   }
 
   if (showSummary) {
+    const reviewedIndices = Object.keys(finalAnswers)
+      .map((index) => Number(index))
+      .filter((index) => Number.isInteger(index))
+      .sort((a, b) => a - b);
     const reviewQuestion =
       summaryReviewIndex !== null
         ? sessionQuestions[summaryReviewIndex]
@@ -864,6 +893,10 @@ export function AdaptivePracticeMode({
     // warnings / re-render loops.
     if (summaryReviewIndex !== null && reviewQuestion) {
       const reviewAnswer = finalAnswers[summaryReviewIndex];
+      const currentReviewPosition = reviewedIndices.indexOf(summaryReviewIndex);
+      const hasNextReviewQuestion =
+        currentReviewPosition !== -1 &&
+        currentReviewPosition < reviewedIndices.length - 1;
       const answerForPanel: AnswerRecord = reviewAnswer ?? {
         selectedOptionId: reviewQuestion.correctOptionId,
         isCorrect: false,
@@ -874,15 +907,33 @@ export function AdaptivePracticeMode({
             animate={{ opacity: 1, y: 0 }}
             className="w-full"
           >
-            <button
-              onClick={() => setSummaryReviewIndex(null)}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
-            >
-              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-                <ArrowLeft className="w-4 h-4 text-heading" />
-              </span>
-              Back to results
-            </button>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <button
+                onClick={() => setSummaryReviewIndex(null)}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors"
+              >
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+                  <ArrowLeft className="w-4 h-4 text-heading" />
+                </span>
+                Back to results
+              </button>
+              {hasNextReviewQuestion ? (
+                <button
+                  onClick={() => {
+                    if (!hasNextReviewQuestion) return;
+                    const nextIndex = reviewedIndices[currentReviewPosition + 1];
+                    if (typeof nextIndex === "number") {
+                      setSummaryReviewIndex(nextIndex);
+                    }
+                  }}
+                  className={assignmentPrimaryButtonClass}
+                  style={assignmentPrimaryButtonStyle}
+                >
+                  Next question
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              ) : null}
+            </div>
             <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
               <p className="text-sm text-muted-foreground mb-3">
                 Question {summaryReviewIndex + 1}
@@ -932,6 +983,11 @@ export function AdaptivePracticeMode({
                 answer={answerForPanel}
                 showKeyKnowledge
                 showMisconception
+                feedbackReadText={buildFeedbackReadText(reviewQuestion, answerForPanel, {
+                  includeKeyKnowledge: true,
+                  includeMisconception: true,
+                })}
+                onReadAloud={handleReadAloud}
               />
             </div>
           </motion.div>
@@ -997,20 +1053,7 @@ export function AdaptivePracticeMode({
           </div>
         </div>
 
-        {/*
-          Action stack on the summary screen.
-
-          The primary CTA is "Next" (NextSessionCTA): it points the student
-          at the most urgent remaining assignment, or Self Practice if every
-          assignment is done. It is the only filled-green button here so it
-          owns visual hierarchy, signaling "this is the way forward".
-
-          Try Again ('do the same set again') and Home ('stop for now') are
-          intentionally demoted to outlined / muted styles — they are still
-          one click away but no longer compete with the forward path.
-        */}
         <div className="flex flex-col items-center gap-3">
-          <NextSessionCTA excludeAssignmentId={assignmentId} />
           <div className="flex flex-wrap gap-3 justify-center">
             <button
               onClick={() => {
@@ -1024,17 +1067,23 @@ export function AdaptivePracticeMode({
                 setCompletionReported(false);
                 resetAttemptDwell();
               }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-primary/30 text-heading font-medium hover:bg-primary/5 transition-colors"
+              className={assignmentSecondaryButtonClass}
+              style={assignmentSecondaryButtonStyle}
             >
               <RotateCcw className="w-4 h-4" />
               {mode === "review" ? "Review Again" : "Try Again"}
             </button>
             <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border-default text-slate-gray font-medium hover:bg-foreground/5 transition-colors"
+              href={
+                mode === "review" || preferReviewTopicsCta
+                  ? "/bookmarks?chooseTopics=1"
+                  : "/self-practice"
+              }
+              className={assignmentPrimaryButtonClass}
+              style={assignmentPrimaryButtonStyle}
             >
-              <Home className="w-4 h-4" />
-              Home
+              <BookOpen className="w-4 h-4" />
+              Practice Other Topics
             </Link>
           </div>
         </div>
@@ -1062,22 +1111,61 @@ export function AdaptivePracticeMode({
         compactSpacing
         currentQuestion={isAssignmentRun ? currentIndex + 1 : undefined}
         totalQuestions={isAssignmentRun ? totalQuestions : undefined}
-        answeredCount={completedCount}
+        answeredCount={isAssignmentRun ? completedCount : undefined}
         rightSlot={
           !isAssignmentRun ? (
-            <button
-              onClick={finishSession}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white font-semibold bg-primary hover:bg-primary-hover transition-colors text-sm"
-            >
-              Finish Session
-            </button>
+            <>
+              <span className="text-sm text-muted-foreground">
+                {completedCount} answered
+              </span>
+              <button
+                onClick={finishSession}
+                className={assignmentPrimaryButtonClass}
+                style={assignmentPrimaryButtonStyle}
+              >
+                Finish Session
+              </button>
+            </>
           ) : undefined
         }
       />
 
       <div className="flex flex-col gap-3 flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
-          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 pb-2">
+          <div
+            ref={scrollContainerRef}
+            className={`flex-1 overflow-y-auto min-h-0 ${
+              isShortAnswerQuestion && question.shortAnswer ? "pb-24" : "pb-2"
+            }`}
+          >
+            {isShortAnswerQuestion && question.shortAnswer ? (
+              <ShortAnswerQuestionView
+                key={question.id}
+                item={question.shortAnswer}
+                questionId={question.id}
+                questionSetId={question.questionSetId ?? null}
+                assignmentId={assignmentId ?? null}
+                sessionId={assignmentId ? null : sessionId}
+                assignmentRunAfter={assignmentRunAfter ?? null}
+                mode={mode}
+                continueLabel={
+                  isAssignmentRun && currentIndex === totalQuestions - 1
+                    ? "View Results"
+                    : `Continue to Q${currentIndex + 2}`
+                }
+                onContinue={handleNext}
+                showCompletionContinue={false}
+                onAllPartsResolved={({ correctParts, totalParts }) => {
+                  setFinalAnswers((prev) => ({
+                    ...prev,
+                    [currentIndex]: {
+                      selectedOptionId: "short-answer",
+                      isCorrect: correctParts === totalParts,
+                    },
+                  }));
+                }}
+              />
+            ) : (
             <QuestionDisplay
               question={question}
               questionNumber={currentIndex + 1}
@@ -1119,7 +1207,6 @@ export function AdaptivePracticeMode({
               }}
               renderQuestionText={renderQuestionText}
               showOptionFeedbackIcons={isCompleted}
-              feedbackReadText={feedbackReadText}
               onReadAloud={handleReadAloud}
               questionReadAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_QUESTION}
               choicesReadAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_CHOICES}
@@ -1133,24 +1220,14 @@ export function AdaptivePracticeMode({
                           answer={displayAnswer ?? { selectedOptionId: question.correctOptionId, isCorrect: false }}
                           showKeyKnowledge
                           showMisconception
+                          showFocusHint={showScaffold}
+                          feedbackReadText={feedbackReadText}
+                          onReadAloud={handleReadAloud}
                         />
                         <ConfidenceCheck
                           value={finalAnswer?.confidenceLevel}
                           onChange={handleConfidence}
                         />
-                        <button
-                          onClick={handleBookmarkToggle}
-                          className={`inline-flex items-center gap-1.5 text-sm transition-colors ${
-                            bookmarkedQuestions.has(question.id)
-                              ? "text-primary font-medium"
-                              : "text-muted-foreground hover:text-muted-foreground"
-                          }`}
-                        >
-                          <Bookmark
-                            className={`w-4 h-4 ${bookmarkedQuestions.has(question.id) ? "fill-primary" : ""}`}
-                          />
-                          {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
-                        </button>
                       </>
                     ) : isAwaitingRetry ? (
                       <>
@@ -1160,6 +1237,11 @@ export function AdaptivePracticeMode({
                             selectedOptionId: lastAttempt?.selectedOptionId ?? "",
                             isCorrect: false,
                           }}
+                          showKeyKnowledge
+                          showMisconception
+                          showFocusHint={showScaffold}
+                          feedbackReadText={feedbackReadText}
+                          onReadAloud={handleReadAloud}
                         />
                       </>
                     ) : null}
@@ -1167,72 +1249,129 @@ export function AdaptivePracticeMode({
                 ) : undefined
               }
               belowOptionsSlot={
-                showScaffold && question.focusHint && !isCompleted ? (
-                  <div className="mt-4 rounded-xl border border-primary/25 bg-primary-light p-3">
-                    <div className="flex items-start gap-2.5">
-                      <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-forest mb-0.5">
-                          Focus Hint
-                        </p>
-                        <p className="text-sm text-slate-gray leading-relaxed">{question.focusHint}</p>
+                <>
+                  {showScaffold && question.focusHint && !isCompleted && attempts.length === 0 ? (
+                    <div className="mt-4 rounded-xl border border-primary/25 bg-primary-light p-3">
+                      <div className="flex items-start gap-2.5">
+                        <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-forest mb-0.5">
+                            Focus Hint
+                          </p>
+                          <p className="text-sm text-slate-gray leading-relaxed">{question.focusHint}</p>
+                        </div>
                       </div>
                     </div>
+                  ) : null}
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <button
+                      onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                      disabled={currentIndex === 0}
+                      className={assignmentSecondaryButtonClass}
+                      style={assignmentSecondaryButtonStyle}
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      Previous
+                    </button>
+
+                    <button
+                      onClick={handleBookmarkToggle}
+                      className={assignmentSecondaryButtonClass}
+                      style={assignmentSecondaryButtonStyle}
+                    >
+                      <Bookmark
+                        className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(question.id) ? "fill-current" : ""}`}
+                      />
+                      {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
+                    </button>
+
+                    {!isCompleted ? (
+                      canTryAgain ? (
+                        <button
+                          onClick={() => {
+                            setSelectedOptionId(null);
+                            setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: true }));
+                            requestAnimationFrame(() => {
+                              scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                            });
+                          }}
+                          className={assignmentSecondaryButtonClass}
+                          style={assignmentSecondaryButtonStyle}
+                        >
+                          <RefreshCcw className="w-3.5 h-3.5" />
+                          Try Again
+                        </button>
+                      ) : (
+                        <button
+                          onClick={submitAttempt}
+                          disabled={!selectedOptionId}
+                          className={assignmentPrimaryButtonClass}
+                          style={assignmentPrimaryButtonStyle}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Submit
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        onClick={handleNext}
+                        className={assignmentPrimaryButtonClass}
+                        style={assignmentPrimaryButtonStyle}
+                      >
+                        {isAssignmentRun && currentIndex === totalQuestions - 1 ? "View Results" : "Next"}
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
-                ) : undefined
+                </>
               }
             />
+            )}
           </div>
-
-          <div className="flex-shrink-0 pt-2">
-            <div className="flex items-center justify-between bg-surface-muted rounded-xl p-2.5 border border-primary/20">
-              <button
-                onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                disabled={currentIndex === 0}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border-default bg-surface text-slate-gray font-medium hover:bg-foreground/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                Previous
-              </button>
-
-              {!isCompleted ? (
-                canTryAgain ? (
-                  <button
-                    onClick={() => {
-                      setSelectedOptionId(null);
-                      setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: true }));
-                      requestAnimationFrame(() => {
-                        scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-                      });
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-amber-500 hover:bg-amber-600 transition-colors text-[13px]"
-                  >
-                    <RefreshCcw className="w-3.5 h-3.5" />
-                    Try Again
-                  </button>
-                ) : (
-                  <button
-                    onClick={submitAttempt}
-                    disabled={!selectedOptionId}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    Submit
-                  </button>
-                )
-              ) : (
+          {isShortAnswerQuestion && question.shortAnswer ? (
+            <div className="sticky bottom-0 z-10 -mx-1 border-t border-[color:var(--assignment-glass-border)] bg-[color:var(--background)]/95 px-1 py-3 backdrop-blur-md">
+              <div className="flex items-center justify-between gap-2">
                 <button
-                  onClick={handleNext}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors text-[13px]"
+                  type="button"
+                  onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                  disabled={currentIndex === 0}
+                  className={assignmentSecondaryButtonClass}
+                  style={assignmentSecondaryButtonStyle}
                 >
-                  {isAssignmentRun && currentIndex === totalQuestions - 1 ? "View Results" : "Next"}
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBookmarkToggle}
+                  className={assignmentSecondaryButtonClass}
+                  style={assignmentSecondaryButtonStyle}
+                >
+                  <Bookmark
+                    className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(question.id) ? "fill-current" : ""}`}
+                  />
+                  {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!isCompleted}
+                  className={assignmentPrimaryButtonClass}
+                  style={assignmentPrimaryButtonStyle}
+                >
+                  {isAssignmentRun && currentIndex === totalQuestions - 1
+                    ? "View Results"
+                    : "Next"}
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
-              )}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
+
+      {question ? <QuestionNoteDrawer questionId={question.id} /> : null}
 
       {activeFeatureSpotlight === "read-aloud" ? (
         <FeatureSpotlight

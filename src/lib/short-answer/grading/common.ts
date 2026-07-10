@@ -1,0 +1,183 @@
+/**
+ * Shared grading utilities used by all three methods.
+ *
+ * Methods return a raw score + a single student-facing feedback string
+ * (matching the reference project's contract). This module maps that into the
+ * app's structured `GradedFeedback` (verdict, segments, optional model answer,
+ * glossary terms) based on the attempt context (FR-007 / FR-008).
+ */
+
+import type {
+  FeedbackVerdict,
+  GradedFeedback,
+  ShortAnswerItem,
+  ShortAnswerPart,
+} from "@/types/short-answer";
+
+export function normalizeScore(value: unknown, maxScore: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(maxScore, Math.round(value)));
+}
+
+/** Depth-first extraction of a usable feedback string from arbitrary JSON. */
+export function extractFeedbackText(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map(extractFeedbackText)
+      .filter((part): part is string => Boolean(part));
+    return parts.length > 0 ? parts.join(" ") : null;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferredKeys = [
+      "feedback",
+      "student_feedback",
+      "formative_feedback",
+      "feedback_message",
+      "message",
+      "text",
+      "hint",
+      "cue",
+      "guiding_question",
+      "next_step",
+    ];
+
+    for (const key of preferredKeys) {
+      const text = extractFeedbackText(record[key]);
+      if (text) return text;
+    }
+
+    const parts = Object.values(record)
+      .map(extractFeedbackText)
+      .filter((part): part is string => Boolean(part));
+    return parts.length > 0 ? parts.join(" ") : null;
+  }
+
+  return null;
+}
+
+export function normalizeFeedback(value: unknown): string {
+  return extractFeedbackText(value) ?? "No feedback returned.";
+}
+
+export function totalShortAnswerPoints(item: ShortAnswerItem): number {
+  return item.parts.reduce((sum, part) => sum + part.maxScore, 0);
+}
+
+export function formatPartRubric(part: ShortAnswerPart): string {
+  if (part.rubric) {
+    return Object.entries(part.rubric.criteria)
+      .sort(([a], [b]) => Number(b) - Number(a))
+      .map(([score, text]) => `${score} point${Number(score) === 1 ? "" : "s"}: ${text}`)
+      .join("\n");
+  }
+  return part.scoringGuidance;
+}
+
+/**
+ * Full-credit rubric text for a part, used as the "what was missing" context
+ * for exam mode's single-attempt closure feedback when the grading method
+ * didn't return a diagnosedGap (method 3 never does; method 2 only returns a
+ * short failure-type code).
+ */
+export function partFullCreditCriteria(part: ShortAnswerPart): string {
+  const criteria = part.rubric.criteria[String(part.maxScore)];
+  if (criteria && criteria.trim().length > 0) return criteria.trim();
+  return part.scoringGuidance.trim().length > 0
+    ? part.scoringGuidance.trim()
+    : "the correct concept for this part";
+}
+
+/**
+ * Glossary terms relevant to a miss: key terms whose vocabulary does NOT
+ * already appear in the student's response (so chips surface unfamiliar
+ * vocabulary). Capped to keep the chip row short.
+ */
+export function selectGlossaryTerms(
+  item: ShortAnswerItem,
+  studentResponse: string,
+  limit = 3,
+): string[] {
+  const lower = studentResponse.toLowerCase();
+  const missing = item.keyTerms
+    .map((t) => t.term)
+    .filter((term) => !lower.includes(term.toLowerCase()));
+  return missing.slice(0, limit);
+}
+
+export interface BuildFeedbackParams {
+  rawFeedback: string;
+  correct: boolean;
+  /** True when no further attempts remain (real attempt 2, or exam's single attempt). */
+  isFinalAttempt: boolean;
+  item: ShortAnswerItem;
+  attemptsRemaining: number;
+  /** The student's own submitted text, used to pick glossary terms they didn't use. */
+  studentResponse: string;
+}
+
+/**
+ * Compose the structured feedback block shown to the student.
+ * - correct → "correct" verdict, single confirming segment.
+ * - incorrect, attempt remaining → Socratic segments (what's off + a guiding
+ *   question), glossary chips (FR-007/FR-021).
+ * - incorrect, final attempt → LLM closure feedback in segments (the caller
+ *   generates this via the attempt2 pipeline for both a real attempt 2 and
+ *   exam mode's single attempt).
+ */
+export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback {
+  const { rawFeedback, correct, isFinalAttempt, item } = params;
+
+  if (correct) {
+    return {
+      verdict: "correct",
+      segments: [{ label: "", text: rawFeedback }],
+    };
+  }
+
+  if (isFinalAttempt) {
+    return {
+      verdict: "heres_the_idea",
+      segments: [{ label: "", text: rawFeedback }],
+    };
+  }
+
+  const verdict: FeedbackVerdict = "good_try";
+  return {
+    verdict,
+    segments: [{ label: "", text: rawFeedback }],
+    glossaryTerms: selectGlossaryTerms(item, params.studentResponse),
+  };
+}
+
+/** The fixed result for an empty submission (no LLM call, FR-011). */
+export function emptySubmissionFeedback(): GradedFeedback {
+  return {
+    verdict: "no_response",
+    segments: [
+      {
+        label: "",
+        text: "No response was submitted. Type an answer and check again.",
+      },
+    ],
+  };
+}
+
+/** Flatten stored feedback JSON into plain text for attempt-2 prompts. */
+export function feedbackToPlainText(feedback: GradedFeedback | unknown): string {
+  if (!feedback || typeof feedback !== "object") return "";
+  const record = feedback as GradedFeedback;
+  if (typeof record.modelAnswer === "string" && record.modelAnswer.trim()) {
+    return record.modelAnswer.trim();
+  }
+  return record.segments
+    ?.map((segment) => segment.text.trim())
+    .filter(Boolean)
+    .join(" ");
+}

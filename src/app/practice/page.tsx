@@ -8,6 +8,7 @@ async function PracticeContent({
     topics?: string;
     mode?: string;
     questions?: string;
+    questionIds?: string;
     assignmentId?: string;
   }>;
 }) {
@@ -18,6 +19,7 @@ async function PracticeContent({
       topicsParam={params.topics}
       modeParam={params.mode}
       questionsParam={params.questions}
+      questionIdsParam={params.questionIds}
       assignmentIdParam={params.assignmentId}
     />
   );
@@ -30,6 +32,7 @@ export default async function PracticePage({
     topics?: string;
     mode?: string;
     questions?: string;
+    questionIds?: string;
     assignmentId?: string;
   }>;
 }) {

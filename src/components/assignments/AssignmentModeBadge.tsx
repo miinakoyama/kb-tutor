@@ -35,12 +35,12 @@ const MODE_META: Record<
     title:
       "Exam mode: one attempt per question. Hints and retries are disabled.",
   },
-  // Violet to stay visually distinct from practice/exam.
+  // Warm gold matches the student assignment review-mode pill.
   review: {
     label: "Review",
     icon: History,
     classes:
-      "text-violet-800 bg-violet-100 dark:text-violet-200/90 dark:bg-violet-950/45 dark:ring-1 dark:ring-violet-800/35",
+      "text-[#8A6216] bg-[#FBF2DC] dark:text-[#F0CF86] dark:bg-[#FBF2DC]/15 dark:ring-1 dark:ring-[#F0CF86]/30",
     title:
       "Review mode: a dynamic set of questions you previously got wrong.",
   },
