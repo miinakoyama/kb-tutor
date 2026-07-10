@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Home,
   NotebookPen,
   Play,
   RefreshCcw,
@@ -21,6 +20,10 @@ import {
   removeBookmark,
 } from "@/lib/storage";
 import { useQuestions } from "@/hooks/useQuestions";
+import {
+  StudentNotesList,
+  useStudentNotes,
+} from "@/components/notes/StudentNotesList";
 import type { Question } from "@/types/question";
 import {
   STANDARD_DEFINITIONS,
@@ -62,6 +65,11 @@ function buildReviewCategorySelections(): ReviewCategorySelection[] {
 }
 
 const REVIEW_CATEGORY_SELECTIONS = buildReviewCategorySelections();
+
+function parseReviewTab(value: string | null): ReviewTab {
+  if (value === "bookmarked" || value === "notes") return value;
+  return "needs";
+}
 
 const ASSIGNMENT_BUTTON_BASE_CLASS =
   "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 font-bold transition duration-200";
@@ -105,6 +113,11 @@ export default function BookmarksPage() {
 function BookmarksPageContent() {
   const searchParams = useSearchParams();
   const { visibleQuestions, isLoaded } = useQuestions();
+  const {
+    notes,
+    isLoaded: notesLoaded,
+    error: notesError,
+  } = useStudentNotes();
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
   const [firstTryWrongIds, setFirstTryWrongIds] = useState<string[]>([]);
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
@@ -112,7 +125,9 @@ function BookmarksPageContent() {
   const [isChoosingTopics, setIsChoosingTopics] = useState(
     () => searchParams.get("chooseTopics") === "1",
   );
-  const [activeReviewTab, setActiveReviewTab] = useState<ReviewTab>("needs");
+  const [activeReviewTab, setActiveReviewTab] = useState<ReviewTab>(() =>
+    parseReviewTab(searchParams.get("tab")),
+  );
   const [selectedPracticeTopics, setSelectedPracticeTopics] = useState<string[]>([]);
   const isPreviewMode = searchParams.get("preview") === "1";
 
@@ -195,8 +210,6 @@ function BookmarksPageContent() {
   const needsReviewGroups = buildTopicGroups(effectiveNeedsIds);
   const bookmarkedGroups = buildTopicGroups(effectiveBookmarkedIds);
 
-  const totalNeedsReview = effectiveNeedsIds.length;
-  const totalBookmarked = effectiveBookmarkedIds.length;
   const totalReviewQuestions = new Set([...effectiveNeedsIds, ...effectiveBookmarkedIds]).size;
   const allReviewIds = useMemo(
     () => Array.from(new Set([...effectiveNeedsIds, ...effectiveBookmarkedIds])),
@@ -327,16 +340,6 @@ function BookmarksPageContent() {
       prev.length === availablePracticeTopics.length ? [] : availablePracticeTopics,
     );
   }, [availablePracticeTopics]);
-
-  useEffect(() => {
-    if (activeReviewTab === "needs" && totalNeedsReview === 0 && totalBookmarked > 0) {
-      setActiveReviewTab("bookmarked");
-      return;
-    }
-    if (activeReviewTab === "bookmarked" && totalBookmarked === 0 && totalNeedsReview > 0) {
-      setActiveReviewTab("needs");
-    }
-  }, [activeReviewTab, totalBookmarked, totalNeedsReview]);
 
   const renderTopicSections = (
     groups: TopicGroup[],
@@ -545,25 +548,7 @@ function BookmarksPageContent() {
           ) : null}
         </div>
 
-        {totalReviewQuestions === 0 ? (
-          <div className="flex flex-1 items-center justify-center">
-            <div className="text-center">
-              <Bookmark className="mx-auto mb-4 h-16 w-16 text-slate-gray/20" />
-              <h2 className="mb-2 text-xl font-semibold text-slate-gray">No review questions yet</h2>
-              <p className="mb-6 max-w-sm text-sm text-muted-foreground">
-                Questions you answer incorrectly and questions you bookmark will appear here.
-              </p>
-              <Link
-                href="/"
-                className={`${ASSIGNMENT_BUTTON_BASE_CLASS} hover:brightness-110 active:brightness-95`}
-                style={ASSIGNMENT_PRIMARY_BUTTON_STYLE}
-              >
-                <Home className="h-4 w-4" />
-                Start Practicing
-              </Link>
-            </div>
-          </div>
-        ) : isChoosingTopics ? (
+        {isChoosingTopics ? (
           <section
             className="rounded-[28px] border p-5 sm:p-6"
             style={{
@@ -750,9 +735,11 @@ function BookmarksPageContent() {
                 : activeReviewTab === "bookmarked"
                   ? renderTopicSections(bookmarkedGroups, "bookmarked", true)
                   : (
-                    <div className="rounded-xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
-                      Notes feature coming soon.
-                    </div>
+                    <StudentNotesList
+                      notes={notes}
+                      isLoaded={notesLoaded}
+                      error={notesError}
+                    />
                   )}
             </section>
           </div>
