@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Flag,
+  Bookmark,
   RotateCcw,
   ArrowLeft,
   CheckCircle2,
@@ -22,6 +23,7 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Lightbulb,
+  BookOpen,
 } from "lucide-react";
 import type { Question, AnswerRecord } from "@/types/question";
 import type { GradedFeedback, PartLabel, ShortAnswerItem } from "@/types/short-answer";
@@ -32,12 +34,11 @@ import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ExamNavigator } from "@/components/shared/ExamNavigator";
 import { Timer } from "@/components/shared/Timer";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
-import { saveAnswer, saveAnswerBatch } from "@/lib/storage";
+import { fetchBookmarkIds, saveAnswer, saveAnswerBatch, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
-import { badgeAmber, calloutAmber, calloutAmberIcon } from "@/lib/ui/status-badge-styles";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
@@ -45,7 +46,6 @@ import { getStandardForTopic } from "@/lib/standards";
 import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
-import { NextSessionCTA } from "@/components/shared/NextSessionCTA";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 
 const PRIMARY_COLOR = "#16a34a";
@@ -144,6 +144,7 @@ export function ExamMode({
     requestedQuestionCount ?? 20
   );
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
+  const [bookmarkedQuestionIds, setBookmarkedQuestionIds] = useState<Set<string>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
@@ -272,8 +273,6 @@ export function ExamMode({
     toggleSpeak,
   } = useTextToSpeech();
   const isQuestionReading = isSpeaking && currentSection === "question";
-  const isChoicesReading = isSpeaking && currentSection === "choices";
-  const isFeedbackReading = isSpeaking && currentSection === "feedback";
 
   useEffect(() => {
     if (!requestedQuestionCount) return;
@@ -327,6 +326,23 @@ export function ExamMode({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    if (sessionQuestions.length === 0) {
+      setBookmarkedQuestionIds(new Set());
+      return;
+    }
+    void fetchBookmarkIds().then((ids) => {
+      const bookmarked = new Set(ids);
+      setBookmarkedQuestionIds(
+        new Set(
+          sessionQuestions
+            .map((question) => question.id)
+            .filter((id) => bookmarked.has(id)),
+        ),
+      );
+    });
+  }, [sessionQuestions]);
 
   const finishExamOnboarding = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -436,6 +452,25 @@ export function ExamMode({
     [assignmentId, currentIndex, phase, reviewIndex, sessionQuestions],
   );
 
+  const handleBookmarkToggle = useCallback(() => {
+    const activeQuestion = sessionQuestions[currentIndex];
+    if (!activeQuestion) return;
+    const nextBookmarked = toggleBookmark(activeQuestion.id);
+    setBookmarkedQuestionIds((prev) => {
+      const next = new Set(prev);
+      if (nextBookmarked) next.add(activeQuestion.id);
+      else next.delete(activeQuestion.id);
+      return next;
+    });
+    trackAnalyticsEvent({
+      eventType: nextBookmarked ? "bookmark_added" : "bookmark_removed",
+      mode: phase === "review" ? "review" : "exam",
+      questionId: activeQuestion.id,
+      assignmentId,
+      sessionId: sessionIdRef.current ?? undefined,
+    });
+  }, [assignmentId, currentIndex, phase, sessionQuestions]);
+
   // Fire `review_mode_entered` / `review_mode_exited` when the exam's "review"
   // phase (post-submit review of wrong answers) is entered or left. This is
   // separate from the per-item `review_item_opened` events above.
@@ -463,6 +498,22 @@ export function ExamMode({
   const isNavigatorOpen = supportsHover
     ? isNavigatorHovered || isNavigatorPinnedOpen
     : isNavigatorPinnedOpen;
+  const assignmentPrimaryButtonStyle = {
+    color: "var(--assignment-cta-text)",
+    background: "var(--assignment-cta-bg-strong)",
+    border: "1.5px solid var(--assignment-cta-border-hover)",
+    boxShadow: "var(--assignment-cta-elevated-shadow)",
+  };
+  const assignmentSecondaryButtonStyle = {
+    color: "var(--assignment-row-cta-text)",
+    background: "var(--assignment-row-cta-bg)",
+    border: "1.5px solid var(--assignment-row-cta-border)",
+    boxShadow: "var(--assignment-row-cta-shadow)",
+  };
+  const assignmentPrimaryButtonClass =
+    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
+  const assignmentSecondaryButtonClass =
+    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -884,15 +935,18 @@ export function ExamMode({
         correctCount={correctCount}
         elapsedMs={elapsedMs}
         topicName={topicName}
-        assignmentId={assignmentId}
         onReview={(index) => {
           setReviewIndex(index);
           setPhase("review");
         }}
         onRetry={() => {
-          setPhase("config");
+            resetExamDwellTracking();
+            setElapsedMs(0);
           setAnswers({});
           setCurrentIndex(0);
+            setReviewIndex(null);
+            setIsNavigatorPinnedOpen(false);
+            setPhase("exam");
         }}
       />
     );
@@ -982,6 +1036,7 @@ export function ExamMode({
     }
     const hasSubmittedAnswer = Boolean(a?.selectedOptionId);
     const reviewChoicesText = buildChoicesReadText(q);
+    const reviewQuestionAndChoicesReadText = `${q.text} ${reviewChoicesText}`.trim();
     const reviewFeedbackText = buildFeedbackReadText(q, a, {
       includeKeyKnowledge: true,
       includeMisconception: true,
@@ -998,20 +1053,21 @@ export function ExamMode({
           Back to Results
         </button>
         <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
-          <p className="text-sm text-muted-foreground mb-3">Question {reviewIndex + 1}</p>
-          {isSupported && (
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <p className="text-sm text-muted-foreground">Question {reviewIndex + 1}</p>
+            {isSupported ? (
               <ReadAloudButton
                 section="question"
-                label="Question"
-                text={q.text}
+                label="Question and choices"
+                text={reviewQuestionAndChoicesReadText}
                 isSpeaking={isSpeaking}
                 currentSection={currentSection}
                 onToggle={toggleSpeak}
                 onPlay={handleReadAloud}
+                iconOnly
               />
-            </div>
-          )}
+            ) : null}
+          </div>
           <p
             className={`text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap rounded-lg transition-colors ${
               isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
@@ -1026,7 +1082,7 @@ export function ExamMode({
           )}
           <div
             className={`rounded-lg transition-colors mt-4 ${
-              isChoicesReading ? "bg-primary/10 px-3 py-2" : ""
+              isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
             }`}
           >
             <div className="space-y-2.5">
@@ -1061,46 +1117,16 @@ export function ExamMode({
                 );
               })}
             </div>
-            {isSupported && (
-              <div className="mt-4 mb-2">
-              <ReadAloudButton
-                section="choices"
-                label="Choices"
-                text={reviewChoicesText}
-                isSpeaking={isSpeaking}
-                currentSection={currentSection}
-                onToggle={toggleSpeak}
-                onPlay={handleReadAloud}
-              />
-              </div>
-            )}
           </div>
           {hasSubmittedAnswer ? (
-            <>
-              {isSupported && reviewFeedbackText && (
-                <div
-                  className={`mt-4 mb-2 rounded-lg transition-colors ${
-                    isFeedbackReading ? "bg-primary/10 px-3 py-2" : ""
-                  }`}
-                >
-                  <ReadAloudButton
-                    section="feedback"
-                    label="Feedback"
-                    text={reviewFeedbackText}
-                    isSpeaking={isSpeaking}
-                    currentSection={currentSection}
-                    onToggle={toggleSpeak}
-                    onPlay={handleReadAloud}
-                  />
-                </div>
-              )}
-              <FeedbackPanel
-                question={q}
-                answer={a}
-                showKeyKnowledge
-                showMisconception
-              />
-            </>
+            <FeedbackPanel
+              question={q}
+              answer={a}
+              showKeyKnowledge
+              showMisconception
+              feedbackReadText={reviewFeedbackText}
+              onReadAloud={handleReadAloud}
+            />
           ) : (
             <div className="mt-5 space-y-3">
               <div className="p-4 rounded-xl border border-border-default bg-surface-muted">
@@ -1151,7 +1177,8 @@ export function ExamMode({
           </p>
           <Link
             href="/self-practice"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover"
+            className={assignmentPrimaryButtonClass}
+            style={assignmentPrimaryButtonStyle}
           >
             Back to Self Practice
           </Link>
@@ -1173,13 +1200,15 @@ export function ExamMode({
   }
 
   const unansweredLabel = Math.max(0, unansweredCount);
+  const questionAndChoicesReadText = `${question.text} ${choicesReadText}`.trim();
+  const isCurrentQuestionBookmarked = bookmarkedQuestionIds.has(question.id);
 
   return (
     <div className="flex flex-col h-full">
       <PracticeHeader
-        topicName={topicName}
+        topicName={undefined}
         mode="exam"
-        modeLabel="Mock Exam"
+        modeLabel=""
         backHref="/self-practice"
         showBackLink={false}
         inlineProgress
@@ -1195,7 +1224,8 @@ export function ExamMode({
             />
             <button
               onClick={handleSubmit}
-              className="px-5 py-2 min-h-[44px] text-sm font-semibold rounded-2xl text-white bg-primary hover:bg-primary-hover shadow-sm hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              className={assignmentPrimaryButtonClass}
+              style={assignmentPrimaryButtonStyle}
             >
               Submit
             </button>
@@ -1221,12 +1251,13 @@ export function ExamMode({
                 {isSupported && (
                   <ReadAloudButton
                     section="question"
-                    label="Question"
-                    text={question.text}
+                    label="Question and choices"
+                    text={questionAndChoicesReadText}
                     isSpeaking={isSpeaking}
                     currentSection={currentSection}
                     onToggle={toggleSpeak}
                     onPlay={handleReadAloud}
+                    iconOnly
                   />
                 )}
               </div>
@@ -1282,13 +1313,15 @@ export function ExamMode({
                 </div>
               ) : (
                 <>
-              <p
-                className={`text-[15px] font-medium text-slate-gray leading-relaxed mb-3 whitespace-pre-wrap rounded-lg transition-colors ${
+              <div
+                className={`prose prose-sm max-w-none text-slate-gray mb-3 rounded-lg transition-colors ${
                   isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
                 }`}
               >
-                {question.text}
-              </p>
+                <p className="whitespace-pre-wrap text-[15px] font-medium leading-relaxed">
+                  {question.text}
+                </p>
+              </div>
               {question.diagram && (
                 <AdaptiveDiagramViewport className="mb-4" maxHeightClassName="max-h-[300px]">
                   <DiagramRenderer diagram={question.diagram} />
@@ -1296,7 +1329,7 @@ export function ExamMode({
               )}
               <div
                 className={`rounded-lg transition-colors ${
-                  isChoicesReading ? "bg-primary/10 px-3 py-2" : ""
+                  isQuestionReading ? "bg-primary/10 px-3 py-2" : ""
                 }`}
               >
                 <div className="space-y-2 mt-1.5">
@@ -1317,19 +1350,57 @@ export function ExamMode({
                     );
                   })}
                 </div>
-                {isSupported && (
-                  <div className="mt-2">
-                  <ReadAloudButton
-                    section="choices"
-                    label="Choices"
-                    text={choicesReadText}
-                    isSpeaking={isSpeaking}
-                    currentSection={currentSection}
-                    onToggle={toggleSpeak}
-                    onPlay={handleReadAloud}
-                  />
-                  </div>
-                )}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <button
+                  onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
+                  disabled={currentIndex === 0}
+                  className={assignmentSecondaryButtonClass}
+                  style={assignmentSecondaryButtonStyle}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Previous
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleBookmarkToggle}
+                    className={assignmentSecondaryButtonClass}
+                    style={assignmentSecondaryButtonStyle}
+                  >
+                    <Bookmark
+                      className={`w-3.5 h-3.5 ${isCurrentQuestionBookmarked ? "fill-current" : ""}`}
+                    />
+                    {isCurrentQuestionBookmarked ? "Bookmarked" : "Bookmark"}
+                  </button>
+
+                  <button
+                    onClick={toggleFlag}
+                    data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
+                    className={assignmentSecondaryButtonClass}
+                    style={assignmentSecondaryButtonStyle}
+                  >
+                    <Flag
+                      className={`w-3.5 h-3.5 ${answers[currentIndex]?.flagged ? "fill-current" : ""}`}
+                    />
+                    Mark for review
+                  </button>
+                </div>
+
+                <button
+                  onClick={() =>
+                    currentIndex < totalQuestions - 1 &&
+                    setCurrentIndex((i) => i + 1)
+                  }
+                  disabled={currentIndex === totalQuestions - 1}
+                  data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
+                  className={assignmentPrimaryButtonClass}
+                  style={assignmentPrimaryButtonStyle}
+                >
+                  Next
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
                 </>
               )}
@@ -1412,47 +1483,6 @@ export function ExamMode({
             </>
           )}
         </AnimatePresence>
-      </div>
-
-      <div className="flex-shrink-0 pt-2">
-        <div className="flex items-center justify-between bg-surface-muted rounded-xl p-2.5 border border-primary/20">
-          <button
-            onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
-            disabled={currentIndex === 0}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg border border-border-default bg-surface text-slate-gray font-medium hover:bg-foreground/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            Previous
-          </button>
-
-          <button
-            onClick={toggleFlag}
-            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-[13px] font-medium transition-colors ${
-              answers[currentIndex]?.flagged
-                ? badgeAmber
-                : "text-muted-foreground hover:text-muted-foreground border border-border-subtle hover:border-border-default"
-            }`}
-          >
-            <Flag
-              className={`w-3.5 h-3.5 ${answers[currentIndex]?.flagged ? "fill-amber-500" : ""}`}
-            />
-            Mark for review
-          </button>
-
-          <button
-            onClick={() =>
-              currentIndex < totalQuestions - 1 &&
-              setCurrentIndex((i) => i + 1)
-            }
-            disabled={currentIndex === totalQuestions - 1}
-            data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-lg text-white font-medium bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
-          >
-            Next
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
       </div>
 
       {examOnboardingStep === "intro" ? (
@@ -1657,6 +1687,21 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const assignmentPrimaryButtonStyle = {
+    color: "var(--assignment-cta-text)",
+    background: "var(--assignment-cta-bg-strong)",
+    border: "1.5px solid var(--assignment-cta-border-hover)",
+    boxShadow: "var(--assignment-cta-elevated-shadow)",
+    fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+  };
+  const assignmentSecondaryButtonStyle = {
+    color: "var(--assignment-row-cta-text)",
+    background: "var(--assignment-row-cta-bg)",
+    border: "1.5px solid var(--assignment-row-cta-border)",
+    boxShadow: "var(--assignment-row-cta-shadow)",
+    fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
@@ -1666,43 +1711,52 @@ function ConfirmDialog({
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative bg-surface rounded-xl border border-primary/30 shadow-xl p-6 max-w-sm w-[90vw]"
+        className="relative w-[92vw] max-w-lg rounded-2xl p-7 sm:p-8"
+        style={{
+          background: "var(--assignment-glass-bg)",
+          border: "1px solid var(--assignment-glass-border)",
+          boxShadow: "var(--assignment-card-shadow)",
+          backdropFilter: "blur(14px) saturate(115%)",
+          WebkitBackdropFilter: "blur(14px) saturate(115%)",
+        }}
       >
         <button
           onClick={onCancel}
-          className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground hover:text-foreground"
+          className="absolute right-3 top-3 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-surface/40 hover:text-foreground"
         >
           <X className="w-4 h-4" />
         </button>
 
-        <h3 className="text-lg font-bold text-slate-gray mb-2">
+        <h3 className="mb-2 text-center text-xl font-bold text-slate-gray">
           Submit Exam?
         </h3>
 
         {unansweredCount > 0 && (
-          <div className={`flex items-start gap-2 p-3 mb-4 ${calloutAmber}`}>
-            <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${calloutAmberIcon}`} />
-            <p className="text-sm text-slate-gray">
+          <div className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <p>
               You have {unansweredCount} unanswered{" "}
               {unansweredCount === 1 ? "question" : "questions"}.
             </p>
           </div>
         )}
 
-        <p className="text-sm text-muted-foreground mb-5">
+        <p className="mb-5 text-center text-sm text-muted-foreground">
           Once submitted, you cannot change your answers. Are you sure?
         </p>
 
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-lg border border-border-default text-slate-gray font-medium hover:bg-foreground/5 transition-colors text-sm"
+            className="flex-1 rounded-full px-4 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)]"
+            style={assignmentSecondaryButtonStyle}
           >
             Go Back
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2.5 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors text-sm"
+            className="flex-1 rounded-full px-4 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)]"
+            style={assignmentPrimaryButtonStyle}
           >
             Submit
           </button>
@@ -1718,7 +1772,6 @@ function ExamResults({
   correctCount,
   elapsedMs,
   topicName,
-  assignmentId,
   onReview,
   onRetry,
 }: {
@@ -1727,12 +1780,6 @@ function ExamResults({
   correctCount: number;
   elapsedMs: number;
   topicName?: string;
-  /**
-   * Optional — when this results screen is shown after finishing an
-   * assignment, pass it so the "Next" CTA can exclude that assignment
-   * from its suggestion candidates.
-   */
-  assignmentId?: string;
   onReview: (index: number) => void;
   onRetry: () => void;
 }) {
@@ -1751,6 +1798,22 @@ function ExamResults({
     total > 0 ? Math.round((correctCount / total) * 100) : 0;
   const minutes = Math.floor(elapsedMs / 60000);
   const avgSeconds = total > 0 ? Math.round(elapsedMs / 1000 / total) : 0;
+  const assignmentPrimaryButtonStyle = {
+    color: "var(--assignment-cta-text)",
+    background: "var(--assignment-cta-bg-strong)",
+    border: "1.5px solid var(--assignment-cta-border-hover)",
+    boxShadow: "var(--assignment-cta-elevated-shadow)",
+  };
+  const assignmentSecondaryButtonStyle = {
+    color: "var(--assignment-row-cta-text)",
+    background: "var(--assignment-row-cta-bg)",
+    border: "1.5px solid var(--assignment-row-cta-border)",
+    boxShadow: "var(--assignment-row-cta-shadow)",
+  };
+  const assignmentPrimaryButtonClass =
+    "inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)]";
+  const assignmentSecondaryButtonClass =
+    "inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)]";
 
   return (
     <motion.div
@@ -1851,31 +1914,23 @@ function ExamResults({
         </div>
       </div>
 
-      {/*
-        Same action hierarchy as the Practice / Review summary:
-          1. NextSessionCTA owns the primary filled-green styling and points
-             at the most urgent unfinished assignment, or Self Practice when
-             everything is done. This is what we want students to actually
-             do next.
-          2. Try Again ('redo this exam') and Back to Home ('stop') are
-             demoted to outlined / muted styles so they don't fight the
-             forward path for attention.
-      */}
       <div className="flex flex-col items-center gap-3">
-        <NextSessionCTA excludeAssignmentId={assignmentId} />
         <div className="flex flex-wrap gap-3 justify-center">
           <button
             onClick={onRetry}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-primary/30 text-heading font-medium hover:bg-primary/5 transition-colors"
+            className={assignmentSecondaryButtonClass}
+            style={assignmentSecondaryButtonStyle}
           >
             <RotateCcw className="w-4 h-4" />
             Try Again
           </button>
           <Link
-            href="/"
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-border-default text-slate-gray font-medium hover:bg-foreground/5 transition-colors"
+            href="/self-practice"
+            className={assignmentPrimaryButtonClass}
+            style={assignmentPrimaryButtonStyle}
           >
-            Back to Home
+            <BookOpen className="w-4 h-4" />
+            Practice Other Topics
           </Link>
         </div>
       </div>

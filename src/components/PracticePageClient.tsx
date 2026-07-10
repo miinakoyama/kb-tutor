@@ -42,6 +42,7 @@ interface PracticePageClientProps {
   topicsParam?: string;
   modeParam?: string;
   questionsParam?: string;
+  questionIdsParam?: string;
   assignmentIdParam?: string;
 }
 
@@ -66,6 +67,7 @@ export function PracticePageClient({
   topicsParam,
   modeParam,
   questionsParam,
+  questionIdsParam,
   assignmentIdParam,
 }: PracticePageClientProps) {
   const normalizedModeParam =
@@ -147,9 +149,29 @@ export function PracticePageClient({
   let filteredQuestions = snapshotQuestions ?? visibleQuestions;
   let topicName: string | undefined;
   let selectedTopics: string[] = [];
+  let selectedQuestionIds: string[] = [];
   let requestedQuestionCount: number | undefined;
   const hasAssignmentSnapshot =
     Boolean(assignmentIdParam) && Array.isArray(snapshotQuestions);
+
+  if (!hasAssignmentSnapshot && questionIdsParam) {
+    const decodedQuestionIds = questionIdsParam
+      .split(",")
+      .map((id) => safeDecode(id).trim())
+      .filter(Boolean);
+
+    selectedQuestionIds = Array.from(new Set(decodedQuestionIds));
+    if (selectedQuestionIds.length > 0) {
+      const selectedQuestionIdSet = new Set(selectedQuestionIds);
+      filteredQuestions = filteredQuestions.filter((question) =>
+        selectedQuestionIdSet.has(question.id),
+      );
+      topicName =
+        selectedQuestionIds.length === 1
+          ? "1 review question"
+          : `${selectedQuestionIds.length} review questions`;
+    }
+  }
 
   if (!hasAssignmentSnapshot && topicsParam) {
     const decodedTopics = topicsParam
@@ -195,7 +217,7 @@ export function PracticePageClient({
       topicName =
         selectedTopics.length === 1
           ? (getStandardById(selectedTopics[0])?.id ?? selectedTopics[0])
-          : `${selectedTopics.length} standards selected`;
+          : undefined;
     }
   }
 
@@ -211,6 +233,10 @@ export function PracticePageClient({
     !VALID_MODES.includes(normalizedModeParam as PracticeModeType)
   ) {
     return <InvalidParamsMessage message={`Invalid mode: "${modeParam}". Please select a valid mode.`} />;
+  }
+
+  if (normalizedModeParam === "practice") {
+    topicName = undefined;
   }
 
   if (
@@ -252,6 +278,7 @@ export function PracticePageClient({
           topicName={topicName}
           questionCount={requestedQuestionCount}
           assignmentId={assignmentIdParam}
+          preferReviewTopicsCta={!hasAssignmentSnapshot && Boolean(questionIdsParam)}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
           assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}

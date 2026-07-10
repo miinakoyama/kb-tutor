@@ -41,12 +41,18 @@ vi.mock("@/components/shared/PracticeHeader", () => ({
 vi.mock("@/components/shared/QuestionDisplay", () => ({
   QuestionDisplay: ({
     onOptionClick,
+    feedbackSlot,
+    belowOptionsSlot,
   }: {
     onOptionClick?: (optionId: string) => void;
+    feedbackSlot?: ReactNode;
+    belowOptionsSlot?: ReactNode;
   }) => (
     <div>
       <div>Question display</div>
       <button onClick={() => onOptionClick?.("B")}>Select B</button>
+      {feedbackSlot}
+      {belowOptionsSlot}
     </div>
   ),
 }));

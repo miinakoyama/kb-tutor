@@ -13,6 +13,7 @@ interface ReadAloudButtonProps {
   /** Fires only when a play starts (not when stopping). Intended for analytics. */
   onPlay?: (section: ReadSection) => void;
   disabled?: boolean;
+  iconOnly?: boolean;
 }
 
 function buildIdleAriaLabel(label: string): string {
@@ -28,6 +29,7 @@ export function ReadAloudButton({
   onToggle,
   onPlay,
   disabled = false,
+  iconOnly = false,
 }: ReadAloudButtonProps) {
   const isCurrent = isSpeaking && currentSection === section;
   const idleAriaLabel = buildIdleAriaLabel(label);
@@ -42,7 +44,7 @@ export function ReadAloudButton({
       type="button"
       onClick={handleClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border text-forest hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+      className={`inline-flex items-center ${iconOnly ? "justify-center h-8 w-8 rounded-full p-0" : "gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg"} border text-forest hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
         isCurrent
           ? "border-primary/60 bg-primary/15"
           : "border-primary/30"
@@ -55,7 +57,7 @@ export function ReadAloudButton({
       ) : (
         <Volume2 className="w-3.5 h-3.5" />
       )}
-      {isCurrent ? "Stop" : label}
+      {!iconOnly ? (isCurrent ? "Stop" : label) : null}
     </button>
   );
 }

@@ -272,11 +272,6 @@ function QuestionDisplay({
             </motion.div>
           )}
 
-          {!isAnswered && (
-            <p className="mt-5 text-center text-sm text-muted-foreground italic">
-              Select an answer to see feedback
-            </p>
-          )}
         </motion.div>
       </AnimatePresence>
     </div>
