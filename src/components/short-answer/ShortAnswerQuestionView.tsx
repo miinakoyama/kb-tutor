@@ -101,6 +101,7 @@ interface ShortAnswerQuestionViewProps {
   mode: "practice" | "review";
   continueLabel: string;
   onContinue: () => void;
+  showCompletionContinue?: boolean;
   /** Fires once when every part has resolved (for progress bookkeeping). */
   onAllPartsResolved?: (summary: { correctParts: number; totalParts: number }) => void;
 }
@@ -115,6 +116,7 @@ export function ShortAnswerQuestionView({
   mode,
   continueLabel,
   onContinue,
+  showCompletionContinue = true,
   onAllPartsResolved,
 }: ShortAnswerQuestionViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -190,6 +192,11 @@ export function ShortAnswerQuestionView({
       ? query.eq("assignment_id", assignmentId)
       : query.is("assignment_id", null);
     query = applyAssignmentRunFilter(query, assignmentId, assignmentRunAfter);
+    if (!assignmentId) {
+      query = sessionId
+        ? query.eq("session_id", sessionId)
+        : query.is("session_id", null);
+    }
 
     const { data, error } = await query;
     if (error || !data?.length) {
@@ -207,7 +214,7 @@ export function ShortAnswerQuestionView({
     }
     setHydrationReady(true);
     return true;
-  }, [assignmentId, assignmentRunAfter, item.parts, questionId]);
+  }, [assignmentId, assignmentRunAfter, item.parts, questionId, sessionId]);
 
   useEffect(() => {
     setHydrationReady(false);
@@ -215,7 +222,14 @@ export function ShortAnswerQuestionView({
     allResolvedFiredRef.current = false;
     setRuntimes(item.parts.map((_, i) => initialRuntime(i)));
     void hydrateFromServer();
-  }, [hydrateFromServer, item.parts, questionId, assignmentId, assignmentRunAfter]);
+  }, [
+    hydrateFromServer,
+    item.parts,
+    questionId,
+    assignmentId,
+    assignmentRunAfter,
+    sessionId,
+  ]);
 
   const tourSteps: TourStep[] = [
     {
@@ -531,6 +545,9 @@ export function ShortAnswerQuestionView({
                 maxAttempts={MAX_ATTEMPTS}
                 latestFeedback={runtime.latestFeedback}
                 triesLeft={runtime.triesLeft}
+                initialValue={
+                  runtime.attempts[runtime.attempts.length - 1]?.responseText ?? ""
+                }
                 unlock={
                   runtime.countdownActive
                     ? { label: unlockLabel, onUnlock: () => unlockNext(i) }
@@ -562,6 +579,7 @@ export function ShortAnswerQuestionView({
                 keyTerms={item.keyTerms}
                 continueLabel={continueLabel}
                 onContinue={onContinue}
+                showContinueButton={showCompletionContinue}
               />
             </div>
           )}

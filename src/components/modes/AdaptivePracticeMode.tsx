@@ -242,13 +242,6 @@ export function AdaptivePracticeMode({
     setSelectedOptionId(null);
   }, [currentIndex]);
 
-  // True while the current short-answer question was resolved during this
-  // visit (keeps the live view mounted so the completion section stays up).
-  const [saqResolvedThisVisit, setSaqResolvedThisVisit] = useState(false);
-  useEffect(() => {
-    setSaqResolvedThisVisit(false);
-  }, [currentIndex]);
-
   useEffect(() => {
     // When the student reaches the summary screen after finishing every
     // question in an assignment session, tell the server so the assignment is
@@ -1138,46 +1131,39 @@ export function AdaptivePracticeMode({
 
       <div className="flex flex-col gap-3 flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
-          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 pb-2">
+          <div
+            ref={scrollContainerRef}
+            className={`flex-1 overflow-y-auto min-h-0 ${
+              isShortAnswerQuestion && question.shortAnswer ? "pb-24" : "pb-2"
+            }`}
+          >
             {isShortAnswerQuestion && question.shortAnswer ? (
-              finalAnswer && !saqResolvedThisVisit ? (
-                <div className="rounded-2xl border border-[color:var(--assignment-glass-border)] bg-[color:var(--assignment-glass-bg)] p-6 text-center">
-                  <CheckCircle2 className="mx-auto h-8 w-8 text-primary" />
-                  <p className="mt-3 text-sm font-semibold text-slate-gray">
-                    You already completed this question.
-                  </p>
-                  <p className="mt-1 text-[13px] text-muted-foreground">
-                    Use the Next button below to continue.
-                  </p>
-                </div>
-              ) : (
-                <ShortAnswerQuestionView
-                  key={question.id}
-                  item={question.shortAnswer}
-                  questionId={question.id}
-                  questionSetId={question.questionSetId ?? null}
-                  assignmentId={assignmentId ?? null}
-                  sessionId={assignmentId ? null : sessionId}
-                  assignmentRunAfter={assignmentRunAfter ?? null}
-                  mode={mode}
-                  continueLabel={
-                    isAssignmentRun && currentIndex === totalQuestions - 1
-                      ? "View Results"
-                      : `Continue to Q${currentIndex + 2}`
-                  }
-                  onContinue={handleNext}
-                  onAllPartsResolved={({ correctParts, totalParts }) => {
-                    setSaqResolvedThisVisit(true);
-                    setFinalAnswers((prev) => ({
-                      ...prev,
-                      [currentIndex]: {
-                        selectedOptionId: "short-answer",
-                        isCorrect: correctParts === totalParts,
-                      },
-                    }));
-                  }}
-                />
-              )
+              <ShortAnswerQuestionView
+                key={question.id}
+                item={question.shortAnswer}
+                questionId={question.id}
+                questionSetId={question.questionSetId ?? null}
+                assignmentId={assignmentId ?? null}
+                sessionId={assignmentId ? null : sessionId}
+                assignmentRunAfter={assignmentRunAfter ?? null}
+                mode={mode}
+                continueLabel={
+                  isAssignmentRun && currentIndex === totalQuestions - 1
+                    ? "View Results"
+                    : `Continue to Q${currentIndex + 2}`
+                }
+                onContinue={handleNext}
+                showCompletionContinue={false}
+                onAllPartsResolved={({ correctParts, totalParts }) => {
+                  setFinalAnswers((prev) => ({
+                    ...prev,
+                    [currentIndex]: {
+                      selectedOptionId: "short-answer",
+                      isCorrect: correctParts === totalParts,
+                    },
+                  }));
+                }}
+              />
             ) : (
             <QuestionDisplay
               question={question}
@@ -1342,6 +1328,45 @@ export function AdaptivePracticeMode({
             />
             )}
           </div>
+          {isShortAnswerQuestion && question.shortAnswer ? (
+            <div className="sticky bottom-0 z-10 -mx-1 border-t border-[color:var(--assignment-glass-border)] bg-[color:var(--background)]/95 px-1 py-3 backdrop-blur-md">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                  disabled={currentIndex === 0}
+                  className={assignmentSecondaryButtonClass}
+                  style={assignmentSecondaryButtonStyle}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBookmarkToggle}
+                  className={assignmentSecondaryButtonClass}
+                  style={assignmentSecondaryButtonStyle}
+                >
+                  <Bookmark
+                    className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(question.id) ? "fill-current" : ""}`}
+                  />
+                  {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!isCompleted}
+                  className={assignmentPrimaryButtonClass}
+                  style={assignmentPrimaryButtonStyle}
+                >
+                  {isAssignmentRun && currentIndex === totalQuestions - 1
+                    ? "View Results"
+                    : "Next"}
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 

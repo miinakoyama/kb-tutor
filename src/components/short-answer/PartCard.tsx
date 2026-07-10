@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 import type { GradedFeedback, ShortAnswerPart } from "@/types/short-answer";
 import { HIGHLIGHT_ZONE_ATTR } from "@/lib/short-answer/highlight";
@@ -21,6 +21,7 @@ interface PartCardProps {
   /** Set when the part just resolved and the next part should unlock after 3s. */
   unlock?: { label: string; onUnlock: () => void };
   reported: boolean;
+  initialValue?: string;
   onCheck: (response: string) => void;
   onOpenAttempt: (attempt: AttemptHistoryEntry) => void;
   onReport: () => void;
@@ -43,6 +44,7 @@ export function PartCard({
   triesLeft,
   unlock,
   reported,
+  initialValue = "",
   onCheck,
   onOpenAttempt,
   onReport,
@@ -54,6 +56,10 @@ export function PartCard({
   const resolved = status === "resolved";
   const canType = status === "active";
   const isFinalAttempt = attempts.length >= maxAttempts;
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue, part.label]);
 
   return (
     <section

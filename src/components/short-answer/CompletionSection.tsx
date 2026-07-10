@@ -13,6 +13,7 @@ interface CompletionSectionProps {
   /** My Notes is hidden in exam mode. */
   showNotes?: boolean;
   initialNote?: string;
+  showContinueButton?: boolean;
 }
 
 export function CompletionSection({
@@ -22,6 +23,7 @@ export function CompletionSection({
   onContinue,
   showNotes = true,
   initialNote = "",
+  showContinueButton = true,
 }: CompletionSectionProps) {
   const [note, setNote] = useState(initialNote);
   const [savedVisible, setSavedVisible] = useState(false);
@@ -139,13 +141,15 @@ export function CompletionSection({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onContinue}
-        className="w-full rounded-full bg-[color:var(--assignment-cta-bg-strong)] px-4 py-3 text-sm font-bold text-[color:var(--assignment-cta-text)] transition hover:bg-[color:var(--assignment-cta-bg-hover)]"
-      >
-        {continueLabel}
-      </button>
+      {showContinueButton && (
+        <button
+          type="button"
+          onClick={onContinue}
+          className="w-full rounded-full bg-[color:var(--assignment-cta-bg-strong)] px-4 py-3 text-sm font-bold text-[color:var(--assignment-cta-text)] transition hover:bg-[color:var(--assignment-cta-bg-hover)]"
+        >
+          {continueLabel}
+        </button>
+      )}
     </section>
   );
 }

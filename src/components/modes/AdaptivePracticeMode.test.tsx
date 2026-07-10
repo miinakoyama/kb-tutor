@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdaptivePracticeMode } from "./AdaptivePracticeMode";
 import type { Question } from "@/types/question";
+import sampleShortAnswerItem from "@/data/short-answer/sample-item.json";
+import type { ShortAnswerItem } from "@/types/short-answer";
 
 const {
   markStageCompletedMock,
@@ -57,6 +59,28 @@ vi.mock("@/components/shared/QuestionDisplay", () => ({
   ),
 }));
 
+vi.mock("@/components/short-answer/ShortAnswerQuestionView", () => ({
+  ShortAnswerQuestionView: ({
+    item,
+    continueLabel,
+    onContinue,
+    showCompletionContinue = true,
+  }: {
+    item: ShortAnswerItem;
+    continueLabel: string;
+    onContinue: () => void;
+    showCompletionContinue?: boolean;
+  }) => (
+    <div>
+      <p>{item.stem}</p>
+      <p>{item.parts[0]?.prompt}</p>
+      {showCompletionContinue && (
+        <button onClick={onContinue}>{continueLabel}</button>
+      )}
+    </div>
+  ),
+}));
+
 vi.mock("@/components/shared/FeedbackPanel", () => ({
   FeedbackPanel: () => null,
 }));
@@ -90,6 +114,8 @@ const question: Question = {
   correctOptionId: "B",
   source: "manual",
 };
+
+const shortAnswerItem = sampleShortAnswerItem as ShortAnswerItem;
 
 describe("AdaptivePracticeMode session completion", () => {
   beforeEach(() => {
@@ -165,5 +191,38 @@ describe("AdaptivePracticeMode session completion", () => {
         ),
       ).toHaveLength(2);
     });
+  });
+
+  it("renders a continue control when resuming a completed short-answer assignment question", async () => {
+    const shortAnswerQuestion: Question = {
+      ...question,
+      id: "short-answer-1",
+      text: shortAnswerItem.stem,
+      questionType: "open-ended",
+      options: [],
+      correctOptionId: "",
+      shortAnswer: shortAnswerItem,
+    };
+
+    render(
+      <AdaptivePracticeMode
+        questions={[shortAnswerQuestion]}
+        questionCount={1}
+        assignmentId="assignment-1"
+        mode="practice"
+        answered={{
+          "short-answer-1": {
+            selectedOptionId: "short-answer",
+            isCorrect: true,
+            answeredAt: "2026-07-10T10:00:00.000Z",
+          },
+        }}
+      />,
+    );
+
+    await screen.findByText(shortAnswerItem.stem);
+    fireEvent.click(screen.getByRole("button", { name: "View Results" }));
+
+    await screen.findByText("Session Complete");
   });
 });
