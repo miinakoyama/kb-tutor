@@ -16,7 +16,7 @@ const part: ShortAnswerPart = {
   scoringGuidance: "Full credit for DNA.",
 };
 
-function renderPartCard(initialValue = "") {
+function renderPartCard(initialValue = "", checkDisabled = false) {
   return render(
     <PartCard
       part={part}
@@ -28,6 +28,7 @@ function renderPartCard(initialValue = "") {
       triesLeft={2}
       reported={false}
       initialValue={initialValue}
+      checkDisabled={checkDisabled}
       onCheck={vi.fn()}
       onOpenAttempt={vi.fn()}
       onReport={vi.fn()}
@@ -70,5 +71,12 @@ describe("PartCard", () => {
     const answer = screen.getByLabelText("Answer for Part A");
     fireEvent.change(answer, { target: { value: "DNA molecule" } });
     expect((answer as HTMLTextAreaElement).value).toBe("DNA molecule");
+  });
+
+  it("disables checking while the practice session is being prepared", () => {
+    renderPartCard("DNA", true);
+    const button = screen.getByRole("button", { name: "Preparing…" });
+    expect(button).toBeInstanceOf(HTMLButtonElement);
+    expect((button as HTMLButtonElement).disabled).toBe(true);
   });
 });

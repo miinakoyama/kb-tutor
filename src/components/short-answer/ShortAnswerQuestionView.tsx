@@ -315,6 +315,11 @@ export function ShortAnswerQuestionView({
 
   const handleCheck = useCallback(
     async (index: number, response: string) => {
+      if (!assignmentId && !sessionId) {
+        setErrorToast("Preparing your practice session. Please try again in a moment.");
+        return;
+      }
+
       const part = item.parts[index];
       const runtime = runtimes[index];
       const attemptNumber = runtime.attempts.length + 1;
@@ -447,6 +452,7 @@ export function ShortAnswerQuestionView({
     : activeIndex >= 0
       ? `Answer Part ${item.parts[activeIndex].label} to continue`
       : "All parts answered";
+  const waitingForPracticeSession = !assignmentId && !sessionId;
 
   return (
     <div
@@ -548,6 +554,7 @@ export function ShortAnswerQuestionView({
                 initialValue={
                   runtime.attempts[runtime.attempts.length - 1]?.responseText ?? ""
                 }
+                checkDisabled={waitingForPracticeSession}
                 unlock={
                   runtime.countdownActive
                     ? { label: unlockLabel, onUnlock: () => unlockNext(i) }

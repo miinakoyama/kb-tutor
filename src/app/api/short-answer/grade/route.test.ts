@@ -427,4 +427,34 @@ describe("POST /api/short-answer/grade", () => {
       }),
     });
   });
+
+  it("scopes non-assignment attempt 2 context to the current session", async () => {
+    gradePart.mockResolvedValue({
+      score: 0,
+      maxScore: 1,
+      correct: false,
+      feedback: { verdict: "incorrect", segments: [] },
+    });
+
+    const { POST } = await load();
+    const sessionId = "22222222-2222-4222-8222-222222222222";
+    const res = await POST(
+      makeRequest({
+        ...validBody,
+        sessionId,
+        attemptNumber: 2,
+        clientAttemptId: "33333333-3333-4333-8333-333333333333",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const sessionFilters = serverQueryCalls.filter(
+      (call) =>
+        call.table === "short_answer_attempts" &&
+        call.method === "eq" &&
+        call.column === "session_id" &&
+        call.value === sessionId,
+    );
+    expect(sessionFilters.length).toBeGreaterThanOrEqual(2);
+  });
 });

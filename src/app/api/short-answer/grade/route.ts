@@ -358,8 +358,13 @@ export async function POST(request: Request) {
         body.assignmentId,
         assignmentRunAfter,
       );
-      if (!body.assignmentId && body.practiceRunAfter) {
-        attempt1Query = attempt1Query.gt("answered_at", body.practiceRunAfter);
+      if (!body.assignmentId) {
+        attempt1Query = body.sessionId
+          ? attempt1Query.eq("session_id", body.sessionId)
+          : attempt1Query.is("session_id", null);
+        if (body.practiceRunAfter) {
+          attempt1Query = attempt1Query.gt("answered_at", body.practiceRunAfter);
+        }
       }
       const { data: attempt1Row } = await attempt1Query.maybeSingle();
       if (attempt1Row) {

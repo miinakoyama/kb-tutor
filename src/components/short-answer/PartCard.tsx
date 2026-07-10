@@ -22,6 +22,7 @@ interface PartCardProps {
   unlock?: { label: string; onUnlock: () => void };
   reported: boolean;
   initialValue?: string;
+  checkDisabled?: boolean;
   onCheck: (response: string) => void;
   onOpenAttempt: (attempt: AttemptHistoryEntry) => void;
   onReport: () => void;
@@ -45,6 +46,7 @@ export function PartCard({
   unlock,
   reported,
   initialValue = "",
+  checkDisabled = false,
   onCheck,
   onOpenAttempt,
   onReport,
@@ -169,10 +171,15 @@ export function PartCard({
               <button
                 type="button"
                 onClick={() => onCheck(value)}
-                disabled={value.trim().length === 0 || submitting || !canType}
+                disabled={
+                  value.trim().length === 0 ||
+                  submitting ||
+                  !canType ||
+                  checkDisabled
+                }
                 className="rounded-full bg-[color:var(--assignment-cta-bg-strong)] px-5 py-1.5 text-sm font-semibold text-[color:var(--assignment-cta-text)] transition hover:bg-[color:var(--assignment-cta-bg-hover)] disabled:opacity-50"
               >
-                {submitting ? "Checking…" : "Check"}
+                {submitting ? "Checking…" : checkDisabled ? "Preparing…" : "Check"}
               </button>
             )}
           </div>
