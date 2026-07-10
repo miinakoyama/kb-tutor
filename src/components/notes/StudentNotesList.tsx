@@ -55,11 +55,55 @@ function formatDate(iso: string): string {
   }
 }
 
+const NOTE_PROMPTS = [
+  "What do I want to remember or come back to?",
+  "How does this connect or conflict with something I already know?",
+  "What's confusing me here?",
+];
+
+function emptyAnswers(): string[] {
+  return NOTE_PROMPTS.map(() => "");
+}
+
+function serializeAnswers(answers: string[]): string {
+  return NOTE_PROMPTS.map((prompt, index) => {
+    const answer = answers[index]?.trim() ?? "";
+    return answer ? `${prompt}\n${answer}` : "";
+  })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function parseAnswers(text: string): string[] {
+  const answers = emptyAnswers();
+  const trimmed = text.trim();
+  if (!trimmed) return answers;
+
+  let matched = false;
+  NOTE_PROMPTS.forEach((prompt, index) => {
+    const start = trimmed.indexOf(prompt);
+    if (start === -1) return;
+    const contentStart = start + prompt.length;
+    const nextStarts = NOTE_PROMPTS.map((otherPrompt) =>
+      trimmed.indexOf(otherPrompt, contentStart),
+    ).filter((pos) => pos !== -1);
+    const end = nextStarts.length > 0 ? Math.min(...nextStarts) : trimmed.length;
+    answers[index] = trimmed.slice(contentStart, end).trim();
+    matched = true;
+  });
+
+  if (!matched) {
+    answers[0] = trimmed;
+  }
+  return answers;
+}
+
 function StudentNoteCard({ note }: { note: StudentNoteEntry }) {
   const [expanded, setExpanded] = useState(false);
-  const [text, setText] = useState(note.noteText);
+  const [answers, setAnswers] = useState(() => parseAnswers(note.noteText));
   const [savedVisible, setSavedVisible] = useState(false);
   const debounceRef = useRef<number | null>(null);
+  const previewAnswer = answers.find((answer) => answer.trim().length > 0) ?? "";
 
   const persist = useCallback(
     async (value: string) => {
@@ -94,9 +138,12 @@ function StudentNoteCard({ note }: { note: StudentNoteEntry }) {
   );
 
   const scheduleSave = useCallback(
-    (value: string) => {
+    (nextAnswers: string[]) => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
-      debounceRef.current = window.setTimeout(() => void persist(value), 400);
+      debounceRef.current = window.setTimeout(
+        () => void persist(serializeAnswers(nextAnswers)),
+        400,
+      );
     },
     [persist],
   );
@@ -140,9 +187,11 @@ function StudentNoteCard({ note }: { note: StudentNoteEntry }) {
               Question no longer available
             </p>
           )}
-          <p className="mt-2 line-clamp-2 text-[14px] text-[color:var(--foreground)]">
-            {text}
-          </p>
+          {!expanded && previewAnswer ? (
+            <p className="mt-2 line-clamp-2 text-[14px] text-[color:var(--foreground)]">
+              {previewAnswer}
+            </p>
+          ) : null}
         </div>
         <ChevronDown
           className={`mt-1 h-4 w-4 flex-shrink-0 text-[color:var(--foreground)]/40 transition-transform ${
@@ -165,17 +214,36 @@ function StudentNoteCard({ note }: { note: StudentNoteEntry }) {
               Saved
             </span>
           </div>
-          <textarea
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              scheduleSave(e.target.value);
-            }}
-            onBlur={() => void persist(text)}
-            rows={6}
-            aria-label="Edit note"
-            className="sa-notebook mt-2 w-full resize-none rounded-xl bg-transparent px-3 py-2 text-[14px] leading-[2em] text-[color:var(--foreground)] focus:outline-none"
-          />
+          <div className="mt-3 space-y-4">
+            {NOTE_PROMPTS.map((prompt, index) => (
+              <div
+                key={prompt}
+                className="rounded-xl border border-[color:var(--assignment-panel-border)] bg-black/[0.02] p-3"
+              >
+                <label
+                  htmlFor={`review-note-${note.questionId}-${index}`}
+                  className="text-[13px] font-semibold text-[color:var(--foreground)]"
+                >
+                  {prompt}
+                </label>
+                <textarea
+                  id={`review-note-${note.questionId}-${index}`}
+                  value={answers[index] ?? ""}
+                  onChange={(e) => {
+                    const next = [...answers];
+                    next[index] = e.target.value;
+                    setAnswers(next);
+                    scheduleSave(next);
+                  }}
+                  onBlur={() => void persist(serializeAnswers(answers))}
+                  rows={3}
+                  aria-label={`Edit note: ${prompt}`}
+                  placeholder="Write a note..."
+                  className="sa-notebook mt-2 w-full resize-none rounded-xl bg-transparent px-3 py-2 text-[14px] leading-[2em] text-[color:var(--foreground)] focus:outline-none"
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </article>
@@ -214,8 +282,8 @@ export function StudentNotesList({
           No notes yet
         </p>
         <p className="mt-1 text-[13px] text-[color:var(--foreground)]/55">
-          After you finish a written-answer question, you can jot down what you
-          learned. Your notes will show up here.
+          Use the Notes tab while practicing to capture questions, connections,
+          and ideas to revisit.
         </p>
       </div>
     );
