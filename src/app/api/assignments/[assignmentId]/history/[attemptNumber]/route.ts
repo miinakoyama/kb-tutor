@@ -6,8 +6,6 @@ import {
   buildHistoryAnswerForQuestion,
   buildLatestMcqAttemptsByQuestion,
   buildShortAnswerAttemptsByQuestion,
-  isHistoryAnswerAnswered,
-  isHistoryAnswerCorrect,
   orderedQuestionIdsFromAttempts,
   summarizeHistoryItems,
   type AssignmentHistoryItem,

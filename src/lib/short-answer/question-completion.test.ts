@@ -20,6 +20,7 @@ describe("evaluateShortAnswerQuestionCompletion", () => {
     const result = evaluateShortAnswerQuestionCompletion(item.parts, [
       {
         id: "a1",
+        question_id: saqQuestion.id,
         part_label: "A",
         attempt_number: 1,
         response_text: "answer",
@@ -36,6 +37,7 @@ describe("evaluateShortAnswerQuestionCompletion", () => {
     const result = evaluateShortAnswerQuestionCompletion(item.parts, [
       {
         id: "a1",
+        question_id: saqQuestion.id,
         part_label: "A",
         attempt_number: 1,
         response_text: "answer a",
@@ -45,6 +47,7 @@ describe("evaluateShortAnswerQuestionCompletion", () => {
       },
       {
         id: "b1",
+        question_id: saqQuestion.id,
         part_label: "B",
         attempt_number: 1,
         response_text: "answer b",
@@ -54,6 +57,7 @@ describe("evaluateShortAnswerQuestionCompletion", () => {
       },
       {
         id: "b2",
+        question_id: saqQuestion.id,
         part_label: "B",
         attempt_number: 2,
         response_text: "answer b retry",
@@ -63,6 +67,7 @@ describe("evaluateShortAnswerQuestionCompletion", () => {
       },
       {
         id: "c1",
+        question_id: saqQuestion.id,
         part_label: "C",
         attempt_number: 1,
         response_text: "answer c",

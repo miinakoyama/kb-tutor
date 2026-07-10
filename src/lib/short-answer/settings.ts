@@ -1,7 +1,8 @@
 /**
  * Resolves the effective short-answer feedback configuration for a student at
- * grading time (FR-026). Order: the student's school row → the system default
- * row → a hardcoded fallback. Multi-school students use their most recent
+ * grading time (FR-026). Order: the assignment's school row when supplied,
+ * otherwise the student's school row → the system default row → a hardcoded
+ * fallback. Multi-school students outside assignments use their most recent
  * `school_members` membership.
  *
  * Reads use the service-role client because students have no RLS access to
@@ -58,10 +59,12 @@ async function mostRecentSchoolId(
 
 export async function resolveFeedbackConfig(
   studentUserId: string,
+  options: { schoolId?: string | null } = {},
 ): Promise<GradingModelConfig> {
   const admin = createSupabaseAdminClient();
 
-  const schoolId = await mostRecentSchoolId(admin, studentUserId);
+  const schoolId =
+    options.schoolId ?? (await mostRecentSchoolId(admin, studentUserId));
   if (schoolId) {
     const { data } = await admin
       .from("feedback_settings")

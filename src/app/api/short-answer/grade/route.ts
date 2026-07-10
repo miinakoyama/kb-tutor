@@ -31,6 +31,18 @@ const PART_LABELS: PartLabel[] = ["A", "B", "C"];
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+async function resolveAssignmentSchoolId(
+  admin: SupabaseClient,
+  assignmentId: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("assignments")
+    .select("school_id")
+    .eq("id", assignmentId)
+    .maybeSingle();
+  return typeof data?.school_id === "string" ? data.school_id : null;
+}
+
 function parseBody(raw: unknown): GradeRequestBody | null {
   if (!raw || typeof raw !== "object") return null;
   const b = raw as Record<string, unknown>;
@@ -188,7 +200,17 @@ export async function POST(request: Request) {
         body.assignmentId,
         user.id,
       );
-      return { forbidden: false as const, item, admin, assignmentRunAfter };
+      const assignmentSchoolId = await resolveAssignmentSchoolId(
+        admin,
+        body.assignmentId,
+      );
+      return {
+        forbidden: false as const,
+        item,
+        admin,
+        assignmentRunAfter,
+        assignmentSchoolId,
+      };
     }
 
     const item = await loadShortAnswerPart(supabase, {
@@ -201,6 +223,7 @@ export async function POST(request: Request) {
       item,
       admin: null,
       assignmentRunAfter: null as string | null,
+      assignmentSchoolId: null as string | null,
     };
   })();
 
@@ -215,6 +238,7 @@ export async function POST(request: Request) {
   }
   const { item, part } = loaded.item;
   const assignmentRunAfter = loaded.assignmentRunAfter;
+  const assignmentSchoolId = loaded.assignmentSchoolId;
 
   if (body.studentResponse.length > part.maxLength) {
     return NextResponse.json(
@@ -269,7 +293,9 @@ export async function POST(request: Request) {
   let diagnosedGap: string | null = null;
 
   if (trimmed.length > 0) {
-    const config = await resolveFeedbackConfig(user.id);
+    const config = await resolveFeedbackConfig(user.id, {
+      schoolId: assignmentSchoolId,
+    });
 
     let attempt1Feedback = "";
     let attempt1Gap = "";
@@ -336,7 +362,8 @@ export async function POST(request: Request) {
 
   const resolved = correct || body.attemptNumber >= maxAttempts;
 
-  const { data: inserted, error: insertError } = await supabase
+  const admin = createSupabaseAdminClient();
+  const { data: inserted, error: insertError } = await admin
     .from("short_answer_attempts")
     .insert({
       user_id: user.id,
@@ -374,7 +401,7 @@ export async function POST(request: Request) {
   }
 
   if (resolved) {
-    await maybeRecordQuestionSummary(supabase, {
+    await maybeRecordQuestionSummary(admin, {
       userId: user.id,
       questionId: body.questionId,
       assignmentId: body.assignmentId,

@@ -1,6 +1,6 @@
 -- Short-answer (constructed-response) part attempts.
 -- One row per graded submission of one part. Written server-side by the
--- grade route with the student's session client; feedback/method metadata
+-- grade route with the service-role client; feedback/method metadata
 -- captured per attempt for method comparison (spec FR-022 / SC-005).
 
 CREATE TABLE IF NOT EXISTS "public"."short_answer_attempts" (
@@ -60,17 +60,13 @@ CREATE INDEX IF NOT EXISTS "short_answer_attempts_answered_at_idx"
 CREATE INDEX IF NOT EXISTS "short_answer_attempts_method_model_idx"
   ON "public"."short_answer_attempts" (method, model_id);
 
-GRANT SELECT, INSERT ON TABLE "public"."short_answer_attempts" TO authenticated;
+GRANT SELECT ON TABLE "public"."short_answer_attempts" TO authenticated;
 GRANT ALL ON TABLE "public"."short_answer_attempts" TO service_role;
 
 ALTER TABLE "public"."short_answer_attempts" ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "short_answer_attempts_insert_own"
   ON "public"."short_answer_attempts";
-CREATE POLICY "short_answer_attempts_insert_own"
-  ON "public"."short_answer_attempts"
-  FOR INSERT TO authenticated
-  WITH CHECK (user_id = auth.uid());
 
 DROP POLICY IF EXISTS "short_answer_attempts_select_scoped"
   ON "public"."short_answer_attempts";

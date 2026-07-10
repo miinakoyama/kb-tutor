@@ -6,6 +6,7 @@ const item = sampleItem as ShortAnswerItem;
 
 let currentUser: { id: string } | null = { id: "student-1" };
 const tableState: Record<string, { select: unknown }> = {};
+const adminTableState: Record<string, { select: unknown }> = {};
 let insertResult: { data: unknown; error: unknown } = {
   data: { id: "attempt-1" },
   error: null,
@@ -17,7 +18,25 @@ const gradePart = vi.fn();
 const canStudentAccessAssignment = vi.fn();
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createSupabaseAdminClient: () => ({ from: vi.fn() }),
+  createSupabaseAdminClient: () => ({
+    from: (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder;
+      builder.select = chain;
+      builder.eq = chain;
+      builder.is = chain;
+      builder.gt = chain;
+      builder.maybeSingle = async () => ({
+        data: adminTableState[table]?.select ?? null,
+      });
+      builder.insert = () => ({
+        select: () => ({
+          single: async () => insertResult,
+        }),
+      });
+      return builder;
+    },
+  }),
 }));
 vi.mock("@/lib/assignments/access", () => ({
   canStudentAccessAssignment: (...args: unknown[]) =>
@@ -92,6 +111,8 @@ describe("POST /api/short-answer/grade", () => {
     vi.resetModules();
     currentUser = { id: "student-1" };
     for (const key of Object.keys(tableState)) delete tableState[key];
+    for (const key of Object.keys(adminTableState)) delete adminTableState[key];
+    adminTableState["assignments"] = { select: { school_id: "school-1" } };
     insertResult = { data: { id: "attempt-1" }, error: null };
     loadPart.mockReset();
     resolveConfig.mockReset();
@@ -143,6 +164,7 @@ describe("POST /api/short-answer/grade", () => {
     expect(json.correct).toBe(true);
     expect(json.resolved).toBe(true);
     expect(json.feedback.modelAnswer).toBeUndefined();
+    expect(resolveConfig).toHaveBeenCalledWith("student-1", { schoolId: null });
   });
 
   it("records an empty submission without calling the grader", async () => {
@@ -221,5 +243,8 @@ describe("POST /api/short-answer/grade", () => {
         questionId: validBody.questionId,
       }),
     );
+    expect(resolveConfig).toHaveBeenCalledWith("student-1", {
+      schoolId: "school-1",
+    });
   });
 });
