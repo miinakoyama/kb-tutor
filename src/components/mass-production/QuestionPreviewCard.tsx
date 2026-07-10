@@ -153,6 +153,22 @@ export function QuestionPreviewCard({
 
       {isExpanded && (
         <div className="px-4 pb-4 pt-2 border-t border-border-subtle">
+          {question.kcCode && (
+            <div className="mb-4 rounded-md border border-border-default bg-surface-muted/60 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Knowledge Component
+              </p>
+              <p className="mt-1 text-sm font-medium text-slate-gray">
+                {question.kcCode}
+              </p>
+              {question.kcStatement && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {question.kcStatement}
+                </p>
+              )}
+            </div>
+          )}
+
           {question.diagram && (
             <div className="mb-4 p-4 bg-slate-gray/5 rounded-lg">
               <DiagramRenderer diagram={question.diagram} />
