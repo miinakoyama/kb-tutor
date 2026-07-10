@@ -142,6 +142,7 @@ export function NextStepCard({
           {/* Progress bar + percentage */}
           <div className="flex items-center gap-3">
             <div className="relative" style={{ width: "85%", paddingTop: 10 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/illustrations/Progress 1.png"
                 alt=""

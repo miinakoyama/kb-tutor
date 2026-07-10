@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { AnswerRecord, ConfidenceLevel, GlossaryTerm, Question } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
+import { ShortAnswerQuestionView } from "@/components/short-answer/ShortAnswerQuestionView";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
@@ -26,6 +27,7 @@ import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
 import { PracticeHeader } from "@/components/shared/PracticeHeader";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
+import { QuestionNoteDrawer } from "@/components/notes/QuestionNoteDrawer";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
@@ -79,6 +81,8 @@ interface AdaptivePracticeModeProps {
     string,
     { selectedOptionId: string | null; isCorrect: boolean; answeredAt: string }
   >;
+  /** Assignment retry boundary (= last_completed_at for the current run). */
+  assignmentRunAfter?: string | null;
   /** Fires when the completion API reports every school assignment is done. */
   onAllSchoolAssignmentsCompleted?: () => void;
 }
@@ -98,6 +102,7 @@ export function AdaptivePracticeMode({
   backHref = "/self-practice",
   showBackLink = false,
   answered,
+  assignmentRunAfter,
   onAllSchoolAssignmentsCompleted,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
@@ -270,13 +275,17 @@ export function AdaptivePracticeMode({
   ]);
 
   const question = sessionQuestions[currentIndex];
+  const isShortAnswerQuestion =
+    question?.questionType === "open-ended" && Boolean(question?.shortAnswer);
   const attempts = useMemo(
     () => attemptsByIndex[currentIndex] ?? [],
     [attemptsByIndex, currentIndex]
   );
   const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
   const isCorrect = !!lastAttempt?.isCorrect;
-  const isCompleted = isCorrect || attempts.length >= MAX_ATTEMPTS;
+  const isCompleted = isShortAnswerQuestion
+    ? Boolean(finalAnswers[currentIndex])
+    : isCorrect || attempts.length >= MAX_ATTEMPTS;
   const isRetryReady = retryReadyByIndex[currentIndex] ?? attempts.length === 0;
   const isAwaitingRetry = !isCompleted && attempts.length > 0 && !isRetryReady;
   const showScaffold = attempts.length >= 1 && !isCorrect;
@@ -1123,7 +1132,40 @@ export function AdaptivePracticeMode({
 
       <div className="flex flex-col gap-3 flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
-          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 pb-2">
+          <div
+            ref={scrollContainerRef}
+            className={`flex-1 overflow-y-auto min-h-0 ${
+              isShortAnswerQuestion && question.shortAnswer ? "pb-24" : "pb-2"
+            }`}
+          >
+            {isShortAnswerQuestion && question.shortAnswer ? (
+              <ShortAnswerQuestionView
+                key={question.id}
+                item={question.shortAnswer}
+                questionId={question.id}
+                questionSetId={question.questionSetId ?? null}
+                assignmentId={assignmentId ?? null}
+                sessionId={assignmentId ? null : sessionId}
+                assignmentRunAfter={assignmentRunAfter ?? null}
+                mode={mode}
+                continueLabel={
+                  isAssignmentRun && currentIndex === totalQuestions - 1
+                    ? "View Results"
+                    : `Continue to Q${currentIndex + 2}`
+                }
+                onContinue={handleNext}
+                showCompletionContinue={false}
+                onAllPartsResolved={({ correctParts, totalParts }) => {
+                  setFinalAnswers((prev) => ({
+                    ...prev,
+                    [currentIndex]: {
+                      selectedOptionId: "short-answer",
+                      isCorrect: correctParts === totalParts,
+                    },
+                  }));
+                }}
+              />
+            ) : (
             <QuestionDisplay
               question={question}
               questionNumber={currentIndex + 1}
@@ -1285,9 +1327,51 @@ export function AdaptivePracticeMode({
                 </>
               }
             />
+            )}
           </div>
+          {isShortAnswerQuestion && question.shortAnswer ? (
+            <div className="sticky bottom-0 z-10 -mx-1 border-t border-[color:var(--assignment-glass-border)] bg-[color:var(--background)]/95 px-1 py-3 backdrop-blur-md">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                  disabled={currentIndex === 0}
+                  className={assignmentSecondaryButtonClass}
+                  style={assignmentSecondaryButtonStyle}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBookmarkToggle}
+                  className={assignmentSecondaryButtonClass}
+                  style={assignmentSecondaryButtonStyle}
+                >
+                  <Bookmark
+                    className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(question.id) ? "fill-current" : ""}`}
+                  />
+                  {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!isCompleted}
+                  className={assignmentPrimaryButtonClass}
+                  style={assignmentPrimaryButtonStyle}
+                >
+                  {isAssignmentRun && currentIndex === totalQuestions - 1
+                    ? "View Results"
+                    : "Next"}
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
+
+      {question ? <QuestionNoteDrawer questionId={question.id} /> : null}
 
       {activeFeatureSpotlight === "read-aloud" ? (
         <FeatureSpotlight

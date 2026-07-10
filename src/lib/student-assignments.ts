@@ -175,7 +175,7 @@ async function fetchAssignmentList(
       .in("assignment_id", orderedIds),
     supabase
       .from("attempts")
-      .select("assignment_id,question_id,answered_at,is_correct")
+      .select("assignment_id,question_id,selected_option_id,answered_at,is_correct")
       .eq("user_id", studentUserId)
       .in("assignment_id", orderedIds),
     admin
@@ -258,6 +258,8 @@ async function fetchAssignmentList(
     if (!Number.isFinite(answeredAtMs)) continue;
 
     const qid = String(row.question_id);
+    // Short-answer rows in `attempts` are summary rows written only after every
+    // part is resolved, so they count as completed assignment questions.
     const isCorrect = Boolean(row.is_correct);
 
     if (answeredAtMs > lastCompletedMs) {

@@ -41,7 +41,12 @@ const PAGE_ROLE_RULES: RoleRule[] = [
 const API_ROLE_RULES: RoleRule[] = [
   { paths: ["/api/admin"], allowedRoles: ["admin"] },
   {
-    paths: ["/api/assignments/manage", "/api/teacher"],
+    paths: [
+      "/api/assignments/manage",
+      "/api/teacher",
+      "/api/short-answer/generate",
+      "/api/feedback-settings",
+    ],
     allowedRoles: ["teacher", "admin"],
   },
 ];

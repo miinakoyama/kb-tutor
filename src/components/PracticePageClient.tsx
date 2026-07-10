@@ -77,6 +77,7 @@ export function PracticePageClient({
     null
   );
   const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
+  const [assignmentRunAfter, setAssignmentRunAfter] = useState<string | null>(null);
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
 
   const handleAllSchoolAssignmentsCompleted = useCallback(() => {
@@ -88,6 +89,7 @@ export function PracticePageClient({
     if (!assignmentId) {
       setSnapshotQuestions(null);
       setAnsweredMap({});
+      setAssignmentRunAfter(null);
       setIsSnapshotLoading(false);
       return;
     }
@@ -102,12 +104,14 @@ export function PracticePageClient({
         if (!response.ok) {
           setSnapshotQuestions(null);
           setAnsweredMap({});
+          setAssignmentRunAfter(null);
           setIsSnapshotLoading(false);
           return;
         }
         const payload = (await response.json()) as {
           questions?: Question[];
           answered?: AnsweredMap;
+          last_completed_at?: string | null;
         };
         const questions = Array.isArray(payload.questions)
           ? payload.questions
@@ -118,9 +122,15 @@ export function PracticePageClient({
             ? payload.answered
             : {},
         );
+        setAssignmentRunAfter(
+          typeof payload.last_completed_at === "string"
+            ? payload.last_completed_at
+            : null,
+        );
       } catch {
         setSnapshotQuestions(null);
         setAnsweredMap({});
+        setAssignmentRunAfter(null);
       } finally {
         setIsSnapshotLoading(false);
       }
@@ -270,6 +280,7 @@ export function PracticePageClient({
           assignmentId={assignmentIdParam}
           preferReviewTopicsCta={!hasAssignmentSnapshot && Boolean(questionIdsParam)}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
+          assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
         />
       );
@@ -281,6 +292,7 @@ export function PracticePageClient({
           requestedQuestionCount={requestedQuestionCount ?? 10}
           assignmentId={assignmentIdParam}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
+          assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
         />
       );

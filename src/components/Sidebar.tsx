@@ -23,7 +23,6 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { fetchBookmarkIds, getBookmarkedIds } from "@/lib/storage";
 import { FirstLoginOnboarding } from "@/components/FirstLoginOnboarding";
 import {
   markOnboardingCompleted,
@@ -57,8 +56,8 @@ const STUDENT_SECTION: NavSection = {
     { href: "/", label: "Home", icon: Home },
     { href: "/assignments", label: "My Assignment", icon: ClipboardList },
     { href: "/self-practice", label: "Self Practice", icon: NotebookPen },
+    { href: "/bookmarks", label: "Review", icon: Bookmark },
     { href: "/progress", label: "My Progress", icon: BarChart3 },
-    { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   ],
 };
 
@@ -112,7 +111,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const [bookmarkCount, setBookmarkCount] = useState(0);
   const [role, setRole] = useState<AppRole>("student");
   const [roleLoaded, setRoleLoaded] = useState(false);
   const [userProfile, setUserProfile] = useState<{ display_name: string | null; student_id: string | null; email: string } | null>(null);
@@ -128,9 +126,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const mobileUserMenuRef = useRef<HTMLDivElement>(null);
 
   const navSections = getNavSections(role);
-  const hasBookmarks = navSections.some((section) =>
-    section.items.some((item) => item.href === "/bookmarks")
-  );
 
   useEffect(() => {
     const loadRole = async () => {
@@ -206,30 +201,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    if (!hasBookmarks) {
-      setBookmarkCount(0);
-      return;
-    }
-    // DB is the source of truth; we seed the badge from Supabase on mount
-    // (catches changes made on other devices). After that we read the
-    // localStorage cache cheaply at 1Hz — every add/removeBookmark writes
-    // through to that cache synchronously, so same-tab updates are picked
-    // up without additional network round-trips.
-    const updateCount = () => setBookmarkCount(getBookmarkedIds().length);
-    const load = async () => {
-      const ids = await fetchBookmarkIds();
-      setBookmarkCount(ids.length);
-    };
-    void load();
-    window.addEventListener("storage", updateCount);
-    const interval = setInterval(updateCount, 1000);
-    return () => {
-      window.removeEventListener("storage", updateCount);
-      clearInterval(interval);
-    };
-  }, [hasBookmarks]);
 
   useEffect(() => {
     if (!roleLoaded) return;
@@ -310,7 +281,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   ) =>
     items.map(({ href, label, icon: Icon }) => {
       const active = isActive(href);
-      const isBookmarksLink = href === "/bookmarks";
       const tourTargetId = getTourTargetIdForHref(href, role);
       return (
         <Link
@@ -337,17 +307,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           >
             {label}
           </span>
-          {isBookmarksLink && bookmarkCount > 0 && (
-            <span
-              className={`ml-auto bg-surface/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full ${SIDEBAR_TEXT_MOTION} ${
-                collapsed
-                  ? "max-w-0 -translate-x-1 opacity-0"
-                  : "max-w-[48px] translate-x-0 opacity-100"
-              }`}
-            >
-              {bookmarkCount}
-            </span>
-          )}
         </Link>
       );
     });
