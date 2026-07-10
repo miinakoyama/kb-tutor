@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
 import type { Question } from "@/types/question";
+import { isShortAnswerQuestion } from "@/lib/short-answer/question-guards";
 import { QuestionDetails } from "./QuestionDetails";
 
 export interface QuestionSetSummary {
@@ -35,11 +36,26 @@ interface ExistingSetPickerProps {
 function matchesSearch(question: Question, term: string): boolean {
   if (!term) return true;
   const lower = term.toLowerCase();
-  return (
-    question.text.toLowerCase().includes(lower) ||
-    (question.topic ?? "").toLowerCase().includes(lower) ||
-    question.options.some((option) => option.text.toLowerCase().includes(lower))
-  );
+  if (question.text.toLowerCase().includes(lower)) return true;
+  if ((question.topic ?? "").toLowerCase().includes(lower)) return true;
+  if (question.options.some((option) => option.text.toLowerCase().includes(lower))) {
+    return true;
+  }
+  const item = question.shortAnswer;
+  if (item) {
+    if (item.stem.toLowerCase().includes(lower)) return true;
+    if (
+      item.parts.some(
+        (part) =>
+          part.prompt.toLowerCase().includes(lower) ||
+          part.taskType.toLowerCase().includes(lower) ||
+          part.scoringGuidance.toLowerCase().includes(lower),
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function ExistingSetPicker({
@@ -409,9 +425,17 @@ export function ExistingSetPicker({
                                       {entry.payload.text}
                                     </p>
                                     <p className="mt-1 text-xs text-muted-foreground">
+                                      {isShortAnswerQuestion(entry.payload) ? (
+                                        <span className="mr-1.5 rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
+                                          Short Answer
+                                        </span>
+                                      ) : null}
                                       {entry.payload.topic}
                                       {entry.payload.standardId
                                         ? ` • ${entry.payload.standardId}`
+                                        : ""}
+                                      {entry.payload.shortAnswer
+                                        ? ` • ${entry.payload.shortAnswer.parts.length} parts`
                                         : ""}
                                     </p>
                                   </label>

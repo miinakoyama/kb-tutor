@@ -40,13 +40,23 @@ export function dateTimeLocalValueToIso(value: string | null | undefined): strin
 }
 
 /**
- * Localized display of a due-date timestamp (date + short time). Returns
- * empty string for null / invalid input.
+ * Localized display of a due-date timestamp. If the due date falls on today
+ * (local time), returns "Today, HH:MM AM/PM". Otherwise returns the full
+ * medium date + short time. Returns empty string for null / invalid input.
  */
 export function formatDueDateTime(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const isToday =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (isToday) {
+    const time = d.toLocaleString(undefined, { timeStyle: "short" });
+    return `Today, ${time}`;
+  }
   return d.toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",

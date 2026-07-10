@@ -1,6 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { Question } from "@/types/question";
+import {
+  buildHistoryAnswerForQuestion,
+  buildLatestMcqAttemptsByQuestion,
+  buildShortAnswerAttemptsByQuestion,
+  isHistoryAnswerCorrect,
+  orderedQuestionIdsFromAttempts,
+  type McqAttemptRow,
+  type ShortAnswerAttemptRow,
+} from "@/lib/assignments/history";
 
 /**
  * GET /api/assignments/[assignmentId]/history
@@ -81,17 +91,32 @@ export async function GET(
   // (student, assignment) by completion windows. Within a window
   // (prevCompletedAt, completedAt], take the LATEST attempt per question_id
   // — matches the resume-map semantic used elsewhere — and count correct.
-  const { data: attempts, error: attemptsError } = await admin
-    .from("attempts")
-    .select("question_id,selected_option_id,is_correct,answered_at")
-    .eq("assignment_id", normalizedAssignmentId)
-    .eq("user_id", user.id)
-    .order("answered_at", { ascending: true });
+  const [{ data: attempts, error: attemptsError }, { data: saqAttempts, error: saqError }] =
+    await Promise.all([
+      admin
+        .from("attempts")
+        .select("question_id,selected_option_id,is_correct,answered_at")
+        .eq("assignment_id", normalizedAssignmentId)
+        .eq("user_id", user.id)
+        .order("answered_at", { ascending: true }),
+      admin
+        .from("short_answer_attempts")
+        .select(
+          "question_id,part_label,attempt_number,response_text,is_correct,feedback,answered_at",
+        )
+        .eq("assignment_id", normalizedAssignmentId)
+        .eq("user_id", user.id)
+        .order("answered_at", { ascending: true }),
+    ]);
   if (attemptsError) {
     return NextResponse.json({ error: attemptsError.message }, { status: 400 });
   }
+  if (saqError) {
+    return NextResponse.json({ error: saqError.message }, { status: 400 });
+  }
 
-  const attemptRows = attempts ?? [];
+  const attemptRows = (attempts ?? []) as McqAttemptRow[];
+  const shortAnswerRows = (saqAttempts ?? []) as ShortAnswerAttemptRow[];
 
   // For practice/exam assignments the total is the number of snapshot
   // questions, NOT just the count of distinct answered questions in the
@@ -101,19 +126,53 @@ export async function GET(
   // inflated percentage on the history page until they drilled in.
   // Review mode has no snapshot, so we keep the per-run answered count.
   const assignmentMode = String(assignment.mode ?? "practice");
-  let snapshotQuestionCount = 0;
+  let snapshotQuestions: Question[] = [];
   if (assignmentMode !== "review") {
-    const { count: snapshotCount, error: snapshotCountError } = await admin
+    const { data: snapshotRows, error: snapshotError } = await admin
       .from("assignment_question_snapshots")
-      .select("question_id", { count: "exact", head: true })
-      .eq("assignment_id", normalizedAssignmentId);
-    if (snapshotCountError) {
-      return NextResponse.json(
-        { error: snapshotCountError.message },
-        { status: 400 },
-      );
+      .select("payload")
+      .eq("assignment_id", normalizedAssignmentId)
+      .order("order_index", { ascending: true });
+    if (snapshotError) {
+      return NextResponse.json({ error: snapshotError.message }, { status: 400 });
     }
-    snapshotQuestionCount = snapshotCount ?? 0;
+    snapshotQuestions = (snapshotRows ?? [])
+      .map((row) => row.payload as Question | null | undefined)
+      .filter((payload): payload is Question => Boolean(payload && payload.id));
+  }
+
+  const snapshotQuestionCount = snapshotQuestions.length;
+
+  const reviewPayloadById = new Map<string, Question>();
+  if (assignmentMode === "review") {
+    const reviewQuestionIds = Array.from(
+      new Set([
+        ...attemptRows.map((row) => String(row.question_id)),
+        ...shortAnswerRows.map((row) => String(row.question_id)),
+      ]),
+    );
+    if (reviewQuestionIds.length > 0) {
+      const { data: generatedRows } = await admin
+        .from("generated_questions")
+        .select("id,payload")
+        .in("id", reviewQuestionIds);
+      for (const row of generatedRows ?? []) {
+        const payload = row.payload as Question | null | undefined;
+        if (payload?.id) reviewPayloadById.set(String(row.id), payload);
+      }
+      const missing = reviewQuestionIds.filter((id) => !reviewPayloadById.has(id));
+      if (missing.length > 0) {
+        const { data: snapshotRows } = await admin
+          .from("assignment_question_snapshots")
+          .select("question_id,payload")
+          .eq("assignment_id", normalizedAssignmentId)
+          .in("question_id", missing);
+        for (const row of snapshotRows ?? []) {
+          const payload = row.payload as Question | null | undefined;
+          if (payload?.id) reviewPayloadById.set(String(row.question_id), payload);
+        }
+      }
+    }
   }
 
   type Summary = { correct: number; total: number };
@@ -124,44 +183,55 @@ export async function GET(
     const prevCompletedAt =
       i > 0 ? String(completionRows[i - 1].completed_at) : null;
     const completedAt = String(row.completed_at);
-    const prevMs = prevCompletedAt ? new Date(prevCompletedAt).getTime() : -Infinity;
-    const endMs = new Date(completedAt).getTime();
-    // Latest attempt per question_id within this window
-    const latestByQuestion = new Map<
-      string,
-      { isCorrect: boolean; answeredAt: number }
-    >();
-    for (const attempt of attemptRows) {
-      const answeredAt =
-        typeof attempt.answered_at === "string" ? attempt.answered_at : null;
-      if (!answeredAt) continue;
-      const ms = new Date(answeredAt).getTime();
-      if (Number.isNaN(ms) || ms <= prevMs || ms > endMs) continue;
-      const qid = String(attempt.question_id);
-      const prior = latestByQuestion.get(qid);
-      if (!prior || ms >= prior.answeredAt) {
-        latestByQuestion.set(qid, {
-          isCorrect: Boolean(attempt.is_correct),
-          answeredAt: ms,
-        });
+
+    const mcqLatest = buildLatestMcqAttemptsByQuestion(
+      attemptRows,
+      prevCompletedAt,
+      completedAt,
+    );
+    const saqByQuestion = buildShortAnswerAttemptsByQuestion(
+      shortAnswerRows,
+      prevCompletedAt,
+      completedAt,
+    );
+
+    let correct = 0;
+    let windowTotal = 0;
+
+    if (assignmentMode === "review") {
+      const orderedQuestionIds = orderedQuestionIdsFromAttempts(
+        attemptRows,
+        shortAnswerRows,
+        prevCompletedAt,
+        completedAt,
+      );
+      windowTotal = orderedQuestionIds.length;
+      for (const qid of orderedQuestionIds) {
+        const question = reviewPayloadById.get(qid) ?? ({ id: qid } as Question);
+        const answer = buildHistoryAnswerForQuestion(
+          question,
+          mcqLatest.get(qid),
+          saqByQuestion.get(qid),
+        );
+        if (isHistoryAnswerCorrect(answer)) correct += 1;
+      }
+    } else {
+      windowTotal =
+        snapshotQuestionCount > 0
+          ? snapshotQuestionCount
+          : new Set([...mcqLatest.keys(), ...saqByQuestion.keys()]).size;
+
+      for (const question of snapshotQuestions) {
+        const answer = buildHistoryAnswerForQuestion(
+          question,
+          mcqLatest.get(question.id),
+          saqByQuestion.get(question.id),
+        );
+        if (isHistoryAnswerCorrect(answer)) correct += 1;
       }
     }
-    let correct = 0;
-    for (const entry of latestByQuestion.values()) {
-      if (entry.isCorrect) correct += 1;
-    }
-    // For practice/exam: prefer the snapshot count so unanswered
-    // questions are still part of the denominator. Fall back to the
-    // window-answered count when the snapshot is empty (legacy data),
-    // which preserves the prior behavior for that edge case.
-    const windowTotal = latestByQuestion.size;
-    const total =
-      assignmentMode === "review"
-        ? windowTotal
-        : snapshotQuestionCount > 0
-          ? snapshotQuestionCount
-          : windowTotal;
-    summaries[i] = { correct, total };
+
+    summaries[i] = { correct, total: windowTotal };
   }
 
   const maxAttempts =

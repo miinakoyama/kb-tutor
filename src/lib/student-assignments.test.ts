@@ -371,6 +371,60 @@ describe("getStudentAssignmentList", () => {
     expect(item.mode).toBe("practice");
   });
 
+  it("counts resolved short-answer summary rows in progress and accuracy", async () => {
+    const supabase = makeSupabaseMock({
+      school_members: [
+        {
+          school_id: "school-1",
+          student_user_id: "student-1",
+        },
+      ],
+      assignment_targets: [
+        {
+          assignment_id: "as_1",
+          student_user_id: "student-1",
+          created_at: "2026-04-01T10:00:00.000Z",
+          last_completed_at: null,
+        },
+      ],
+      assignments: [
+        {
+          id: "as_1",
+          school_id: "school-1",
+          created_at: "2026-04-01T09:00:00.000Z",
+          title: "Quiz",
+          due_date: null,
+          module_ids: [1],
+          topics: ["Genetics"],
+          target_minutes: 20,
+          mode: "practice",
+          randomize_order: true,
+          max_questions: null,
+        },
+      ],
+      assignment_question_snapshots: [
+        { assignment_id: "as_1", question_id: "q1" },
+        { assignment_id: "as_1", question_id: "q2" },
+      ],
+      attempts: [
+        {
+          assignment_id: "as_1",
+          question_id: "q1",
+          user_id: "student-1",
+          selected_option_id: "short-answer",
+          is_correct: true,
+          answered_at: "2026-04-02T10:00:00.000Z",
+        },
+      ],
+    });
+
+    const result = await getStudentAssignmentList(supabase, "student-1");
+    expect(result.error).toBeNull();
+    expect(result.assignments[0].status).toBe("in_progress");
+    expect(result.assignments[0].progress).toEqual({ answered: 1, total: 2 });
+    expect(result.assignments[0].accuracy).toBe(100);
+  });
+
   it("marks the assignment completed when last_completed_at is set and ignores prior attempts", async () => {
     const supabase = makeSupabaseMock({
       school_members: [
@@ -504,6 +558,7 @@ function makePickAssignment(
     status: overrides.status,
     last_completed_at: overrides.last_completed_at ?? null,
     progress: overrides.progress ?? { answered: 0, total: 10 },
+    accuracy: overrides.accuracy ?? null,
   };
 }
 

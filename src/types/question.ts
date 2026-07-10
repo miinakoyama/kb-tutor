@@ -1,3 +1,5 @@
+import type { ShortAnswerItem } from "@/types/short-answer";
+
 export type QuestionType = "mcq" | "open-ended";
 
 export type PracticeMode = "practice" | "exam" | "review";
@@ -125,11 +127,16 @@ export interface Question {
   sidebarTerms?: GlossaryTerm[];
   focusHint?: string;
   keyKnowledge?: string;
+  kcCode?: string;
+  kcStatement?: string;
 
   rationaleQuestion?: RationaleQuestion;
 
   misconceptionId?: string;
   relatedQuestionIds?: string[];
+
+  /** Present only when questionType === "open-ended": the constructed-response content. */
+  shortAnswer?: ShortAnswerItem;
 
   source: QuestionSource;
   questionSetId?: string;
