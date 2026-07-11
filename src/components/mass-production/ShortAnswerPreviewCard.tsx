@@ -129,35 +129,55 @@ export function ShortAnswerPreviewCard({
 
       {isExpanded && (
         <div className="px-4 pb-4 pt-2 border-t border-border-subtle space-y-4">
+          {item.blueprint.anchorKc && (
+            <div className="rounded-md border border-border-default bg-surface-muted/60 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Anchor Knowledge Component
+              </p>
+              <p className="mt-1 text-sm font-medium text-slate-gray">
+                {item.blueprint.anchorKc}
+              </p>
+            </div>
+          )}
+
           <StimulusPanel stem={item.stem} stimulus={item.stimulus} />
 
           <div className="space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Parts
             </p>
-            {item.parts.map((part) => (
-              <div
-                key={part.label}
-                className="rounded-lg border border-border-default bg-slate-gray/5 p-3"
-              >
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center">
-                    {part.label}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{part.taskType}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {part.maxScore} pt{part.maxScore === 1 ? "" : "s"}
-                  </span>
+            {item.parts.map((part) => {
+              const partKc = item.blueprint.taskSequence[part.label]?.kcCode;
+
+              return (
+                <div
+                  key={part.label}
+                  className="rounded-lg border border-border-default bg-slate-gray/5 p-3"
+                >
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center">
+                      {part.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{part.taskType}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {part.maxScore} pt{part.maxScore === 1 ? "" : "s"}
+                    </span>
+                    {partKc && (
+                      <span className="rounded bg-surface px-2 py-0.5 text-xs font-medium text-slate-gray ring-1 ring-border-default">
+                        KC {partKc}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-slate-gray">{part.prompt}</p>
+                  <p className="mt-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Part Rubric
+                  </p>
+                  <p className="mt-1 text-xs whitespace-pre-line text-muted-foreground">
+                    {formatPartRubric(part)}
+                  </p>
                 </div>
-                <p className="text-sm text-slate-gray">{part.prompt}</p>
-                <p className="mt-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Part Rubric
-                </p>
-                <p className="mt-1 text-xs whitespace-pre-line text-muted-foreground">
-                  {formatPartRubric(part)}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {item.annotatedResponses.length > 0 && (
