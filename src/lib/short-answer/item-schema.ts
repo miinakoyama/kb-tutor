@@ -327,6 +327,7 @@ export function validateShortAnswerItem(
 
   const keyTerms = item.keyTerms;
   if (!Array.isArray(keyTerms)) return "item.keyTerms must be an array";
+  const seenDefinitions = new Set<string>();
   for (const term of keyTerms) {
     if (
       !isRecord(term) ||
@@ -335,6 +336,11 @@ export function validateShortAnswerItem(
     ) {
       return "each keyTerms entry must have a term and a definition";
     }
+    const definitionKey = term.definition.trim().toLowerCase();
+    if (seenDefinitions.has(definitionKey)) {
+      return `keyTerms must have a unique definition per term — "${term.term}" reuses another term's definition`;
+    }
+    seenDefinitions.add(definitionKey);
   }
 
   const annotated = item.annotatedResponses;

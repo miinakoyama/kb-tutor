@@ -229,15 +229,9 @@ function StimulusBody({ stimulus }: { stimulus: StimulusAsset }): ReactNode {
 interface StimulusPanelProps {
   stem: string;
   stimulus: StimulusAsset;
-  /** Show the passive "Select to highlight" affordance (hidden in exam mode). */
-  showHighlightHint?: boolean;
 }
 
-export function StimulusPanel({
-  stem,
-  stimulus,
-  showHighlightHint = true,
-}: StimulusPanelProps) {
+export function StimulusPanel({ stem, stimulus }: StimulusPanelProps) {
   return (
     <section
       {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
@@ -248,11 +242,6 @@ export function StimulusPanel({
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/55">
           Scenario
         </h2>
-        {showHighlightHint && (
-          <span className="text-[11px] text-[color:var(--foreground)]/45">
-            Select to highlight · Click highlight to remove
-          </span>
-        )}
       </header>
 
       <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[color:var(--foreground)]">

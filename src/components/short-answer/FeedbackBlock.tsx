@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { GradedFeedback } from "@/types/short-answer";
+import { HIGHLIGHT_ZONE_ATTR } from "@/lib/short-answer/highlight";
 import { verdictDisplay } from "./verdict-display";
 
 interface FeedbackBlockProps {
@@ -109,7 +110,10 @@ export function FeedbackBlock({
       </div>
 
       {feedback.segments.length > 0 && (
-        <div className="flex flex-col gap-3 px-4 py-3">
+        <div
+          {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
+          className="flex flex-col gap-3 px-4 py-3"
+        >
           {feedback.segments.map((segment, i) => (
             <div key={i} className="flex flex-col gap-1">
               {segment.label.trim().length > 0 && (
@@ -141,7 +145,10 @@ export function FeedbackBlock({
       )}
 
       {feedback.modelAnswer && (
-        <p className="px-4 py-3 text-[12.5px] leading-relaxed text-[color:var(--foreground)]/75">
+        <p
+          {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
+          className="px-4 py-3 text-[12.5px] leading-relaxed text-[color:var(--foreground)]/75"
+        >
           {feedback.modelAnswer}
         </p>
       )}

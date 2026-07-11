@@ -140,8 +140,7 @@ export function ShortAnswerQuestionView({
   const [glossary, setGlossary] = useState<{
     term: string;
     definition: string;
-    x: number;
-    y: number;
+    anchorRect: { left: number; bottom: number; width: number };
   } | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   const [hydrationReady, setHydrationReady] = useState(false);
@@ -278,9 +277,11 @@ export function ShortAnswerQuestionView({
       stepLabel: "Attempt dots",
       title: "Track your attempts",
       lines: [
-        "After answering, dots light up:",
-        "• Red = wrong  • Green = correct",
-        "Tap one to see what you wrote and the feedback.",
+        "After answering, dots light up. Tap one to see what you wrote and the feedback.",
+      ],
+      legend: [
+        { color: "incorrect", label: "Wrong" },
+        { color: "correct", label: "Correct" },
       ],
       getTarget: () => partSelector(firstLabel, "dots"),
     },
@@ -436,11 +437,11 @@ export function ShortAnswerQuestionView({
       const keyTerm = item.keyTerms.find(
         (kt) => kt.term.toLowerCase() === term.toLowerCase(),
       );
+      const rect = event.currentTarget.getBoundingClientRect();
       setGlossary({
         term,
         definition: keyTerm?.definition ?? "Definition not available.",
-        x: event.clientX,
-        y: event.clientY,
+        anchorRect: { left: rect.left, bottom: rect.bottom, width: rect.width },
       });
     },
     [item.keyTerms],
@@ -527,11 +528,7 @@ export function ShortAnswerQuestionView({
       {/* Split panel */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <div className="lg:sticky lg:top-4 lg:self-start">
-          <StimulusPanel
-            stem={item.stem}
-            stimulus={item.stimulus}
-            showHighlightHint={!tourOpen}
-          />
+          <StimulusPanel stem={item.stem} stimulus={item.stimulus} />
         </div>
 
         <div className="flex flex-col gap-4">
@@ -624,8 +621,7 @@ export function ShortAnswerQuestionView({
         <GlossaryPopup
           term={glossary.term}
           definition={glossary.definition}
-          x={glossary.x}
-          y={glossary.y}
+          anchorRect={glossary.anchorRect}
           onDismiss={() => setGlossary(null)}
         />
       )}

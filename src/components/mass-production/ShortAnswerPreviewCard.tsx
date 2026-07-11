@@ -129,7 +129,7 @@ export function ShortAnswerPreviewCard({
 
       {isExpanded && (
         <div className="px-4 pb-4 pt-2 border-t border-border-subtle space-y-4">
-          <StimulusPanel stem={item.stem} stimulus={item.stimulus} showHighlightHint={false} />
+          <StimulusPanel stem={item.stem} stimulus={item.stimulus} />
 
           <div className="space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">

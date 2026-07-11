@@ -24,11 +24,7 @@ export function AssignmentShortAnswerAttemptReview({
         Short Answer
       </div>
 
-      <StimulusPanel
-        stem={item.stem}
-        stimulus={item.stimulus}
-        showHighlightHint={false}
-      />
+      <StimulusPanel stem={item.stem} stimulus={item.stimulus} />
 
       <div className="space-y-4">
         {item.parts.map((part) => {

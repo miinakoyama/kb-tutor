@@ -39,11 +39,7 @@ export function ShortAnswerQuestionDetails({
         </span>
       </div>
 
-      <StimulusPanel
-        stem={item.stem}
-        stimulus={item.stimulus}
-        showHighlightHint={false}
-      />
+      <StimulusPanel stem={item.stem} stimulus={item.stimulus} />
 
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

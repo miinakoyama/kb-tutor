@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyTerm } from "@/types/short-answer";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { HIGHLIGHT_ZONE_ATTR } from "@/lib/short-answer/highlight";
 
 interface CompletionSectionProps {
   questionId: string;
@@ -82,16 +83,16 @@ export function CompletionSection({
         style={{ boxShadow: "var(--assignment-card-shadow)" }}
       >
         <h3 className="text-sm font-semibold text-[color:var(--foreground)]">Key Terms</h3>
-        <p className="text-[11px] text-[color:var(--foreground)]/50">
-          Terms that came up in this question
-        </p>
-        <ul className="mt-3 flex flex-col gap-2">
+        <ul
+          {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
+          className="mt-3 flex flex-col gap-2"
+        >
           {keyTerms.map((kt) => (
             <li
               key={kt.term}
-              className="flex flex-col gap-0.5 rounded-xl bg-black/[0.03] px-3 py-2 sm:flex-row sm:items-baseline sm:gap-2"
+              className="flex flex-col gap-1 rounded-xl bg-black/[0.03] px-3 py-2 sm:flex-row sm:items-start sm:gap-3"
             >
-              <span className="text-[13px] font-semibold text-[color:var(--foreground)]">
+              <span className="text-[13px] font-semibold text-[color:var(--foreground)] sm:w-36 sm:flex-shrink-0">
                 {kt.term}
               </span>
               <span className="text-[13px] text-[color:var(--foreground)]/70">
