@@ -23,7 +23,12 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { fetchBookmarkIds, getBookmarkedIds } from "@/lib/storage";
+import {
+  fetchFirstTryIncorrectQuestionIds,
+  fetchBookmarkIds,
+  getFirstTryIncorrectQuestionIds,
+  getBookmarkedIds,
+} from "@/lib/storage";
 import { FirstLoginOnboarding } from "@/components/FirstLoginOnboarding";
 import {
   markOnboardingCompleted,
@@ -57,8 +62,8 @@ const STUDENT_SECTION: NavSection = {
     { href: "/", label: "Home", icon: Home },
     { href: "/assignments", label: "My Assignment", icon: ClipboardList },
     { href: "/self-practice", label: "Self Practice", icon: NotebookPen },
+    { href: "/bookmarks", label: "Review", icon: Bookmark },
     { href: "/progress", label: "My Progress", icon: BarChart3 },
-    { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   ],
 };
 
@@ -217,10 +222,17 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     // localStorage cache cheaply at 1Hz — every add/removeBookmark writes
     // through to that cache synchronously, so same-tab updates are picked
     // up without additional network round-trips.
-    const updateCount = () => setBookmarkCount(getBookmarkedIds().length);
+    const updateCount = () => {
+      const mergedIds = new Set([...getBookmarkedIds(), ...getFirstTryIncorrectQuestionIds()]);
+      setBookmarkCount(mergedIds.size);
+    };
     const load = async () => {
-      const ids = await fetchBookmarkIds();
-      setBookmarkCount(ids.length);
+      const [bookmarkIds, incorrectIds] = await Promise.all([
+        fetchBookmarkIds(),
+        fetchFirstTryIncorrectQuestionIds(),
+      ]);
+      const mergedIds = new Set([...bookmarkIds, ...incorrectIds]);
+      setBookmarkCount(mergedIds.size);
     };
     void load();
     window.addEventListener("storage", updateCount);
@@ -337,7 +349,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           >
             {label}
           </span>
-          {isBookmarksLink && bookmarkCount > 0 && (
+          {isBookmarksLink && bookmarkCount > 0 && !collapsed && (
             <span
               className={`ml-auto bg-surface/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full ${SIDEBAR_TEXT_MOTION} ${
                 collapsed

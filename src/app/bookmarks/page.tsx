@@ -27,6 +27,7 @@ import {
   getStandardById,
   type ModuleCode,
 } from "@/lib/standards";
+import { badgeEmerald } from "@/lib/ui/status-badge-styles";
 
 interface TopicGroup {
   topic: string;
@@ -39,6 +40,10 @@ const REVIEW_MODULE_ORDER: ModuleCode[] = ["A", "B"];
 const REVIEW_MODULE_LABELS: Record<ModuleCode, string> = {
   A: "Molecules to Organisms",
   B: "Continuity and Unity of Life",
+};
+const REVIEW_MODULE_SUBTITLES: Record<ModuleCode, string> = {
+  A: "Molecules to organisms",
+  B: "Continuity and unity of life",
 };
 
 interface ReviewCategorySelection {
@@ -338,6 +343,160 @@ function BookmarksPageContent() {
     }
   }, [activeReviewTab, totalBookmarked, totalNeedsReview]);
 
+  const renderTopicGroupCard = (
+    groups: TopicGroup[],
+    section: "needs" | "bookmarked",
+    allowRemoveBookmark: boolean,
+  ) => (
+    <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface">
+      {groups.map((group, index) => {
+        const topicKey = `${section}:${group.topic}`;
+        const isExpanded = Boolean(expandedTopics[topicKey]);
+
+        return (
+          <div
+            key={topicKey}
+            className={index < groups.length - 1 ? "border-b border-border-subtle" : ""}
+          >
+            <button
+              type="button"
+              onClick={() => handleToggleTopic(section, group.topic)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/5"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-heading">{group.topic}</span>
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-border-subtle bg-slate-gray/5 px-2 py-0.5 text-xs font-medium text-slate-gray">
+                  {group.questions.length}
+                </span>
+                <ChevronRight
+                  className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+                    isExpanded ? "rotate-90" : ""
+                  }`}
+                />
+              </span>
+            </button>
+
+            <AnimatePresence>
+              {isExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="space-y-2 border-t border-border-subtle px-4 py-3">
+                    {group.questions.map((question) => (
+                      <div
+                        key={question.id}
+                        className="overflow-hidden rounded-lg border border-border-subtle bg-background"
+                      >
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleToggleQuestion(question.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              handleToggleQuestion(question.id);
+                            }
+                          }}
+                          className="flex items-start justify-between gap-3 px-3 py-2 transition-colors hover:bg-foreground/5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm leading-relaxed text-slate-gray">{question.text}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {allowRemoveBookmark ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleConfirmRemoveBookmark(question.id);
+                                }}
+                                className="flex-shrink-0 rounded-md p-1.5 text-slate-gray/40 transition-colors hover:bg-error-light hover:text-red-500"
+                                aria-label="Remove bookmark"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                            <ChevronRight
+                              className={`h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform duration-200 ${
+                                expandedQuestions[question.id] ? "rotate-90" : ""
+                              }`}
+                            />
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {expandedQuestions[question.id] ? (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="space-y-2 border-t border-border-subtle px-3 py-3">
+                                {question.options.map((option) => {
+                                  const isCorrect = option.id === question.correctOptionId;
+
+                                  return (
+                                    <div
+                                      key={option.id}
+                                      className={`rounded-md border px-3 py-2 ${
+                                        isCorrect
+                                          ? "border-primary/30 bg-primary/5"
+                                          : "border-border-subtle bg-slate-gray/5"
+                                      }`}
+                                    >
+                                      <div className="flex items-start gap-2.5">
+                                        <span
+                                          className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                                            isCorrect
+                                              ? "bg-primary text-white"
+                                              : "bg-slate-gray/20 text-muted-foreground"
+                                          }`}
+                                        >
+                                          {option.id.toUpperCase()}
+                                        </span>
+                                        <div className="flex-1">
+                                          <p
+                                            className={`text-sm ${
+                                              isCorrect ? "font-medium text-slate-gray" : "text-slate-gray/90"
+                                            }`}
+                                          >
+                                            {option.text}
+                                          </p>
+                                          {option.feedback ? (
+                                            <p className="mt-1 text-xs text-muted-foreground">{option.feedback}</p>
+                                          ) : null}
+                                        </div>
+                                        {isCorrect ? (
+                                          <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary" />
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </motion.div>
+                          ) : null}
+                        </AnimatePresence>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   const renderTopicSections = (
     groups: TopicGroup[],
     section: "needs" | "bookmarked",
@@ -351,158 +510,48 @@ function BookmarksPageContent() {
       );
     }
 
+    const groupsByModule: Record<ModuleCode, TopicGroup[]> = { A: [], B: [] };
+    const ungroupedGroups: TopicGroup[] = [];
+
+    for (const group of groups) {
+      const topicModule = group.questions.find(
+        (question) => typeof question.module === "number",
+      )?.module;
+      const moduleCode: ModuleCode | null =
+        topicModule === 1 ? "A" : topicModule === 2 ? "B" : null;
+
+      if (moduleCode) {
+        groupsByModule[moduleCode].push(group);
+      } else {
+        ungroupedGroups.push(group);
+      }
+    }
+
     return (
-      <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface">
-        {groups.map((group, index) => {
-          const topicKey = `${section}:${group.topic}`;
-          const isExpanded = Boolean(expandedTopics[topicKey]);
-          const topicModule = group.questions.find((question) => typeof question.module === "number")?.module;
-          const moduleLabel = topicModule === 1 ? "A" : topicModule === 2 ? "B" : null;
+      <div className="space-y-5">
+        {REVIEW_MODULE_ORDER.map((moduleCode) => {
+          const moduleGroups = groupsByModule[moduleCode];
+          if (moduleGroups.length === 0) return null;
 
           return (
-            <div
-              key={topicKey}
-              className={index < groups.length - 1 ? "border-b border-border-subtle" : ""}
-            >
-              <button
-                type="button"
-                onClick={() => handleToggleTopic(section, group.topic)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/5"
-              >
-                <span className="min-w-0">
-                  {moduleLabel ? (
-                    <span className="mb-0.5 block text-xs text-muted-foreground">Module {moduleLabel}</span>
-                  ) : null}
-                  <span className="block text-sm font-medium text-heading">{group.topic}</span>
+            <div key={moduleCode}>
+              <div className="mb-2 flex items-baseline gap-2">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${badgeEmerald}`}
+                >
+                  Module {moduleCode}
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-flex items-center rounded-full border border-border-subtle bg-slate-gray/5 px-2 py-0.5 text-xs font-medium text-slate-gray">
-                    {group.questions.length}
-                  </span>
-                  <ChevronRight
-                    className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
-                      isExpanded ? "rotate-90" : ""
-                    }`}
-                  />
+                <span className="text-xs text-muted-foreground">
+                  {REVIEW_MODULE_SUBTITLES[moduleCode]}
                 </span>
-              </button>
-
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="space-y-2 border-t border-border-subtle px-4 py-3">
-                      {group.questions.map((question) => (
-                        <div
-                          key={question.id}
-                          className="overflow-hidden rounded-lg border border-border-subtle bg-background"
-                        >
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => handleToggleQuestion(question.id)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                handleToggleQuestion(question.id);
-                              }
-                            }}
-                            className="flex items-start justify-between gap-3 px-3 py-2 transition-colors hover:bg-foreground/5"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm leading-relaxed text-slate-gray">{question.text}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {allowRemoveBookmark ? (
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleConfirmRemoveBookmark(question.id);
-                                  }}
-                                  className="flex-shrink-0 rounded-md p-1.5 text-slate-gray/40 transition-colors hover:bg-error-light hover:text-red-500"
-                                  aria-label="Remove bookmark"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              ) : null}
-                              <ChevronRight
-                                className={`h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform duration-200 ${
-                                  expandedQuestions[question.id] ? "rotate-90" : ""
-                                }`}
-                              />
-                            </div>
-                          </div>
-
-                          <AnimatePresence>
-                            {expandedQuestions[question.id] ? (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="space-y-2 border-t border-border-subtle px-3 py-3">
-                                  {question.options.map((option) => {
-                                    const isCorrect = option.id === question.correctOptionId;
-
-                                    return (
-                                      <div
-                                        key={option.id}
-                                        className={`rounded-md border px-3 py-2 ${
-                                          isCorrect
-                                            ? "border-primary/30 bg-primary/5"
-                                            : "border-border-subtle bg-slate-gray/5"
-                                        }`}
-                                      >
-                                        <div className="flex items-start gap-2.5">
-                                          <span
-                                            className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                                              isCorrect
-                                                ? "bg-primary text-white"
-                                                : "bg-slate-gray/20 text-muted-foreground"
-                                            }`}
-                                          >
-                                            {option.id.toUpperCase()}
-                                          </span>
-                                          <div className="flex-1">
-                                            <p
-                                              className={`text-sm ${
-                                                isCorrect ? "font-medium text-slate-gray" : "text-slate-gray/90"
-                                              }`}
-                                            >
-                                              {option.text}
-                                            </p>
-                                            {option.feedback ? (
-                                              <p className="mt-1 text-xs text-muted-foreground">{option.feedback}</p>
-                                            ) : null}
-                                          </div>
-                                          {isCorrect ? (
-                                            <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary" />
-                                          ) : null}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </motion.div>
-                            ) : null}
-                          </AnimatePresence>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              </div>
+              {renderTopicGroupCard(moduleGroups, section, allowRemoveBookmark)}
             </div>
           );
         })}
+        {ungroupedGroups.length > 0
+          ? renderTopicGroupCard(ungroupedGroups, section, allowRemoveBookmark)
+          : null}
       </div>
     );
   };

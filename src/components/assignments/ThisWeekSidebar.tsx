@@ -278,11 +278,6 @@ export function ThisWeekSidebar({
     [monthCursor, dueByDay, doneByDay],
   );
 
-  const hasCalendarMarks = dueByDay.size > 0 || doneByDay.size > 0;
-  const hasWeekContent = weeklyTodos.length > 0 || weeklyDone.length > 0;
-
-  if (!hasCalendarMarks && !hasWeekContent) return null;
-
   return (
     <aside className="flex w-full flex-col gap-10">
       <section
