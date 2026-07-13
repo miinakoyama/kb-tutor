@@ -24,6 +24,8 @@ import {
   StudentNotesList,
   useStudentNotes,
 } from "@/components/notes/StudentNotesList";
+import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
+import { isShortAnswerQuestion } from "@/lib/short-answer/question-guards";
 import type { Question } from "@/types/question";
 import {
   STANDARD_DEFINITIONS,
@@ -404,7 +406,13 @@ function BookmarksPageContent() {
                     className="overflow-hidden"
                   >
                     <div className="space-y-2 border-t border-border-subtle px-4 py-3">
-                      {group.questions.map((question) => (
+                      {group.questions.map((question) => {
+                        const isShortAnswer = isShortAnswerQuestion(question);
+                        const previewText = isShortAnswer
+                          ? question.shortAnswer?.stem ?? question.text
+                          : question.text;
+
+                        return (
                         <div
                           key={question.id}
                           className="overflow-hidden rounded-lg border border-border-subtle bg-background"
@@ -422,7 +430,7 @@ function BookmarksPageContent() {
                             className="flex items-start justify-between gap-3 px-3 py-2 transition-colors hover:bg-foreground/5"
                           >
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm leading-relaxed text-slate-gray">{question.text}</p>
+                              <p className="text-sm leading-relaxed text-slate-gray">{previewText}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               {allowRemoveBookmark ? (
@@ -455,54 +463,82 @@ function BookmarksPageContent() {
                                 transition={{ duration: 0.2 }}
                                 className="overflow-hidden"
                               >
-                                <div className="space-y-2 border-t border-border-subtle px-3 py-3">
-                                  {question.options.map((option) => {
-                                    const isCorrect = option.id === question.correctOptionId;
-
-                                    return (
-                                      <div
-                                        key={option.id}
-                                        className={`rounded-md border px-3 py-2 ${
-                                          isCorrect
-                                            ? "border-primary/30 bg-primary/5"
-                                            : "border-border-subtle bg-slate-gray/5"
-                                        }`}
-                                      >
-                                        <div className="flex items-start gap-2.5">
-                                          <span
-                                            className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                                              isCorrect
-                                                ? "bg-primary text-white"
-                                                : "bg-slate-gray/20 text-muted-foreground"
-                                            }`}
+                                <div className="space-y-3 border-t border-border-subtle px-3 py-3">
+                                  {isShortAnswer && question.shortAnswer ? (
+                                    <>
+                                      <StimulusPanel
+                                        stem={question.shortAnswer.stem}
+                                        stimulus={question.shortAnswer.stimulus}
+                                        showHighlightHint={false}
+                                      />
+                                      <div className="space-y-2">
+                                        {question.shortAnswer.parts.map((part) => (
+                                          <div
+                                            key={part.label}
+                                            className="rounded-md border border-border-subtle bg-slate-gray/5 px-3 py-2"
                                           >
-                                            {option.id.toUpperCase()}
-                                          </span>
-                                          <div className="flex-1">
-                                            <p
-                                              className={`text-sm ${
-                                                isCorrect ? "font-medium text-slate-gray" : "text-slate-gray/90"
+                                            <div className="flex items-start gap-2.5">
+                                              <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-gray/20 text-[11px] font-semibold text-muted-foreground">
+                                                {part.label}
+                                              </span>
+                                              <p className="flex-1 text-sm text-slate-gray/90">
+                                                {part.prompt}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    question.options.map((option) => {
+                                      const isCorrect = option.id === question.correctOptionId;
+
+                                      return (
+                                        <div
+                                          key={option.id}
+                                          className={`rounded-md border px-3 py-2 ${
+                                            isCorrect
+                                              ? "border-primary/30 bg-primary/5"
+                                              : "border-border-subtle bg-slate-gray/5"
+                                          }`}
+                                        >
+                                          <div className="flex items-start gap-2.5">
+                                            <span
+                                              className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                                                isCorrect
+                                                  ? "bg-primary text-white"
+                                                  : "bg-slate-gray/20 text-muted-foreground"
                                               }`}
                                             >
-                                              {option.text}
-                                            </p>
-                                            {option.feedback ? (
-                                              <p className="mt-1 text-xs text-muted-foreground">{option.feedback}</p>
+                                              {option.id.toUpperCase()}
+                                            </span>
+                                            <div className="flex-1">
+                                              <p
+                                                className={`text-sm ${
+                                                  isCorrect ? "font-medium text-slate-gray" : "text-slate-gray/90"
+                                                }`}
+                                              >
+                                                {option.text}
+                                              </p>
+                                              {option.feedback ? (
+                                                <p className="mt-1 text-xs text-muted-foreground">{option.feedback}</p>
+                                              ) : null}
+                                            </div>
+                                            {isCorrect ? (
+                                              <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary" />
                                             ) : null}
                                           </div>
-                                          {isCorrect ? (
-                                            <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary" />
-                                          ) : null}
                                         </div>
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    })
+                                  )}
                                 </div>
                               </motion.div>
                             ) : null}
                           </AnimatePresence>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </motion.div>
                 )}
@@ -517,7 +553,10 @@ function BookmarksPageContent() {
   if (!isLoaded) {
     return (
       <main className="h-[calc(100vh-4rem)] overflow-hidden lg:h-screen">
-        <div className="mx-auto flex h-full max-w-6xl items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <div
+          className="mx-auto flex h-full w-full items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10 xl:px-12"
+          style={{ maxWidth: 1500 }}
+        >
           <div className="text-slate-gray">Loading...</div>
         </div>
       </main>
@@ -526,7 +565,10 @@ function BookmarksPageContent() {
 
   return (
     <main className="h-[calc(100vh-4rem)] overflow-hidden lg:h-screen">
-      <div className="mx-auto flex h-full max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+      <div
+        className="mx-auto flex h-full w-full flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10 xl:px-12"
+        style={{ maxWidth: 1500 }}
+      >
         <div className="mb-6 flex items-start justify-between gap-3">
           <h1 className="font-heading text-2xl font-bold text-heading sm:text-3xl">Review</h1>
           {totalReviewQuestions > 0 && !isChoosingTopics ? (
@@ -743,6 +785,7 @@ function BookmarksPageContent() {
                       notes={notes}
                       isLoaded={notesLoaded}
                       error={notesError}
+                      questionById={questionById}
                     />
                   )}
             </section>

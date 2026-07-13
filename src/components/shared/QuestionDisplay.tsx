@@ -15,6 +15,7 @@ interface QuestionDisplayProps {
   question: Question;
   questionNumber: number;
   questionMetaText?: string;
+  showHeader?: boolean;
   headerAction?: ReactNode;
   currentAnswer?: AnswerRecord;
   selectedOptionId?: string | null;
@@ -35,6 +36,7 @@ export function QuestionDisplay({
   question,
   questionNumber,
   questionMetaText,
+  showHeader = true,
   headerAction,
   currentAnswer,
   selectedOptionId,
@@ -73,36 +75,38 @@ export function QuestionDisplay({
           compactLayout ? "p-4 sm:p-5" : "p-4 sm:p-6"
         }`}
       >
-        <div className={`flex items-start justify-between gap-3 ${compactLayout ? "mb-2" : "mb-3"}`}>
-          <div className="flex items-center gap-3">
-            <p className={`${compactLayout ? "text-base" : "text-sm"} font-bold text-slate-gray`}>
-              Question {questionNumber}
-            </p>
-            {questionMetaText && (
-              <p className="text-sm text-muted-foreground">{questionMetaText}</p>
-            )}
+        {showHeader && (
+          <div className={`flex items-start justify-between gap-3 ${compactLayout ? "mb-2" : "mb-3"}`}>
+            <div className="flex items-center gap-3">
+              <p className={`${compactLayout ? "text-base" : "text-sm"} font-bold text-slate-gray`}>
+                Question {questionNumber}
+              </p>
+              {questionMetaText && (
+                <p className="text-sm text-muted-foreground">{questionMetaText}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isSupported && (
+                <div
+                  className="relative"
+                  data-tour-id={questionReadAloudTourId ?? choicesReadAloudTourId}
+                >
+                  <ReadAloudButton
+                    section="question"
+                    label="Question and choices"
+                    text={questionAndChoicesReadText}
+                    isSpeaking={isSpeaking}
+                    currentSection={currentSection}
+                    onToggle={toggleSpeak}
+                    onPlay={onReadAloud}
+                    iconOnly
+                  />
+                </div>
+              )}
+              {headerAction}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isSupported && (
-              <div
-                className="relative"
-                data-tour-id={questionReadAloudTourId ?? choicesReadAloudTourId}
-              >
-                <ReadAloudButton
-                  section="question"
-                  label="Question and choices"
-                  text={questionAndChoicesReadText}
-                  isSpeaking={isSpeaking}
-                  currentSection={currentSection}
-                  onToggle={toggleSpeak}
-                  onPlay={onReadAloud}
-                  iconOnly
-                />
-              </div>
-            )}
-            {headerAction}
-          </div>
-        </div>
+        )}
 
         <div
           className={`prose prose-sm max-w-none text-slate-gray ${compactLayout ? "mb-4" : "mb-5"} rounded-lg transition-colors ${

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, StickyNote } from "lucide-react";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { useEffect, useMemo, useState } from "react";
+import { StickyNote } from "lucide-react";
+import type { Question } from "@/types/question";
+import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
+import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
 
 export interface StudentNoteEntry {
   questionId: string;
@@ -11,6 +12,7 @@ export interface StudentNoteEntry {
   updatedAt: string;
   question: {
     topic: string | null;
+    module: number | null;
     preview: string | null;
     available: boolean;
   };
@@ -43,210 +45,220 @@ export function useStudentNotes() {
   return { notes, isLoaded, error };
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return iso;
-  }
-}
-
 const NOTE_PROMPTS = [
   "What do I want to remember or come back to?",
   "How does this connect or conflict with something I already know?",
   "What's confusing me here?",
 ];
 
-function emptyAnswers(): string[] {
-  return NOTE_PROMPTS.map(() => "");
+interface NoteSection {
+  label: string;
+  answer: string;
 }
 
-function serializeAnswers(answers: string[]): string {
-  return NOTE_PROMPTS.map((prompt, index) => {
-    const answer = answers[index]?.trim() ?? "";
-    return answer ? `${prompt}\n${answer}` : "";
-  })
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-function parseAnswers(text: string): string[] {
-  const answers = emptyAnswers();
+/** Splits stored note text back into its prompt/answer pairs; falls back to a single unlabeled section for free-form text. */
+function parseNoteSections(text: string): NoteSection[] {
   const trimmed = text.trim();
-  if (!trimmed) return answers;
+  if (!trimmed) return [];
 
-  let matched = false;
+  const sections: NoteSection[] = [];
+  let matchedAny = false;
+
   NOTE_PROMPTS.forEach((prompt, index) => {
     const start = trimmed.indexOf(prompt);
     if (start === -1) return;
+    matchedAny = true;
     const contentStart = start + prompt.length;
     const nextStarts = NOTE_PROMPTS.map((otherPrompt) =>
       trimmed.indexOf(otherPrompt, contentStart),
-    ).filter((pos) => pos !== -1);
+    ).filter((pos) => pos !== -1 && pos !== index);
     const end = nextStarts.length > 0 ? Math.min(...nextStarts) : trimmed.length;
-    answers[index] = trimmed.slice(contentStart, end).trim();
-    matched = true;
+    const answer = trimmed.slice(contentStart, end).trim();
+    if (answer) sections.push({ label: prompt, answer });
   });
 
-  if (!matched) {
-    answers[0] = trimmed;
+  if (!matchedAny) {
+    sections.push({ label: "Note", answer: trimmed });
   }
-  return answers;
+
+  return sections;
 }
 
-function StudentNoteCard({ note }: { note: StudentNoteEntry }) {
-  const [expanded, setExpanded] = useState(false);
-  const [answers, setAnswers] = useState(() => parseAnswers(note.noteText));
-  const [savedVisible, setSavedVisible] = useState(false);
-  const debounceRef = useRef<number | null>(null);
-  const previewAnswer = answers.find((answer) => answer.trim().length > 0) ?? "";
+function moduleLabel(module: number | null): string | null {
+  if (module === 1) return "A";
+  if (module === 2) return "B";
+  return null;
+}
 
-  const persist = useCallback(
-    async (value: string) => {
-      if (!hasSupabaseEnv()) return;
-      const supabase = getSupabaseBrowserClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      if (value.trim().length === 0) {
-        await supabase
-          .from("student_question_notes")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("question_id", note.questionId);
-        return;
-      }
-      const { error } = await supabase.from("student_question_notes").upsert(
-        {
-          user_id: user.id,
-          question_id: note.questionId,
-          note_text: value,
-        },
-        { onConflict: "user_id,question_id" },
-      );
-      if (!error) {
-        setSavedVisible(true);
-        window.setTimeout(() => setSavedVisible(false), 1500);
-      }
-    },
-    [note.questionId],
-  );
+function firstWordsOfStem(preview: string | null, wordCount = 10): string {
+  if (!preview) return "No question preview available.";
+  const words = preview.trim().split(/\s+/);
+  if (words.length <= wordCount) return preview.trim();
+  return `${words.slice(0, wordCount).join(" ")}…`;
+}
 
-  const scheduleSave = useCallback(
-    (nextAnswers: string[]) => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-      debounceRef.current = window.setTimeout(
-        () => void persist(serializeAnswers(nextAnswers)),
-        400,
-      );
-    },
-    [persist],
-  );
+/** Deterministic given `iso` alone — safe to use on both the server render and the initial client render. */
+function formatAbsoluteDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** Depends on the current time, so it must never be used for the first render — see useRelativeTimeLabel. */
+function formatRelativeTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const diffSec = Math.round((Date.now() - date.getTime()) / 1000);
+
+  if (diffSec < 60) return "Just now";
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? "" : "s"} ago`;
+  const diffHour = Math.round(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} hour${diffHour === 1 ? "" : "s"} ago`;
+  const diffDay = Math.round(diffHour / 24);
+  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
+
+  return formatAbsoluteDate(iso);
+}
+
+/**
+ * Renders an absolute date on first paint (matches server output) and swaps to a
+ * relative label after mount, avoiding a hydration mismatch from Date.now() drift
+ * between server render time and client hydration time.
+ */
+function useRelativeTimeLabel(iso: string): string {
+  const [label, setLabel] = useState(() => formatAbsoluteDate(iso));
 
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  }, []);
+    setLabel(formatRelativeTime(iso));
+    const id = window.setInterval(() => setLabel(formatRelativeTime(iso)), 60_000);
+    return () => window.clearInterval(id);
+  }, [iso]);
+
+  return label;
+}
+
+function NoteRow({
+  note,
+  isSelected,
+  onSelect,
+}: {
+  note: StudentNoteEntry;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const stemExcerpt = useMemo(
+    () => firstWordsOfStem(note.question.preview),
+    [note.question.preview],
+  );
+  const relativeLabel = useRelativeTimeLabel(note.updatedAt);
+  const moduleCode = moduleLabel(note.question.module);
 
   return (
-    <article
-      className="rounded-2xl border border-[color:var(--assignment-glass-border)] bg-[color:var(--assignment-glass-bg)] backdrop-blur-md"
-      style={{ boxShadow: "var(--assignment-card-shadow)" }}
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={isSelected}
+      className={`block w-full border-l-[3px] px-4 py-3 text-left transition-colors ${
+        isSelected
+          ? "border-primary bg-primary-light"
+          : "border-transparent hover:bg-foreground/5"
+      }`}
     >
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-start justify-between gap-3 p-5 text-left"
-        aria-expanded={expanded}
-      >
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            {note.question.topic && (
-              <span className="rounded-full bg-[color:var(--assignment-mode-practice-bg)] px-2.5 py-0.5 text-[11px] font-semibold text-[color:var(--assignment-mode-practice)]">
-                {note.question.topic}
-              </span>
-            )}
-            <span className="text-[11px] text-[color:var(--foreground)]/45">
-              {formatDate(note.updatedAt)}
-            </span>
-          </div>
-          {note.question.available ? (
-            note.question.preview && (
-              <p className="mt-2 line-clamp-2 text-[13px] text-[color:var(--foreground)]/60">
-                {note.question.preview}
-              </p>
-            )
-          ) : (
-            <p className="mt-2 text-[13px] italic text-[color:var(--foreground)]/45">
-              Question no longer available
-            </p>
-          )}
-          {!expanded && previewAnswer ? (
-            <p className="mt-2 line-clamp-2 text-[14px] text-[color:var(--foreground)]">
-              {previewAnswer}
-            </p>
-          ) : null}
-        </div>
-        <ChevronDown
-          className={`mt-1 h-4 w-4 flex-shrink-0 text-[color:var(--foreground)]/40 transition-transform ${
-            expanded ? "rotate-180" : ""
-          }`}
-        />
-      </button>
+      <span className="min-w-0">
+        {moduleCode && (
+          <span className="mb-0.5 block text-xs text-muted-foreground">Module {moduleCode}</span>
+        )}
+        {note.question.topic ? (
+          <span className="block text-sm font-medium text-heading">{note.question.topic}</span>
+        ) : (
+          <span className="block text-sm font-medium text-muted-foreground">No topic</span>
+        )}
+      </span>
+      <p className="mt-1.5 line-clamp-2 text-sm text-slate-gray">{stemExcerpt}</p>
+      <p className="mt-1.5 text-[11px] text-muted-foreground">{relativeLabel}</p>
+    </button>
+  );
+}
 
-      {expanded && (
-        <div className="border-t border-[color:var(--assignment-panel-border)] px-5 pb-5 pt-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/45">
-              Your note
-            </span>
-            <span
-              className={`text-[11px] text-emerald-600 transition-opacity duration-300 ${
-                savedVisible ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              Saved
-            </span>
-          </div>
-          <div className="mt-3 space-y-4">
-            {NOTE_PROMPTS.map((prompt, index) => (
+function SelectedNoteDetail({
+  note,
+  question,
+}: {
+  note: StudentNoteEntry;
+  question: Question | undefined;
+}) {
+  const sections = useMemo(() => parseNoteSections(note.noteText), [note.noteText]);
+
+  const shortAnswer =
+    question?.questionType === "open-ended" ? question.shortAnswer : undefined;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {shortAnswer ? (
+        <>
+          <StimulusPanel
+            stem={shortAnswer.stem}
+            stimulus={shortAnswer.stimulus}
+            showHighlightHint={false}
+          />
+          <div className="space-y-2">
+            {shortAnswer.parts.map((part) => (
               <div
-                key={prompt}
-                className="rounded-xl border border-[color:var(--assignment-panel-border)] bg-black/[0.02] p-3"
+                key={part.label}
+                className="rounded-md border border-border-subtle bg-slate-gray/5 px-3 py-2"
               >
-                <label
-                  htmlFor={`review-note-${note.questionId}-${index}`}
-                  className="text-[13px] font-semibold text-[color:var(--foreground)]"
-                >
-                  {prompt}
-                </label>
-                <textarea
-                  id={`review-note-${note.questionId}-${index}`}
-                  value={answers[index] ?? ""}
-                  onChange={(e) => {
-                    const next = [...answers];
-                    next[index] = e.target.value;
-                    setAnswers(next);
-                    scheduleSave(next);
-                  }}
-                  onBlur={() => void persist(serializeAnswers(answers))}
-                  rows={3}
-                  aria-label={`Edit note: ${prompt}`}
-                  placeholder="Write a note..."
-                  className="sa-notebook mt-2 w-full resize-none rounded-xl bg-transparent px-3 py-2 text-[14px] leading-[2em] text-[color:var(--foreground)] focus:outline-none"
-                />
+                <div className="flex items-start gap-2.5">
+                  <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-gray/20 text-[11px] font-semibold text-muted-foreground">
+                    {part.label}
+                  </span>
+                  <p className="flex-1 text-sm text-slate-gray/90">{part.prompt}</p>
+                </div>
               </div>
             ))}
           </div>
+        </>
+      ) : question ? (
+        <QuestionDisplay
+          question={question}
+          questionNumber={1}
+          showHeader={false}
+          currentAnswer={{ selectedOptionId: question.correctOptionId, isCorrect: true }}
+          revealCorrectAnswer
+          showOptionFeedbackIcons
+          compactLayout
+          onOptionClick={() => {}}
+        />
+      ) : (
+        <div className="rounded-xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
+          {note.question.available
+            ? "This question can't be previewed right now."
+            : "Question no longer available."}
         </div>
       )}
-    </article>
+
+      <div className="rounded-xl border border-border-subtle bg-surface-muted p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          My note
+        </p>
+        {sections.length > 0 ? (
+          <div className="space-y-3">
+            {sections.map((section) => (
+              <div key={section.label}>
+                {section.label !== "Note" && (
+                  <p className="text-[15px] font-medium text-heading">{section.label}</p>
+                )}
+                <p className="mt-1 whitespace-pre-wrap text-[15px] leading-relaxed text-slate-gray">
+                  {section.answer}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No note text.</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -254,11 +266,62 @@ export function StudentNotesList({
   notes,
   isLoaded,
   error,
+  questionById,
 }: {
   notes: StudentNoteEntry[];
   isLoaded: boolean;
   error: string | null;
+  questionById: Map<string, Question>;
 }) {
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  const [moduleFilter, setModuleFilter] = useState<string>("all");
+  const [topicFilter, setTopicFilter] = useState<string>("all");
+
+  const moduleOptions = useMemo(() => {
+    const found = new Set<number>();
+    for (const note of notes) {
+      if (typeof note.question.module === "number") found.add(note.question.module);
+    }
+    return Array.from(found)
+      .sort((a, b) => a - b)
+      .map((module) => ({ value: String(module), label: `Module ${moduleLabel(module)}` }));
+  }, [notes]);
+
+  const topicOptions = useMemo(() => {
+    const found = new Set<string>();
+    for (const note of notes) {
+      if (moduleFilter !== "all" && String(note.question.module) !== moduleFilter) continue;
+      if (note.question.topic) found.add(note.question.topic);
+    }
+    return Array.from(found).sort((a, b) => a.localeCompare(b));
+  }, [notes, moduleFilter]);
+
+  useEffect(() => {
+    if (topicFilter !== "all" && !topicOptions.includes(topicFilter)) {
+      setTopicFilter("all");
+    }
+  }, [topicOptions, topicFilter]);
+
+  const filteredNotes = useMemo(() => {
+    return notes.filter((note) => {
+      if (moduleFilter !== "all" && String(note.question.module) !== moduleFilter) return false;
+      if (topicFilter !== "all" && note.question.topic !== topicFilter) return false;
+      return true;
+    });
+  }, [notes, moduleFilter, topicFilter]);
+
+  useEffect(() => {
+    if (filteredNotes.length === 0) {
+      setSelectedQuestionId(null);
+      return;
+    }
+    setSelectedQuestionId((prev) =>
+      prev && filteredNotes.some((note) => note.questionId === prev)
+        ? prev
+        : filteredNotes[0].questionId,
+    );
+  }, [filteredNotes]);
+
   if (!isLoaded) {
     return <div className="py-16 text-center text-slate-gray">Loading...</div>;
   }
@@ -289,11 +352,70 @@ export function StudentNotesList({
     );
   }
 
+  const selectedNote =
+    filteredNotes.find((note) => note.questionId === selectedQuestionId) ?? filteredNotes[0];
+  const selectedQuestion = selectedNote ? questionById.get(selectedNote.questionId) : undefined;
+  const selectClassName =
+    "w-full rounded-lg border border-border-default bg-surface px-2 py-1.5 text-xs text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/50";
+
   return (
-    <div className="flex flex-col gap-3">
-      {notes.map((note) => (
-        <StudentNoteCard key={note.questionId} note={note} />
-      ))}
+    <div className="flex h-[600px] max-h-[70vh] overflow-hidden rounded-xl border border-border-subtle">
+      <div className="flex w-[380px] flex-shrink-0 flex-col border-r border-border-subtle bg-surface">
+        <div className="flex-shrink-0 border-b border-border-subtle px-4 py-3">
+          <div className="flex gap-2">
+            <select
+              value={moduleFilter}
+              onChange={(e) => setModuleFilter(e.target.value)}
+              className={selectClassName}
+              aria-label="Filter by module"
+            >
+              <option value="all">All modules</option>
+              {moduleOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+              className={selectClassName}
+              aria-label="Filter by topic"
+            >
+              <option value="all">All topics</option>
+              {topicOptions.map((topic) => (
+                <option key={topic} value={topic}>
+                  {topic}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {filteredNotes.map((note) => (
+            <NoteRow
+              key={note.questionId}
+              note={note}
+              isSelected={note.questionId === selectedNote?.questionId}
+              onSelect={() => setSelectedQuestionId(note.questionId)}
+            />
+          ))}
+          {filteredNotes.length === 0 && (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+              No notes match these filters.
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+        {selectedNote ? (
+          <SelectedNoteDetail note={selectedNote} question={selectedQuestion} />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Select a note to preview it here.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

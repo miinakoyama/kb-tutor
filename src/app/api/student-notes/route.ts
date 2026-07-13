@@ -7,16 +7,19 @@ const PREVIEW_LENGTH = 140;
 
 interface NotePayload {
   topic?: unknown;
+  module?: unknown;
   text?: unknown;
   shortAnswer?: { stem?: unknown };
 }
 
 function buildPreview(payload: NotePayload | null): {
   topic: string | null;
+  module: number | null;
   preview: string | null;
 } {
-  if (!payload) return { topic: null, preview: null };
+  if (!payload) return { topic: null, module: null, preview: null };
   const topic = typeof payload.topic === "string" ? payload.topic : null;
+  const questionModule = typeof payload.module === "number" ? payload.module : null;
   const stem =
     payload.shortAnswer && typeof payload.shortAnswer.stem === "string"
       ? payload.shortAnswer.stem
@@ -27,7 +30,7 @@ function buildPreview(payload: NotePayload | null): {
     source && source.length > PREVIEW_LENGTH
       ? `${source.slice(0, PREVIEW_LENGTH).trimEnd()}…`
       : source;
-  return { topic, preview };
+  return { topic, module: questionModule, preview };
 }
 
 export async function GET(request: Request) {
@@ -116,13 +119,14 @@ export async function GET(request: Request) {
   return NextResponse.json({
     notes: notes.map((note) => {
       const payload = payloadById.get(String(note.question_id)) ?? null;
-      const { topic, preview } = buildPreview(payload);
+      const { topic, module, preview } = buildPreview(payload);
       return {
         questionId: String(note.question_id),
         noteText: String(note.note_text),
         updatedAt: String(note.updated_at),
         question: {
           topic,
+          module,
           preview,
           available: payload !== null,
         },
