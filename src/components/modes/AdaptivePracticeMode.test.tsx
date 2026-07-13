@@ -134,6 +134,7 @@ describe("AdaptivePracticeMode session completion", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
   });
 
@@ -154,6 +155,33 @@ describe("AdaptivePracticeMode session completion", () => {
         sessionId: "session-1",
       });
     });
+  });
+
+  it("loads the first adaptive question from the server", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "selected",
+          targetKcCode: "3.1.9-12.A2",
+          question: { ...question, standardId: "3.1.9-12.A" },
+        }),
+      }),
+    );
+    render(
+      <AdaptivePracticeMode
+        questions={[]}
+        questionCount={5}
+        mode="practice"
+        adaptiveStandardIds={["3.1.9-12.A"]}
+      />,
+    );
+    expect(await screen.findByText("Question display")).toBeTruthy();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/practice/next",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("uses all available questions when questionCount is omitted", async () => {

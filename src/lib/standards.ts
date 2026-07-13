@@ -187,8 +187,8 @@ const STANDARD_MAP = new Map(
   STANDARD_DEFINITIONS.map((item) => [item.id, item]),
 );
 
-// Legacy module-topic names used in the static question bank (questions.json)
-// that don't match any standard category string.
+// Legacy topic names retained for older remote question payloads that do not
+// match a current standard category string.
 const LEGACY_TOPIC_STANDARD_ID: Record<string, string> = {
   "Basic Biological Principles": "3.1.9-12.A",
   "Chemical Basis for Life": "3.1.9-12.F",

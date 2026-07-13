@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface AttemptBody {
   clientAttemptId?: string;
@@ -102,6 +103,37 @@ async function resolveAuthorizedAssignmentId(
   return { assignmentId: normalizedAssignmentId, error: null };
 }
 
+function correctOptionIdFromPayload(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const correctOptionId = (value as Record<string, unknown>).correctOptionId;
+  return typeof correctOptionId === "string" && correctOptionId ? correctOptionId : null;
+}
+
+async function resolveAuthoritativeCorrectOptionId(
+  requester: SupabaseClient,
+  admin: SupabaseClient,
+  questionId: string,
+  assignmentId: string | null,
+): Promise<string | null> {
+  if (assignmentId) {
+    const { data } = await admin
+      .from("assignment_question_snapshots")
+      .select("payload")
+      .eq("assignment_id", assignmentId)
+      .eq("question_id", questionId)
+      .maybeSingle();
+    return correctOptionIdFromPayload(data?.payload);
+  }
+  const { data } = await requester
+    .from("generated_questions")
+    .select("payload")
+    .eq("id", questionId)
+    .eq("is_visible", true)
+    .limit(2);
+  if (!data || data.length !== 1) return null;
+  return correctOptionIdFromPayload(data[0].payload);
+}
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -121,9 +153,6 @@ export async function POST(request: Request) {
   if (!body.selectedOptionId) {
     return toHttpError(400, "Missing selectedOptionId");
   }
-  if (typeof body.isCorrect !== "boolean") {
-    return toHttpError(400, "Missing isCorrect");
-  }
   if (!body.mode || !ALLOWED_MODES.has(body.mode)) {
     return toHttpError(400, `Invalid mode: ${body.mode ?? "<missing>"}`);
   }
@@ -142,13 +171,23 @@ export async function POST(request: Request) {
   if (assignmentResolution.error) {
     return toHttpError(400, assignmentResolution.error);
   }
+  const correctOptionId = await resolveAuthoritativeCorrectOptionId(
+    supabase,
+    admin,
+    body.questionId,
+    assignmentResolution.assignmentId,
+  );
+  if (!correctOptionId) {
+    return toHttpError(404, "Question not found or inaccessible");
+  }
+  const isCorrect = body.selectedOptionId === correctOptionId;
 
   const payload = {
     user_id: user.id,
     client_attempt_id: body.clientAttemptId,
     question_id: body.questionId,
     selected_option_id: body.selectedOptionId,
-    is_correct: body.isCorrect,
+    is_correct: isCorrect,
     mode: body.mode,
     module:
       typeof body.module === "number" && Number.isFinite(body.module)
@@ -197,5 +236,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, isCorrect });
 }

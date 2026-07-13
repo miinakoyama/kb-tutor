@@ -57,6 +57,11 @@ describe("POST /api/analytics/attempts", () => {
   it("does not trust an assignmentId when the student is outside its scope", async () => {
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser("student-outside"),
+      tables: {
+        generated_questions: {
+          rows: [{ id: "q1", is_visible: true, payload: { correctOptionId: "A" } }],
+        },
+      },
     });
     const { client: adminClient, tables } = createMockSupabaseClient({
       tables: {
@@ -104,6 +109,9 @@ describe("POST /api/analytics/attempts", () => {
         school_members: {
           rows: [{ school_id: "school-1", student_user_id: "student-1" }],
         },
+        assignment_question_snapshots: {
+          rows: [{ assignment_id: "assignment-1", question_id: "q1", payload: { correctOptionId: "A" } }],
+        },
         attempts: { rows: [] },
       },
     });
@@ -122,5 +130,27 @@ describe("POST /api/analytics/attempts", () => {
         created_at: "2026-05-01T00:00:00.000Z",
       },
     ]);
+  });
+
+  it("recomputes correctness from authorized content instead of trusting the client", async () => {
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+      tables: {
+        generated_questions: {
+          rows: [{ id: "q1", is_visible: true, payload: { correctOptionId: "B" } }],
+        },
+      },
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: { attempts: { rows: [] } },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(attemptRequest(""));
+
+    expect(response.status).toBe(200);
+    expect(tables.attempts.rows[0].is_correct).toBe(false);
+    await expect(response.json()).resolves.toMatchObject({ isCorrect: false });
   });
 });

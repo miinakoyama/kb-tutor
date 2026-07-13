@@ -196,6 +196,9 @@ export async function getAllGeneratedQuestionSets(): Promise<{
       const list = questionBySet.get(setId) ?? [];
       list.push({
         ...withStandard(payload),
+        // The row's own id column is the authoritative identity (writes key
+        // on it too); never trust a payload copy that may be stale or absent.
+        id: String(row.id),
         questionSetId: setId,
         isVisible: true,
         includeInSelfPractice: row.include_in_self_practice === true,
@@ -260,6 +263,9 @@ export async function getGeneratedQuestionSetById(setId: string): Promise<{
 
     const questions = (questionRows ?? []).map((row) => ({
       ...withStandard(row.payload as Question),
+      // The row's own id column is the authoritative identity (writes key
+      // on it too); never trust a payload copy that may be stale or absent.
+      id: String(row.id),
       questionSetId: setId,
       isVisible: true,
       includeInSelfPractice: row.include_in_self_practice === true,
