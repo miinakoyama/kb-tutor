@@ -315,7 +315,7 @@ export function SelfPracticePlanner() {
               mode="exam"
               active={selectedMode === "exam"}
               title="Exam"
-              description="Exam Simulation. Practice under test-day rules."
+              description="Simulate real exam conditions under test-day rules."
               onClick={() => setSelectedMode("exam")}
             />
           </div>

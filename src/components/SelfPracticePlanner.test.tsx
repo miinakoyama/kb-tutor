@@ -20,7 +20,7 @@ describe("SelfPracticePlanner flow", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("button", {
-        name: /Exam Exam Simulation\. Practice under test-day rules\./,
+        name: /Exam Simulate real exam conditions under test-day rules\./,
       }),
     ).toBeTruthy();
     expect((nextButton as HTMLButtonElement).disabled).toBe(true);
