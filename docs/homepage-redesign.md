@@ -8,7 +8,7 @@ without a data source gets cut, not faked.
 
 | Question | Decision |
 |---|---|
-| Learning-effort time source | `analytics_sessions` — add a self-read RLS policy for students |
+| Learning-effort time source | **Revised (2026-07-14):** per-question answering time, not sessions. `attempts.time_spent_sec` (MCQ, all modes) + `short_answer_attempts.time_spent_sec` (SAQ, new column) + `page_dwell_events` (Review-tab visible time, new table). `analytics_sessions` was rejected after finding 100% of rows had `ended_at = NULL` — its exit-beacon design loses whole sessions, and it counts idle mount time |
 | Badges | **Cut from this version.** No badge schema, no unlock rules exist |
 | Review card | Keep the existing *incorrect-questions* semantics (not "choose a topic") |
 | "My Learning Journey" (KC coverage) | **Delete**, along with its data layer |
@@ -19,7 +19,7 @@ without a data source gets cut, not faked.
 |---|---|
 | `42` / `days to go` | `daysUntilExam(schools.keystone_exam_date)` — exists |
 | `May 22, 2027` | `formatExamDate` — exists |
-| `2h 40m this week` | Sum of `analytics_sessions` durations — **new** |
+| `2h 40m this week` | Sum of per-item answering time (MCQ + SAQ + Review-tab dwell) — **new** |
 | `18% more than last week` | Current vs previous period delta — **new** |
 | Mon–Sun bars | Per-day buckets in the student's timezone — **new** |
 | `67%` / `20%` / `Not started` | `assignment.progress.answered / .total` — exists |
@@ -30,38 +30,43 @@ without a data source gets cut, not faked.
 
 ---
 
-## 1. Backend — Learning effort
+## 1. Backend — Learning effort (revised: attempt-based)
 
-### 1a. Migration: let students read their own sessions
+### 1a. Migrations
 
-`supabase/migrations/20260714000000_analytics_sessions_read_self.sql`
-
-```sql
-CREATE POLICY analytics_sessions_read_self
-  ON public.analytics_sessions
-  FOR SELECT TO authenticated
-  USING (user_id = auth.uid());
-```
-
-The existing `analytics_sessions_read_admin_only` policy stays. Postgres ORs
-`SELECT` policies together, so admins keep full read access and students gain
-exactly their own rows — no widening beyond that.
+- `20260714000000_short_answer_attempts_time_spent.sql` — adds
+  `time_spent_sec` to `short_answer_attempts` (same semantics as the MCQ
+  column). Written server-side by the grade route from a client-measured
+  elapsed; pre-existing rows stay NULL (unmeasured).
+- `20260714000100_page_dwell_events.sql` — heartbeat table for Review-tab
+  visible time: one small row per ≤120s of visible dwell, insert/select-self
+  RLS. Unlike `analytics_sessions`, a killed tab loses at most one partial
+  interval instead of the whole session.
 
 ### 1b. `src/lib/homepage/learning-effort.ts`
 
-One query, pure functions on top of it (so the bucketing is unit-testable
-without Supabase):
+Three parallel queries (MCQ attempts, SAQ attempts, dwell events since the
+start of the previous calendar month), pure functions on top (so the
+bucketing is unit-testable without Supabase):
 
-- `getLearningEffort(supabase, userId, { timeZone, now })` — selects
-  `started_at, ended_at` from `analytics_sessions` for the user, from the start
-  of the previous calendar month (covers the weekly view, the monthly view, and
-  both prior-period comparisons in a single round trip).
-- `sessionDurationSec(row)` — reuses the **exact sanity rules** already applied
-  by the admin `insights_session_durations` RPC: `ended_at` non-null,
-  `ended_at > started_at`, duration under 6 hours. Anything else counts as 0.
-- `bucketByDay(rows, timeZone)` — `Intl.DateTimeFormat("en-CA", { timeZone })`
+- `itemSeconds(item)` — non-finite/absent → 0; clamped to a 30-minute
+  per-item cap so one stuck timer can't distort a week.
+- `bucketByDay(items, timeZone)` — `Intl.DateTimeFormat("en-CA", { timeZone })`
   date keys, the same approach [streak.ts](../src/lib/progress/streak.ts) uses.
-- `buildWeeklySeries` / `buildMonthlySeries` / `buildEffortSummary`.
+- `buildWeeklySeries` / `buildMonthlySeries` / `buildLearningEffort`.
+- Any source query failing → `null` (card shows "unavailable"); a partial sum
+  presented as the total would be worse than no data.
+
+### 1c. Writers
+
+- MCQ: already recorded (`AdaptivePracticeMode` / `ExamMode`,
+  visibility-aware dwell).
+- SAQ: `ShortAnswerQuestionView` stamps when a part becomes answerable
+  (mount / unlock / hydration), re-stamps after each recorded attempt so a
+  retry times only the retry; grade route validates (1s–2h, else NULL) and
+  persists.
+- Review tab: `usePageDwell("review_tab")` on the bookmarks page — counts
+  visible time only, flushes every 30s + on hide/unmount.
 
 Returned shape:
 
@@ -87,15 +92,13 @@ pure client state — no refetch, no spinner.
   percentage increase from zero. The UI **hides** that line rather than printing
   `∞%` or `100%`.
 
-### 1c. Two honest limitations, surfaced in the UI
+### 1d. Honest limitations, surfaced in the UI
 
-- **Undercount.** `ended_at` is written best-effort from `beforeunload` /
-  `pagehide` beacons. A closed laptop lid leaves it NULL and that session's time
-  is lost. The chart will read slightly low. (Fixing this properly means a
-  heartbeat ping — out of scope; worth a follow-up.)
-- **Empty state.** `POST /api/analytics/sessions` requires a school membership,
-  so a student not enrolled in a school has *zero* session rows. All-zero series
-  must render "No practice time recorded yet", never a chart of empty bars.
+- **Historical SAQ gap.** SAQ answering time is only recorded from the
+  migration onward; older attempts contribute 0. MCQ history is complete.
+- **Empty state.** All-zero data from a successful query renders "No practice
+  time recorded yet", never a chart of empty bars; a failed query renders
+  "unavailable" instead of zeros.
 
 ## 2. Backend — smaller pieces
 

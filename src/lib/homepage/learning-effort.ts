@@ -1,24 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Learning-effort data for the homepage chart, computed from
- * `analytics_sessions` (one row per Practice / Exam / Review session, written
- * by the session lifecycle in `src/lib/analytics/session.ts`).
+ * Learning-effort data for the homepage chart.
  *
- * Both the weekly and the monthly series are produced from one query so the
+ * "Effort" = time actually spent working, summed per day from three sources:
+ *  1. `attempts.time_spent_sec`             — per-question MCQ answering time
+ *     (practice / exam / review modes all record it, visibility-aware),
+ *  2. `short_answer_attempts.time_spent_sec` — per-part SAQ answering time,
+ *  3. `page_dwell_events.seconds`            — visible time on the Review tab
+ *     (heartbeat rows flushed by `usePageDwell`).
+ *
+ * This deliberately does NOT use `analytics_sessions`: those measure
+ * component-mount wall time (idle included) and depend on an exit beacon for
+ * `ended_at` that frequently never fires.
+ *
+ * Both the weekly and the monthly series are produced from one fetch so the
  * Weekly/Monthly toggle is pure client state. All bucketing happens in the
  * student's timezone via `Intl.DateTimeFormat` date keys — the same approach
  * as `calculateStreak`.
- *
- * Known undercount: `ended_at` is written best-effort from
- * `beforeunload`/`pagehide` beacons, so a closed laptop lid leaves it NULL and
- * that session contributes 0. Callers must treat an all-zero result as "no
- * recorded time", not as proof the student did nothing.
  */
 
-export type SessionRow = {
-  started_at: string;
-  ended_at: string | null;
+/** One timed unit of work: an answered question/part or a dwell heartbeat. */
+export type EffortItem = {
+  /** ISO timestamp the work is attributed to. */
+  at: string;
+  seconds: number | null;
 };
 
 export type EffortBar = {
@@ -45,26 +51,25 @@ export type LearningEffort = {
   monthly: EffortSeries;
 };
 
-const FETCH_LIMIT = 2000;
+const FETCH_LIMIT = 5000;
 
-/** Same sanity rules as the admin `insights_session_durations` RPC. */
-const MAX_SESSION_SEC = 6 * 60 * 60;
+/**
+ * Per-item ceiling. Recorded times are visibility-aware on the writer side,
+ * so multi-hour values are corrupt rather than real; clamping (instead of
+ * dropping) keeps the item's honest signal without letting one stuck timer
+ * distort a week.
+ */
+const MAX_ITEM_SEC = 30 * 60;
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/**
- * Duration of one session in seconds, applying the exact sanity rules the
- * admin insights RPC uses: `ended_at` present, after `started_at`, and under
- * 6 hours. Anything else counts as 0 so one stuck row can't distort a week.
- */
-export function sessionDurationSec(row: SessionRow): number {
-  if (!row.ended_at) return 0;
-  const started = new Date(row.started_at).getTime();
-  const ended = new Date(row.ended_at).getTime();
-  if (Number.isNaN(started) || Number.isNaN(ended)) return 0;
-  const seconds = (ended - started) / 1000;
-  if (seconds <= 0 || seconds >= MAX_SESSION_SEC) return 0;
-  return seconds;
+/** Sanitized seconds for one item: non-finite/absent → 0, clamped to cap. */
+export function itemSeconds(item: EffortItem): number {
+  const { seconds } = item;
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
+    return 0;
+  }
+  return Math.min(seconds, MAX_ITEM_SEC);
 }
 
 /** "YYYY-MM-DD" for the instant as seen in the given timezone. */
@@ -111,16 +116,18 @@ function weekStartKey(key: string, weekOffset: number): string {
   return addDaysToKey(key, -mondayOffset + weekOffset * 7);
 }
 
-/** Sums per-day durations, keyed by the session's start date in the tz. */
+/** Sums per-day effort, keyed by each item's date in the tz. */
 export function bucketByDay(
-  rows: SessionRow[],
+  items: EffortItem[],
   timeZone: string,
 ): Map<string, number> {
   const byDay = new Map<string, number>();
-  for (const row of rows) {
-    const seconds = sessionDurationSec(row);
+  for (const item of items) {
+    const seconds = itemSeconds(item);
     if (seconds === 0) continue;
-    const key = dateKeyInZone(new Date(row.started_at), timeZone);
+    const at = new Date(item.at);
+    if (Number.isNaN(at.getTime())) continue;
+    const key = dateKeyInZone(at, timeZone);
     byDay.set(key, (byDay.get(key) ?? 0) + seconds);
   }
   return byDay;
@@ -198,11 +205,11 @@ export function buildMonthlySeries(
 
 /** Pure assembly of both series — exported for tests. */
 export function buildLearningEffort(
-  rows: SessionRow[],
+  items: EffortItem[],
   timeZone: string,
   now: Date,
 ): LearningEffort {
-  const byDay = bucketByDay(rows, timeZone);
+  const byDay = bucketByDay(items, timeZone);
   const todayKey = dateKeyInZone(now, timeZone);
   return {
     weekly: buildWeeklySeries(byDay, todayKey),
@@ -210,13 +217,26 @@ export function buildLearningEffort(
   };
 }
 
+type TimedRow = Record<string, unknown>;
+
+function rowsToItems(
+  rows: TimedRow[],
+  atColumn: string,
+  secondsColumn: string,
+): EffortItem[] {
+  return rows.map((row) => ({
+    at: String(row[atColumn] ?? ""),
+    seconds:
+      typeof row[secondsColumn] === "number" ? (row[secondsColumn] as number) : null,
+  }));
+}
+
 /**
- * Fetches the student's sessions back to the start of the previous calendar
- * month (the earliest instant either series or either comparison needs) and
- * assembles both series. Returns null (not an all-zero chart) when the query
- * itself fails, so the UI can omit the card instead of showing misleading
- * zeros. All-zero data from a *successful* query is real: the student has no
- * recorded time, and the card should say so.
+ * Fetches all three effort sources back to the start of the previous
+ * calendar month (the earliest instant either series or either comparison
+ * needs) and assembles both series. Returns null (not an all-zero chart)
+ * when any query fails — the three sources ship as one feature, and a
+ * partial sum silently presented as the total would be worse than "no data".
  */
 export async function getLearningEffort(
   supabase: SupabaseClient,
@@ -228,17 +248,43 @@ export async function getLearningEffort(
   // The DB filter only needs to be ≤ the true tz-local boundary — the pure
   // functions re-bucket by date key anyway — so pad by a day instead of
   // computing the exact tz offset.
-  const since = new Date(Date.UTC(prevMonthStart.y, prevMonthStart.m - 1, prevMonthStart.d - 1));
+  const since = new Date(
+    Date.UTC(prevMonthStart.y, prevMonthStart.m - 1, prevMonthStart.d - 1),
+  ).toISOString();
 
-  const { data, error } = await supabase
-    .from("analytics_sessions")
-    .select("started_at,ended_at")
-    .eq("user_id", studentUserId)
-    .gte("started_at", since.toISOString())
-    .order("started_at", { ascending: false })
-    .limit(FETCH_LIMIT);
+  const [mcq, saq, dwell] = await Promise.all([
+    supabase
+      .from("attempts")
+      .select("time_spent_sec,answered_at")
+      .eq("user_id", studentUserId)
+      .gte("answered_at", since)
+      .order("answered_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+    supabase
+      .from("short_answer_attempts")
+      .select("time_spent_sec,answered_at")
+      .eq("user_id", studentUserId)
+      .gte("answered_at", since)
+      .order("answered_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+    supabase
+      .from("page_dwell_events")
+      .select("seconds,occurred_at")
+      .eq("user_id", studentUserId)
+      .gte("occurred_at", since)
+      .order("occurred_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+  ]);
 
-  if (error || !data) return null;
+  if (mcq.error || !mcq.data || saq.error || !saq.data || dwell.error || !dwell.data) {
+    return null;
+  }
 
-  return buildLearningEffort(data as SessionRow[], timeZone, now);
+  const items: EffortItem[] = [
+    ...rowsToItems(mcq.data, "answered_at", "time_spent_sec"),
+    ...rowsToItems(saq.data, "answered_at", "time_spent_sec"),
+    ...rowsToItems(dwell.data, "occurred_at", "seconds"),
+  ];
+
+  return buildLearningEffort(items, timeZone, now);
 }
