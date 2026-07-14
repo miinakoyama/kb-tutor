@@ -6,22 +6,24 @@ const {
   createSupabaseServerClientMock,
   keystoneExamMock,
   redirectMock,
+  learningEffortMock,
+  masterySummaryMock,
   profileSummaryMock,
   resolveRoleWithServerFallbackMock,
   selfPracticeWeeklySecondsMock,
-  topicKcCoverageMock,
   userSettingsMock,
 } = vi.hoisted(() => ({
   assignmentListMock: vi.fn(),
   createSupabaseServerClientMock: vi.fn(),
   keystoneExamMock: vi.fn(),
+  learningEffortMock: vi.fn(),
+  masterySummaryMock: vi.fn(),
   profileSummaryMock: vi.fn(),
   redirectMock: vi.fn((path: string): never => {
     throw new Error(`REDIRECT:${path}`);
   }),
   resolveRoleWithServerFallbackMock: vi.fn(),
   selfPracticeWeeklySecondsMock: vi.fn(),
-  topicKcCoverageMock: vi.fn(),
   userSettingsMock: vi.fn(),
 }));
 
@@ -53,8 +55,12 @@ vi.mock("@/lib/homepage/self-practice-stats", () => ({
   getSelfPracticeWeeklySeconds: selfPracticeWeeklySecondsMock,
 }));
 
-vi.mock("@/lib/homepage/kc-coverage", () => ({
-  getTopicKcCoverage: topicKcCoverageMock,
+vi.mock("@/lib/homepage/learning-effort", () => ({
+  getLearningEffort: learningEffortMock,
+}));
+
+vi.mock("@/lib/homepage/mastery-summary", () => ({
+  getMasterySummary: masterySummaryMock,
 }));
 
 vi.mock("@/lib/homepage/profile-summary", () => ({
@@ -96,10 +102,11 @@ describe("Home role routing", () => {
     createSupabaseServerClientMock.mockReset();
     keystoneExamMock.mockReset();
     redirectMock.mockClear();
+    learningEffortMock.mockReset();
+    masterySummaryMock.mockReset();
     profileSummaryMock.mockReset();
     resolveRoleWithServerFallbackMock.mockReset();
     selfPracticeWeeklySecondsMock.mockReset();
-    topicKcCoverageMock.mockReset();
     userSettingsMock.mockReset();
   });
 
@@ -132,7 +139,8 @@ describe("Home role routing", () => {
     assignmentListMock.mockResolvedValue({ assignments: [] });
     keystoneExamMock.mockResolvedValue(null);
     selfPracticeWeeklySecondsMock.mockResolvedValue(null);
-    topicKcCoverageMock.mockResolvedValue([]);
+    learningEffortMock.mockResolvedValue(null);
+    masterySummaryMock.mockResolvedValue([]);
     profileSummaryMock.mockResolvedValue({ name: null, schoolName: null });
 
     await expect(Home()).resolves.toBeTruthy();
@@ -142,5 +150,9 @@ describe("Home role routing", () => {
     expect(keystoneExamMock).toHaveBeenCalledWith(supabase, "user-1", {
       timeZone: "America/New_York",
     });
+    expect(learningEffortMock).toHaveBeenCalledWith(supabase, "user-1", {
+      timeZone: "America/New_York",
+    });
+    expect(masterySummaryMock).toHaveBeenCalledWith(supabase, "user-1");
   });
 });
