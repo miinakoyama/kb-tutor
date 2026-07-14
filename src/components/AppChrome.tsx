@@ -12,6 +12,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const hideNavigationChrome = pathname === "/login" || pathname === "/login/staff";
   // Question-taking routes plus pages that opted out of the corner leaf.
   const hideDecorativeLeaf =
+    pathname === "/" ||
     pathname === "/assignments" ||
     pathname === "/self-practice" ||
     pathname === "/practice" ||
