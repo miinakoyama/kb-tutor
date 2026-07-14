@@ -2,27 +2,80 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  ClipboardCheck,
-  ChevronLeft,
-  ChevronRight,
-  Pencil,
-  Play,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import type { PracticeMode } from "@/types/question";
-import {
-  STANDARD_DEFINITIONS,
-  getStandardById,
-  type ModuleCode,
-} from "@/lib/standards";
-import { getMasteryBand } from "@/lib/progress/mastery";
-import { fetchAnswerHistory } from "@/lib/storage";
+import { ASSIGNMENT_MODE_META } from "@/components/assignments/assignment-design";
+import { STANDARD_DEFINITIONS, type ModuleCode } from "@/lib/standards";
 
 const MODULE_ORDER: ModuleCode[] = ["A", "B"];
 const TOPIC_MODULE_LABELS: Record<ModuleCode, string> = {
   A: "Molecules to Organisms",
   B: "Continuity and Unity of Life",
 };
+
+const GEIST_FONT = "var(--font-geist), ui-sans-serif, sans-serif";
+
+const CTA_BASE_CLASS =
+  "inline-flex items-center justify-center gap-2 px-5 font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+const PRIMARY_CTA_CLASS = `${CTA_BASE_CLASS} transition duration-200 hover:brightness-110 active:brightness-95`;
+const SECONDARY_CTA_CLASS = `${CTA_BASE_CLASS} bg-[var(--assignment-row-cta-bg)] transition duration-200 hover:-translate-y-px hover:bg-[var(--assignment-row-cta-bg-hover)] active:translate-y-0 active:bg-[var(--assignment-row-cta-bg-active)]`;
+const DISABLED_CTA_CLASS = `${CTA_BASE_CLASS} cursor-not-allowed`;
+
+const CTA_SHARED_STYLE: React.CSSProperties = {
+  fontSize: 16,
+  lineHeight: 1.5,
+  letterSpacing: "0.3px",
+  wordSpacing: "1px",
+  height: 46,
+  borderRadius: 999,
+  fontFamily: GEIST_FONT,
+};
+
+const PRIMARY_CTA_STYLE: React.CSSProperties = {
+  ...CTA_SHARED_STYLE,
+  color: "var(--assignment-cta-text)",
+  background: "var(--assignment-cta-bg-strong)",
+  border: "1.5px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-cta-elevated-shadow)",
+};
+
+// Background comes from the class (bg-[...]) so the hover/active bg utilities can win.
+const SECONDARY_CTA_STYLE: React.CSSProperties = {
+  ...CTA_SHARED_STYLE,
+  color: "var(--assignment-row-cta-text)",
+  border: "1.5px solid var(--assignment-row-cta-border)",
+  boxShadow: "var(--assignment-row-cta-shadow)",
+};
+
+const DISABLED_CTA_STYLE: React.CSSProperties = {
+  ...CTA_SHARED_STYLE,
+  color: "var(--assignment-row-cta-text)",
+  background: "var(--assignment-row-cta-bg)",
+  border: "1.5px solid var(--assignment-row-cta-border)",
+  opacity: 0.55,
+};
+
+// Hero title tier: 26px/700, 1.25, -0.4px (see design-system SKILL.md §2).
+const SECTION_HEADING_STYLE: React.CSSProperties = {
+  fontSize: 26,
+  lineHeight: 1.25,
+  letterSpacing: "-0.4px",
+  fontFamily: GEIST_FONT,
+};
+
+// Row-level selectable card. Border stays 1px in both states; the selected
+// ring + glow are drawn with box-shadow layers so content never shifts.
+function selectableCardStyle(active: boolean): React.CSSProperties {
+  return {
+    background: "var(--assignment-glass-bg)",
+    border: `1px solid ${active ? "var(--assignment-selected-accent)" : "var(--assignment-selectable-border)"}`,
+    boxShadow: active
+      ? "0 0 0 1px var(--assignment-selected-accent), 0 0 0 6px var(--assignment-selected-glow), var(--assignment-card-shadow)"
+      : "var(--assignment-card-shadow)",
+    backdropFilter: "blur(14px) saturate(115%)",
+    WebkitBackdropFilter: "blur(14px) saturate(115%)",
+  };
+}
 
 interface CategorySelection {
   key: string;
@@ -47,29 +100,6 @@ function buildCategorySelections(): CategorySelection[] {
 const CATEGORY_SELECTIONS = buildCategorySelections();
 const ALL_KEYS = CATEGORY_SELECTIONS.map((c) => c.key);
 
-interface MasteryTag {
-  label: string;
-  bgColor: string;
-  textColor: string;
-}
-
-function getMasteryTag(
-  stats: { correct: number; total: number } | undefined,
-): MasteryTag | null {
-  if (!stats || stats.total === 0) return null;
-  const band = getMasteryBand(stats.correct, stats.total);
-  if (band === "mastered") {
-    return { label: "Mastered", bgColor: "bg-green-100", textColor: "text-green-700" };
-  }
-  if (band === "on_track") {
-    return { label: "Proficient", bgColor: "bg-blue-100", textColor: "text-blue-700" };
-  }
-  if (band === "building_up") {
-    return { label: "Building up", bgColor: "bg-amber-100", textColor: "text-amber-700" };
-  }
-  return null;
-}
-
 const EXAM_QUESTION_COUNT_OPTIONS = [12, 24, 48] as const;
 const MIN_CUSTOM_EXAM_QUESTIONS = 1;
 const MAX_CUSTOM_EXAM_QUESTIONS = 200;
@@ -84,28 +114,57 @@ function FlowProgress({
   steps: string[];
 }) {
   return (
-    <div className="mb-6 mx-auto w-full max-w-[13rem] sm:max-w-[14rem]">
-      <div
-        className="grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
-      >
+    <div className="mb-7 flex justify-center">
+      <p className="sr-only">
+        Step {currentStep} of {steps.length}: {steps[currentStep - 1]}
+      </p>
+      <div aria-hidden="true" className="flex items-center">
         {steps.map((label, index) => {
           const step = (index + 1) as SelfPracticeStep;
-          const active = currentStep === step;
-          const complete = currentStep > step;
+          const isCurrent = step === currentStep;
+          const isDone = step < currentStep;
 
           return (
-            <div
-              key={label}
-              aria-hidden="true"
-              className={`h-2 rounded-full transition-colors ${
-                active
-                  ? "bg-primary"
-                  : complete
-                    ? "bg-primary/90"
-                    : "bg-primary/25"
-              }`}
-            />
+            <div key={label} className="flex items-center">
+              {index > 0 && (
+                <div
+                  className="h-0.5 w-8 sm:w-12"
+                  style={{
+                    background:
+                      step <= currentStep
+                        ? "var(--assignment-completed-muted)"
+                        : "var(--border-default)",
+                  }}
+                />
+              )}
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-full font-semibold transition-colors"
+                style={{
+                  fontSize: 14,
+                  fontFamily: GEIST_FONT,
+                  boxShadow: "var(--assignment-pill-highlight)",
+                  ...(isCurrent
+                    ? {
+                        background: "var(--assignment-completed)",
+                        border: "1.5px solid var(--assignment-completed)",
+                        color: "var(--assignment-on-accent)",
+                      }
+                    : isDone
+                      ? {
+                          background: "var(--assignment-completed-muted)",
+                          border: "1.5px solid var(--assignment-completed-muted)",
+                          color: "var(--assignment-on-accent)",
+                        }
+                      : {
+                          background: "var(--assignment-row-cta-bg)",
+                          border: "1.5px solid var(--assignment-row-cta-bg)",
+                          color: "var(--muted-foreground)",
+                        }),
+                }}
+              >
+                {step}
+              </span>
+            </div>
           );
         })}
       </div>
@@ -114,52 +173,47 @@ function FlowProgress({
 }
 
 function ModeCard({
+  mode,
   active,
-  icon,
   title,
   description,
   onClick,
 }: {
+  mode: Extract<PracticeMode, "practice" | "exam">;
   active: boolean;
-  icon: React.ReactNode;
   title: string;
   description: string;
   onClick: () => void;
 }) {
-  const selectionColor = "var(--assignment-completed)";
-  const cardTint = "var(--primary-light)";
-  const neutralColor = "var(--border-default)";
-  const frameColor = active ? selectionColor : neutralColor;
+  const meta = ASSIGNMENT_MODE_META[mode];
+  const Icon = meta.Icon;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="grid min-h-[280px] place-items-center rounded-xl p-5 text-center transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:min-h-[300px] sm:p-6"
-      style={{
-        background: active ? cardTint : "var(--surface)",
-        border: active ? `2px solid ${selectionColor}` : `1px solid ${neutralColor}`,
-        boxShadow: "var(--assignment-card-shadow)",
-        backdropFilter: "blur(14px) saturate(115%)",
-        WebkitBackdropFilter: "blur(14px) saturate(115%)",
-      }}
+      aria-pressed={active}
+      className="mx-auto grid min-h-[280px] w-[95%] place-items-center rounded-2xl p-5 text-center transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-[300px] sm:p-6"
+      style={selectableCardStyle(active)}
     >
-      <div className="mx-auto flex w-full max-w-[220px] flex-col items-center justify-center">
+      <div className="mx-auto flex w-full flex-col items-center justify-center">
         <div
-          className="flex h-14 w-14 items-center justify-center rounded-full border"
-          style={{ borderColor: frameColor, color: frameColor }}
+          className="flex h-14 w-14 items-center justify-center rounded-full"
+          style={{
+            color: meta.color,
+            background: meta.pillBg,
+            border: `1.5px solid ${meta.pillBorder}`,
+            boxShadow: "var(--assignment-pill-highlight)",
+          }}
         >
-          {icon}
+          <Icon className="h-6 w-6" />
         </div>
-        <p
-          className="mt-3 font-bold text-heading"
-          style={{ fontSize: 17, lineHeight: 1.35, fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
-        >
+        <p className="mt-3 font-bold text-slate-gray" style={SECTION_HEADING_STYLE}>
           {title}
         </p>
         <p
-          className="mt-1.5 text-sm text-muted-foreground"
-          style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
+          className="mt-1.5 text-muted-foreground"
+          style={{ fontSize: 15, lineHeight: 1.5, letterSpacing: "-0.1px", fontFamily: GEIST_FONT }}
         >
           {description}
         </p>
@@ -175,32 +229,6 @@ export function SelfPracticePlanner() {
   const [examQuestionCount, setExamQuestionCount] = useState<number | null>(null);
   const [isCustomExamCount, setIsCustomExamCount] = useState(false);
   const [customExamCount, setCustomExamCount] = useState<string>("");
-  const [accuracyMap, setAccuracyMap] = useState<
-    Record<string, { correct: number; total: number }>
-  >({});
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void fetchAnswerHistory().then((history) => {
-      if (cancelled) return;
-      const map: Record<string, { correct: number; total: number }> = {};
-      for (const answer of history) {
-        if (!answer.standardId) continue;
-        const std = getStandardById(answer.standardId);
-        if (!std) continue;
-        const key = `Module ${std.module} - ${std.category}`;
-        if (!map[key]) map[key] = { correct: 0, total: 0 };
-        map[key].total++;
-        if (answer.isCorrect) map[key].correct++;
-      }
-      setAccuracyMap(map);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const isAllSelected = ALL_KEYS.length > 0 && selectedTopics.length === ALL_KEYS.length;
 
@@ -239,17 +267,7 @@ export function SelfPracticePlanner() {
   const buildStartButton = (label: string) => {
     if (startHref) {
       return (
-        <Link
-          href={startHref}
-          className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-bold transition duration-200 hover:-translate-y-px active:translate-y-0"
-          style={{
-            color: "var(--assignment-on-accent)",
-            background: "var(--assignment-cta-bg-strong)",
-            border: "1.5px solid var(--assignment-cta-border-hover)",
-            boxShadow: "var(--assignment-cta-elevated-shadow)",
-            fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-          }}
-        >
+        <Link href={startHref} className={PRIMARY_CTA_CLASS} style={PRIMARY_CTA_STYLE}>
           <Play className="h-4 w-4" />
           {label}
         </Link>
@@ -257,18 +275,7 @@ export function SelfPracticePlanner() {
     }
 
     return (
-      <button
-        type="button"
-        disabled
-        className="inline-flex cursor-not-allowed items-center gap-2 rounded-full px-5 py-2.5 font-bold"
-        style={{
-          color: "var(--assignment-row-cta-text)",
-          background: "var(--assignment-row-cta-bg)",
-          border: "1.5px solid var(--assignment-row-cta-border)",
-          boxShadow: "var(--assignment-row-cta-shadow)",
-          fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-        }}
-      >
+      <button type="button" disabled className={DISABLED_CTA_CLASS} style={DISABLED_CTA_STYLE}>
         <Play className="h-4 w-4" />
         {label}
       </button>
@@ -278,155 +285,105 @@ export function SelfPracticePlanner() {
   const startExamButton = buildStartButton("Start Exam");
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {currentStep === 1 ? (
-        <section
-          className="rounded-[28px] border p-5 sm:p-6"
-          style={{
-            background: "var(--assignment-glass-bg)",
-            borderColor: "var(--assignment-glass-border)",
-            boxShadow: "var(--assignment-card-shadow)",
-            backdropFilter: "blur(14px) saturate(115%)",
-            WebkitBackdropFilter: "blur(14px) saturate(115%)",
-          }}
-        >
-          <h2
-            className="mb-4 text-center text-lg font-semibold text-heading"
-            style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
-          >
+        <section>
+          <FlowProgress currentStep={currentStep} steps={flowStepLabels} />
+
+          <h2 className="mb-2 text-center font-bold text-slate-gray" style={SECTION_HEADING_STYLE}>
             Select Mode
           </h2>
 
-          <FlowProgress currentStep={currentStep} steps={flowStepLabels} />
+          <p
+            className="mb-7 text-center text-muted-foreground"
+            style={{ fontSize: 16, lineHeight: 1.5, letterSpacing: "-0.1px", fontFamily: GEIST_FONT }}
+          >
+            How would you like to practice?
+            <br />
+            Choose the experience that best matches your goal today.
+          </p>
 
-          <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
+          <div className="grid gap-6 sm:grid-cols-2">
             <ModeCard
+              mode="practice"
               active={selectedMode === "practice"}
-              icon={<Pencil className="h-6 w-6" />}
               title="Practice"
               description="Get feedback as you go."
               onClick={() => setSelectedMode("practice")}
             />
             <ModeCard
+              mode="exam"
               active={selectedMode === "exam"}
-              icon={<ClipboardCheck className="h-6 w-6" />}
               title="Exam"
-              description="No hints. Just like test day."
+              description="Simulate real exam conditions under test-day rules."
               onClick={() => setSelectedMode("exam")}
             />
           </div>
 
           <div className="mt-6 flex items-center justify-end">
-            {hasSelectedMode ? (
-              <button
-                type="button"
-                onClick={() => setCurrentStep(2)}
-                className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-bold transition duration-200 hover:-translate-y-px active:translate-y-0"
-                style={{
-                  color: "var(--assignment-on-accent)",
-                  background: "var(--assignment-cta-bg-strong)",
-                  border: "1.5px solid var(--assignment-cta-border-hover)",
-                  boxShadow: "var(--assignment-cta-elevated-shadow)",
-                  fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-                }}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="inline-flex cursor-not-allowed items-center gap-2 rounded-full px-5 py-2.5 font-bold"
-                style={{
-                  color: "var(--assignment-row-cta-text)",
-                  background: "var(--assignment-row-cta-bg)",
-                  border: "1.5px solid var(--assignment-row-cta-border)",
-                  boxShadow: "var(--assignment-row-cta-shadow)",
-                  fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-                }}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setCurrentStep(2)}
+              disabled={!hasSelectedMode}
+              className={hasSelectedMode ? PRIMARY_CTA_CLASS : DISABLED_CTA_CLASS}
+              style={hasSelectedMode ? PRIMARY_CTA_STYLE : DISABLED_CTA_STYLE}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         </section>
       ) : currentStep === 2 ? (
-        <section
-          className="rounded-[28px] border p-5 sm:p-6"
-          style={{
-            background: "var(--assignment-glass-bg)",
-            borderColor: "var(--assignment-glass-border)",
-            boxShadow: "var(--assignment-card-shadow)",
-            backdropFilter: "blur(14px) saturate(115%)",
-            WebkitBackdropFilter: "blur(14px) saturate(115%)",
-          }}
-        >
-          <h2
-            className="mb-4 text-center text-lg font-semibold text-heading"
-            style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
-          >
+        <section>
+          <FlowProgress currentStep={currentStep} steps={flowStepLabels} />
+
+          <h2 className="mb-6 text-center font-bold text-slate-gray" style={SECTION_HEADING_STYLE}>
             Choose Topics
           </h2>
 
-          <FlowProgress currentStep={currentStep} steps={flowStepLabels} />
-
-          <div className="mb-4 flex items-center justify-end gap-4">
+          <div className="mb-6 flex items-center justify-end gap-6">
             <button
               type="button"
               onClick={() =>
                 setSelectedTopics((prev) => (prev.length === ALL_KEYS.length ? [] : ALL_KEYS))
               }
-              className="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold text-heading transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              className="inline-flex items-center rounded-full bg-[var(--assignment-row-cta-bg)] px-4 py-2 font-semibold transition duration-200 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               style={{
-                background: "var(--assignment-row-cta-bg)",
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: "var(--assignment-row-cta-text)",
                 border: "1.5px solid var(--assignment-row-cta-border)",
                 boxShadow: "var(--assignment-row-cta-shadow)",
-                fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+                fontFamily: GEIST_FONT,
               }}
             >
               {isAllSelected ? "Deselect all" : "Select all"}
             </button>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-6">
             {MODULE_ORDER.map((mod) => (
-              <div key={mod}>
-                <h3 className="mb-2 text-sm font-semibold text-slate-gray">
+              <div key={mod} className="mx-auto w-[95%]">
+                <h3 className="mb-6 text-sm font-medium uppercase tracking-wide text-muted-foreground">
                   Module {mod}: {TOPIC_MODULE_LABELS[mod]}
                 </h3>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                   {CATEGORY_SELECTIONS.filter((c) => c.module === mod).map((sel) => {
                     const active = selectedTopics.includes(sel.key);
-                    const tag = getMasteryTag(accuracyMap[sel.key]);
 
                     return (
                       <button
                         key={sel.key}
                         type="button"
                         onClick={() => toggleTopic(sel.key)}
-                        className="relative h-[98px] w-full rounded-[22px] border px-3 py-3 text-center transition-colors"
-                        style={{
-                          background: active ? "var(--primary-light)" : "var(--surface)",
-                          border: active
-                            ? "2px solid var(--assignment-completed)"
-                            : "1px solid var(--border-default)",
-                          boxShadow: "var(--assignment-card-shadow)",
-                        }}
+                        aria-pressed={active}
+                        className="relative h-[98px] w-full rounded-2xl px-3 py-3 text-center transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                        style={selectableCardStyle(active)}
                       >
-                        {tag && (
-                          <span
-                            className={`absolute right-2 top-2 z-10 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tag.bgColor} ${tag.textColor}`}
-                          >
-                            {tag.label}
-                          </span>
-                        )}
-
                         <div className="flex h-full min-w-0 items-center justify-center">
                           <p
-                            className="max-w-[90%] text-center text-sm font-medium leading-snug text-slate-gray"
-                            style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
+                            className="max-w-[95%] text-center font-medium text-slate-gray"
+                            style={{ fontSize: 15, lineHeight: 1.4, fontFamily: GEIST_FONT }}
                           >
                             {sel.category}
                           </p>
@@ -439,18 +396,12 @@ export function SelfPracticePlanner() {
             ))}
           </div>
 
-          <div className="mt-6 flex items-center justify-between gap-3">
+          <div className="mt-6 flex items-center justify-between gap-6">
             <button
               type="button"
               onClick={() => setCurrentStep(1)}
-              className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-bold transition duration-200 hover:-translate-y-px active:translate-y-0"
-              style={{
-                color: "var(--assignment-row-cta-text)",
-                background: "var(--assignment-row-cta-bg)",
-                border: "1.5px solid var(--assignment-row-cta-border)",
-                boxShadow: "var(--assignment-row-cta-shadow)",
-                fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-              }}
+              className={SECONDARY_CTA_CLASS}
+              style={SECONDARY_CTA_STYLE}
             >
               <ChevronLeft className="h-4 w-4" />
               Back
@@ -460,24 +411,8 @@ export function SelfPracticePlanner() {
                 type="button"
                 onClick={() => setCurrentStep(3)}
                 disabled={!hasSelectedTopics}
-                className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-bold transition duration-200"
-                style={
-                  hasSelectedTopics
-                    ? {
-                        color: "var(--assignment-on-accent)",
-                        background: "var(--assignment-cta-bg-strong)",
-                        border: "1.5px solid var(--assignment-cta-border-hover)",
-                        boxShadow: "var(--assignment-cta-elevated-shadow)",
-                        fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-                      }
-                    : {
-                        color: "var(--assignment-row-cta-text)",
-                        background: "var(--assignment-row-cta-bg)",
-                        border: "1.5px solid var(--assignment-row-cta-border)",
-                        boxShadow: "var(--assignment-row-cta-shadow)",
-                        fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-                      }
-                }
+                className={hasSelectedTopics ? PRIMARY_CTA_CLASS : DISABLED_CTA_CLASS}
+                style={hasSelectedTopics ? PRIMARY_CTA_STYLE : DISABLED_CTA_STYLE}
               >
                 Next
                 <ChevronRight className="h-4 w-4" />
@@ -488,143 +423,129 @@ export function SelfPracticePlanner() {
           </div>
         </section>
       ) : (
-        <section
-          className="rounded-[28px] border p-5 sm:p-6"
-          style={{
-            background: "var(--assignment-glass-bg)",
-            borderColor: "var(--assignment-glass-border)",
-            boxShadow: "var(--assignment-card-shadow)",
-            backdropFilter: "blur(14px) saturate(115%)",
-            WebkitBackdropFilter: "blur(14px) saturate(115%)",
-          }}
-        >
-          <h2
-            className="mb-4 text-center text-lg font-semibold text-heading"
-            style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
-          >
+        <section>
+          <FlowProgress currentStep={currentStep} steps={flowStepLabels} />
+
+          <h2 className="mb-7 text-center font-bold text-slate-gray" style={SECTION_HEADING_STYLE}>
             Number of Questions
           </h2>
 
-          <FlowProgress currentStep={currentStep} steps={flowStepLabels} />
+          <div>
+            <div className="grid grid-cols-2 gap-6">
+              {EXAM_QUESTION_COUNT_OPTIONS.map((count) => {
+                const active = !isCustomExamCount && examQuestionCount === count;
 
-          <div className="mt-1">
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-              {EXAM_QUESTION_COUNT_OPTIONS.map((count) => (
+                return (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => {
+                      setIsCustomExamCount(false);
+                      setExamQuestionCount(count);
+                    }}
+                    aria-pressed={active}
+                    className="mx-auto min-h-[108px] w-[95%] rounded-2xl px-3 py-3 text-center transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-[124px] sm:px-4 sm:py-4"
+                    style={selectableCardStyle(active)}
+                  >
+                    <span
+                      className="block text-2xl font-bold text-slate-gray sm:text-3xl"
+                      style={{ fontFamily: GEIST_FONT }}
+                    >
+                      {count}
+                    </span>
+                    <span
+                      className="mt-0.5 block text-muted-foreground"
+                      style={{ fontSize: 15, lineHeight: 1.5, letterSpacing: "-0.1px", fontFamily: GEIST_FONT }}
+                    >
+                      questions
+                    </span>
+                  </button>
+                );
+              })}
+              <div
+                className="mx-auto min-h-[108px] w-[95%] rounded-2xl px-3 py-3 text-center transition-all duration-200 hover:-translate-y-0.5 sm:min-h-[124px] sm:px-4 sm:py-4"
+                style={selectableCardStyle(isCustomExamCount)}
+              >
                 <button
-                  key={count}
                   type="button"
                   onClick={() => {
-                    setIsCustomExamCount(false);
-                    setExamQuestionCount(count);
+                    setIsCustomExamCount(true);
+                    if (customExamCount) {
+                      const parsed = parseInt(customExamCount, 10);
+                      if (!Number.isNaN(parsed)) {
+                        const clamped = Math.min(
+                          Math.max(parsed, MIN_CUSTOM_EXAM_QUESTIONS),
+                          MAX_CUSTOM_EXAM_QUESTIONS,
+                        );
+                        setExamQuestionCount(clamped);
+                      }
+                    }
                   }}
-                  className="min-h-[108px] rounded-2xl border px-3 py-3 text-center transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:min-h-[124px] sm:px-4 sm:py-4"
-                  style={{
-                    background:
-                      !isCustomExamCount && examQuestionCount === count
-                        ? "var(--primary-light)"
-                        : "var(--surface)",
-                    border:
-                      !isCustomExamCount && examQuestionCount === count
-                        ? "2px solid var(--assignment-completed)"
-                        : "1px solid var(--border-default)",
-                    boxShadow: "var(--assignment-card-shadow)",
-                  }}
+                  aria-pressed={isCustomExamCount}
+                  className="w-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 >
                   <span
-                    className="block text-2xl font-bold text-heading sm:text-3xl"
-                    style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
+                    className="block text-xl font-bold text-slate-gray sm:text-2xl"
+                    style={{ fontFamily: GEIST_FONT }}
                   >
-                    {count}
+                    Custom
                   </span>
                   <span
-                    className="mt-0.5 block text-xs font-medium text-slate-gray sm:text-sm"
-                    style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
+                    className="mt-0.5 block text-muted-foreground"
+                    style={{ fontSize: 15, lineHeight: 1.5, letterSpacing: "-0.1px", fontFamily: GEIST_FONT }}
                   >
-                    questions
+                    choose your own
                   </span>
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCustomExamCount(true);
-                  if (customExamCount) {
-                    const parsed = parseInt(customExamCount, 10);
-                    if (!Number.isNaN(parsed)) {
-                      const clamped = Math.min(
-                        Math.max(parsed, MIN_CUSTOM_EXAM_QUESTIONS),
-                        MAX_CUSTOM_EXAM_QUESTIONS,
-                      );
-                      setExamQuestionCount(clamped);
-                    }
-                  }
-                }}
-                className="min-h-[108px] rounded-2xl border px-3 py-3 text-center transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:min-h-[124px] sm:px-4 sm:py-4"
-                style={{
-                  background: isCustomExamCount ? "var(--primary-light)" : "var(--surface)",
-                  border: isCustomExamCount
-                    ? "2px solid var(--assignment-completed)"
-                    : "1px solid var(--border-default)",
-                  boxShadow: "var(--assignment-card-shadow)",
-                }}
-              >
-                <span
-                  className="block text-xl font-bold text-heading sm:text-2xl"
-                  style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
-                >
-                  Custom
-                </span>
-                <span
-                  className="mt-0.5 block text-xs font-medium text-slate-gray sm:text-sm"
-                  style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
-                >
-                  choose your own
-                </span>
-              </button>
-            </div>
 
-            <div
-              className={`overflow-hidden transition-all duration-200 ${
-                isCustomExamCount ? "mt-3 max-h-24 opacity-100" : "max-h-0 opacity-0"
-              }`}
-            >
-              {isCustomExamCount ? (
-                <input
-                  type="number"
-                  min={MIN_CUSTOM_EXAM_QUESTIONS}
-                  max={MAX_CUSTOM_EXAM_QUESTIONS}
-                  value={customExamCount}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setCustomExamCount(value);
-                    const parsed = parseInt(value, 10);
-                    if (!Number.isNaN(parsed) && parsed > 0) {
-                      const clamped = Math.min(
-                        Math.max(parsed, MIN_CUSTOM_EXAM_QUESTIONS),
-                        MAX_CUSTOM_EXAM_QUESTIONS,
-                      );
-                      setExamQuestionCount(clamped);
-                    }
-                  }}
-                  placeholder="Enter question count"
-                  className="w-full max-w-xs rounded-xl border border-border-default bg-surface px-4 py-3 text-sm text-slate-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                />
-              ) : null}
+                <div
+                  className={`overflow-hidden transition-all duration-200 ${
+                    isCustomExamCount ? "mt-3 max-h-24 opacity-100" : "max-h-0 opacity-0"
+                  }`}
+                >
+                  {isCustomExamCount ? (
+                    <input
+                      type="number"
+                      min={MIN_CUSTOM_EXAM_QUESTIONS}
+                      max={MAX_CUSTOM_EXAM_QUESTIONS}
+                      value={customExamCount}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCustomExamCount(value);
+                        const parsed = parseInt(value, 10);
+                        if (!Number.isNaN(parsed) && parsed > 0) {
+                          const clamped = Math.min(
+                            Math.max(parsed, MIN_CUSTOM_EXAM_QUESTIONS),
+                            MAX_CUSTOM_EXAM_QUESTIONS,
+                          );
+                          setExamQuestionCount(clamped);
+                        }
+                      }}
+                      placeholder="Enter question count"
+                      className="mx-auto w-full max-w-xs px-4 text-center text-slate-gray placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      style={{
+                        height: 38,
+                        fontSize: 14,
+                        borderRadius: 999,
+                        background: "var(--assignment-search-bg)",
+                        border: "1px solid var(--assignment-search-border)",
+                        boxShadow: "var(--assignment-search-shadow)",
+                        backdropFilter: "blur(14px) saturate(112%)",
+                        WebkitBackdropFilter: "blur(14px) saturate(112%)",
+                      }}
+                    />
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-between gap-3">
+          <div className="mt-6 flex items-center justify-between gap-6">
             <button
               type="button"
               onClick={() => setCurrentStep(2)}
-              className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-bold transition duration-200 hover:-translate-y-px active:translate-y-0"
-              style={{
-                color: "var(--assignment-row-cta-text)",
-                background: "var(--assignment-row-cta-bg)",
-                border: "1.5px solid var(--assignment-row-cta-border)",
-                boxShadow: "var(--assignment-row-cta-shadow)",
-                fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-              }}
+              className={SECONDARY_CTA_CLASS}
+              style={SECONDARY_CTA_STYLE}
             >
               <ChevronLeft className="h-4 w-4" />
               Back

@@ -15,6 +15,7 @@ interface QuestionDisplayProps {
   question: Question;
   questionNumber: number;
   questionMetaText?: string;
+  showHeader?: boolean;
   headerAction?: ReactNode;
   currentAnswer?: AnswerRecord;
   selectedOptionId?: string | null;
@@ -35,6 +36,7 @@ export function QuestionDisplay({
   question,
   questionNumber,
   questionMetaText,
+  showHeader = true,
   headerAction,
   currentAnswer,
   selectedOptionId,
@@ -69,52 +71,71 @@ export function QuestionDisplay({
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.2 }}
-        className={`rounded-xl border border-primary/30 bg-surface shadow-sm ${
-          compactLayout ? "p-4 sm:p-5" : "p-4 sm:p-6"
+        className={`border ${
+          compactLayout
+            ? "rounded-2xl p-4 sm:p-5"
+            : "rounded-[24px] p-5 sm:p-8 lg:p-10"
         }`}
+        style={{
+          background: "var(--assignment-glass-bg-strong)",
+          borderColor: "var(--assignment-glass-border)",
+          boxShadow: "var(--assignment-card-shadow)",
+        }}
       >
-        <div className={`flex items-start justify-between gap-3 ${compactLayout ? "mb-2" : "mb-3"}`}>
-          <div className="flex items-center gap-3">
-            <p className={`${compactLayout ? "text-base" : "text-sm"} font-bold text-slate-gray`}>
-              Question {questionNumber}
-            </p>
-            {questionMetaText && (
-              <p className="text-sm text-muted-foreground">{questionMetaText}</p>
-            )}
+        {showHeader && (
+          <div className={`flex items-start justify-between gap-3 ${compactLayout ? "mb-2" : "mb-6"}`}>
+            <div className="flex items-center gap-3">
+              <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                Question {questionNumber}
+              </p>
+              {questionMetaText && (
+                <p className="text-sm text-muted-foreground">{questionMetaText}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isSupported && (
+                <div
+                  className="relative"
+                  data-tour-id={questionReadAloudTourId ?? choicesReadAloudTourId}
+                >
+                  <ReadAloudButton
+                    section="question"
+                    label="Question and choices"
+                    text={questionAndChoicesReadText}
+                    isSpeaking={isSpeaking}
+                    currentSection={currentSection}
+                    onToggle={toggleSpeak}
+                    onPlay={onReadAloud}
+                    iconOnly
+                  />
+                </div>
+              )}
+              {headerAction}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isSupported && (
-              <div
-                className="relative"
-                data-tour-id={questionReadAloudTourId ?? choicesReadAloudTourId}
-              >
-                <ReadAloudButton
-                  section="question"
-                  label="Question and choices"
-                  text={questionAndChoicesReadText}
-                  isSpeaking={isSpeaking}
-                  currentSection={currentSection}
-                  onToggle={toggleSpeak}
-                  onPlay={onReadAloud}
-                  iconOnly
-                />
-              </div>
-            )}
-            {headerAction}
-          </div>
-        </div>
+        )}
 
         <div
-          className={`prose prose-sm max-w-none text-slate-gray ${compactLayout ? "mb-4" : "mb-5"} rounded-lg transition-colors ${
+          className={`prose prose-sm max-w-none text-slate-gray ${
+            compactLayout ? "mb-4" : "mb-7"
+          } rounded-lg transition-colors ${
             isQuestionAndChoicesReading ? "bg-primary/10 px-3 py-2" : ""
           }`}
         >
           {renderQuestionText ? (
-            <div className={`whitespace-pre-wrap font-medium leading-relaxed ${compactLayout ? "text-[15px]" : "text-base"}`}>
+            <div
+              className={`whitespace-pre-wrap font-medium leading-relaxed ${
+                compactLayout ? "text-[15px]" : "text-[17px]"
+              }`}
+            >
               {renderQuestionText(question.text)}
             </div>
           ) : (
-            <p className={`whitespace-pre-wrap font-medium leading-relaxed ${compactLayout ? "text-[15px]" : "text-base"}`}>
+            <p
+              className={`whitespace-pre-wrap font-medium leading-relaxed ${
+                compactLayout ? "text-[15px]" : "text-[17px]"
+              }`}
+            >
               {question.text}
             </p>
           )}
@@ -122,7 +143,7 @@ export function QuestionDisplay({
 
         {question.imageUrl && (
           <div
-            className={`rounded-lg overflow-hidden bg-[var(--diagram-canvas)] p-3 ${compactLayout ? "my-3" : "my-4"}`}
+            className={`rounded-lg overflow-hidden bg-[var(--diagram-canvas)] p-3 ${compactLayout ? "my-3" : "my-7"}`}
           >
             <Image
               src={question.imageUrl}
@@ -136,7 +157,7 @@ export function QuestionDisplay({
 
         {question.diagram && (
           <AdaptiveDiagramViewport
-            className={compactLayout ? "my-3" : "my-4"}
+            className={compactLayout ? "my-3" : "my-7"}
             maxHeightClassName={compactLayout ? "max-h-[300px]" : "max-h-[380px]"}
           >
             <DiagramRenderer diagram={question.diagram} />
@@ -144,11 +165,11 @@ export function QuestionDisplay({
         )}
 
         <div
-          className={`rounded-lg transition-colors mb-3 ${
+          className={`rounded-lg transition-colors ${compactLayout ? "mb-3" : "mb-7"} ${
             isQuestionAndChoicesReading ? "bg-primary/10 px-3 py-2" : ""
           }`}
         >
-          <div className={`${compactLayout ? "space-y-2 mt-1.5" : "space-y-2.5 mt-2"}`}>
+          <div className={`${compactLayout ? "space-y-2 mt-1.5" : "space-y-3"}`}>
             {question.options.map((opt) => {
               const isSelected = isAnswered
                 ? currentAnswer?.selectedOptionId === opt.id

@@ -140,7 +140,7 @@ export function ShortAnswerPreviewCard({
             </div>
           )}
 
-          <StimulusPanel stem={item.stem} stimulus={item.stimulus} showHighlightHint={false} />
+          <StimulusPanel stem={item.stem} stimulus={item.stimulus} />
 
           <div className="space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">

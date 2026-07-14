@@ -24,13 +24,13 @@ export function GlossaryPanel({
   if (terms.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-primary/30 bg-surface shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] overflow-hidden">
       <button
         onClick={() => setIsPanelOpen(!isPanelOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-primary/5 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--assignment-calendar-nav-bg)] transition-colors"
       >
         <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-primary" />
+          <BookOpen className="w-4 h-4 text-[var(--mastery-mastered)]" />
           <span className="text-sm font-semibold text-slate-gray">{title}</span>
         </div>
         {isPanelOpen ? (

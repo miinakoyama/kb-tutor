@@ -44,11 +44,21 @@ export function ReadAloudButton({
       type="button"
       onClick={handleClick}
       disabled={disabled}
-      className={`inline-flex items-center ${iconOnly ? "justify-center h-8 w-8 rounded-full p-0" : "gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg"} border text-forest hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+      className={`inline-flex items-center transition-colors ${
+        iconOnly
+          ? "justify-center h-8 w-8 rounded-full p-0"
+          : "gap-1.5 h-8 px-3 text-xs font-medium rounded-full"
+      } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed ${
         isCurrent
-          ? "border-primary/60 bg-primary/15"
-          : "border-primary/30"
+          ? "bg-[var(--assignment-calendar-nav-bg-hover)] text-[var(--mastery-mastered)]"
+          : "bg-[var(--assignment-calendar-nav-bg)] text-slate-gray hover:bg-[var(--assignment-calendar-nav-bg-hover)]"
       }`}
+      style={{
+        border: "1px solid var(--assignment-glass-border)",
+        boxShadow: "var(--assignment-nav-shadow)",
+        backdropFilter: "blur(10px) saturate(130%)",
+        WebkitBackdropFilter: "blur(10px) saturate(130%)",
+      }}
       aria-label={isCurrent ? `${label} reading. Stop.` : idleAriaLabel}
       aria-pressed={isCurrent}
     >

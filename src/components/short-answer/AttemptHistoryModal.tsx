@@ -55,8 +55,8 @@ export function AttemptHistoryModal({
           <span
             className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
               attempt.correct
-                ? "bg-emerald-100 text-emerald-800"
-                : "bg-rose-100 text-rose-800"
+                ? "bg-[var(--mastery-mastered-bg)] text-[var(--mastery-mastered)]"
+                : "bg-error-light text-error"
             }`}
           >
             {attempt.correct ? "Correct" : "Incorrect"}

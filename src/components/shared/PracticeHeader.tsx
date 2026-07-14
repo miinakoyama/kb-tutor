@@ -12,6 +12,23 @@ const MODE_LABELS: Record<PracticeMode, string> = {
   review: "Review Mode",
 };
 
+const MODE_LABEL_COLORS: Record<PracticeMode, string> = {
+  practice: "var(--assignment-mode-practice)",
+  exam: "var(--assignment-mode-exam)",
+  review: "var(--assignment-mode-review)",
+};
+
+const BACK_LABELS: Record<string, string> = {
+  "/": "Back to Home",
+  "/self-practice": "Back to Self Practice",
+  "/assignments": "Back to My Assignment",
+  "/bookmarks": "Back to Review",
+};
+
+export function getBackLabel(backHref: string): string {
+  return BACK_LABELS[backHref] ?? "Back";
+}
+
 interface PracticeHeaderProps {
   topicName?: string;
   mode: PracticeMode;
@@ -48,8 +65,7 @@ export function PracticeHeader({
   const hasModeLabelText = modeLabel.trim().length > 0;
   const showModeLabel = mode !== "practice" && hasModeLabelText;
   const showTopicName = Boolean(topicName) && topicName !== "Self Practice";
-  const isBackToHome = backHref === "/";
-  const backLabel = isBackToHome ? "Back to Home" : "Back to Mode Selection";
+  const backLabel = getBackLabel(backHref);
   const showProgress = currentQuestion !== undefined && totalQuestions !== undefined;
   const useAnsweredProgress = answeredCount !== undefined && totalQuestions !== undefined;
   const showAnsweredOnly = answeredCount !== undefined && totalQuestions === undefined && currentQuestion === undefined;
@@ -64,10 +80,13 @@ export function PracticeHeader({
       {showBackLink && (
         <Link
           href={backHref}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-            <ArrowLeft className="w-4 h-4 text-heading" />
+          <span
+            className="flex items-center justify-center w-8 h-8 rounded-lg"
+            style={{ background: "var(--assignment-calendar-nav-bg)" }}
+          >
+            <ArrowLeft className="w-4 h-4" />
           </span>
           {backLabel}
         </Link>
@@ -77,12 +96,19 @@ export function PracticeHeader({
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
             {showTopicName && (
-              <h1 className="text-xl font-bold font-heading text-heading mb-1">
+              <h1
+                className="font-semibold font-heading text-slate-gray mb-1"
+                style={{ fontSize: 19, lineHeight: 1.2 }}
+              >
                 {topicName}
               </h1>
             )}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-              {showModeLabel && <span className="text-primary font-medium">{modeLabel}</span>}
+              {showModeLabel && (
+                <span className="font-medium" style={{ color: MODE_LABEL_COLORS[mode] }}>
+                  {modeLabel}
+                </span>
+              )}
               {showProgress && (
                 <>
                   {showModeLabel && <span className="text-muted-foreground">·</span>}
@@ -93,9 +119,16 @@ export function PracticeHeader({
                   </span>
                   {inlineProgress && (
                     <span className="ml-1 inline-flex items-center min-w-0 w-24 sm:w-36">
-                      <span className="h-1.5 w-full bg-slate-gray/10 rounded-full overflow-hidden">
+                      <span
+                        className="h-1.5 w-full rounded-full overflow-hidden border"
+                        style={{
+                          background: "var(--surface-muted)",
+                          borderColor: "var(--border-default)",
+                        }}
+                      >
                         <motion.span
-                          className="block h-full rounded-full bg-primary"
+                          className="block h-full rounded-full"
+                          style={{ background: "var(--assignment-progress-fill)" }}
                           initial={{ width: 0 }}
                           animate={{ width: `${progressPercent}%` }}
                           transition={{ duration: 0.3 }}
@@ -122,9 +155,13 @@ export function PracticeHeader({
       </div>
 
       {showProgress && !inlineProgress && (
-        <div className="h-2 bg-slate-gray/10 rounded-full overflow-hidden">
+        <div
+          className="h-2 rounded-full overflow-hidden border"
+          style={{ background: "var(--surface-muted)", borderColor: "var(--border-default)" }}
+        >
           <motion.div
-            className="h-full rounded-full bg-primary"
+            className="h-full rounded-full"
+            style={{ background: "var(--assignment-progress-fill)" }}
             initial={{ width: 0 }}
             animate={{ width: `${progressPercent}%` }}
             transition={{ duration: 0.3 }}
