@@ -549,6 +549,32 @@ export default function MassProductionPage() {
     });
   };
 
+  const handleAutoDistributeDiagrams = () => {
+    const diagramTypes: StimulusType[] = ["table", "line_graph", "bar_chart", "diagram"];
+
+    setSettings((prev) => {
+      const total = prev.questionCount + prev.shortAnswerCount;
+      const base = Math.floor(total / diagramTypes.length);
+      let remainder = total % diagramTypes.length;
+      const nextStimulusConfig: StimulusConfig = {
+        ...prev.stimulusConfig,
+        table: 0,
+        line_graph: 0,
+        bar_chart: 0,
+        diagram: 0,
+        scenario: 0,
+        illustration: 0,
+      };
+
+      for (const type of diagramTypes) {
+        nextStimulusConfig[type] = base + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder -= 1;
+      }
+
+      return { ...prev, stimulusConfig: nextStimulusConfig };
+    });
+  };
+
   const handleStimulusCountChange = (type: StimulusType, rawValue: string) => {
     const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
     if (isNaN(value)) return;
@@ -1233,6 +1259,14 @@ export default function MassProductionPage() {
                 </div>
               ) : (
                 <>
+                  <div className="flex justify-end mb-1">
+                    <button
+                      onClick={handleAutoDistributeDiagrams}
+                      className="text-xs text-primary hover:text-primary-hover font-medium"
+                    >
+                      Auto distribute
+                    </button>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
                     {(Object.keys(STIMULUS_LABELS) as StimulusType[]).map((type) => (
