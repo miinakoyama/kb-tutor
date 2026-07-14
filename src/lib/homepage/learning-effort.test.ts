@@ -6,72 +6,53 @@ import {
   buildMonthlySeries,
   buildWeeklySeries,
   getLearningEffort,
-  sessionDurationSec,
-  type SessionRow,
+  itemSeconds,
+  type EffortItem,
 } from "@/lib/homepage/learning-effort";
 
 const TZ = "America/New_York";
 
-/** A session starting at `startIso` (UTC) lasting `minutes`. */
-function session(startIso: string, minutes: number): SessionRow {
-  const started = new Date(startIso);
-  const ended = new Date(started.getTime() + minutes * 60_000);
-  return { started_at: started.toISOString(), ended_at: ended.toISOString() };
+function item(at: string, seconds: number | null): EffortItem {
+  return { at, seconds };
 }
 
-describe("sessionDurationSec", () => {
-  it("returns the duration in seconds for a sane session", () => {
-    expect(sessionDurationSec(session("2026-07-08T15:00:00Z", 25))).toBe(25 * 60);
+describe("itemSeconds", () => {
+  it("passes sane values through", () => {
+    expect(itemSeconds(item("2026-07-08T15:00:00Z", 90))).toBe(90);
   });
 
-  it("returns 0 when ended_at is missing (abandoned tab)", () => {
-    expect(
-      sessionDurationSec({ started_at: "2026-07-08T15:00:00Z", ended_at: null }),
-    ).toBe(0);
+  it("returns 0 for null / non-finite / non-positive values", () => {
+    expect(itemSeconds(item("2026-07-08T15:00:00Z", null))).toBe(0);
+    expect(itemSeconds(item("2026-07-08T15:00:00Z", Number.NaN))).toBe(0);
+    expect(itemSeconds(item("2026-07-08T15:00:00Z", 0))).toBe(0);
+    expect(itemSeconds(item("2026-07-08T15:00:00Z", -5))).toBe(0);
   });
 
-  it("returns 0 when ended_at is before started_at", () => {
-    expect(
-      sessionDurationSec({
-        started_at: "2026-07-08T15:00:00Z",
-        ended_at: "2026-07-08T14:00:00Z",
-      }),
-    ).toBe(0);
-  });
-
-  it("returns 0 for sessions of 6 hours or more (stuck rows)", () => {
-    expect(sessionDurationSec(session("2026-07-08T02:00:00Z", 6 * 60))).toBe(0);
-    expect(sessionDurationSec(session("2026-07-08T02:00:00Z", 6 * 60 - 1))).toBe(
-      (6 * 60 - 1) * 60,
-    );
-  });
-
-  it("returns 0 for unparseable timestamps", () => {
-    expect(
-      sessionDurationSec({ started_at: "garbage", ended_at: "2026-07-08T15:00:00Z" }),
-    ).toBe(0);
+  it("clamps a stuck timer to the 30-minute per-item cap", () => {
+    expect(itemSeconds(item("2026-07-08T15:00:00Z", 4 * 60 * 60))).toBe(30 * 60);
+    expect(itemSeconds(item("2026-07-08T15:00:00Z", 30 * 60 - 1))).toBe(30 * 60 - 1);
   });
 });
 
 describe("bucketByDay", () => {
-  it("assigns a session to its start day in the student's timezone", () => {
+  it("assigns an item to its day in the student's timezone", () => {
     // 02:00 UTC on Jul 9 is still 22:00 on Jul 8 in New York.
-    const byDay = bucketByDay([session("2026-07-09T02:00:00Z", 30)], TZ);
-    expect(byDay.get("2026-07-08")).toBe(30 * 60);
+    const byDay = bucketByDay([item("2026-07-09T02:00:00Z", 30)], TZ);
+    expect(byDay.get("2026-07-08")).toBe(30);
     expect(byDay.has("2026-07-09")).toBe(false);
   });
 
-  it("sums multiple sessions on the same local day", () => {
+  it("sums items on the same local day across sources", () => {
     const byDay = bucketByDay(
-      [session("2026-07-08T13:00:00Z", 10), session("2026-07-08T20:00:00Z", 20)],
+      [item("2026-07-08T13:00:00Z", 10), item("2026-07-08T20:00:00Z", 20)],
       TZ,
     );
-    expect(byDay.get("2026-07-08")).toBe(30 * 60);
+    expect(byDay.get("2026-07-08")).toBe(30);
   });
 
-  it("skips zero-duration sessions entirely", () => {
+  it("skips null-time items and unparseable timestamps", () => {
     const byDay = bucketByDay(
-      [{ started_at: "2026-07-08T13:00:00Z", ended_at: null }],
+      [item("2026-07-08T13:00:00Z", null), item("garbage", 60)],
       TZ,
     );
     expect(byDay.size).toBe(0);
@@ -156,26 +137,27 @@ describe("buildMonthlySeries", () => {
 });
 
 describe("buildLearningEffort", () => {
-  it("assembles both series from raw rows in the student's timezone", () => {
+  it("assembles both series from raw items in the student's timezone", () => {
     // "Now" is Wed Jul 8, 21:00 in New York (Jul 9 01:00 UTC).
     const now = new Date("2026-07-09T01:00:00Z");
-    const rows = [
-      session("2026-07-09T00:00:00Z", 40), // Jul 8 local — this week, monthly W2
-      session("2026-07-01T15:00:00Z", 20), // Jul 1 local — previous week, monthly W1
-      { started_at: "2026-07-08T12:00:00Z", ended_at: null }, // dropped
+    const items = [
+      item("2026-07-09T00:00:00Z", 40 * 60), // Jul 8 local — this week, monthly W2
+      item("2026-07-01T15:00:00Z", 20 * 60), // Jul 1 local — previous week, monthly W1
+      item("2026-07-08T12:00:00Z", null), // unmeasured — dropped
     ];
-    const effort = buildLearningEffort(rows, TZ, now);
+    const effort = buildLearningEffort(items, TZ, now);
 
-    expect(effort.weekly.totalSeconds).toBe(40 * 60);
+    // 40 min clamps to the 30-min per-item cap.
+    expect(effort.weekly.totalSeconds).toBe(30 * 60);
     expect(effort.weekly.previousTotalSeconds).toBe(20 * 60);
-    expect(effort.weekly.deltaPercent).toBe(100);
+    expect(effort.weekly.deltaPercent).toBe(50);
 
-    expect(effort.monthly.totalSeconds).toBe(60 * 60);
+    expect(effort.monthly.totalSeconds).toBe(50 * 60);
     expect(effort.monthly.bars[0].seconds).toBe(20 * 60);
-    expect(effort.monthly.bars[1].seconds).toBe(40 * 60);
+    expect(effort.monthly.bars[1].seconds).toBe(30 * 60);
   });
 
-  it("returns all-zero series with null deltas for a student with no sessions", () => {
+  it("returns all-zero series with null deltas for a student with no items", () => {
     const effort = buildLearningEffort([], TZ, new Date("2026-07-09T01:00:00Z"));
     expect(effort.weekly.totalSeconds).toBe(0);
     expect(effort.weekly.deltaPercent).toBeNull();
@@ -187,14 +169,45 @@ describe("buildLearningEffort", () => {
 describe("getLearningEffort", () => {
   const NOW = new Date("2026-07-09T01:00:00Z"); // Wed Jul 8, 21:00 in New York
 
-  it("only counts the requesting student's sessions", async () => {
-    const mine = session("2026-07-08T15:00:00Z", 30);
+  it("sums MCQ, SAQ, and Review-tab dwell for the requesting student only", async () => {
     const { client } = createMockSupabaseClient({
       tables: {
-        analytics_sessions: {
+        attempts: {
           rows: [
-            { user_id: "student-1", ...mine },
-            { user_id: "student-2", ...session("2026-07-08T15:00:00Z", 90) },
+            {
+              user_id: "student-1",
+              answered_at: "2026-07-08T15:00:00Z",
+              time_spent_sec: 120,
+            },
+            {
+              user_id: "student-2",
+              answered_at: "2026-07-08T15:00:00Z",
+              time_spent_sec: 999,
+            },
+          ],
+        },
+        short_answer_attempts: {
+          rows: [
+            {
+              user_id: "student-1",
+              answered_at: "2026-07-08T16:00:00Z",
+              time_spent_sec: 300,
+            },
+            // Pre-migration row — no measured time, contributes 0.
+            {
+              user_id: "student-1",
+              answered_at: "2026-07-08T16:30:00Z",
+              time_spent_sec: null,
+            },
+          ],
+        },
+        page_dwell_events: {
+          rows: [
+            {
+              user_id: "student-1",
+              occurred_at: "2026-07-08T17:00:00Z",
+              seconds: 30,
+            },
           ],
         },
       },
@@ -205,13 +218,15 @@ describe("getLearningEffort", () => {
       now: NOW,
     });
     expect(effort).not.toBeNull();
-    expect(effort!.weekly.totalSeconds).toBe(30 * 60);
+    expect(effort!.weekly.totalSeconds).toBe(120 + 300 + 30);
   });
 
-  it("returns null when the query fails, so the UI can omit the card", async () => {
+  it("returns null when any source query fails, so the UI can omit the card", async () => {
     const { client } = createMockSupabaseClient({
       tables: {
-        analytics_sessions: { rows: [], error: { message: "permission denied" } },
+        attempts: { rows: [] },
+        short_answer_attempts: { rows: [] },
+        page_dwell_events: { rows: [], error: { message: "relation missing" } },
       },
     });
 

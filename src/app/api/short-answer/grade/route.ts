@@ -27,6 +27,22 @@ interface GradeRequestBody {
   priorGaps?: Record<string, string>;
   mode: PracticeMode;
   clientAttemptId: string;
+  /** Client-measured answering time in seconds; null when not measured. */
+  timeSpentSec?: number | null;
+}
+
+/**
+ * Bounds for client-reported answering time. Values outside are recorded as
+ * NULL (unmeasured) rather than clamped — a nonsense value tells us nothing
+ * about the real time.
+ */
+const MAX_TIME_SPENT_SEC = 2 * 60 * 60;
+
+function toTimeSpentSec(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const rounded = Math.round(value);
+  if (rounded < 1 || rounded > MAX_TIME_SPENT_SEC) return null;
+  return rounded;
 }
 
 const PART_LABELS: PartLabel[] = ["A", "B", "C"];
@@ -96,6 +112,7 @@ function parseBody(raw: unknown): GradeRequestBody | null {
     priorGaps,
     mode: b.mode as PracticeMode,
     clientAttemptId: b.clientAttemptId,
+    timeSpentSec: toTimeSpentSec(b.timeSpentSec),
   };
 }
 
@@ -439,6 +456,7 @@ export async function POST(request: Request) {
       temperature,
       token_count: tokenCount,
       latency_ms: latencyMs,
+      time_spent_sec: body.timeSpentSec ?? null,
       answered_at: answeredAt,
     })
     .select("id")
