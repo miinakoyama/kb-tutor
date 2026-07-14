@@ -13,6 +13,37 @@ function integerParam(value: string | null, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+interface CoverageRow {
+  standard_id: string | null;
+  question_set_id: string;
+  question_id: string;
+  format: string | null;
+  include_in_self_practice: boolean;
+  coverage_state: string | null;
+  confirmed_kc_codes: string[] | null;
+}
+
+// The per-standard rollups below are only correct over the whole result set, and
+// PostgREST caps an unbounded select at its configured max rows — so page the
+// coverage read rather than silently rolling up a truncated slice.
+const COVERAGE_PAGE_SIZE = 500;
+
+async function selectAllCoveragePages(
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: CoverageRow[] | null; error: { message: string } | null }>,
+): Promise<{ ok: boolean; rows: CoverageRow[] }> {
+  const rows: CoverageRow[] = [];
+  for (let from = 0; ; from += COVERAGE_PAGE_SIZE) {
+    const { data, error } = await page(from, from + COVERAGE_PAGE_SIZE - 1);
+    if (error) return { ok: false, rows: [] };
+    const chunk = data ?? [];
+    rows.push(...chunk);
+    if (chunk.length < COVERAGE_PAGE_SIZE) return { ok: true, rows };
+  }
+}
+
 export async function GET(request: Request) {
   const guard = await requireAdminRoute();
   if (!guard.ok) return guard.response;
@@ -132,21 +163,46 @@ export async function GET(request: Request) {
     });
   }
 
-  let query = db
-    .from("bkt_question_coverage")
-    .select("standard_id,question_set_id,question_id,format,include_in_self_practice,coverage_state,confirmed_kc_codes");
-  if (standardId) query = query.eq("standard_id", standardId);
-  if (setId) query = query.eq("question_set_id", setId);
-  if (status) query = query.eq("coverage_state", status);
-  if (selfPractice === "true" || selfPractice === "false") {
-    query = query.eq("include_in_self_practice", selfPractice === "true");
+  // Practice serves each student only from their own school's bank
+  // (see fetchStudentSelfPracticeQuestions), so coverage read globally can look
+  // complete while a given school has no item for some KC. Scoping here makes
+  // the page answer the question the rollout decision actually depends on.
+  const schoolId = url.searchParams.get("schoolId");
+  let schoolSetIds: string[] | null = null;
+  if (schoolId) {
+    const { data: links, error: linkError } = await db
+      .from("school_question_sets")
+      .select("set_id")
+      .eq("school_id", schoolId);
+    if (linkError) {
+      return NextResponse.json({ error: "Unable to load school question sets" }, { status: 500 });
+    }
+    schoolSetIds = [...new Set((links ?? []).map((row) => String(row.set_id)))];
   }
-  const [{ data, error }, { data: kcs }, { data: rollouts }] = await Promise.all([
-    query,
-    db.from("knowledge_components").select("code,standard_id").eq("active", true),
-    db.from("bkt_standard_rollouts").select("standard_id,status,coverage_hash"),
+
+  const coverageRows = await selectAllCoveragePages((from, to) => {
+    let query = db
+      .from("bkt_question_coverage")
+      .select("standard_id,question_set_id,question_id,format,include_in_self_practice,coverage_state,confirmed_kc_codes")
+      .range(from, to);
+    if (standardId) query = query.eq("standard_id", standardId);
+    if (setId) query = query.eq("question_set_id", setId);
+    if (status) query = query.eq("coverage_state", status);
+    if (schoolSetIds) query = query.in("question_set_id", schoolSetIds);
+    if (selfPractice === "true" || selfPractice === "false") {
+      query = query.eq("include_in_self_practice", selfPractice === "true");
+    }
+    return query;
+  });
+  if (!coverageRows.ok) {
+    return NextResponse.json({ error: "Unable to load KC coverage" }, { status: 500 });
+  }
+  const data = schoolId && schoolSetIds?.length === 0 ? [] : coverageRows.rows;
+  const [{ data: kcs }, { data: rollouts }, { data: schools }] = await Promise.all([
+    db.from("knowledge_components").select("code,standard_id,statement").eq("active", true).order("code"),
+    db.from("bkt_standard_rollouts").select("school_id,standard_id,status,coverage_hash"),
+    db.from("schools").select("id,name").order("name"),
   ]);
-  if (error) return NextResponse.json({ error: "Unable to load KC coverage" }, { status: 500 });
   const standards = new Map<string, {
     standardId: string;
     questionCount: number;
@@ -154,9 +210,11 @@ export async function GET(request: Request) {
     validCount: number;
     unresolvedCount: number;
     invalidCount: number;
-    coveredKcs: Set<string>;
+    // Only questions eligible for adaptive selection (valid + in Self Practice)
+    // count towards a KC — anything else is not something Practice can serve.
+    kcQuestionCounts: Map<string, number>;
   }>();
-  for (const row of data ?? []) {
+  for (const row of data) {
     const id = String(row.standard_id ?? "Unassigned");
     const summary = standards.get(id) ?? {
       standardId: id,
@@ -165,33 +223,93 @@ export async function GET(request: Request) {
       validCount: 0,
       unresolvedCount: 0,
       invalidCount: 0,
-      coveredKcs: new Set<string>(),
+      kcQuestionCounts: new Map<string, number>(),
     };
     summary.questionCount += 1;
     if (row.include_in_self_practice) summary.selfPracticeCount += 1;
     if (row.coverage_state === "valid") summary.validCount += 1;
     if (row.coverage_state === "unresolved") summary.unresolvedCount += 1;
     if (row.coverage_state === "invalid") summary.invalidCount += 1;
-    if (Array.isArray(row.confirmed_kc_codes)) {
-      row.confirmed_kc_codes.forEach((code) => typeof code === "string" && summary.coveredKcs.add(code));
+    if (
+      row.coverage_state === "valid" &&
+      row.include_in_self_practice &&
+      Array.isArray(row.confirmed_kc_codes)
+    ) {
+      for (const code of row.confirmed_kc_codes) {
+        if (typeof code !== "string") continue;
+        summary.kcQuestionCounts.set(code, (summary.kcQuestionCounts.get(code) ?? 0) + 1);
+      }
     }
     standards.set(id, summary);
   }
-  const activeByStandard = new Map<string, number>();
+  const activeKcsByStandard = new Map<string, Array<{ code: string; statement: string }>>();
   for (const kc of kcs ?? []) {
     const id = String(kc.standard_id);
-    activeByStandard.set(id, (activeByStandard.get(id) ?? 0) + 1);
+    const list = activeKcsByStandard.get(id) ?? [];
+    list.push({ code: String(kc.code), statement: String(kc.statement) });
+    activeKcsByStandard.set(id, list);
   }
-  const rolloutByStandard = new Map((rollouts ?? []).map((row) => [String(row.standard_id), row]));
+  // A standard with active KCs but no questions in scope still needs a row —
+  // otherwise a school missing a whole standard silently disappears from the page.
+  for (const id of activeKcsByStandard.keys()) {
+    if (standards.has(id)) continue;
+    standards.set(id, {
+      standardId: id,
+      questionCount: 0,
+      selfPracticeCount: 0,
+      validCount: 0,
+      unresolvedCount: 0,
+      invalidCount: 0,
+      kcQuestionCounts: new Map<string, number>(),
+    });
+  }
+  // A rollout now belongs to one school, so a status is only well-defined when a
+  // school is selected. Without one, report how many schools have it enabled
+  // rather than inventing a single status the page could act on by mistake.
+  const rolloutForSchool = new Map<string, { status: string; coverage_hash: string | null }>();
+  const enabledSchoolsByStandard = new Map<string, number>();
+  for (const rollout of rollouts ?? []) {
+    const standard = String(rollout.standard_id);
+    if (schoolId && String(rollout.school_id) === schoolId) {
+      rolloutForSchool.set(standard, {
+        status: String(rollout.status),
+        coverage_hash: rollout.coverage_hash ? String(rollout.coverage_hash) : null,
+      });
+    }
+    if (rollout.status === "enabled") {
+      enabledSchoolsByStandard.set(standard, (enabledSchoolsByStandard.get(standard) ?? 0) + 1);
+    }
+  }
+  const schoolCount = (schools ?? []).length;
   const rows = Array.from(standards.values())
     .sort((a, b) => a.standardId.localeCompare(b.standardId))
     .slice(cursor, cursor + limit)
-    .map(({ coveredKcs, ...summary }) => ({
-      ...summary,
-      coveredKcCount: coveredKcs.size,
-      activeKcCount: activeByStandard.get(summary.standardId) ?? 0,
-      rolloutStatus: rolloutByStandard.get(summary.standardId)?.status ?? "disabled",
-      coverageHash: rolloutByStandard.get(summary.standardId)?.coverage_hash ?? null,
-    }));
-  return NextResponse.json({ rows, nextCursor: rows.length === limit ? cursor + limit : null });
+    .map(({ kcQuestionCounts, ...summary }) => {
+      const activeKcs = activeKcsByStandard.get(summary.standardId) ?? [];
+      const kcBreakdown = activeKcs.map((kc) => ({
+        code: kc.code,
+        statement: kc.statement,
+        questionCount: kcQuestionCounts.get(kc.code) ?? 0,
+      }));
+      const rollout = rolloutForSchool.get(summary.standardId);
+      return {
+        ...summary,
+        kcs: kcBreakdown,
+        coveredKcCount: kcBreakdown.filter((kc) => kc.questionCount > 0).length,
+        activeKcCount: activeKcs.length,
+        emptyKcCount: kcBreakdown.filter((kc) => kc.questionCount === 0).length,
+        // A KC with a single item gives the selector nothing to rotate to once
+        // the student has answered it, so surface it separately from a hard gap.
+        thinKcCount: kcBreakdown.filter((kc) => kc.questionCount > 0 && kc.questionCount < 2).length,
+        rolloutStatus: schoolId ? (rollout?.status ?? "disabled") : null,
+        coverageHash: schoolId ? (rollout?.coverage_hash ?? null) : null,
+        enabledSchoolCount: enabledSchoolsByStandard.get(summary.standardId) ?? 0,
+        schoolCount,
+      };
+    });
+  return NextResponse.json({
+    rows,
+    schools: (schools ?? []).map((school) => ({ id: String(school.id), name: String(school.name) })),
+    nextCursor: rows.length === limit ? cursor + limit : null,
+  });
 }

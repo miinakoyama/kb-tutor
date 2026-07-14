@@ -108,4 +108,53 @@ describe("POST /api/admin/kc-coverage/publish", () => {
       p_actor: "admin-id",
     });
   });
+
+  it("enables a standard for one school only", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { status: "enabled" }, error: null });
+    mocks.createSupabaseAdminClient.mockReturnValue({ rpc });
+
+    const response = await POST(
+      new Request("http://localhost/api/admin/kc-coverage/publish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "enable_standard",
+          schoolId: "school-a",
+          standardId: "3.1.9-12.A",
+          confirmed: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith("set_bkt_standard_rollout", {
+      p_school_id: "school-a",
+      p_standard_id: "3.1.9-12.A",
+      p_actor: "admin-id",
+      p_enabled: true,
+      p_reason: null,
+    });
+  });
+
+  // Without a school there is no bank to validate against, so the command must
+  // be rejected rather than silently applied to every school at once.
+  it("rejects a rollout command that names no school", async () => {
+    const rpc = vi.fn();
+    mocks.createSupabaseAdminClient.mockReturnValue({ rpc });
+
+    const response = await POST(
+      new Request("http://localhost/api/admin/kc-coverage/publish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "enable_standard",
+          standardId: "3.1.9-12.A",
+          confirmed: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
 });

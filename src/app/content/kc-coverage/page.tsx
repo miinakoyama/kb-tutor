@@ -6,11 +6,14 @@ import {
   ArrowLeft,
   BadgeCheck,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   Pencil,
   Power,
   RefreshCw,
   RotateCcw,
+  School as SchoolIcon,
   ShieldCheck,
   Upload,
   X,
@@ -19,6 +22,10 @@ import {
 type View = "coverage" | "runs" | "exceptions";
 type ApiRow = Record<string, unknown>;
 type Kc = { code: string; statement: string };
+type School = { id: string; name: string };
+type KcBreakdown = { code: string; statement: string; questionCount: number };
+
+const ALL_SCHOOLS = "";
 
 function text(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -28,6 +35,25 @@ function text(value: unknown): string {
 function num(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function kcBreakdown(value: unknown): KcBreakdown[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) =>
+    isRecord(item) && typeof item.code === "string"
+      ? [
+          {
+            code: item.code,
+            statement: typeof item.statement === "string" ? item.statement : "",
+            questionCount: num(item.questionCount),
+          },
+        ]
+      : [],
+  );
 }
 
 // Shared glass surface used across the assignment design system.
@@ -43,10 +69,10 @@ const geist = "var(--font-geist), ui-sans-serif, sans-serif";
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "warn" | "ok" }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+    <div className="flex flex-shrink-0 flex-col">
+      <span className="whitespace-nowrap text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
       <span
-        className="text-slate-gray"
+        className="whitespace-nowrap text-slate-gray"
         style={{
           fontSize: 17,
           fontWeight: 600,
@@ -69,7 +95,7 @@ function StatusPill({ label, tone }: { label: string; tone: "ok" | "warn" | "neu
   };
   return (
     <span
-      className="inline-flex items-center rounded-full px-3 py-1 capitalize"
+      className="inline-flex flex-shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 capitalize"
       style={{
         fontSize: 13,
         fontWeight: 600,
@@ -90,12 +116,17 @@ function ActionButton({
   disabled,
   variant = "secondary",
   title,
+  dense,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   variant?: "primary" | "secondary" | "danger";
   title?: string;
+  // Coverage rows pack a badge, five metrics, and three buttons onto one
+  // line — trimmed padding/gap buys back just enough width to avoid the
+  // last metric wrapping onto its own line.
+  dense?: boolean;
 }) {
   const variants: Record<string, React.CSSProperties> = {
     primary: {
@@ -122,7 +153,7 @@ function ActionButton({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-10 items-center justify-center gap-2 px-4 text-sm font-semibold transition duration-200 hover:-translate-y-px active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+      className={`inline-flex h-10 items-center justify-center whitespace-nowrap text-sm font-semibold transition duration-200 hover:-translate-y-px active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${dense ? "gap-1.5 px-3" : "gap-2 px-4"}`}
       style={{ borderRadius: 999, fontFamily: geist, ...variants[variant] }}
     >
       {children}
@@ -138,16 +169,26 @@ export default function KcCoveragePage() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedKc, setSelectedKc] = useState<Record<string, string>>({});
+  const [schools, setSchools] = useState<School[]>([]);
+  const [schoolId, setSchoolId] = useState<string>(ALL_SCHOOLS);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/kc-coverage?view=${view}&limit=100`, { cache: "no-store" });
-      const payload = (await response.json()) as { rows?: ApiRow[]; kcs?: Record<string, Kc[]>; error?: string };
+      const params = new URLSearchParams({ view, limit: "100" });
+      if (view === "coverage" && schoolId) params.set("schoolId", schoolId);
+      const response = await fetch(`/api/admin/kc-coverage?${params}`, { cache: "no-store" });
+      const payload = (await response.json()) as {
+        rows?: ApiRow[];
+        kcs?: Record<string, Kc[]>;
+        schools?: School[];
+        error?: string;
+      };
       if (!response.ok) throw new Error(payload.error ?? "Unable to load KC coverage");
       setRows(payload.rows ?? []);
       setKcs(payload.kcs ?? {});
+      if (payload.schools) setSchools(payload.schools);
     } catch (loadError) {
       setRows([]);
       setKcs({});
@@ -155,7 +196,7 @@ export default function KcCoveragePage() {
     } finally {
       setLoading(false);
     }
-  }, [view]);
+  }, [view, schoolId]);
 
   useEffect(() => void load(), [load]);
 
@@ -253,6 +294,43 @@ export default function KcCoveragePage() {
         })}
       </div>
 
+      {/* Practice only serves a student from their own school's question bank,
+          so coverage has to be read per school before a rollout decision. */}
+      {view === "coverage" && (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <label
+            htmlFor="school-scope"
+            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
+          >
+            <SchoolIcon className="h-4 w-4" /> Question bank
+          </label>
+          <select
+            id="school-scope"
+            value={schoolId}
+            onChange={(event) => setSchoolId(event.target.value)}
+            className="h-10 rounded-full px-4 text-sm font-semibold"
+            style={{
+              fontFamily: geist,
+              color: "var(--assignment-row-cta-text)",
+              background: "var(--assignment-row-cta-bg)",
+              border: "1.5px solid var(--assignment-row-cta-border)",
+            }}
+          >
+            <option value={ALL_SCHOOLS}>All schools (combined)</option>
+            {schools.map((school) => (
+              <option key={school.id} value={school.id}>
+                {school.name}
+              </option>
+            ))}
+          </select>
+          {schoolId === ALL_SCHOOLS && (
+            <span className="text-sm text-muted-foreground">
+              Adaptive Practice is enabled per school. Select one to validate or enable a standard.
+            </span>
+          )}
+        </div>
+      )}
+
       {error && (
         <div
           role="alert"
@@ -272,7 +350,13 @@ export default function KcCoveragePage() {
           No records match this view.
         </div>
       ) : view === "coverage" ? (
-        <CoverageList rows={rows} busyKey={busyKey} command={command} />
+        <CoverageList
+          rows={rows}
+          busyKey={busyKey}
+          command={command}
+          schoolId={schoolId}
+          schoolName={schools.find((school) => school.id === schoolId)?.name ?? "this school"}
+        />
       ) : view === "runs" ? (
         <RunsList rows={rows} busyKey={busyKey} command={command} />
       ) : (
@@ -289,65 +373,160 @@ export default function KcCoveragePage() {
   );
 }
 
+// One KC, with how many eligible Self Practice questions it actually has.
+// Zero means adaptive Practice cannot serve that KC at all; one means it has
+// nothing to rotate to once the student has answered it.
+function KcChip({ kc }: { kc: KcBreakdown }) {
+  const tone =
+    kc.questionCount === 0 ? "empty" : kc.questionCount < 2 ? "thin" : "ok";
+  const styles: Record<typeof tone, React.CSSProperties> = {
+    empty: { color: "var(--assignment-overdue)", background: "rgb(180 83 9 / 0.12)" },
+    thin: { color: "var(--assignment-overdue)", background: "rgb(180 83 9 / 0.06)" },
+    ok: { color: "var(--muted-foreground)", background: "rgb(100 116 139 / 0.1)" },
+  };
+  return (
+    <span
+      title={kc.statement || undefined}
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1"
+      style={{ fontSize: 13, fontWeight: 600, fontFamily: geist, ...styles[tone] }}
+    >
+      <span>{kc.code}</span>
+      <span style={{ fontWeight: 700 }}>{kc.questionCount}</span>
+    </span>
+  );
+}
+
+function KcBreakdownPanel({ kcs }: { kcs: KcBreakdown[] }) {
+  if (kcs.length === 0) {
+    return (
+      <p className="mt-4 text-sm text-muted-foreground">
+        No active Knowledge Components for this standard.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--assignment-glass-border)" }}>
+      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Eligible questions per KC
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {kcs.map((kc) => (
+          <KcChip key={kc.code} kc={kc} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CoverageList({
   rows,
   busyKey,
   command,
+  schoolId,
+  schoolName,
 }: {
   rows: ApiRow[];
   busyKey: string | null;
   command: (key: string, body: Record<string, unknown>, confirmation: string) => void;
+  schoolId: string;
+  schoolName: string;
 }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row) => {
         const standardId = text(row.standardId);
-        const status = text(row.rolloutStatus);
-        const enabled = status === "enabled";
+        // A rollout belongs to a school. Without one selected there is no single
+        // status to show and nothing safe to enable, so report the spread.
+        const scoped = Boolean(schoolId);
+        const status = scoped ? text(row.rolloutStatus) : "—";
+        const enabled = scoped && status === "enabled";
+        const enabledSchools = num(row.enabledSchoolCount);
+        const schoolCount = num(row.schoolCount);
         const unresolved = num(row.unresolvedCount);
+        const emptyKcs = num(row.emptyKcCount);
+        const thinKcs = num(row.thinKcCount);
+        const kcs = kcBreakdown(row.kcs);
+        const open = expanded[standardId] ?? false;
         return (
           <div key={standardId} className="rounded-2xl px-5 py-4 sm:px-6" style={glassCard}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-shrink-0 items-center gap-2">
                 <span
-                  className="text-slate-gray"
+                  className="whitespace-nowrap text-slate-gray"
                   style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, fontFamily: geist }}
                 >
                   {standardId}
                 </span>
-                <StatusPill label={status} tone={enabled ? "ok" : "neutral"} />
+                {scoped ? (
+                  <StatusPill label={status} tone={enabled ? "ok" : "neutral"} />
+                ) : (
+                  <StatusPill
+                    label={`${enabledSchools}/${schoolCount} schools enabled`}
+                    tone={enabledSchools > 0 ? "ok" : "neutral"}
+                  />
+                )}
               </div>
-              <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
+              {/* Fixed number of stats, always in one row — flex-nowrap keeps
+                  the last metric from orphaning onto its own line; on narrow
+                  viewports the whole row already stacks via lg:flex-row above. */}
+              <div className="flex flex-shrink-0 flex-nowrap items-center gap-x-4">
                 <Metric label="Questions" value={text(row.questionCount)} />
                 <Metric label="Self Practice" value={text(row.selfPracticeCount)} />
                 <Metric label="Valid" value={text(row.validCount)} tone="ok" />
                 <Metric label="Unresolved" value={text(row.unresolvedCount)} tone={unresolved > 0 ? "warn" : undefined} />
-                <Metric label="KC coverage" value={`${text(row.coveredKcCount)} / ${text(row.activeKcCount)}`} />
+                <Metric
+                  label="KC coverage"
+                  value={`${text(row.coveredKcCount)} / ${text(row.activeKcCount)}`}
+                  tone={emptyKcs > 0 ? "warn" : thinKcs > 0 ? undefined : "ok"}
+                />
               </div>
-              <div className="flex flex-shrink-0 gap-2">
+              <div className="flex flex-shrink-0 gap-1.5">
                 <ActionButton
-                  onClick={() => command(standardId, { action: "validate_standard", standardId }, `Validate coverage for ${standardId}?`)}
-                  disabled={busyKey === standardId}
-                  title="Validate coverage"
+                  dense
+                  onClick={() => setExpanded((prev) => ({ ...prev, [standardId]: !open }))}
+                  title={open ? "Hide per-KC breakdown" : "Show per-KC breakdown"}
+                >
+                  {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} KCs
+                </ActionButton>
+                <ActionButton
+                  dense
+                  onClick={() =>
+                    command(
+                      standardId,
+                      { action: "validate_standard", schoolId, standardId },
+                      `Validate coverage for ${standardId} at ${schoolName}?`,
+                    )
+                  }
+                  disabled={!scoped || busyKey === standardId}
+                  title={scoped ? "Validate coverage" : "Select a school first"}
                 >
                   <CheckCircle2 className="h-4 w-4" /> Validate
                 </ActionButton>
                 <ActionButton
+                  dense
                   variant={enabled ? "danger" : "primary"}
                   onClick={() =>
                     command(
                       standardId,
-                      { action: enabled ? "disable_standard" : "enable_standard", standardId },
-                      `${enabled ? "Disable" : "Enable"} adaptive Practice for ${standardId}?`,
+                      { action: enabled ? "disable_standard" : "enable_standard", schoolId, standardId },
+                      `${enabled ? "Disable" : "Enable"} adaptive Practice for ${standardId} at ${schoolName}?`,
                     )
                   }
-                  disabled={busyKey === standardId}
-                  title={enabled ? "Disable adaptive Practice" : "Enable adaptive Practice"}
+                  disabled={!scoped || busyKey === standardId}
+                  title={
+                    scoped
+                      ? enabled
+                        ? "Disable adaptive Practice"
+                        : "Enable adaptive Practice"
+                      : "Select a school first"
+                  }
                 >
                   <Power className="h-4 w-4" /> {enabled ? "Disable" : "Enable"}
                 </ActionButton>
               </div>
             </div>
+            {open && <KcBreakdownPanel kcs={kcs} />}
           </div>
         );
       })}
