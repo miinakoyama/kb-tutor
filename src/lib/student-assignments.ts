@@ -642,7 +642,7 @@ export async function resolveReviewQuestionsForAssignment(
 
   const { data: generatedRows, error: generatedError } = await admin
     .from("generated_questions")
-    .select("id,payload")
+    .select("set_id,id,payload,content_version")
     .in("id", matchedQuestionIds);
   if (generatedError) {
     return { questions: [], error: generatedError.message };
@@ -650,7 +650,18 @@ export async function resolveReviewQuestionsForAssignment(
   const payloadById = new Map<string, Question>();
   for (const row of generatedRows ?? []) {
     const payload = toQuestionPayload(row.payload);
-    if (payload) payloadById.set(String(row.id), payload);
+    if (payload) {
+      payloadById.set(String(row.id), {
+        ...payload,
+        id: String(row.id),
+        questionSetId:
+          typeof row.set_id === "string" ? row.set_id : undefined,
+        contentVersion:
+          typeof row.content_version === "string"
+            ? row.content_version
+            : undefined,
+      });
+    }
   }
 
   const missingIds = matchedQuestionIds.filter((id) => !payloadById.has(id));

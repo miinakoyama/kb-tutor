@@ -6,6 +6,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 interface AttemptBody {
   clientAttemptId?: string;
   questionId?: string;
+  questionSetId?: string | null;
+  questionContentVersion?: string | null;
   selectedOptionId?: string;
   isCorrect?: boolean;
   mode?: string;
@@ -19,6 +21,7 @@ interface AttemptBody {
 }
 
 const ALLOWED_MODES = new Set(["practice", "exam", "review"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseConstraint(message: string): string | null {
   const match = /constraint\s+"([^"]+)"/i.exec(message);
@@ -114,6 +117,8 @@ async function resolveAuthoritativeCorrectOptionId(
   admin: SupabaseClient,
   questionId: string,
   assignmentId: string | null,
+  questionSetId: string | null,
+  questionContentVersion: string | null,
 ): Promise<string | null> {
   if (assignmentId) {
     const { data } = await admin
@@ -124,6 +129,37 @@ async function resolveAuthoritativeCorrectOptionId(
       .maybeSingle();
     return correctOptionIdFromPayload(data?.payload);
   }
+
+  if (questionSetId) {
+    const { data } = await requester
+      .from("generated_questions")
+      .select("payload,content_version")
+      .eq("set_id", questionSetId)
+      .eq("id", questionId)
+      .eq("is_visible", true)
+      .maybeSingle();
+    if (!data) return null;
+
+    const currentVersion =
+      typeof data.content_version === "string" ? data.content_version : null;
+    if (
+      questionContentVersion &&
+      currentVersion !== questionContentVersion
+    ) {
+      const { data: version } = await admin
+        .from("generated_question_versions")
+        .select("payload")
+        .eq("question_set_id", questionSetId)
+        .eq("question_id", questionId)
+        .eq("content_version", questionContentVersion)
+        .maybeSingle();
+      return correctOptionIdFromPayload(version?.payload);
+    }
+    return correctOptionIdFromPayload(data.payload);
+  }
+
+  // Backward compatibility for attempts queued before question identity
+  // snapshots were added. Ambiguous ids remain rejected by the length check.
   const { data } = await requester
     .from("generated_questions")
     .select("payload")
@@ -149,6 +185,21 @@ export async function POST(request: Request) {
   }
   if (!body.questionId) {
     return toHttpError(400, "Missing questionId");
+  }
+  const questionSetId =
+    typeof body.questionSetId === "string" && body.questionSetId.trim()
+      ? body.questionSetId.trim()
+      : null;
+  const questionContentVersion =
+    typeof body.questionContentVersion === "string" &&
+    UUID_RE.test(body.questionContentVersion)
+      ? body.questionContentVersion
+      : null;
+  if (body.questionContentVersion && !questionContentVersion) {
+    return toHttpError(400, "Invalid questionContentVersion");
+  }
+  if (questionContentVersion && !questionSetId) {
+    return toHttpError(400, "questionSetId is required with questionContentVersion");
   }
   if (!body.selectedOptionId) {
     return toHttpError(400, "Missing selectedOptionId");
@@ -176,6 +227,8 @@ export async function POST(request: Request) {
     admin,
     body.questionId,
     assignmentResolution.assignmentId,
+    questionSetId,
+    questionContentVersion,
   );
   if (!correctOptionId) {
     return toHttpError(404, "Question not found or inaccessible");
@@ -186,6 +239,8 @@ export async function POST(request: Request) {
     user_id: user.id,
     client_attempt_id: body.clientAttemptId,
     question_id: body.questionId,
+    question_set_id: questionSetId,
+    question_content_version: questionContentVersion,
     selected_option_id: body.selectedOptionId,
     is_correct: isCorrect,
     mode: body.mode,

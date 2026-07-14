@@ -38,7 +38,10 @@ function makeUser(id: string): User {
   } as User;
 }
 
-function attemptRequest(assignmentId: string) {
+function attemptRequest(
+  assignmentId: string,
+  overrides: Record<string, unknown> = {},
+) {
   return new Request("http://localhost/api/analytics/attempts", {
     method: "POST",
     body: JSON.stringify({
@@ -49,6 +52,7 @@ function attemptRequest(assignmentId: string) {
       mode: "practice",
       assignmentId,
       answeredAt: "2026-05-01T10:00:00.000Z",
+      ...overrides,
     }),
   });
 }
@@ -152,5 +156,93 @@ describe("POST /api/analytics/attempts", () => {
     expect(response.status).toBe(200);
     expect(tables.attempts.rows[0].is_correct).toBe(false);
     await expect(response.json()).resolves.toMatchObject({ isCorrect: false });
+  });
+
+  it("scores a delayed attempt against its answer-time question version", async () => {
+    const oldVersion = "00000000-0000-4000-8000-000000000010";
+    const currentVersion = "00000000-0000-4000-8000-000000000011";
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+      tables: {
+        generated_questions: {
+          rows: [{
+            set_id: "set-1",
+            id: "q1",
+            is_visible: true,
+            content_version: currentVersion,
+            payload: { correctOptionId: "B" },
+          }],
+        },
+      },
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        generated_question_versions: {
+          rows: [{
+            question_set_id: "set-1",
+            question_id: "q1",
+            content_version: oldVersion,
+            payload: { correctOptionId: "A" },
+          }],
+        },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(attemptRequest("", {
+      questionSetId: "set-1",
+      questionContentVersion: oldVersion,
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ isCorrect: true });
+    expect(tables.attempts.rows[0]).toMatchObject({
+      question_set_id: "set-1",
+      question_content_version: oldVersion,
+      is_correct: true,
+    });
+  });
+
+  it("uses questionSetId to distinguish duplicate question ids", async () => {
+    const setTwoVersion = "00000000-0000-4000-8000-000000000012";
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+      tables: {
+        generated_questions: {
+          rows: [
+            {
+              set_id: "set-1",
+              id: "q1",
+              is_visible: true,
+              content_version: "00000000-0000-4000-8000-000000000013",
+              payload: { correctOptionId: "A" },
+            },
+            {
+              set_id: "set-2",
+              id: "q1",
+              is_visible: true,
+              content_version: setTwoVersion,
+              payload: { correctOptionId: "B" },
+            },
+          ],
+        },
+      },
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: { attempts: { rows: [] } },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(attemptRequest("", {
+      questionSetId: "set-2",
+      questionContentVersion: setTwoVersion,
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ isCorrect: false });
+    expect(tables.attempts.rows[0].question_set_id).toBe("set-2");
   });
 });

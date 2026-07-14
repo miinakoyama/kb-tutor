@@ -643,6 +643,8 @@ export function ExamMode({
           : getStandardForTopic(q.topic);
         saveAnswer({
           questionId: q.id,
+          questionSetId: q.questionSetId,
+          questionContentVersion: q.contentVersion,
           selectedOptionId: optionId,
           isCorrect,
           timestamp: Date.now(),
@@ -854,6 +856,8 @@ export function ExamMode({
           isSaq: isSaqQuestion(q),
           record: {
             questionId: q.id,
+            questionSetId: q.questionSetId,
+            questionContentVersion: q.contentVersion,
             selectedOptionId: a?.selectedOptionId ?? "",
             isCorrect: a?.isCorrect ?? false,
             timestamp: Date.now(),
@@ -902,6 +906,8 @@ export function ExamMode({
         const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
         saveAnswer({
           questionId: q.id,
+          questionSetId: q.questionSetId,
+          questionContentVersion: q.contentVersion,
           selectedOptionId: a.selectedOptionId,
           isCorrect: a.isCorrect,
           timestamp: nowMs(),

@@ -586,7 +586,7 @@ export async function POST(request: NextRequest) {
       const retrySuffix =
         attempt === 0
           ? ""
-          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} question(s), exact standard alignment, the requested KC, and the requested stimulus type/counts. Keep the MCQ Quality Checklist constraints (single best answer, plausible distractors, no giveaway cues).`;
+          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} question(s), exact standard alignment, a valid KC from the provided catalog, and the requested stimulus type/counts. Keep the MCQ Quality Checklist constraints (single best answer, plausible distractors, no giveaway cues).`;
       const finalPrompt = `${basePrompt}${retrySuffix}`;
 
       try {

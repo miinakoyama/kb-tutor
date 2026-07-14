@@ -260,7 +260,9 @@ describe("resolveReviewQuestionsForAssignment", () => {
       ],
       generated_questions: [
         {
+          set_id: "set-1",
           id: "q1",
+          content_version: "00000000-0000-4000-8000-000000000021",
           payload: { id: "q1", text: "Q1" } as Question,
         },
         {
@@ -277,6 +279,10 @@ describe("resolveReviewQuestionsForAssignment", () => {
     );
     expect(result.error).toBeNull();
     expect(result.questions.map((q) => q.id).sort()).toEqual(["q1", "q2"]);
+    expect(result.questions.find((q) => q.id === "q1")).toMatchObject({
+      questionSetId: "set-1",
+      contentVersion: "00000000-0000-4000-8000-000000000021",
+    });
   });
 
   it("caps results at max_questions", async () => {

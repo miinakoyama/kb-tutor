@@ -18,6 +18,8 @@ const STORAGE_KEYS = {
 
 export interface StoredAnswer {
   questionId: string;
+  questionSetId?: string;
+  questionContentVersion?: string;
   selectedOptionId: string;
   isCorrect: boolean;
   confidenceLevel?: ConfidenceLevel;
@@ -103,6 +105,8 @@ function toAttemptPayload(answer: StoredAnswer): AttemptPayload {
   return {
     clientAttemptId: answer.clientAttemptId ?? generateAttemptId(),
     questionId: answer.questionId,
+    questionSetId: answer.questionSetId ?? null,
+    questionContentVersion: answer.questionContentVersion ?? null,
     selectedOptionId: answer.selectedOptionId,
     isCorrect: answer.isCorrect,
     mode: answer.mode,

@@ -34,9 +34,10 @@ function withStandard(question: Question): Question {
 /** Payload JSON must not duplicate table-backed fields (`include_in_self_practice`, etc.). */
 function persistedPayloadForQuestion(
   q: Question,
-): Omit<Question, "questionSetId" | "includeInSelfPractice"> {
-  const { questionSetId, includeInSelfPractice, ...rest } = q;
+): Omit<Question, "questionSetId" | "contentVersion" | "includeInSelfPractice"> {
+  const { questionSetId, contentVersion, includeInSelfPractice, ...rest } = q;
   void questionSetId;
+  void contentVersion;
   void includeInSelfPractice;
   return rest;
 }
@@ -179,7 +180,7 @@ export async function getAllGeneratedQuestionSets(): Promise<{
           .order("generated_at", { ascending: false }),
         supabase
           .from("generated_questions")
-          .select("id,set_id,payload,is_visible,include_in_self_practice")
+          .select("id,set_id,payload,is_visible,include_in_self_practice,content_version")
           .order("set_id", { ascending: true })
           .order("created_at", { ascending: true })
           .order("id", { ascending: true }),
@@ -200,6 +201,10 @@ export async function getAllGeneratedQuestionSets(): Promise<{
         // on it too); never trust a payload copy that may be stale or absent.
         id: String(row.id),
         questionSetId: setId,
+        contentVersion:
+          typeof row.content_version === "string"
+            ? row.content_version
+            : undefined,
         isVisible: true,
         includeInSelfPractice: row.include_in_self_practice === true,
       });
@@ -251,7 +256,7 @@ export async function getGeneratedQuestionSetById(setId: string): Promise<{
           .maybeSingle(),
         supabase
           .from("generated_questions")
-          .select("id,payload,is_visible,include_in_self_practice")
+          .select("id,payload,is_visible,include_in_self_practice,content_version")
           .eq("set_id", setId)
           .order("created_at", { ascending: true })
           .order("id", { ascending: true }),
@@ -267,6 +272,10 @@ export async function getGeneratedQuestionSetById(setId: string): Promise<{
       // on it too); never trust a payload copy that may be stale or absent.
       id: String(row.id),
       questionSetId: setId,
+      contentVersion:
+        typeof row.content_version === "string"
+          ? row.content_version
+          : undefined,
       isVisible: true,
       includeInSelfPractice: row.include_in_self_practice === true,
     }));

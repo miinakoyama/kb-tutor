@@ -751,6 +751,8 @@ export function AdaptivePracticeMode({
       : getStandardForTopic(question.topic);
     saveAnswer({
       questionId: question.id,
+      questionSetId: question.questionSetId,
+      questionContentVersion: question.contentVersion,
       selectedOptionId: selectedOptionId,
       isCorrect: result.isCorrect,
       timestamp: Date.now(),
