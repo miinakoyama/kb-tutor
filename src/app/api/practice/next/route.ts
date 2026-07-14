@@ -113,11 +113,16 @@ export async function POST(request: Request) {
   const rotationByStandard = new Map((rotationResult.data ?? []).map((row) => [String(row.standard_id), row]));
   const cyclePosition = new Map(Array.from(rotationByStandard, ([standard, row]) => [standard, Number(row.cycle_position)]));
   const standardLastServed = new Map(Array.from(rotationByStandard, ([standard, row]) => [standard, typeof row.last_served_at === "string" ? row.last_served_at : null]));
-  const recentKcCodes = enabledStandards.flatMap((standard) => {
-    const value = rotationByStandard.get(standard)?.recent_kc_codes;
-    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-  });
-  const target = orderTargetKcs({ candidates: kcCandidates, standardOrder: enabledStandards, cyclePositionByStandard: cyclePosition, standardLastServedAt: standardLastServed, recentKcCodes });
+  const recentKcCodesByStandard = new Map(
+    enabledStandards.map((standard) => {
+      const value = rotationByStandard.get(standard)?.recent_kc_codes;
+      const recentKcCodes = Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === "string")
+        : [];
+      return [standard, recentKcCodes] as const;
+    }),
+  );
+  const target = orderTargetKcs({ candidates: kcCandidates, standardOrder: enabledStandards, cyclePositionByStandard: cyclePosition, standardLastServedAt: standardLastServed, recentKcCodesByStandard });
   if (!target) {
     const standardId = enabledStandards[0];
     const state = rotationByStandard.get(standardId);

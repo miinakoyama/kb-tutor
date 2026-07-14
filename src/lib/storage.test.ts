@@ -139,8 +139,31 @@ describe("fetchIncorrectQuestionCounts", () => {
     saveAnswer(makeAnswer({ questionId: "q2", isCorrect: false }));
 
     await expect(fetchIncorrectQuestionCounts()).resolves.toEqual({
-      q1: 2,
-      q2: 1,
+      "question:q1": 2,
+      "question:q2": 1,
+    });
+  });
+
+  it("keeps identical question ids in different sets separate", async () => {
+    saveAnswer(makeAnswer({
+      questionId: "q1",
+      questionSetId: "set-a",
+      isCorrect: false,
+    }));
+    saveAnswer(makeAnswer({
+      questionId: "q1",
+      questionSetId: "set-b",
+      isCorrect: false,
+    }));
+    saveAnswer(makeAnswer({
+      questionId: "q1",
+      questionSetId: "set-b",
+      isCorrect: false,
+    }));
+
+    await expect(fetchIncorrectQuestionCounts()).resolves.toEqual({
+      "set-question:set-a\0q1": 1,
+      "set-question:set-b\0q1": 2,
     });
   });
 });

@@ -18,7 +18,7 @@ for (let iteration = 0; iteration < 10_000; iteration += 1) {
       probability: (index + 1) / 25, mastered: false, observed: true, lastServedAt: null,
     })),
     standardOrder: ["S"], cyclePositionByStandard: new Map([["S", iteration % 3]]),
-    standardLastServedAt: new Map(), recentKcCodes: [],
+    standardLastServedAt: new Map(), recentKcCodesByStandard: new Map(),
   });
   durations.push(performance.now() - started);
 }

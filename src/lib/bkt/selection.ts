@@ -5,7 +5,7 @@ export interface TargetSelectionInput {
   standardOrder: string[];
   cyclePositionByStandard: ReadonlyMap<string, number>;
   standardLastServedAt: ReadonlyMap<string, string | null>;
-  recentKcCodes: string[];
+  recentKcCodesByStandard: ReadonlyMap<string, readonly string[]>;
 }
 
 export interface TargetSelectionResult {
@@ -51,8 +51,9 @@ export function orderTargetKcs(input: TargetSelectionInput): TargetSelectionResu
       ? (a, b) => b.probability - a.probability || compareRecencyThenOrder(a, b)
       : compareRecencyThenOrder,
   );
-  if (eligible.length > 1 && input.recentKcCodes.length >= 2) {
-    const lastTwo = input.recentKcCodes.slice(-2);
+  const recentKcCodes = input.recentKcCodesByStandard.get(standardId) ?? [];
+  if (eligible.length > 1 && recentKcCodes.length >= 2) {
+    const lastTwo = recentKcCodes.slice(-2);
     if (lastTwo[0] === eligible[0].kcCode && lastTwo[1] === eligible[0].kcCode) {
       const alternative = eligible.findIndex((candidate) => candidate.kcCode !== eligible[0].kcCode);
       if (alternative > 0) [eligible[0], eligible[alternative]] = [eligible[alternative], eligible[0]];

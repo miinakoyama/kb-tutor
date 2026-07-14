@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(33);
+SELECT plan(35);
 
 SELECT has_table('public', 'kc_classification_runs', 'classification runs exist');
 SELECT has_table('public', 'kc_classification_decisions', 'classification decisions exist');
@@ -100,6 +100,24 @@ SELECT is(
      AND question_id = 'legacy-mcq' AND valid_to IS NULL),
   'model',
   'publication retains model provenance on the trigger-created mapping'
+);
+
+UPDATE public.generated_questions
+SET include_in_self_practice = true
+WHERE set_id = 'bkt-classification-test-set' AND id = 'legacy-mcq';
+SELECT is(
+  (SELECT include_in_self_practice FROM public.generated_questions
+   WHERE set_id = 'bkt-classification-test-set' AND id = 'legacy-mcq'),
+  true,
+  'published question can be included in Self Practice without changing content'
+);
+SELECT results_eq(
+  $$ SELECT count(*)::integer FROM public.question_kc_assignments
+     WHERE classification_run_id = '74000000-0000-4000-8000-000000000002'
+       AND valid_to IS NULL
+       AND provenance = 'model' $$,
+  ARRAY[1],
+  'Self Practice toggle preserves the active published-run mapping'
 );
 
 INSERT INTO public.generated_questions (

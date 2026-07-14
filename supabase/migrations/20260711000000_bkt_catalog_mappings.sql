@@ -78,10 +78,54 @@ DECLARE
   v_kc_code text;
   v_part record;
   v_mapping_count integer := 0;
+  v_current_mapping_count integer := 0;
+  v_expected_mapping_count integer := CASE
+    WHEN v_is_saq THEN jsonb_array_length(
+      COALESCE(NEW.payload#>'{shortAnswer,parts}', '[]'::jsonb)
+    )
+    ELSE 1
+  END;
 BEGIN
   IF TG_OP = 'UPDATE' AND NEW.payload IS NOT DISTINCT FROM OLD.payload
      AND NEW.include_in_self_practice IS NOT DISTINCT FROM OLD.include_in_self_practice THEN
     RETURN NEW;
+  END IF;
+
+  -- A Self Practice-only toggle must not replace a current mapping. In
+  -- particular, preserving classification_run_id keeps published mappings
+  -- rollbackable. Enabling still falls through to the normal validation path
+  -- when complete, current KC coverage is absent.
+  IF TG_OP = 'UPDATE' AND NEW.payload IS NOT DISTINCT FROM OLD.payload THEN
+    SELECT count(*)::integer
+      INTO v_current_mapping_count
+    FROM public.question_kc_assignments assignment
+    WHERE assignment.question_set_id = NEW.set_id
+      AND assignment.question_id = NEW.id
+      AND assignment.valid_to IS NULL
+      AND assignment.status = 'confirmed'
+      AND assignment.source_content_hash = v_hash
+      AND (
+        (
+          NOT v_is_saq
+          AND assignment.format = 'mcq'
+          AND assignment.part_label IS NULL
+        ) OR (
+          v_is_saq
+          AND assignment.format = 'saq'
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(
+              COALESCE(NEW.payload#>'{shortAnswer,parts}', '[]'::jsonb)
+            ) AS part
+            WHERE part->>'label' = assignment.part_label
+          )
+        )
+      );
+
+    IF v_expected_mapping_count > 0
+       AND v_current_mapping_count = v_expected_mapping_count THEN
+      RETURN NEW;
+    END IF;
   END IF;
 
   UPDATE public.question_kc_assignments

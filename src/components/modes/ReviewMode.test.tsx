@@ -9,8 +9,15 @@ const { fetchIncorrectQuestionCounts } = vi.hoisted(() => ({
 vi.mock("@/lib/storage", () => ({ fetchIncorrectQuestionCounts }));
 vi.mock("@/lib/array-utils", () => ({ shuffleArray: <T,>(items: T[]) => items }));
 vi.mock("@/components/modes/AdaptivePracticeMode", () => ({
-  AdaptivePracticeMode: (props: { mode: string; adaptiveStandardIds?: string[] }) => (
-    <div data-testid="review-run">{props.mode}:{String(Boolean(props.adaptiveStandardIds))}</div>
+  AdaptivePracticeMode: (props: {
+    mode: string;
+    adaptiveStandardIds?: string[];
+    questions: Question[];
+  }) => (
+    <div data-testid="review-run">
+      {props.mode}:{String(Boolean(props.adaptiveStandardIds))}:
+      {props.questions.map((item) => item.questionSetId ?? "legacy").join(",")}
+    </div>
   ),
 }));
 
@@ -29,8 +36,42 @@ describe("ReviewMode", () => {
   });
 
   it("keeps existing mistake selection and never enables adaptive selection", async () => {
-    fetchIncorrectQuestionCounts.mockResolvedValue({ q1: 2 });
+    fetchIncorrectQuestionCounts.mockResolvedValue({ "question:q1": 2 });
     render(<ReviewMode questions={[question]} />);
-    await waitFor(() => expect(screen.getByTestId("review-run").textContent).toBe("review:false"));
+    await waitFor(() => expect(screen.getByTestId("review-run").textContent).toBe("review:false:legacy"));
+  });
+
+  it("matches review history by question set when ids collide", async () => {
+    fetchIncorrectQuestionCounts.mockResolvedValue({
+      "set-question:set-a\0q1": 1,
+    });
+    render(
+      <ReviewMode
+        questions={[
+          { ...question, questionSetId: "set-a" },
+          { ...question, questionSetId: "set-b" },
+        ]}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("review-run").textContent).toBe(
+        "review:false:set-a",
+      ),
+    );
+  });
+
+  it("does not apply ambiguous legacy history to duplicate ids", async () => {
+    fetchIncorrectQuestionCounts.mockResolvedValue({ "question:q1": 1 });
+    render(
+      <ReviewMode
+        questions={[
+          { ...question, questionSetId: "set-a" },
+          { ...question, questionSetId: "set-b" },
+        ]}
+      />,
+    );
+
+    expect(await screen.findByText("Nothing to Review!")).not.toBeNull();
   });
 });
