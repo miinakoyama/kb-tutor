@@ -6,16 +6,22 @@ const {
   createSupabaseServerClientMock,
   keystoneExamMock,
   redirectMock,
+  profileSummaryMock,
   resolveRoleWithServerFallbackMock,
+  selfPracticeWeeklySecondsMock,
+  topicKcCoverageMock,
   userSettingsMock,
 } = vi.hoisted(() => ({
   assignmentListMock: vi.fn(),
   createSupabaseServerClientMock: vi.fn(),
   keystoneExamMock: vi.fn(),
+  profileSummaryMock: vi.fn(),
   redirectMock: vi.fn((path: string): never => {
     throw new Error(`REDIRECT:${path}`);
   }),
   resolveRoleWithServerFallbackMock: vi.fn(),
+  selfPracticeWeeklySecondsMock: vi.fn(),
+  topicKcCoverageMock: vi.fn(),
   userSettingsMock: vi.fn(),
 }));
 
@@ -41,6 +47,18 @@ vi.mock("@/lib/keystone-exam", () => ({
 
 vi.mock("@/lib/user-settings", () => ({
   getStudentUserSettings: userSettingsMock,
+}));
+
+vi.mock("@/lib/homepage/self-practice-stats", () => ({
+  getSelfPracticeWeeklySeconds: selfPracticeWeeklySecondsMock,
+}));
+
+vi.mock("@/lib/homepage/kc-coverage", () => ({
+  getTopicKcCoverage: topicKcCoverageMock,
+}));
+
+vi.mock("@/lib/homepage/profile-summary", () => ({
+  getStudentProfileSummary: profileSummaryMock,
 }));
 
 vi.mock("@/components/HomePageContent", () => ({
@@ -78,7 +96,10 @@ describe("Home role routing", () => {
     createSupabaseServerClientMock.mockReset();
     keystoneExamMock.mockReset();
     redirectMock.mockClear();
+    profileSummaryMock.mockReset();
     resolveRoleWithServerFallbackMock.mockReset();
+    selfPracticeWeeklySecondsMock.mockReset();
+    topicKcCoverageMock.mockReset();
     userSettingsMock.mockReset();
   });
 
@@ -110,6 +131,9 @@ describe("Home role routing", () => {
     userSettingsMock.mockResolvedValue({ timeZone: "America/New_York" });
     assignmentListMock.mockResolvedValue({ assignments: [] });
     keystoneExamMock.mockResolvedValue(null);
+    selfPracticeWeeklySecondsMock.mockResolvedValue(null);
+    topicKcCoverageMock.mockResolvedValue([]);
+    profileSummaryMock.mockResolvedValue({ name: null, schoolName: null });
 
     await expect(Home()).resolves.toBeTruthy();
 
