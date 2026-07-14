@@ -205,6 +205,51 @@ describe("POST /api/analytics/attempts", () => {
     });
   });
 
+  it("scores a queued version after the question is removed from Self Practice", async () => {
+    const answeredVersion = "00000000-0000-4000-8000-000000000014";
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+      tables: {
+        // RLS would hide the current row after include_in_self_practice=false.
+        generated_questions: { rows: [] },
+      },
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        generated_question_versions: {
+          rows: [{
+            question_set_id: "set-1",
+            question_id: "q1",
+            content_version: answeredVersion,
+            payload: { correctOptionId: "A" },
+          }],
+        },
+        school_question_sets: {
+          rows: [{ school_id: "school-1", set_id: "set-1" }],
+        },
+        school_members: {
+          rows: [{ school_id: "school-1", student_user_id: "student-1" }],
+        },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(attemptRequest("", {
+      questionSetId: "set-1",
+      questionContentVersion: answeredVersion,
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ isCorrect: true });
+    expect(tables.attempts.rows[0]).toMatchObject({
+      question_set_id: "set-1",
+      question_content_version: answeredVersion,
+      is_correct: true,
+    });
+  });
+
   it("uses questionSetId to distinguish duplicate question ids", async () => {
     const setTwoVersion = "00000000-0000-4000-8000-000000000012";
     const { client: serverClient } = createMockSupabaseClient({
@@ -231,7 +276,17 @@ describe("POST /api/analytics/attempts", () => {
       },
     });
     const { client: adminClient, tables } = createMockSupabaseClient({
-      tables: { attempts: { rows: [] } },
+      tables: {
+        generated_question_versions: {
+          rows: [{
+            question_set_id: "set-2",
+            question_id: "q1",
+            content_version: setTwoVersion,
+            payload: { correctOptionId: "B" },
+          }],
+        },
+        attempts: { rows: [] },
+      },
     });
     mockState.serverClient = serverClient;
     mockState.adminClient = adminClient;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { orderTargetKcs, rankQuestionsForKc } from "@/lib/bkt/selection";
+import { getQuestionHistory, questionHistoryKey } from "@/lib/bkt/question-history";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchStudentSelfPracticeQuestions } from "@/lib/school-generated-questions";
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
     admin.from("knowledge_components").select("code,standard_id,catalog_order").in("standard_id", enabledStandards).eq("active", true).order("catalog_order"),
     admin.from("student_kc_mastery").select("kc_code,probability,mastered,observation_count").eq("user_id", user.id),
     admin.from("adaptive_rotation_states").select("standard_id,cycle_position,recent_kc_codes,last_question_id,last_served_at,lock_version").eq("user_id", user.id).in("standard_id", enabledStandards),
-    admin.from("adaptive_selection_events").select("standard_id,target_kc_code,question_id,created_at").eq("user_id", user.id).in("standard_id", enabledStandards).eq("outcome", "selected").order("created_at", { ascending: false }).limit(500),
+    admin.from("adaptive_selection_events").select("standard_id,target_kc_code,question_set_id,question_id,created_at").eq("user_id", user.id).in("standard_id", enabledStandards).eq("outcome", "selected").order("created_at", { ascending: false }).limit(500),
     fetchStudentSelfPracticeQuestions(supabase),
   ]);
   if (kcResult.error || masteryResult.error || rotationResult.error || selectionHistory.error) {
@@ -70,20 +71,36 @@ export async function POST(request: Request) {
     : { data: [], error: null };
   if (mappingResult.error) return NextResponse.json({ error: "Unable to load mapped question candidates" }, { status: 500 });
   const attemptResult = questionIds.length
-    ? await admin.from("attempts").select("question_id,answered_at").eq("user_id", user.id).in("question_id", questionIds).order("answered_at", { ascending: false })
+    ? await admin.from("attempts").select("question_set_id,question_id,answered_at").eq("user_id", user.id).in("question_id", questionIds).order("answered_at", { ascending: false })
     : { data: [], error: null };
   const saqAttemptResult = questionIds.length
-    ? await admin.from("short_answer_attempts").select("question_id,answered_at").eq("user_id", user.id).in("question_id", questionIds).order("answered_at", { ascending: false })
+    ? await admin.from("short_answer_attempts").select("question_set_id,question_id,answered_at").eq("user_id", user.id).in("question_id", questionIds).order("answered_at", { ascending: false })
     : { data: [], error: null };
 
   const mastery = new Map((masteryResult.data ?? []).map((row) => [String(row.kc_code), row]));
   const lastKc = new Map<string, string | null>();
   const lastQuestion = new Map<string, string | null>();
+  const lastQuestionByStandard = new Map<
+    string,
+    { questionSetId: string | null; questionId: string }
+  >();
   for (const row of selectionHistory.data ?? []) {
     const kcCode = typeof row.target_kc_code === "string" ? row.target_kc_code : "";
     if (kcCode && !lastKc.has(kcCode)) lastKc.set(kcCode, String(row.created_at));
     const questionId = typeof row.question_id === "string" ? row.question_id : "";
-    if (questionId && !lastQuestion.has(questionId)) lastQuestion.set(questionId, String(row.created_at));
+    const questionSetId =
+      typeof row.question_set_id === "string" ? row.question_set_id : null;
+    const historyKey = questionId
+      ? questionHistoryKey(questionSetId, questionId)
+      : null;
+    if (historyKey && !lastQuestion.has(historyKey)) {
+      lastQuestion.set(historyKey, String(row.created_at));
+    }
+    const standardId =
+      typeof row.standard_id === "string" ? row.standard_id : "";
+    if (questionId && standardId && !lastQuestionByStandard.has(standardId)) {
+      lastQuestionByStandard.set(standardId, { questionSetId, questionId });
+    }
   }
   const kcCandidates: AdaptiveKcCandidate[] = (kcResult.data ?? []).map((row) => {
     const state = mastery.get(String(row.code));
@@ -124,7 +141,14 @@ export async function POST(request: Request) {
   }
   const answeredAt = new Map<string, string | null>();
   for (const row of [...(attemptResult.data ?? []), ...(saqAttemptResult.data ?? [])]) {
-    answeredAt.set(String(row.question_id), latestIso(answeredAt.get(String(row.question_id)) ?? null, row.answered_at));
+    const questionId = String(row.question_id);
+    const questionSetId =
+      typeof row.question_set_id === "string" ? row.question_set_id : null;
+    const historyKey = questionHistoryKey(questionSetId, questionId);
+    answeredAt.set(
+      historyKey,
+      latestIso(answeredAt.get(historyKey) ?? null, row.answered_at),
+    );
   }
   const questionByKey = new Map<string, Question>();
   const candidates: AdaptiveQuestionCandidate[] = [];
@@ -135,19 +159,30 @@ export async function POST(request: Request) {
     if (!mappings.length) continue;
     questionByKey.set(key, question);
     const partKcCodes = mappings.map((mapping) => mapping.kcCode);
+    const answerHistory = getQuestionHistory(
+      answeredAt,
+      question.questionSetId,
+      question.id,
+    );
+    const servedHistory = getQuestionHistory(
+      lastQuestion,
+      question.questionSetId,
+      question.id,
+    );
     candidates.push({
       questionId: question.id, questionSetId: question.questionSetId,
       format: mappings[0].format, standardId: question.standardId ?? target.standardId,
       targetKcCode: mappings[0].kcCode, partKcCodes,
-      answered: answeredAt.has(question.id), lastAnsweredAt: answeredAt.get(question.id) ?? null,
-      lastServedAt: lastQuestion.get(question.id) ?? null,
+      answered: answerHistory.found,
+      lastAnsweredAt: answerHistory.value ?? null,
+      lastServedAt: servedHistory.value ?? null,
     });
   }
   const unmastered = new Set(kcCandidates.filter((candidate) => !candidate.mastered).map((candidate) => candidate.kcCode));
   const state = rotationByStandard.get(target.standardId);
   const fallbackKcCodes: string[] = [];
   for (const kcCode of target.orderedKcCodes) {
-    const ranked = rankQuestionsForKc(candidates.filter((candidate) => candidate.standardId === target.standardId), kcCode, unmastered, typeof state?.last_question_id === "string" ? state.last_question_id : null);
+    const ranked = rankQuestionsForKc(candidates.filter((candidate) => candidate.standardId === target.standardId), kcCode, unmastered, lastQuestionByStandard.get(target.standardId) ?? null);
     if (!ranked.length) {
       fallbackKcCodes.push(kcCode);
       continue;

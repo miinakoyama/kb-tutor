@@ -65,7 +65,7 @@ export function rankQuestionsForKc(
   candidates: readonly AdaptiveQuestionCandidate[],
   targetKcCode: string,
   unmasteredKcCodes: ReadonlySet<string>,
-  lastQuestionId: string | null,
+  lastQuestion: { questionSetId: string | null; questionId: string } | null,
 ): AdaptiveQuestionCandidate[] {
   const eligible = candidates.filter(
     (candidate) =>
@@ -74,8 +74,12 @@ export function rankQuestionsForKc(
   );
   return [...eligible].sort((a, b) => {
     if (a.answered !== b.answered) return a.answered ? 1 : -1;
-    const aImmediate = a.questionId === lastQuestionId;
-    const bImmediate = b.questionId === lastQuestionId;
+    const isImmediate = (candidate: AdaptiveQuestionCandidate) =>
+      candidate.questionId === lastQuestion?.questionId &&
+      (!lastQuestion.questionSetId ||
+        candidate.questionSetId === lastQuestion.questionSetId);
+    const aImmediate = isImmediate(a);
+    const bImmediate = isImmediate(b);
     if (aImmediate !== bImmediate) return aImmediate ? 1 : -1;
     if (a.format === "saq" && b.format === "saq") {
       const additional = (candidate: AdaptiveQuestionCandidate) =>

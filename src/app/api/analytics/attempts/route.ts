@@ -112,9 +112,48 @@ function correctOptionIdFromPayload(value: unknown): string | null {
   return typeof correctOptionId === "string" && correctOptionId ? correctOptionId : null;
 }
 
+async function canAccessHistoricalQuestion(
+  requester: SupabaseClient,
+  admin: SupabaseClient,
+  userId: string,
+  questionSetId: string,
+  questionId: string,
+): Promise<boolean> {
+  const { data: currentlyAccessible } = await requester
+    .from("generated_questions")
+    .select("id")
+    .eq("set_id", questionSetId)
+    .eq("id", questionId)
+    .maybeSingle();
+  if (currentlyAccessible) return true;
+
+  // A queued answer remains valid after the row is hidden or removed from
+  // Self Practice. Verify the student's school relationship to the set
+  // explicitly because the current generated_questions RLS no longer grants
+  // access once include_in_self_practice is cleared.
+  const { data: links, error: linkError } = await admin
+    .from("school_question_sets")
+    .select("school_id")
+    .eq("set_id", questionSetId);
+  if (linkError) return false;
+  const schoolIds = [
+    ...new Set((links ?? []).map((row) => String(row.school_id))),
+  ];
+  if (!schoolIds.length) return false;
+
+  const { data: memberships, error: membershipError } = await admin
+    .from("school_members")
+    .select("school_id")
+    .eq("student_user_id", userId)
+    .in("school_id", schoolIds)
+    .limit(1);
+  return !membershipError && (memberships?.length ?? 0) > 0;
+}
+
 async function resolveAuthoritativeCorrectOptionId(
   requester: SupabaseClient,
   admin: SupabaseClient,
+  userId: string,
   questionId: string,
   assignmentId: string | null,
   questionSetId: string | null,
@@ -131,21 +170,16 @@ async function resolveAuthoritativeCorrectOptionId(
   }
 
   if (questionSetId) {
-    const { data } = await requester
-      .from("generated_questions")
-      .select("payload,content_version")
-      .eq("set_id", questionSetId)
-      .eq("id", questionId)
-      .eq("is_visible", true)
-      .maybeSingle();
-    if (!data) return null;
+    if (questionContentVersion) {
+      const canAccess = await canAccessHistoricalQuestion(
+        requester,
+        admin,
+        userId,
+        questionSetId,
+        questionId,
+      );
+      if (!canAccess) return null;
 
-    const currentVersion =
-      typeof data.content_version === "string" ? data.content_version : null;
-    if (
-      questionContentVersion &&
-      currentVersion !== questionContentVersion
-    ) {
       const { data: version } = await admin
         .from("generated_question_versions")
         .select("payload")
@@ -155,6 +189,15 @@ async function resolveAuthoritativeCorrectOptionId(
         .maybeSingle();
       return correctOptionIdFromPayload(version?.payload);
     }
+
+    const { data } = await requester
+      .from("generated_questions")
+      .select("payload")
+      .eq("set_id", questionSetId)
+      .eq("id", questionId)
+      .eq("is_visible", true)
+      .maybeSingle();
+    if (!data) return null;
     return correctOptionIdFromPayload(data.payload);
   }
 
@@ -225,6 +268,7 @@ export async function POST(request: Request) {
   const correctOptionId = await resolveAuthoritativeCorrectOptionId(
     supabase,
     admin,
+    user.id,
     body.questionId,
     assignmentResolution.assignmentId,
     questionSetId,

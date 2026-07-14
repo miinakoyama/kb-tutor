@@ -50,8 +50,15 @@ describe("adaptive question ranking", () => {
     partKcCodes: ["S1"], answered: false, lastAnsweredAt: null, lastServedAt: null, ...overrides,
   });
   it("prefers unseen questions and avoids an immediate repeat", () => {
-    const ranked = rankQuestionsForKc([question({ questionId: "q1" }), question({ questionId: "q2" })], "S1", new Set(["S1"]), "q1");
+    const ranked = rankQuestionsForKc([question({ questionId: "q1" }), question({ questionId: "q2" })], "S1", new Set(["S1"]), { questionSetId: "set", questionId: "q1" });
     expect(ranked[0].questionId).toBe("q2");
+  });
+  it("does not treat the same question id in another set as an immediate repeat", () => {
+    const ranked = rankQuestionsForKc([
+      question({ questionId: "q1", questionSetId: "set-a" }),
+      question({ questionId: "q1", questionSetId: "set-b" }),
+    ], "S1", new Set(["S1"]), { questionSetId: "set-a", questionId: "q1" });
+    expect(ranked[0].questionSetId).toBe("set-b");
   });
   it("ranks SAQs by distinct additional unmastered KCs, not repeated target parts", () => {
     const ranked = rankQuestionsForKc([
