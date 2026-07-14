@@ -74,7 +74,7 @@ function parseReviewTab(value: string | null): ReviewTab {
 }
 
 const ASSIGNMENT_BUTTON_BASE_CLASS =
-  "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 font-bold transition duration-200";
+  "inline-flex h-11 items-center justify-center gap-2 px-5 font-bold transition duration-200";
 
 const ASSIGNMENT_PRIMARY_BUTTON_STYLE = {
   fontSize: 16,
@@ -354,14 +354,14 @@ function BookmarksPageContent() {
           ? "Questions you answer incorrectly will appear here."
           : "Questions you bookmark will appear here.";
       return (
-        <div className="rounded-xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
           {message}
         </div>
       );
     }
 
     return (
-      <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface">
+      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
         {groups.map((group, index) => {
           const topicKey = `${section}:${group.topic}`;
           const isExpanded = Boolean(expandedTopics[topicKey]);
@@ -415,7 +415,7 @@ function BookmarksPageContent() {
                         return (
                         <div
                           key={question.id}
-                          className="overflow-hidden rounded-lg border border-border-subtle bg-background"
+                          className="overflow-hidden rounded-2xl border border-border-subtle bg-background"
                         >
                           <div
                             role="button"
@@ -440,7 +440,7 @@ function BookmarksPageContent() {
                                     event.stopPropagation();
                                     handleConfirmRemoveBookmark(question.id);
                                   }}
-                                  className="flex-shrink-0 rounded-md p-1.5 text-slate-gray/40 transition-colors hover:bg-error-light hover:text-red-500"
+                                  className="flex-shrink-0 rounded-2xl p-1.5 text-slate-gray/40 transition-colors hover:bg-error-light hover:text-error"
                                   aria-label="Remove bookmark"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -469,13 +469,12 @@ function BookmarksPageContent() {
                                       <StimulusPanel
                                         stem={question.shortAnswer.stem}
                                         stimulus={question.shortAnswer.stimulus}
-                                        showHighlightHint={false}
                                       />
                                       <div className="space-y-2">
                                         {question.shortAnswer.parts.map((part) => (
                                           <div
                                             key={part.label}
-                                            className="rounded-md border border-border-subtle bg-slate-gray/5 px-3 py-2"
+                                            className="rounded-2xl border border-border-subtle bg-slate-gray/5 px-3 py-2"
                                           >
                                             <div className="flex items-start gap-2.5">
                                               <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-gray/20 text-[11px] font-semibold text-muted-foreground">
@@ -496,9 +495,9 @@ function BookmarksPageContent() {
                                       return (
                                         <div
                                           key={option.id}
-                                          className={`rounded-md border px-3 py-2 ${
+                                          className={`rounded-2xl border px-3 py-2 ${
                                             isCorrect
-                                              ? "border-primary/30 bg-primary/5"
+                                              ? "border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)]"
                                               : "border-border-subtle bg-slate-gray/5"
                                           }`}
                                         >
@@ -506,7 +505,7 @@ function BookmarksPageContent() {
                                             <span
                                               className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
                                                 isCorrect
-                                                  ? "bg-primary text-white"
+                                                  ? "bg-[var(--assignment-completed)] text-[var(--assignment-on-accent)]"
                                                   : "bg-slate-gray/20 text-muted-foreground"
                                               }`}
                                             >
@@ -525,7 +524,7 @@ function BookmarksPageContent() {
                                               ) : null}
                                             </div>
                                             {isCorrect ? (
-                                              <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary" />
+                                              <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-[var(--assignment-completed)]" />
                                             ) : null}
                                           </div>
                                         </div>
@@ -616,7 +615,7 @@ function BookmarksPageContent() {
               <button
                 type="button"
                 onClick={handleToggleAllPracticeTopics}
-                className="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold text-heading transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold text-heading transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 style={{
                   background: "var(--assignment-row-cta-bg)",
                   border: "1.5px solid var(--assignment-row-cta-border)",
@@ -635,7 +634,10 @@ function BookmarksPageContent() {
                 );
                 return (
                   <div key={module}>
-                    <h3 className="mb-2 text-sm font-semibold text-slate-gray">
+                    <h3
+                      className="mb-2 text-sm font-semibold text-slate-gray"
+                      style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
+                    >
                       Module {module}: {REVIEW_MODULE_LABELS[module]}
                     </h3>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -650,12 +652,12 @@ function BookmarksPageContent() {
                             type="button"
                             disabled={!isAvailable}
                             onClick={() => handleTogglePracticeTopic(entry.key)}
-                            className="relative h-[98px] w-full rounded-[22px] border px-3 py-3 text-center transition-colors"
+                            className="relative h-[98px] w-full rounded-2xl border px-3 py-3 text-center transition-colors"
                             style={{
                               background: !isAvailable
                                 ? "var(--assignment-row-cta-bg)"
                                 : isSelected
-                                  ? "var(--primary-light)"
+                                  ? "var(--mastery-mastered-bg)"
                                   : "var(--surface)",
                               border: isSelected
                                 ? "2px solid var(--assignment-completed)"
@@ -725,8 +727,8 @@ function BookmarksPageContent() {
                 onClick={() => setActiveReviewTab("needs")}
                 className={`relative inline-flex rounded-t-2xl rounded-b-none px-4 py-2.5 text-sm font-semibold transition-all ${
                   activeReviewTab === "needs"
-                    ? "z-20 translate-y-0 border border-white/90 border-b-0 bg-white text-heading"
-                    : "z-10 translate-y-1 border border-white/70 bg-white/75 text-slate-gray/75 hover:bg-white/85"
+                    ? "z-20 translate-y-0 border border-[var(--assignment-glass-border)] border-b-0 bg-surface text-heading"
+                    : "z-10 translate-y-1 border border-[var(--assignment-glass-border)]/60 bg-[var(--surface)]/75 text-slate-gray/75 hover:bg-[var(--surface)]/85"
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
@@ -734,7 +736,7 @@ function BookmarksPageContent() {
                   Need Review
                 </span>
                 {activeReviewTab === "needs" ? (
-                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
+                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[var(--assignment-completed)]" />
                 ) : null}
               </button>
 
@@ -743,8 +745,8 @@ function BookmarksPageContent() {
                 onClick={() => setActiveReviewTab("bookmarked")}
                 className={`relative inline-flex rounded-t-2xl rounded-b-none px-4 py-2.5 text-sm font-semibold transition-all ${
                   activeReviewTab === "bookmarked"
-                    ? "z-20 translate-y-0 border border-white/90 border-b-0 bg-white text-heading"
-                    : "z-10 translate-y-1 border border-white/70 bg-white/75 text-slate-gray/75 hover:bg-white/85"
+                    ? "z-20 translate-y-0 border border-[var(--assignment-glass-border)] border-b-0 bg-surface text-heading"
+                    : "z-10 translate-y-1 border border-[var(--assignment-glass-border)]/60 bg-[var(--surface)]/75 text-slate-gray/75 hover:bg-[var(--surface)]/85"
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
@@ -752,7 +754,7 @@ function BookmarksPageContent() {
                   Bookmarked
                 </span>
                 {activeReviewTab === "bookmarked" ? (
-                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
+                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[var(--assignment-completed)]" />
                 ) : null}
               </button>
 
@@ -761,8 +763,8 @@ function BookmarksPageContent() {
                 onClick={() => setActiveReviewTab("notes")}
                 className={`relative inline-flex rounded-t-2xl rounded-b-none px-4 py-2.5 text-sm font-semibold transition-all ${
                   activeReviewTab === "notes"
-                    ? "z-20 translate-y-0 border border-white/90 border-b-0 bg-white text-heading"
-                    : "z-10 translate-y-1 border border-white/70 bg-white/75 text-slate-gray/75 hover:bg-white/85"
+                    ? "z-20 translate-y-0 border border-[var(--assignment-glass-border)] border-b-0 bg-surface text-heading"
+                    : "z-10 translate-y-1 border border-[var(--assignment-glass-border)]/60 bg-[var(--surface)]/75 text-slate-gray/75 hover:bg-[var(--surface)]/85"
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
@@ -770,12 +772,15 @@ function BookmarksPageContent() {
                   Notes
                 </span>
                 {activeReviewTab === "notes" ? (
-                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
+                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[var(--assignment-completed)]" />
                 ) : null}
               </button>
             </div>
 
-            <section className="relative mt-0 rounded-tl-none rounded-tr-3xl rounded-br-3xl rounded-bl-3xl border border-white/90 border-t-0 bg-white p-4 shadow-[0_12px_30px_rgba(31,45,31,0.1)] sm:p-5">
+            <section
+              className="relative mt-0 rounded-tl-none rounded-tr-[28px] rounded-br-[28px] rounded-bl-[28px] border border-[var(--assignment-glass-border)] border-t-0 bg-surface p-4 sm:p-5"
+              style={{ boxShadow: "var(--assignment-card-shadow)" }}
+            >
               {activeReviewTab === "needs"
                 ? renderTopicSections(needsReviewGroups, "needs", false)
                 : activeReviewTab === "bookmarked"

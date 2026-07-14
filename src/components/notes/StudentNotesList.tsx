@@ -161,7 +161,7 @@ function NoteRow({
       aria-current={isSelected}
       className={`block w-full border-l-[3px] px-4 py-3 text-left transition-colors ${
         isSelected
-          ? "border-primary bg-primary-light"
+          ? "border-[var(--assignment-completed)] bg-[var(--mastery-mastered-bg)]"
           : "border-transparent hover:bg-foreground/5"
       }`}
     >
@@ -200,13 +200,12 @@ function SelectedNoteDetail({
           <StimulusPanel
             stem={shortAnswer.stem}
             stimulus={shortAnswer.stimulus}
-            showHighlightHint={false}
           />
           <div className="space-y-2">
             {shortAnswer.parts.map((part) => (
               <div
                 key={part.label}
-                className="rounded-md border border-border-subtle bg-slate-gray/5 px-3 py-2"
+                className="rounded-2xl border border-border-subtle bg-slate-gray/5 px-3 py-2"
               >
                 <div className="flex items-start gap-2.5">
                   <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-gray/20 text-[11px] font-semibold text-muted-foreground">
@@ -230,14 +229,14 @@ function SelectedNoteDetail({
           onOptionClick={() => {}}
         />
       ) : (
-        <div className="rounded-xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
           {note.question.available
             ? "This question can't be previewed right now."
             : "Question no longer available."}
         </div>
       )}
 
-      <div className="rounded-xl border border-border-subtle bg-surface-muted p-4">
+      <div className="rounded-2xl border border-border-subtle bg-surface-muted p-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           My note
         </p>
@@ -328,7 +327,7 @@ export function StudentNotesList({
 
   if (error) {
     return (
-      <div className="rounded-xl border border-[color:var(--error-border)] bg-[color:var(--error-light)] px-4 py-3 text-sm text-[color:var(--error-color)]">
+      <div className="rounded-2xl border border-[color:var(--error-border)] bg-[color:var(--error-light)] px-4 py-3 text-sm text-[color:var(--error-color)]">
         {error}
       </div>
     );
@@ -356,10 +355,10 @@ export function StudentNotesList({
     filteredNotes.find((note) => note.questionId === selectedQuestionId) ?? filteredNotes[0];
   const selectedQuestion = selectedNote ? questionById.get(selectedNote.questionId) : undefined;
   const selectClassName =
-    "w-full rounded-lg border border-border-default bg-surface px-2 py-1.5 text-xs text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/50";
+    "w-full rounded-2xl border border-border-default bg-surface px-2 py-1.5 text-xs text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/40";
 
   return (
-    <div className="flex h-[600px] max-h-[70vh] overflow-hidden rounded-xl border border-border-subtle">
+    <div className="flex h-[600px] max-h-[70vh] overflow-hidden rounded-2xl border border-border-subtle">
       <div className="flex w-[380px] flex-shrink-0 flex-col border-r border-border-subtle bg-surface">
         <div className="flex-shrink-0 border-b border-border-subtle px-4 py-3">
           <div className="flex gap-2">

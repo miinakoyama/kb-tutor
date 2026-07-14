@@ -15,6 +15,13 @@ interface FeedbackPanelProps {
   showFocusHint?: boolean;
   feedbackReadText?: string;
   onReadAloud?: (section: ReadSection) => void;
+  /**
+   * "tinted" (default) keeps the legacy green/red panel background.
+   * "neutral" renders on a muted neutral surface so the panel stays
+   * subordinate to the selected answer — correctness is signalled by the
+   * icon and title color only.
+   */
+  variant?: "tinted" | "neutral";
 }
 
 export function FeedbackPanel({
@@ -25,6 +32,7 @@ export function FeedbackPanel({
   showFocusHint = false,
   feedbackReadText,
   onReadAloud,
+  variant = "tinted",
 }: FeedbackPanelProps) {
   const {
     isSupported,
@@ -87,13 +95,15 @@ export function FeedbackPanel({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mt-5 space-y-3"
+      className={`space-y-3 ${variant === "neutral" ? "" : "mt-5"}`}
     >
       <div
         className={`p-4 rounded-2xl border ${
-          displayIsCorrect
-            ? "border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)]"
-            : "border-error-border bg-error-light"
+          variant === "neutral"
+            ? "border-[var(--border-subtle)] bg-[var(--surface-muted)]"
+            : displayIsCorrect
+              ? "border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)]"
+              : "border-error-border bg-error-light"
         }`}
       >
         <div className="flex items-start gap-3">

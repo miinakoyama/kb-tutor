@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Lightbulb } from "lucide-react";
 import type { GradedFeedback } from "@/types/short-answer";
 import { verdictDisplay } from "./verdict-display";
 
@@ -18,19 +19,19 @@ const TONE_STYLES: Record<
   { border: string; bg: string; text: string }
 > = {
   correct: {
-    border: "border-emerald-300",
-    bg: "bg-emerald-50",
-    text: "text-emerald-800",
+    border: "border-[var(--assignment-completed-muted)]",
+    bg: "bg-[var(--mastery-mastered-bg)]",
+    text: "text-[var(--mastery-mastered)]",
   },
   incorrect: {
-    border: "border-rose-300",
-    bg: "bg-rose-50",
-    text: "text-rose-800",
+    border: "border-[var(--border-default)]",
+    bg: "bg-[var(--assignment-mode-review-bg)]/30",
+    text: "text-[var(--assignment-mode-review)]",
   },
   neutral: {
-    border: "border-slate-300",
-    bg: "bg-slate-50",
-    text: "text-slate-700",
+    border: "border-[var(--border-default)]",
+    bg: "bg-[var(--surface-muted)]",
+    text: "text-slate-gray",
   },
 };
 
@@ -70,7 +71,7 @@ function UnlockCountdown({
 
   return (
     <div
-      className="flex items-center justify-center gap-2 border-t border-emerald-200 bg-emerald-100/70 px-4 py-2 text-sm font-semibold text-emerald-800"
+      className="flex items-center justify-center gap-2 border-t border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)] px-4 py-2 text-sm font-semibold text-[var(--mastery-mastered)]"
       aria-live="polite"
     >
       {label} {count}…
@@ -94,11 +95,13 @@ export function FeedbackBlock({
       role="status"
       aria-live="polite"
     >
-      <div
-        className={`flex items-center justify-between gap-3 border-b ${tone.border} px-4 py-2`}
-      >
-        <span className={`flex items-center gap-2 text-sm font-semibold ${tone.text}`}>
-          <span aria-hidden>{display.glyph}</span>
+      <div className="flex items-center justify-between gap-3 px-4 pt-2 pb-1">
+        <span className={`flex items-center gap-2 text-[15px] font-semibold ${tone.text}`}>
+          {display.glyph === "✗" ? (
+            <Lightbulb className="h-4 w-4" aria-hidden />
+          ) : (
+            <span aria-hidden>{display.glyph}</span>
+          )}
           {display.phrase}
         </span>
         {triesLeft > 0 && (
@@ -109,7 +112,7 @@ export function FeedbackBlock({
       </div>
 
       {feedback.segments.length > 0 && (
-        <div className="flex flex-col gap-3 px-4 py-3">
+        <div className="flex flex-col gap-3 px-4 pt-1 pb-3">
           {feedback.segments.map((segment, i) => (
             <div key={i} className="flex flex-col gap-1">
               {segment.label.trim().length > 0 && (
@@ -117,7 +120,7 @@ export function FeedbackBlock({
                   {segment.label}
                 </span>
               )}
-              <p className="text-[13px] leading-relaxed text-[color:var(--foreground)]/85">
+              <p className="text-[15px] leading-relaxed text-[color:var(--foreground)]/85">
                 {segment.text}
               </p>
             </div>
@@ -141,7 +144,11 @@ export function FeedbackBlock({
       )}
 
       {feedback.modelAnswer && (
-        <p className="px-4 py-3 text-[12.5px] leading-relaxed text-[color:var(--foreground)]/75">
+        <p
+          className={`px-4 pb-3 text-[15px] leading-relaxed text-[color:var(--foreground)]/75 ${
+            feedback.segments.length > 0 ? "pt-3" : "pt-1"
+          }`}
+        >
           {feedback.modelAnswer}
         </p>
       )}

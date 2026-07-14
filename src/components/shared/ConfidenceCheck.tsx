@@ -34,7 +34,7 @@ export function ConfidenceCheck({ value, onChange }: ConfidenceCheckProps) {
               key={level.id}
               onClick={() => onChange(level.id)}
               aria-pressed={isActive}
-              className={`px-4 py-2 text-sm font-medium rounded-full border-[1.5px] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+              className={`px-5 py-2 min-h-[44px] text-sm font-medium rounded-xl border-[1.5px] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                 isActive
                   ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)] text-[var(--mastery-mastered)]"
                   : "border-[var(--border-default)] bg-surface text-muted-foreground hover:border-[var(--assignment-selectable-border)] hover:text-foreground"

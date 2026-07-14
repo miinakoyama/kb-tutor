@@ -84,8 +84,10 @@ export function OptionButton({
       <button
         onClick={() => onSelect(option.id)}
         disabled={isDisabled}
-        className={`group w-full text-left rounded-2xl border-[1.5px] transition-all duration-200 break-words flex items-center ${
-          compact ? "px-3 py-2 min-h-[40px] gap-2.5" : "px-4 py-3 min-h-[48px] gap-3"
+        className={`group w-full text-left rounded-2xl transition-all duration-200 break-words flex items-center ${
+          compact
+            ? "border-[1.5px] px-3 py-2 min-h-[40px] gap-2.5"
+            : "border-2 px-5 py-4 min-h-[64px] gap-3.5"
         } ${stateClasses} ${
           isDisabled
             ? "cursor-default"

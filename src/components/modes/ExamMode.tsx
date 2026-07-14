@@ -1029,7 +1029,6 @@ export function ExamMode({
                 <StimulusPanel
                   stem={q.shortAnswer.stem}
                   stimulus={q.shortAnswer.stimulus}
-                  showHighlightHint={false}
                 />
               </div>
               <div className="flex flex-col gap-4">
@@ -1388,7 +1387,6 @@ export function ExamMode({
                     <StimulusPanel
                       stem={question.shortAnswer.stem}
                       stimulus={question.shortAnswer.stimulus}
-                      showHighlightHint={false}
                     />
                   </div>
                   <div className="flex flex-col gap-4">

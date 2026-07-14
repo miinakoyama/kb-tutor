@@ -89,7 +89,7 @@ export function ReviewMode({
 
   if (reviewQuestions.length === 0) {
     return (
-      <div className="max-w-lg mx-auto pt-8">
+      <div className="max-w-lg mx-auto pt-8 px-4">
         <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-8 text-center">
           <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-[var(--assignment-completed)]" />
           <h2 className="text-xl font-bold text-slate-gray mb-2">

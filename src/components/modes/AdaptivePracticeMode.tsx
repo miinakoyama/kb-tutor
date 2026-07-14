@@ -4,10 +4,8 @@ import { useState, useMemo, useCallback, useEffect, useRef, type ReactNode } fro
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ChevronLeft,
   ChevronRight,
   RotateCcw,
-  Bookmark,
   Lightbulb,
   Send,
   RefreshCcw,
@@ -25,7 +23,14 @@ import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
-import { PracticeHeader, getBackLabel } from "@/components/shared/PracticeHeader";
+import { getBackLabel } from "@/components/shared/PracticeHeader";
+import {
+  QuestionSessionShell,
+  sessionPrimaryButtonClass,
+  sessionPrimaryButtonStyle,
+  sessionSecondaryButtonClass,
+  sessionSecondaryButtonStyle,
+} from "@/components/shared/QuestionSessionShell";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { QuestionNoteDrawer } from "@/components/notes/QuestionNoteDrawer";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
@@ -860,7 +865,7 @@ export function AdaptivePracticeMode({
 
   if (sessionQuestions.length === 0 || !question) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="h-full flex items-center justify-center px-4">
         <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
             No questions available for this selection yet.
@@ -909,10 +914,11 @@ export function AdaptivePracticeMode({
         isCorrect: false,
       };
       return (
+        <div className="h-full overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full"
+            className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 pb-8"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <button
@@ -998,6 +1004,7 @@ export function AdaptivePracticeMode({
               />
             </div>
           </motion.div>
+        </div>
         );
     }
 
@@ -1008,10 +1015,11 @@ export function AdaptivePracticeMode({
     const correctCount = answeredEntries.filter(({ answer }) => answer.isCorrect).length;
     const scorePercent = answeredTotal > 0 ? Math.round((correctCount / answeredTotal) * 100) : 0;
     return (
+      <div className="h-full overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full space-y-4 pb-8"
+        className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 space-y-4 pb-8"
       >
         <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-6 text-center">
           {topicName && <p className="text-sm text-muted-foreground mb-2">{topicName}</p>}
@@ -1095,6 +1103,7 @@ export function AdaptivePracticeMode({
           </div>
         </div>
       </motion.div>
+      </div>
     );
   }
 
@@ -1107,45 +1116,83 @@ export function AdaptivePracticeMode({
         }
       : undefined;
 
+  const isLastAssignmentQuestion =
+    isAssignmentRun && currentIndex === totalQuestions - 1;
+  const nextLabel = isLastAssignmentQuestion ? "View Results" : "Next";
+  const showTopicName = Boolean(topicName) && topicName !== "Self Practice";
+  const contextLabel =
+    [
+      mode === "review" ? "Review Mode" : undefined,
+      showTopicName ? topicName : undefined,
+    ]
+      .filter(Boolean)
+      .join(" · ") || undefined;
+
+  // The bottom bar's right slot: the single primary filled action (Next /
+  // Submit), or the secondary Try Again while a retry is pending. Handlers
+  // and state transitions are identical to the previous inline button row.
+  const primaryAction =
+    (isShortAnswerQuestion && question.shortAnswer) || isCompleted ? (
+      <button
+        type="button"
+        onClick={handleNext}
+        disabled={!isCompleted}
+        className={sessionPrimaryButtonClass}
+        style={sessionPrimaryButtonStyle}
+      >
+        {nextLabel}
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    ) : canTryAgain ? (
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedOptionId(null);
+          setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: true }));
+          requestAnimationFrame(() => {
+            scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        }}
+        className={sessionSecondaryButtonClass}
+        style={sessionSecondaryButtonStyle}
+      >
+        <RefreshCcw className="w-4 h-4" />
+        Try Again
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={submitAttempt}
+        disabled={!selectedOptionId}
+        className={sessionPrimaryButtonClass}
+        style={sessionPrimaryButtonStyle}
+      >
+        <Send className="w-4 h-4" />
+        Submit
+      </button>
+    );
+
   return (
-    <div className="flex flex-col h-full">
-      <PracticeHeader
-        topicName={topicName}
-        mode={mode}
+    <>
+      <QuestionSessionShell
         backHref={backHref}
         showBackLink={showBackLink}
-        inlineProgress={isAssignmentRun}
-        compactSpacing
-        currentQuestion={isAssignmentRun ? currentIndex + 1 : undefined}
-        totalQuestions={isAssignmentRun ? totalQuestions : undefined}
-        answeredCount={isAssignmentRun ? completedCount : undefined}
-        rightSlot={
-          !isAssignmentRun ? (
-            <>
-              <span className="text-sm text-muted-foreground">
-                {completedCount} answered
-              </span>
-              <button
-                onClick={finishSession}
-                className={assignmentPrimaryButtonClass}
-                style={assignmentPrimaryButtonStyle}
-              >
-                Finish Session
-              </button>
-            </>
-          ) : undefined
+        currentQuestion={currentIndex + 1}
+        totalQuestions={totalQuestions}
+        contextLabel={contextLabel}
+        onFinishSession={!isAssignmentRun ? finishSession : undefined}
+        variant={
+          isShortAnswerQuestion && question.shortAnswer ? "split" : "mcq"
         }
-      />
-
-      <div className="flex flex-col gap-3 flex-1 min-h-0">
-        <div className="flex-1 flex flex-col min-h-0">
-          <div
-            ref={scrollContainerRef}
-            className={`flex-1 overflow-y-auto min-h-0 ${
-              isShortAnswerQuestion && question.shortAnswer ? "pb-24" : "pb-2"
-            }`}
-          >
-            {isShortAnswerQuestion && question.shortAnswer ? (
+        mediaHeavy={Boolean(question.imageUrl || question.diagram)}
+        scrollRef={scrollContainerRef}
+        onPrevious={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+        previousDisabled={currentIndex === 0}
+        isBookmarked={bookmarkedQuestions.has(question.id)}
+        onToggleBookmark={handleBookmarkToggle}
+        primaryAction={primaryAction}
+      >
+        {isShortAnswerQuestion && question.shortAnswer ? (
               <ShortAnswerQuestionView
                 key={question.id}
                 item={question.shortAnswer}
@@ -1213,7 +1260,6 @@ export function AdaptivePracticeMode({
               selectedOptionId={selectedOptionId}
               pendingSelection={!isCompleted && isRetryReady && selectedOptionId !== null}
               revealCorrectAnswer={isCompleted}
-              compactLayout
               onOptionClick={(optionId) => {
                 if (isCompleted || !isRetryReady) return;
                 setSelectedOptionId(optionId);
@@ -1225,7 +1271,7 @@ export function AdaptivePracticeMode({
               choicesReadAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_CHOICES}
               feedbackSlot={
                 attempts.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     {isCompleted ? (
                       <>
                         <FeedbackPanel
@@ -1236,6 +1282,7 @@ export function AdaptivePracticeMode({
                           showFocusHint={showScaffold}
                           feedbackReadText={feedbackReadText}
                           onReadAloud={handleReadAloud}
+                          variant="neutral"
                         />
                         <ConfidenceCheck
                           value={finalAnswer?.confidenceLevel}
@@ -1255,6 +1302,7 @@ export function AdaptivePracticeMode({
                           showFocusHint={showScaffold}
                           feedbackReadText={feedbackReadText}
                           onReadAloud={handleReadAloud}
+                          variant="neutral"
                         />
                       </>
                     ) : null}
@@ -1262,127 +1310,23 @@ export function AdaptivePracticeMode({
                 ) : undefined
               }
               belowOptionsSlot={
-                <>
-                  {showScaffold && question.focusHint && !isCompleted && attempts.length === 0 ? (
-                    <div className="mt-4 rounded-2xl border border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)] p-3">
-                      <div className="flex items-start gap-2.5">
-                        <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--mastery-mastered)] mb-0.5">
-                            Focus Hint
-                          </p>
-                          <p className="text-sm text-slate-gray leading-relaxed">{question.focusHint}</p>
-                        </div>
+                showScaffold && question.focusHint && !isCompleted && attempts.length === 0 ? (
+                  <div className="mt-4 rounded-2xl border border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)] p-3">
+                    <div className="flex items-start gap-2.5">
+                      <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--mastery-mastered)] mb-0.5">
+                          Focus Hint
+                        </p>
+                        <p className="text-sm text-slate-gray leading-relaxed">{question.focusHint}</p>
                       </div>
                     </div>
-                  ) : null}
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <button
-                      onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                      disabled={currentIndex === 0}
-                      className={assignmentSecondaryButtonClass}
-                      style={assignmentSecondaryButtonStyle}
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      Previous
-                    </button>
-
-                    <button
-                      onClick={handleBookmarkToggle}
-                      className={assignmentSecondaryButtonClass}
-                      style={assignmentSecondaryButtonStyle}
-                    >
-                      <Bookmark
-                        className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(question.id) ? "fill-current" : ""}`}
-                      />
-                      {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
-                    </button>
-
-                    {!isCompleted ? (
-                      canTryAgain ? (
-                        <button
-                          onClick={() => {
-                            setSelectedOptionId(null);
-                            setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: true }));
-                            requestAnimationFrame(() => {
-                              scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-                            });
-                          }}
-                          className={assignmentSecondaryButtonClass}
-                          style={assignmentSecondaryButtonStyle}
-                        >
-                          <RefreshCcw className="w-3.5 h-3.5" />
-                          Try Again
-                        </button>
-                      ) : (
-                        <button
-                          onClick={submitAttempt}
-                          disabled={!selectedOptionId}
-                          className={assignmentPrimaryButtonClass}
-                          style={assignmentPrimaryButtonStyle}
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          Submit
-                        </button>
-                      )
-                    ) : (
-                      <button
-                        onClick={handleNext}
-                        className={assignmentPrimaryButtonClass}
-                        style={assignmentPrimaryButtonStyle}
-                      >
-                        {isAssignmentRun && currentIndex === totalQuestions - 1 ? "View Results" : "Next"}
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                   </div>
-                </>
+                ) : undefined
               }
             />
             )}
-          </div>
-          {isShortAnswerQuestion && question.shortAnswer ? (
-            <div className="sticky bottom-0 z-10 -mx-1 border-t border-[color:var(--assignment-glass-border)] bg-[color:var(--background)]/95 px-1 py-3 backdrop-blur-md">
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                  disabled={currentIndex === 0}
-                  className={assignmentSecondaryButtonClass}
-                  style={assignmentSecondaryButtonStyle}
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBookmarkToggle}
-                  className={assignmentSecondaryButtonClass}
-                  style={assignmentSecondaryButtonStyle}
-                >
-                  <Bookmark
-                    className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(question.id) ? "fill-current" : ""}`}
-                  />
-                  {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  disabled={!isCompleted}
-                  className={assignmentPrimaryButtonClass}
-                  style={assignmentPrimaryButtonStyle}
-                >
-                  {isAssignmentRun && currentIndex === totalQuestions - 1
-                    ? "View Results"
-                    : "Next"}
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
+      </QuestionSessionShell>
 
       {question ? <QuestionNoteDrawer questionId={question.id} /> : null}
 
@@ -1461,6 +1405,6 @@ export function AdaptivePracticeMode({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
