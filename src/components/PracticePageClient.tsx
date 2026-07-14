@@ -302,22 +302,20 @@ export function PracticePageClient({
         />
       );
     case "exam": {
-      // ExamMode still expects the legacy centered scroll container that the
-      // /practice page used to provide; the shell-based modes manage their
-      // own layout regions.
+      // Like the other shell-based modes, ExamMode owns its full-height
+      // layout regions (header bar, scrollable workspace, action bar), so it
+      // is rendered directly without an outer centered scroll container.
       return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 sm:pt-4 lg:pt-5 pb-1 sm:pb-2 lg:pb-3 h-full overflow-y-auto">
-          <ExamMode
-            questions={filteredQuestions}
-            topicName={topicName}
-            requestedQuestionCount={requestedQuestionCount ?? 10}
-            assignmentId={assignmentIdParam}
-            backHref={runBackHref}
-            answered={hasAssignmentSnapshot ? answeredMap : undefined}
-            assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
-            onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
-          />
-        </div>
+        <ExamMode
+          questions={filteredQuestions}
+          topicName={topicName}
+          requestedQuestionCount={requestedQuestionCount ?? 10}
+          assignmentId={assignmentIdParam}
+          backHref={runBackHref}
+          answered={hasAssignmentSnapshot ? answeredMap : undefined}
+          assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
+          onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+        />
       );
     }
     case "review":

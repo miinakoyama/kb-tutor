@@ -7,7 +7,8 @@ import { getStudentUserSettings } from "@/lib/user-settings";
 import { getRoleLandingPath } from "@/lib/auth/role";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
 import { getSelfPracticeWeeklySeconds } from "@/lib/homepage/self-practice-stats";
-import { getTopicKcCoverage } from "@/lib/homepage/kc-coverage";
+import { getLearningEffort } from "@/lib/homepage/learning-effort";
+import { getMasterySummary } from "@/lib/homepage/mastery-summary";
 import { getStudentProfileSummary } from "@/lib/homepage/profile-summary";
 
 export default async function Home() {
@@ -37,13 +38,15 @@ export default async function Home() {
     assignmentResult,
     keystoneExam,
     selfPracticeWeeklySeconds,
-    topicKcCoverage,
+    learningEffort,
+    masterySummary,
     profileSummary,
   ] = await Promise.all([
     getStudentAssignmentList(supabase, user.id),
     getStudentKeystoneExam(supabase, user.id, { timeZone }),
     getSelfPracticeWeeklySeconds(supabase, user.id),
-    getTopicKcCoverage(supabase, user.id),
+    getLearningEffort(supabase, user.id, { timeZone }),
+    getMasterySummary(supabase, user.id),
     getStudentProfileSummary(supabase, user.id),
   ]);
 
@@ -52,7 +55,8 @@ export default async function Home() {
       assignments={assignmentResult.assignments}
       keystoneExam={keystoneExam}
       selfPracticeWeeklySeconds={selfPracticeWeeklySeconds}
-      topicKcCoverage={topicKcCoverage}
+      learningEffort={learningEffort}
+      masterySummary={masterySummary}
       profileSummary={profileSummary}
     />
   );
