@@ -42,7 +42,6 @@ export function ShortAnswerQuestionDetails({
       <StimulusPanel
         stem={item.stem}
         stimulus={item.stimulus}
-        showHighlightHint={false}
       />
 
       <div className="space-y-2">
