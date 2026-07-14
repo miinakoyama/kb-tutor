@@ -34,11 +34,11 @@ without a data source gets cut, not faked.
 
 ### 1a. Migrations
 
-- `20260714000000_short_answer_attempts_time_spent.sql` — adds
+- `20260714000400_short_answer_attempts_time_spent.sql` — adds
   `time_spent_sec` to `short_answer_attempts` (same semantics as the MCQ
   column). Written server-side by the grade route from a client-measured
   elapsed; pre-existing rows stay NULL (unmeasured).
-- `20260714000100_page_dwell_events.sql` — heartbeat table for Review-tab
+- `20260714000500_page_dwell_events.sql` — heartbeat table for Review-tab
   visible time: one small row per ≤120s of visible dwell, insert/select-self
   RLS. Unlike `analytics_sessions`, a killed tab loses at most one partial
   interval instead of the whole session.
