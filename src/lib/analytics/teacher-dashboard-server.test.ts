@@ -356,6 +356,74 @@ describe("buildDashboardResponse", () => {
     expect(result.summary.byMode).toBeUndefined();
   });
 
+  it("pre-seeds every standard as not-started when no topic filter is active", () => {
+    const result = buildDashboardResponse({
+      attempts: [],
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    expect(result.byStandard.length).toBeGreaterThan(1);
+    expect(result.byStandard.every((row) => row.status === "not_started")).toBe(
+      true,
+    );
+  });
+
+  it("only pre-seeds standards belonging to the selected topic (category)", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60, "Structure and Function"),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      topic: "Structure and Function",
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    // Only standards in the "Structure and Function" category should appear —
+    // no leaking of unrelated categories like Genetics or Ecology.
+    const ids = result.byStandard.map((row) => row.standardId).sort();
+    expect(ids).toEqual(["3.1.9-12.A", "3.1.9-12.B", "3.1.9-12.C"]);
+  });
+
+  it("only pre-seeds the mapped standard for a legacy topic filter", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.P", true, 60, "Genetics"),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      topic: "Genetics",
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    expect(result.byStandard.map((row) => row.standardId)).toEqual([
+      "3.1.9-12.P",
+    ]);
+  });
+
+  it("pre-seeds no standards when the topic filter matches nothing known", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "", true, 60, "Some Unknown Topic", { standardId: null }),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      topic: "Some Unknown Topic",
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    // No canonical standards match, but the actual attempt's own bucket
+    // (BIO.OTHER::Some Unknown Topic) still shows up from aggregation.
+    expect(result.byStandard).toHaveLength(1);
+    expect(result.byStandard[0].standardId).toBe(
+      "BIO.OTHER::Some Unknown Topic",
+    );
+  });
+
   it("classifies standards as below_basic when accuracy is very low", () => {
     const attempts: AttemptRecord[] = [
       ...Array.from({ length: 10 }, (_, index) =>

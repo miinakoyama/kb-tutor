@@ -1,4 +1,8 @@
-import { getAllStandards, getStandardById } from "@/lib/standards";
+import {
+  getAllStandards,
+  getStandardById,
+  getStandardsForTopicName,
+} from "@/lib/standards";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
   LOW_AND_FAST_MAX_ACCURACY,
@@ -241,8 +245,12 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     byModeStudentIds: Record<AttemptMode, Set<string>>;
   }
   const standardAgg = new Map<string, StandardAgg>();
-  // Pre-seed every known standard so all 23 appear even with zero attempts.
-  for (const std of getAllStandards()) {
+  // Pre-seed known standards so they appear as "Not Started" even with zero
+  // attempts. When a topic filter is active, scope the seed to that topic's
+  // standards only — otherwise unrelated standards (e.g. Ecology while
+  // viewing Genetics) would show up as not-started for the current filter.
+  const standardsToSeed = topic ? getStandardsForTopicName(topic) : getAllStandards();
+  for (const std of standardsToSeed) {
     standardAgg.set(std.id, {
       label: std.label,
       attempted: 0,
