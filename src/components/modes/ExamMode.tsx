@@ -53,6 +53,7 @@ import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 import { answeredEntryForQuestion } from "@/lib/assignments/answered-map";
+import { checkForNewlyEarnedBadges } from "@/lib/badges/celebration-events";
 
 const PRIMARY_COLOR = "#16a34a";
 const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
@@ -434,6 +435,16 @@ export function ExamMode({
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+
+  // Check for newly earned badges once the session reaches its results
+  // screen — never mid-session, even though the underlying triggers (KC
+  // mastery, session counts, streaks) can be satisfied earlier.
+  const badgeCelebrationCheckedRef = useRef(false);
+  useEffect(() => {
+    if (phase !== "results" || badgeCelebrationCheckedRef.current) return;
+    badgeCelebrationCheckedRef.current = true;
+    void checkForNewlyEarnedBadges();
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== "review" || reviewIndex === null) return;

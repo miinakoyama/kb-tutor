@@ -12,6 +12,8 @@ import {
 import { UserRound } from "lucide-react";
 import type { MasteryDatum } from "@/lib/progress/mastery";
 import type { StudentProfileSummary } from "@/lib/homepage/profile-summary";
+import type { StudentBadgeView } from "@/types/badges";
+import { AchievementBadges } from "@/components/home/AchievementBadges";
 
 function initialsOf(name: string | null): string {
   if (!name) return "";
@@ -32,9 +34,11 @@ function initialsOf(name: string | null): string {
 export function ProfileCard({
   profile,
   mastery,
+  badges,
 }: {
   profile: StudentProfileSummary;
   mastery: MasteryDatum[];
+  badges: StudentBadgeView[];
 }) {
   // Recharts' ResponsiveContainer needs a real DOM to measure.
   const [isMounted, setIsMounted] = useState(false);
@@ -138,6 +142,20 @@ export function ProfileCard({
             style={{ background: "var(--surface-muted)" }}
           />
         )}
+      </div>
+
+      <div className="h-px w-full" style={{ background: "var(--border-subtle)" }} />
+
+      <div className="w-full">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wide"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            Achievements
+          </span>
+        </div>
+        <AchievementBadges badges={badges} count={8} columns={4} />
       </div>
     </div>
   );
