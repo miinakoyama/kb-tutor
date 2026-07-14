@@ -1,4 +1,9 @@
-import { getStandardById } from "@/lib/standards";
+import {
+  getAllStandards,
+  getStandardById,
+  getStandardsForTopic,
+  type ModuleCode,
+} from "@/lib/standards";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
   LOW_AND_FAST_MAX_ACCURACY,
@@ -19,6 +24,8 @@ export interface AttemptRecord {
   /** Measured dwell time in seconds. `null` means not recorded (legacy rows); exclude from time averages. */
   timeSpentSec: number | null;
   assignmentId: string | null;
+  /** True for short-answer completion summary rows (`selected_option_id === "short-answer"`). */
+  isShortAnswer: boolean;
 }
 
 export type StudentStatus =
@@ -46,6 +53,10 @@ export interface ModeMetrics {
 export interface StandardRow {
   standardId: string;
   standardLabel: string;
+  /** Null for legacy/unrecognized standard ids that don't map to a known standard. */
+  module: ModuleCode | null;
+  /** Null for legacy/unrecognized standard ids that don't map to a known standard. */
+  category: string | null;
   attempted: number;
   correct: number;
   accuracy: number;
@@ -241,11 +252,42 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     byModeStudentIds: Record<AttemptMode, Set<string>>;
   }
   const standardAgg = new Map<string, StandardAgg>();
+
+  function seedStandardAgg(standardId: string, label: string): void {
+    if (standardAgg.has(standardId)) return;
+    standardAgg.set(standardId, {
+      label,
+      attempted: 0,
+      correct: 0,
+      totalTime: 0,
+      measuredTimeCount: 0,
+      studentIds: new Set<string>(),
+      byMode: emptyModeBreakdown(),
+      byModeTotalTime: { practice: 0, exam: 0, review: 0 },
+      byModeMeasuredCount: { practice: 0, exam: 0, review: 0 },
+      byModeStudentIds: {
+        practice: new Set<string>(),
+        exam: new Set<string>(),
+        review: new Set<string>(),
+      },
+    });
+  }
+
+  // Pre-seed every known standard (scoped to the topic filter, if any) so
+  // standards with zero attempts still show up as "not started" instead of
+  // being hidden from the grouped view.
+  const standardsToSeed = topic ? getStandardsForTopic(topic) : getAllStandards();
+  for (const standard of standardsToSeed) {
+    seedStandardAgg(standard.id, standard.label);
+  }
+
   // Stable id used when DB row has no standardId. We namespace by topic so
   // attempts from unrelated topics don't get merged under a single catch-all
   // bucket (which would mislabel them with whichever row was seen first).
   const UNKNOWN_STANDARD_PREFIX = "BIO.OTHER";
   for (const row of scopedAttempts) {
+    // Per-standard rows are MCQ-only; SAQ has its own breakdown on the standard detail page.
+    if (row.isShortAnswer) continue;
     let aggKey: string;
     let fallbackLabel: string;
     if (row.standardId) {
@@ -260,24 +302,8 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     }
     const canonical = row.standardId ? getStandardById(row.standardId) : undefined;
     const standardLabel = canonical?.label || fallbackLabel;
-    const existing =
-      standardAgg.get(aggKey) ??
-      ({
-        label: standardLabel,
-        attempted: 0,
-        correct: 0,
-        totalTime: 0,
-        measuredTimeCount: 0,
-        studentIds: new Set<string>(),
-        byMode: emptyModeBreakdown(),
-        byModeTotalTime: { practice: 0, exam: 0, review: 0 },
-        byModeMeasuredCount: { practice: 0, exam: 0, review: 0 },
-        byModeStudentIds: {
-          practice: new Set<string>(),
-          exam: new Set<string>(),
-          review: new Set<string>(),
-        },
-      } satisfies StandardAgg);
+    seedStandardAgg(aggKey, standardLabel);
+    const existing = standardAgg.get(aggKey)!;
     // Ensure canonical label wins even if the first seen row had a stale value
     if (canonical?.label) {
       existing.label = canonical.label;
@@ -330,9 +356,12 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
         };
       }
 
+      const canonical = getStandardById(standardId);
       const row: StandardRow = {
         standardId,
         standardLabel: item.label,
+        module: canonical?.module ?? null,
+        category: canonical?.category ?? null,
         attempted: item.attempted,
         correct: item.correct,
         accuracy,

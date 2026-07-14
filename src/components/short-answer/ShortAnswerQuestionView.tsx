@@ -24,6 +24,12 @@ import {
 } from "@/lib/short-answer/tour-settings";
 
 const MAX_ATTEMPTS = MAX_SHORT_ANSWER_ATTEMPTS;
+const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
+
+function isDocumentActiveForTiming(): boolean {
+  if (typeof document === "undefined") return false;
+  return !document.hidden && document.hasFocus();
+}
 
 interface PartRuntime {
   status: PartStatus;
@@ -178,6 +184,33 @@ export function ShortAnswerQuestionView({
   const [hydrationReady, setHydrationReady] = useState(false);
   const completionRef = useRef<HTMLDivElement | null>(null);
   const allResolvedFiredRef = useRef(false);
+  // Total dwell time since this question was first shown, across all part
+  // submissions/retries — mirrors AdaptivePracticeMode's visibility-aware
+  // dwell tracking. Only the call that finalizes the last unresolved part
+  // actually persists this value (see maybeRecordQuestionSummary).
+  const dwellMsRef = useRef(0);
+  const visitStartRef = useRef<number | null>(null);
+  const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBlurFlushTimer = useCallback(() => {
+    if (blurFlushTimerRef.current === null) return;
+    clearTimeout(blurFlushTimerRef.current);
+    blurFlushTimerRef.current = null;
+  }, []);
+
+  const flushVisit = useCallback(() => {
+    const startMs = visitStartRef.current;
+    if (startMs === null) return;
+    dwellMsRef.current += Math.max(0, Date.now() - startMs);
+    visitStartRef.current = null;
+  }, []);
+
+  const resetDwell = useCallback(() => {
+    clearBlurFlushTimer();
+    flushVisit();
+    dwellMsRef.current = 0;
+    visitStartRef.current = null;
+  }, [clearBlurFlushTimer, flushVisit]);
 
   // Auto-open the tour on first exposure to a short-answer question.
   useEffect(() => {
@@ -252,6 +285,7 @@ export function ShortAnswerQuestionView({
     setShowCompletion(false);
     allResolvedFiredRef.current = false;
     setRuntimes(item.parts.map((_, i) => initialRuntime(i)));
+    resetDwell();
     void hydrateFromServer();
   }, [
     hydrateFromServer,
@@ -260,7 +294,64 @@ export function ShortAnswerQuestionView({
     assignmentId,
     assignmentRunAfter,
     sessionId,
+    resetDwell,
   ]);
+
+  // Start/stop the dwell clock: running whenever the question is hydrated
+  // and not yet fully resolved, paused while the tab is hidden/unfocused.
+  useEffect(() => {
+    if (!hydrationReady || showCompletion) {
+      clearBlurFlushTimer();
+      flushVisit();
+      return;
+    }
+    if (isDocumentActiveForTiming()) {
+      visitStartRef.current = Date.now();
+    }
+    return () => {
+      clearBlurFlushTimer();
+      flushVisit();
+    };
+  }, [hydrationReady, showCompletion, clearBlurFlushTimer, flushVisit]);
+
+  useEffect(() => {
+    if (!hydrationReady || showCompletion) return;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearBlurFlushTimer();
+        flushVisit();
+        return;
+      }
+      if (!document.hasFocus()) return;
+      clearBlurFlushTimer();
+      if (visitStartRef.current === null) {
+        visitStartRef.current = Date.now();
+      }
+    };
+    const handleWindowBlur = () => {
+      clearBlurFlushTimer();
+      blurFlushTimerRef.current = setTimeout(() => {
+        blurFlushTimerRef.current = null;
+        flushVisit();
+      }, FOCUS_LOSS_FLUSH_GRACE_MS);
+    };
+    const handleWindowFocus = () => {
+      clearBlurFlushTimer();
+      if (!isDocumentActiveForTiming()) return;
+      if (visitStartRef.current === null) {
+        visitStartRef.current = Date.now();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      clearBlurFlushTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [hydrationReady, showCompletion, clearBlurFlushTimer, flushVisit]);
 
   const tourSteps: TourStep[] = [
     {
@@ -364,6 +455,12 @@ export function ShortAnswerQuestionView({
         prev.map((r, i) => (i === index ? { ...r, status: "submitting" } : r)),
       );
 
+      flushVisit();
+      const timeSpentSec = Math.max(5, Math.round(dwellMsRef.current / 1000));
+      if (isDocumentActiveForTiming()) {
+        visitStartRef.current = Date.now();
+      }
+
       try {
         const res = await fetch("/api/short-answer/grade", {
           method: "POST",
@@ -378,6 +475,7 @@ export function ShortAnswerQuestionView({
             attemptNumber,
             mode,
             clientAttemptId: crypto.randomUUID(),
+            timeSpentSec,
           }),
         });
 
@@ -443,6 +541,7 @@ export function ShortAnswerQuestionView({
     },
     [
       assignmentId,
+      flushVisit,
       hydrateFromServer,
       item.parts,
       mode,

@@ -27,6 +27,7 @@ interface GradeRequestBody {
   priorGaps?: Record<string, string>;
   mode: PracticeMode;
   clientAttemptId: string;
+  timeSpentSec?: number | null;
 }
 
 const PART_LABELS: PartLabel[] = ["A", "B", "C"];
@@ -84,6 +85,10 @@ function parseBody(raw: unknown): GradeRequestBody | null {
     b.priorGaps && typeof b.priorGaps === "object"
       ? (b.priorGaps as Record<string, string>)
       : undefined;
+  const timeSpentSec =
+    typeof b.timeSpentSec === "number" && Number.isFinite(b.timeSpentSec) && b.timeSpentSec >= 0
+      ? Math.round(b.timeSpentSec)
+      : null;
   return {
     questionId: b.questionId,
     questionSetId: typeof b.questionSetId === "string" ? b.questionSetId : null,
@@ -96,6 +101,7 @@ function parseBody(raw: unknown): GradeRequestBody | null {
     priorGaps,
     mode: b.mode as PracticeMode,
     clientAttemptId: b.clientAttemptId,
+    timeSpentSec,
   };
 }
 
@@ -112,6 +118,7 @@ async function maybeRecordQuestionSummary(
     standardId: string;
     parts: ShortAnswerPart[];
     maxAttemptsPerPart: number;
+    timeSpentSec: number | null;
   },
 ): Promise<void> {
   let query = supabase
@@ -175,6 +182,7 @@ async function maybeRecordQuestionSummary(
     mode: params.mode,
     standard_id: params.standardId,
     answered_at: completion.latestAnsweredAt,
+    time_spent_sec: params.timeSpentSec,
   });
 }
 
@@ -472,6 +480,7 @@ export async function POST(request: Request) {
       standardId: item.blueprint.targetStandard,
       parts: item.parts,
       maxAttemptsPerPart: maxAttempts,
+      timeSpentSec: body.timeSpentSec ?? null,
     });
   }
 

@@ -4,6 +4,7 @@ import {
   ANALYTICS_PAGE_SIZE,
   chunkArray,
 } from "@/lib/analytics/pagination";
+import type { PartLabel } from "@/types/short-answer";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -12,11 +13,33 @@ export interface QuestionOptionPreview {
   text: string;
 }
 
-export interface QuestionPreview {
+export interface McqQuestionPreview {
+  questionType: "mcq";
   text: string;
   imageUrl: string | null;
   options: QuestionOptionPreview[];
   correctOptionId: string;
+}
+
+export interface OpenEndedPartPreview {
+  label: PartLabel;
+  prompt: string;
+  maxScore: number;
+}
+
+export interface OpenEndedQuestionPreview {
+  questionType: "open-ended";
+  text: string;
+  imageUrl: string | null;
+  parts: OpenEndedPartPreview[];
+}
+
+export type QuestionPreview = McqQuestionPreview | OpenEndedQuestionPreview;
+
+const PART_LABELS = new Set<PartLabel>(["A", "B", "C"]);
+
+function isPartLabel(value: unknown): value is PartLabel {
+  return typeof value === "string" && PART_LABELS.has(value as PartLabel);
 }
 
 interface GeneratedQuestionRow {
@@ -36,10 +59,35 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-export function parseQuestionPreview(raw: unknown): QuestionPreview | null {
-  const source = asRecord(raw);
-  if (!source) return null;
+function parseOpenEndedPreview(
+  source: Record<string, unknown>,
+): OpenEndedQuestionPreview | null {
+  const shortAnswer = asRecord(source.shortAnswer);
+  if (!shortAnswer) return null;
 
+  const stemRaw = shortAnswer.stem;
+  const text = typeof stemRaw === "string" ? stemRaw.trim() : "";
+  if (!text) return null;
+
+  const partsRaw = Array.isArray(shortAnswer.parts) ? shortAnswer.parts : [];
+  const parts = partsRaw
+    .map((entry) => {
+      const part = asRecord(entry);
+      if (!part) return null;
+      if (!isPartLabel(part.label)) return null;
+      const prompt = typeof part.prompt === "string" ? part.prompt.trim() : "";
+      if (!prompt) return null;
+      const maxScore = typeof part.maxScore === "number" ? part.maxScore : 0;
+      return { label: part.label, prompt, maxScore };
+    })
+    .filter((entry): entry is OpenEndedPartPreview => entry !== null);
+
+  if (parts.length === 0) return null;
+
+  return { questionType: "open-ended", text, imageUrl: null, parts };
+}
+
+function parseMcqPreview(source: Record<string, unknown>): McqQuestionPreview | null {
   const textRaw = source.text;
   const text = typeof textRaw === "string" ? textRaw.trim() : "";
   if (!text) return null;
@@ -74,7 +122,17 @@ export function parseQuestionPreview(raw: unknown): QuestionPreview | null {
       ? source.imageUrl
       : null;
 
-  return { text, imageUrl, options, correctOptionId };
+  return { questionType: "mcq", text, imageUrl, options, correctOptionId };
+}
+
+export function parseQuestionPreview(raw: unknown): QuestionPreview | null {
+  const source = asRecord(raw);
+  if (!source) return null;
+
+  if (source.questionType === "open-ended") {
+    return parseOpenEndedPreview(source);
+  }
+  return parseMcqPreview(source);
 }
 
 /**

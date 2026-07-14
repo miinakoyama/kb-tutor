@@ -18,6 +18,7 @@ import {
 } from "@/lib/analytics/confidence";
 import { fetchQuestionPreviews, type QuestionPreview } from "@/lib/analytics/question-preview";
 import { getStandardById } from "@/lib/standards";
+import type { GradedFeedback, PartLabel } from "@/types/short-answer";
 
 interface AttemptQueryRow {
   user_id: string;
@@ -50,6 +51,19 @@ export interface QuestionDetailChoice {
   percent: number;
 }
 
+export interface ShortAnswerResponseDetail {
+  studentId: string;
+  studentLabel: string;
+  partLabel: PartLabel;
+  attemptNumber: number;
+  responseText: string;
+  score: number;
+  maxScore: number;
+  isCorrect: boolean;
+  feedback: GradedFeedback | null;
+  answeredAt: string;
+}
+
 export interface QuestionDetailResponse {
   standard: { id: string; label: string } | null;
   question: {
@@ -64,6 +78,7 @@ export interface QuestionDetailResponse {
     averageTimeSec: number;
   };
   choices: QuestionDetailChoice[];
+  shortAnswerResponses: ShortAnswerResponseDetail[];
   totalStudents: number;
   confidence: ConfidenceQuadrantPercents;
   filters: {
@@ -73,6 +88,91 @@ export interface QuestionDetailResponse {
     classId: string | null;
     studentId: string | null;
   };
+}
+
+interface ShortAnswerAttemptQueryRow {
+  user_id: string;
+  part_label: string;
+  attempt_number: number;
+  response_text: string;
+  score: number;
+  max_score: number;
+  is_correct: boolean;
+  feedback: unknown;
+  answered_at: string;
+}
+
+const PART_LABELS = new Set<PartLabel>(["A", "B", "C"]);
+
+function isPartLabel(value: string): value is PartLabel {
+  return PART_LABELS.has(value as PartLabel);
+}
+
+function parseGradedFeedback(raw: unknown): GradedFeedback | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.verdict !== "string" || !Array.isArray(record.segments)) return null;
+  return record as unknown as GradedFeedback;
+}
+
+async function fetchShortAnswerResponseDetails(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  params: {
+    questionId: string;
+    studentIds: string[];
+    studentLabelById: Map<string, string>;
+    range: RangeKey;
+    mode: ModeFilter;
+    source: SourceFilter;
+  },
+): Promise<{ data: ShortAnswerResponseDetail[]; error: string | null }> {
+  let query = admin
+    .from("short_answer_attempts")
+    .select(
+      "user_id,part_label,attempt_number,response_text,score,max_score,is_correct,feedback,answered_at",
+    )
+    .in("user_id", params.studentIds)
+    .eq("question_id", params.questionId);
+  if (params.range !== "all") {
+    const days = params.range === "7d" ? 7 : 30;
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    query = query.gte("answered_at", from.toISOString());
+  }
+  if (params.mode !== "all" && params.mode !== "compare") {
+    query = query.eq("mode", params.mode);
+  }
+  if (params.source === "assigned") {
+    query = query.not("assignment_id", "is", null);
+  } else if (params.source === "self") {
+    query = query.is("assignment_id", null);
+  }
+
+  const { data, error } = await query;
+  if (error) return { data: [], error: error.message };
+
+  const details = ((data ?? []) as ShortAnswerAttemptQueryRow[])
+    .filter((row) => isPartLabel(row.part_label))
+    .map((row) => ({
+      studentId: row.user_id,
+      studentLabel: params.studentLabelById.get(row.user_id) ?? row.user_id,
+      partLabel: row.part_label as PartLabel,
+      attemptNumber: row.attempt_number,
+      responseText: row.response_text,
+      score: row.score,
+      maxScore: row.max_score,
+      isCorrect: row.is_correct,
+      feedback: parseGradedFeedback(row.feedback),
+      answeredAt: row.answered_at,
+    }))
+    .sort(
+      (a, b) =>
+        a.studentLabel.localeCompare(b.studentLabel) ||
+        a.partLabel.localeCompare(b.partLabel) ||
+        a.attemptNumber - b.attemptNumber,
+    );
+
+  return { data: details, error: null };
 }
 
 export async function GET(
@@ -139,6 +239,7 @@ export async function GET(
     question: { questionId, setId, preview: null },
     summary: { attempted: 0, correct: 0, accuracy: 0, averageTimeSec: 0 },
     choices: [],
+    shortAnswerResponses: [],
     totalStudents: 0,
     confidence: { mastery: 0, misconception: 0, fragile: 0, expected: 0, total: 0 },
     filters,
@@ -170,6 +271,9 @@ export async function GET(
     studentId && effectiveStudents.some((s) => s.id === studentId)
       ? [studentId]
       : effectiveStudents.map((s) => s.id);
+  const studentLabelById = new Map(
+    effectiveStudents.map((student) => [student.id, student.label]),
+  );
 
   let attemptsQuery = admin
     .from("attempts")
@@ -205,10 +309,23 @@ export async function GET(
   }
   const preview = previewByQuestionId.get(questionId) ?? null;
 
+  let shortAnswerResponses: ShortAnswerResponseDetail[] = [];
+  if (preview?.questionType === "open-ended") {
+    const { data: saqDetails, error: saqError } = await fetchShortAnswerResponseDetails(
+      admin,
+      { questionId, studentIds, studentLabelById, range, mode, source },
+    );
+    if (saqError) {
+      return NextResponse.json({ error: saqError }, { status: 500 });
+    }
+    shortAnswerResponses = saqDetails;
+  }
+
   if (attempts.length === 0) {
     return NextResponse.json({
       ...emptyResponse,
       question: { questionId, setId, preview },
+      shortAnswerResponses,
     });
   }
 
@@ -239,32 +356,37 @@ export async function GET(
   for (const row of latestByStudent.values()) {
     choiceCounts.set(row.selected_option_id, (choiceCounts.get(row.selected_option_id) ?? 0) + 1);
   }
-  const choices: QuestionDetailChoice[] = (preview?.options ?? []).map((option) => {
-    const count = choiceCounts.get(option.id) ?? 0;
-    return {
-      id: option.id,
-      text: option.text,
-      isCorrect: option.id === preview?.correctOptionId,
-      count,
-      percent: totalStudents > 0 ? roundPercent((count / totalStudents) * 100) : 0,
-    };
-  });
+  const choices: QuestionDetailChoice[] =
+    preview?.questionType === "mcq"
+      ? preview.options.map((option) => {
+          const count = choiceCounts.get(option.id) ?? 0;
+          return {
+            id: option.id,
+            text: option.text,
+            isCorrect: option.id === preview.correctOptionId,
+            count,
+            percent: totalStudents > 0 ? roundPercent((count / totalStudents) * 100) : 0,
+          };
+        })
+      : [];
 
-  // --- Confidence quadrants ---
-  const { data: confidenceRows, error: confidenceError } = await fetchConfidenceEvents(
-    admin,
-    studentIds,
-    [questionId],
-  );
-  if (confidenceError) {
-    return NextResponse.json({ error: confidenceError }, { status: 500 });
-  }
+  // --- Confidence quadrants (MCQ only — SAQ has no confidence self-assessment step) ---
   const confidenceCounts = emptyConfidenceQuadrantCounts();
-  for (const row of confidenceRows) {
-    const level = parseConfidenceLevel(row.payload?.confidenceLevel);
-    const isCorrect = typeof row.payload?.isCorrect === "boolean" ? row.payload.isCorrect : null;
-    if (!level || isCorrect === null) continue;
-    addConfidenceSubmission(confidenceCounts, level, isCorrect);
+  if (preview?.questionType === "mcq") {
+    const { data: confidenceRows, error: confidenceError } = await fetchConfidenceEvents(
+      admin,
+      studentIds,
+      [questionId],
+    );
+    if (confidenceError) {
+      return NextResponse.json({ error: confidenceError }, { status: 500 });
+    }
+    for (const row of confidenceRows) {
+      const level = parseConfidenceLevel(row.payload?.confidenceLevel);
+      const isCorrect = typeof row.payload?.isCorrect === "boolean" ? row.payload.isCorrect : null;
+      if (!level || isCorrect === null) continue;
+      addConfidenceSubmission(confidenceCounts, level, isCorrect);
+    }
   }
 
   const response: QuestionDetailResponse = {
@@ -277,6 +399,7 @@ export async function GET(
       averageTimeSec,
     },
     choices,
+    shortAnswerResponses,
     totalStudents,
     confidence: toConfidenceQuadrantPercents(confidenceCounts),
     filters,
