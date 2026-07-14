@@ -65,6 +65,27 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 409 });
     return NextResponse.json(data);
   }
+  if (command.action === "replace_mapping") {
+    const { data, error } = await db.rpc("replace_question_kc_mapping", {
+      p_question_set_id: command.questionSetId,
+      p_question_id: command.questionId,
+      p_part_label: command.partLabel ?? null,
+      p_kc_code: command.kcCode,
+      p_actor: guard.userId,
+    });
+    if (error) {
+      const status = error.code === "P0002" ? 404 : error.code === "23514" ? 400 : 409;
+      return NextResponse.json({ error: error.message }, { status });
+    }
+    if (!isRecord(data)) {
+      return NextResponse.json({ error: "Unable to replace KC mapping" }, { status: 500 });
+    }
+    return NextResponse.json({
+      ok: true,
+      standardId: typeof data.standardId === "string" ? data.standardId : "",
+      mappingChanged: data.mappingChanged === true,
+    });
+  }
 
   const { data: question, error: questionError } = await db
     .from("generated_questions")
@@ -80,27 +101,8 @@ export async function POST(request: Request) {
     ? await closeQuery.eq("part_label", partLabel).select("id")
     : await closeQuery.is("part_label", null).select("id");
   if (closeError) return NextResponse.json({ error: "Unable to close current mapping" }, { status: 500 });
-  let mappingChanged = (closedRows?.length ?? 0) > 0;
+  const mappingChanged = (closedRows?.length ?? 0) > 0;
   const standardId = isRecord(question.payload) && typeof question.payload.standardId === "string" ? question.payload.standardId : "";
-  if (command.action === "replace_mapping") {
-    const { data: kc } = await db.from("knowledge_components").select("code").eq("code", command.kcCode).eq("standard_id", standardId).eq("active", true).maybeSingle();
-    if (!kc) return NextResponse.json({ error: "KC is not active in the question standard" }, { status: 400 });
-    const { data: coverage } = await db.from("bkt_question_coverage").select("current_content_hash,format").eq("question_set_id", command.questionSetId).eq("question_id", command.questionId).maybeSingle();
-    const { error } = await db.from("question_kc_assignments").insert({
-      question_set_id: command.questionSetId,
-      question_id: command.questionId,
-      part_label: partLabel,
-      format: coverage?.format ?? (partLabel ? "saq" : "mcq"),
-      standard_id: standardId,
-      kc_code: command.kcCode,
-      status: "confirmed",
-      provenance: "admin",
-      source_content_hash: coverage?.current_content_hash,
-      created_by: guard.userId,
-    });
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    mappingChanged = true;
-  }
   // Only force the standard back to disabled when a mapping actually changed —
   // a withdraw on a question with no open mapping (e.g. never confirmed) is a
   // no-op and must not silently disable an otherwise-healthy standard.

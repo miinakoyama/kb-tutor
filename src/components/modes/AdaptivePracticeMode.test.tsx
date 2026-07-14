@@ -8,10 +8,12 @@ import type { ShortAnswerItem } from "@/types/short-answer";
 
 const {
   markStageCompletedMock,
+  processQueueMock,
   trackAnalyticsEventMock,
   useAnalyticsSessionMock,
 } = vi.hoisted(() => ({
   markStageCompletedMock: vi.fn(),
+  processQueueMock: vi.fn(),
   trackAnalyticsEventMock: vi.fn(),
   useAnalyticsSessionMock: vi.fn(),
 }));
@@ -22,6 +24,10 @@ vi.mock("@/lib/analytics/client", () => ({
 
 vi.mock("@/lib/analytics/session", () => ({
   useAnalyticsSession: useAnalyticsSessionMock,
+}));
+
+vi.mock("@/lib/sync-queue", () => ({
+  processQueue: processQueueMock,
 }));
 
 vi.mock("@/lib/storage", () => ({
@@ -120,6 +126,8 @@ const shortAnswerItem = sampleShortAnswerItem as ShortAnswerItem;
 describe("AdaptivePracticeMode session completion", () => {
   beforeEach(() => {
     markStageCompletedMock.mockReset();
+    processQueueMock.mockReset();
+    processQueueMock.mockResolvedValue(undefined);
     trackAnalyticsEventMock.mockReset();
     useAnalyticsSessionMock.mockReset();
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
@@ -182,6 +190,36 @@ describe("AdaptivePracticeMode session completion", () => {
       "/api/practice/next",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("falls back to fixed practice when the adaptive scope is unavailable", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "unavailable",
+        reason: "scope_unavailable",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AdaptivePracticeMode
+        questions={[question]}
+        mode="practice"
+        adaptiveStandardIds={["3.1.9-12.A"]}
+      />,
+    );
+
+    expect(await screen.findByText("Question display")).toBeTruthy();
+    expect(screen.queryByText("No questions available for this selection yet.")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(processQueueMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Question display")).toBeTruthy();
   });
 
   it("uses all available questions when questionCount is omitted", async () => {
