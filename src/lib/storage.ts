@@ -27,9 +27,6 @@ export interface StoredAnswer {
   standardLabel?: string;
   timeSpentSec?: number;
   assignmentId?: string;
-  studentId?: string;
-  teacherId?: string;
-  classId?: string;
   timestamp: number;
   mode: string;
   /**

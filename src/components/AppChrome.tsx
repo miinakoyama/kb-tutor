@@ -10,6 +10,13 @@ import { AllAssignmentsCompleteModalManager } from "@/components/assignments/All
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const hideNavigationChrome = pathname === "/login" || pathname === "/login/staff";
+  // Question-taking routes plus pages that opted out of the corner leaf.
+  const hideDecorativeLeaf =
+    pathname === "/assignments" ||
+    pathname === "/self-practice" ||
+    pathname === "/practice" ||
+    pathname === "/exam" ||
+    (/^\/assignments\/[^/]+$/.test(pathname) && pathname !== "/assignments/manage");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
@@ -45,7 +52,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
       </div>
       <AllAssignmentsCompleteModalManager />
 
-      {pathname !== "/assignments" && (
+      {!hideDecorativeLeaf && (
         <div className="fixed bottom-0 right-0 pointer-events-none opacity-10 translate-x-1/4 translate-y-1/4">
           <svg
             width="400"

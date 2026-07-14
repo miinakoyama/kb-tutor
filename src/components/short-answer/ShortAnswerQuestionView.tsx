@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PartLabel, ShortAnswerItem, GradedFeedback } from "@/types/short-answer";
+import { Flag, HelpCircle, Highlighter } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   buildPartRuntimesFromStoredAttempts,
@@ -90,6 +91,32 @@ function unwrapDemoMark(mark: HTMLElement) {
   parent.normalize();
 }
 
+// Same frosted-glass recipe as the practice-mode Glossary button and the
+// calendar nav buttons: translucent blurred glass, hairline border, soft
+// nav-shadow. Neutral by default; the active states tint the border/icon
+// only, keeping the glass background and blur consistent.
+const TOOLBAR_BUTTON_CLASS =
+  "flex h-8 w-8 items-center justify-center rounded-full bg-[var(--assignment-calendar-nav-bg)] hover:bg-[var(--assignment-calendar-nav-bg-hover)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--assignment-calendar-nav-bg)]";
+
+function toolbarButtonStyle(borderColor: string, iconColor: string) {
+  return {
+    border: `1px solid ${borderColor}`,
+    // Tighter than --assignment-nav-shadow — these are small 32px buttons
+    // in a dense toolbar, the full nav-shadow spread reads too heavy here.
+    boxShadow: "0 2px 5px rgb(12 107 69 / 0.10)",
+    backdropFilter: "blur(10px) saturate(130%)",
+    WebkitBackdropFilter: "blur(10px) saturate(130%)",
+    color: iconColor,
+  } as const;
+}
+
+const TOOLBAR_BORDER_NEUTRAL = "var(--assignment-glass-border)";
+const TOOLBAR_COLOR_NEUTRAL = "var(--foreground)";
+const TOOLBAR_BORDER_GREEN = "var(--assignment-completed-muted)";
+const TOOLBAR_COLOR_GREEN = "var(--mastery-mastered)";
+const TOOLBAR_BORDER_RED = "var(--error-border)";
+const TOOLBAR_COLOR_RED = "var(--error-color)";
+
 interface ShortAnswerQuestionViewProps {
   item: ShortAnswerItem;
   questionId: string;
@@ -121,6 +148,7 @@ export function ShortAnswerQuestionView({
 }: ShortAnswerQuestionViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const howToUseRef = useRef<HTMLButtonElement | null>(null);
+  const reportButtonRef = useRef<HTMLButtonElement | null>(null);
   const demoMarkRef = useRef<HTMLElement | null>(null);
 
   const [runtimes, setRuntimes] = useState<PartRuntime[]>(
@@ -144,6 +172,9 @@ export function ShortAnswerQuestionView({
     y: number;
   } | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
+  // Off by default (FR-010): the shared HighlightLayer only wraps
+  // selections while the student has explicitly turned the tool on.
+  const [highlightModeOn, setHighlightModeOn] = useState(false);
   const [hydrationReady, setHydrationReady] = useState(false);
   const completionRef = useRef<HTMLDivElement | null>(null);
   const allResolvedFiredRef = useRef(false);
@@ -247,7 +278,7 @@ export function ShortAnswerQuestionView({
       stepLabel: "Highlight",
       title: "Highlight key text",
       lines: [
-        "Select text in the scenario or part questions to keep it highlighted.",
+        "Turn on the highlighter in the toolbar above, then select text to keep it highlighted.",
         "Click a highlight to remove it.",
       ],
       getTarget: () => partSelector(firstLabel, "prompt"),
@@ -269,9 +300,9 @@ export function ShortAnswerQuestionView({
       stepLabel: "Report",
       title: "Report if feedback seems wrong",
       lines: [
-        "If the AI feedback looks off, tap Report. Your teacher will see it and can fix it.",
+        "If the AI feedback looks off, tap Report in the toolbar. Your teacher will see it and can fix it.",
       ],
-      getTarget: () => partSelector(firstLabel, "report"),
+      getTarget: () => reportButtonRef.current,
     },
     {
       id: "dots",
@@ -279,7 +310,7 @@ export function ShortAnswerQuestionView({
       title: "Track your attempts",
       lines: [
         "After answering, dots light up:",
-        "• Red = wrong  • Green = correct",
+        "• Yellow = wrong  • Green = correct",
         "Tap one to see what you wrote and the feedback.",
       ],
       getTarget: () => partSelector(firstLabel, "dots"),
@@ -304,6 +335,9 @@ export function ShortAnswerQuestionView({
         }, 60);
       } else {
         window.setTimeout(() => {
+          // Target the response-column card specifically (not the whole
+          // page): the stimulus panel is lg:sticky, so it stays put while
+          // this centers the new current part in the viewport.
           containerRef.current
             ?.querySelector(`[aria-label="Part ${item.parts[index + 1].label}"]`)
             ?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -447,67 +481,39 @@ export function ShortAnswerQuestionView({
   );
 
   const activeIndex = runtimes.findIndex((r) => r.status !== "resolved");
-  const statusText = showCompletion
-    ? "All done!"
-    : activeIndex >= 0
-      ? `Answer Part ${item.parts[activeIndex].label} to continue`
-      : "All parts answered";
   const waitingForPracticeSession = !assignmentId && !sessionId;
+
+  // The toolbar's Report button always targets whichever part the student is
+  // currently engaging with: the active part, or — during the brief unlock
+  // countdown right after answering — the part that just resolved (the next
+  // part is still locked at that point, so it can't be the target).
+  let focusIndex = -1;
+  for (let i = runtimes.length - 1; i >= 0; i--) {
+    if (runtimes[i].status !== "locked") {
+      focusIndex = i;
+      break;
+    }
+  }
+  const focusRuntime = focusIndex >= 0 ? runtimes[focusIndex] : undefined;
+  const canReportFocusPart = Boolean(focusRuntime?.latestAttemptId) && !focusRuntime?.reported;
+
+  const handleToolbarReport = useCallback(() => {
+    if (focusIndex < 0) return;
+    const runtime = runtimes[focusIndex];
+    if (!runtime?.latestAttemptId || runtime.reported) return;
+    setReportModal({
+      partLabel: item.parts[focusIndex].label,
+      partIndex: focusIndex,
+      attemptId: runtime.latestAttemptId,
+    });
+  }, [focusIndex, runtimes, item.parts]);
 
   return (
     <div
       ref={containerRef}
       className={`flex flex-col gap-4${tourOpen ? " select-none" : ""}`}
     >
-      <HighlightLayer containerRef={containerRef} enabled={!tourOpen} />
-
-      {/* Top bar: stepper + how-to-use */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1" aria-label="Progress across parts">
-          {item.parts.map((part, i) => {
-            const resolved = runtimes[i].status === "resolved";
-            const active = i === activeIndex && !showCompletion;
-            return (
-              <div key={part.label} className="flex items-center">
-                {i > 0 && (
-                  <div
-                    className={`h-0.5 w-6 ${
-                      runtimes[i - 1].status === "resolved"
-                        ? "bg-emerald-500"
-                        : "bg-slate-300"
-                    }`}
-                  />
-                )}
-                <span
-                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
-                    resolved
-                      ? "bg-emerald-500 text-white"
-                      : active
-                        ? "bg-[color:var(--assignment-cta-bg-strong)] text-white"
-                        : "bg-slate-200 text-slate-500"
-                  }`}
-                >
-                  {resolved ? "✓" : part.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <span className="hidden text-[12px] text-[color:var(--foreground)]/55 sm:inline">
-            {statusText}
-          </span>
-          <button
-            ref={howToUseRef}
-            type="button"
-            onClick={() => setTourOpen(true)}
-            className="rounded-full border border-[color:var(--assignment-panel-border)] bg-[color:var(--assignment-glass-bg)] px-3 py-1 text-[12px] font-medium text-[color:var(--foreground)]/70 transition hover:bg-[color:var(--assignment-glass-bg-strong)]"
-          >
-            ? How to use
-          </button>
-        </div>
-      </div>
+      <HighlightLayer containerRef={containerRef} enabled={highlightModeOn && !tourOpen} />
 
       {errorToast && (
         <div
@@ -524,17 +530,148 @@ export function ShortAnswerQuestionView({
         </div>
       ) : (
       <>
-      {/* Split panel */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <div className="lg:sticky lg:top-4 lg:self-start">
-          <StimulusPanel
-            stem={item.stem}
-            stimulus={item.stimulus}
-            showHighlightHint={!tourOpen}
-          />
+      {/* Split workspace: one shared surface with a subtle internal divider.
+          44% question/stimulus | divider | 52% response; single column below
+          lg (stimulus first, then response with its integrated feedback). */}
+      <div
+        className="rounded-[24px] border"
+        style={{
+          background: "var(--assignment-glass-bg-strong)",
+          borderColor: "var(--assignment-glass-border)",
+          boxShadow: "var(--assignment-card-shadow)",
+        }}
+      >
+        {/* Question subheader: overall part progress (left) + how-to-use
+            (right). The only place part progression is communicated at the
+            workspace level — locked rows and the active card header carry
+            the rest. */}
+        <div
+          className="flex h-[68px] items-center justify-between gap-3 border-b px-5 sm:px-8 lg:px-10"
+          style={{ borderColor: "var(--border-subtle)" }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-1" aria-label="Progress across parts">
+              {item.parts.map((part, i) => {
+                const resolved = runtimes[i].status === "resolved";
+                const active = i === activeIndex && !showCompletion;
+                return (
+                  <div key={part.label} className="flex items-center">
+                    {i > 0 && (
+                      <div
+                        className="h-0.5 w-6"
+                        style={{
+                          background:
+                            runtimes[i - 1].status === "resolved"
+                              ? "var(--assignment-completed-muted)"
+                              : "var(--border-default)",
+                        }}
+                      />
+                    )}
+                    <span
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors"
+                      style={{
+                        fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+                        ...(active
+                          ? {
+                              background: "var(--assignment-completed)",
+                              color: "var(--assignment-on-accent)",
+                            }
+                          : resolved
+                            ? {
+                                background: "var(--assignment-completed-muted)",
+                                color: "var(--assignment-on-accent)",
+                              }
+                            : {
+                                background: "var(--assignment-row-cta-bg)",
+                                color: "var(--muted-foreground)",
+                              }),
+                      }}
+                    >
+                      {resolved ? "✓" : part.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Toolbar: highlighter, report, how-to-use — consolidated here
+              instead of duplicated inside the stimulus panel / part card. */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setHighlightModeOn((prev) => !prev)}
+              aria-pressed={highlightModeOn}
+              title={
+                highlightModeOn
+                  ? "Highlighter on — select text to highlight, click a highlight to remove it"
+                  : "Turn on the highlighter to mark up text"
+              }
+              aria-label="Toggle highlighter"
+              className={TOOLBAR_BUTTON_CLASS}
+              style={
+                highlightModeOn
+                  ? toolbarButtonStyle(TOOLBAR_BORDER_GREEN, TOOLBAR_COLOR_GREEN)
+                  : toolbarButtonStyle(TOOLBAR_BORDER_NEUTRAL, TOOLBAR_COLOR_NEUTRAL)
+              }
+            >
+              <Highlighter className="h-4 w-4" aria-hidden />
+            </button>
+
+            <button
+              ref={reportButtonRef}
+              type="button"
+              onClick={handleToolbarReport}
+              disabled={!canReportFocusPart}
+              aria-pressed={Boolean(focusRuntime?.reported)}
+              title={
+                focusRuntime?.reported
+                  ? "Reported — your teacher will review this feedback"
+                  : "Report if the feedback on the current part seems wrong"
+              }
+              aria-label="Report feedback"
+              className={TOOLBAR_BUTTON_CLASS}
+              style={
+                focusRuntime?.reported
+                  ? toolbarButtonStyle(TOOLBAR_BORDER_RED, TOOLBAR_COLOR_RED)
+                  : toolbarButtonStyle(TOOLBAR_BORDER_NEUTRAL, TOOLBAR_COLOR_NEUTRAL)
+              }
+            >
+              <Flag className="h-4 w-4" aria-hidden />
+            </button>
+
+            <button
+              ref={howToUseRef}
+              type="button"
+              onClick={() => setTourOpen(true)}
+              title="How to use"
+              aria-label="How to use"
+              className={TOOLBAR_BUTTON_CLASS}
+              style={toolbarButtonStyle(TOOLBAR_BORDER_NEUTRAL, TOOLBAR_COLOR_NEUTRAL)}
+            >
+              <HelpCircle className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,44fr)_1px_minmax(0,52fr)]">
+        <div className="p-5 sm:p-8 lg:p-10">
+          <div className="lg:sticky lg:top-6">
+            <StimulusPanel
+              stem={item.stem}
+              stimulus={item.stimulus}
+              framed={false}
+            />
+          </div>
+        </div>
+
+        <div
+          aria-hidden
+          className="h-px mx-5 sm:mx-8 lg:mx-0 lg:h-auto lg:w-px"
+          style={{ background: "var(--border-subtle)" }}
+        />
+
+        <div className="flex flex-col gap-3 p-5 sm:p-8 lg:p-10">
           {item.parts.map((part, i) => {
             const runtime = runtimes[i];
             const isLast = i === item.parts.length - 1;
@@ -545,7 +682,6 @@ export function ShortAnswerQuestionView({
               <PartCard
                 key={part.label}
                 part={part}
-                index={i}
                 status={runtime.status}
                 attempts={runtime.attempts}
                 maxAttempts={MAX_ATTEMPTS}
@@ -555,25 +691,16 @@ export function ShortAnswerQuestionView({
                   runtime.attempts[runtime.attempts.length - 1]?.responseText ?? ""
                 }
                 checkDisabled={waitingForPracticeSession}
+                previousLabel={i > 0 ? item.parts[i - 1].label : undefined}
                 unlock={
                   runtime.countdownActive
                     ? { label: unlockLabel, onUnlock: () => unlockNext(i) }
                     : undefined
                 }
-                reported={runtime.reported}
                 onCheck={(response) => void handleCheck(i, response)}
                 onOpenAttempt={(attempt) =>
                   setHistoryModal({ partLabel: part.label, attempt })
                 }
-                onReport={() => {
-                  if (runtime.latestAttemptId) {
-                    setReportModal({
-                      partLabel: part.label,
-                      partIndex: i,
-                      attemptId: runtime.latestAttemptId,
-                    });
-                  }
-                }}
                 onGlossaryClick={handleGlossaryClick}
               />
             );
@@ -591,6 +718,7 @@ export function ShortAnswerQuestionView({
               />
             </div>
           )}
+        </div>
         </div>
       </div>
       </>

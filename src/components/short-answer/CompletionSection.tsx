@@ -115,14 +115,14 @@ export function CompletionSection({
               </span>
             </h3>
             <span
-              className={`text-[11px] text-emerald-600 transition-opacity duration-300 ${
+              className={`text-[11px] text-[var(--mastery-mastered)] transition-opacity duration-300 ${
                 savedVisible ? "opacity-100" : "opacity-0"
               }`}
             >
               Saved
             </span>
           </div>
-          <p className="mt-0.5 text-[12px] text-emerald-700/80">
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
             Write anything — or try one of these: &ldquo;The main idea was…&rdquo;,
             &ldquo;I was surprised that…&rdquo;, &ldquo;Next time I&apos;ll remember…&rdquo;
           </p>

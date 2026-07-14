@@ -24,6 +24,8 @@ import {
   StudentNotesList,
   useStudentNotes,
 } from "@/components/notes/StudentNotesList";
+import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
+import { isShortAnswerQuestion } from "@/lib/short-answer/question-guards";
 import type { Question } from "@/types/question";
 import {
   STANDARD_DEFINITIONS,
@@ -72,7 +74,7 @@ function parseReviewTab(value: string | null): ReviewTab {
 }
 
 const ASSIGNMENT_BUTTON_BASE_CLASS =
-  "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 font-bold transition duration-200";
+  "inline-flex h-11 items-center justify-center gap-2 px-5 font-bold transition duration-200";
 
 const ASSIGNMENT_PRIMARY_BUTTON_STYLE = {
   fontSize: 16,
@@ -352,14 +354,14 @@ function BookmarksPageContent() {
           ? "Questions you answer incorrectly will appear here."
           : "Questions you bookmark will appear here.";
       return (
-        <div className="rounded-xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
           {message}
         </div>
       );
     }
 
     return (
-      <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface">
+      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
         {groups.map((group, index) => {
           const topicKey = `${section}:${group.topic}`;
           const isExpanded = Boolean(expandedTopics[topicKey]);
@@ -404,10 +406,16 @@ function BookmarksPageContent() {
                     className="overflow-hidden"
                   >
                     <div className="space-y-2 border-t border-border-subtle px-4 py-3">
-                      {group.questions.map((question) => (
+                      {group.questions.map((question) => {
+                        const isShortAnswer = isShortAnswerQuestion(question);
+                        const previewText = isShortAnswer
+                          ? question.shortAnswer?.stem ?? question.text
+                          : question.text;
+
+                        return (
                         <div
                           key={question.id}
-                          className="overflow-hidden rounded-lg border border-border-subtle bg-background"
+                          className="overflow-hidden rounded-2xl border border-border-subtle bg-background"
                         >
                           <div
                             role="button"
@@ -422,7 +430,7 @@ function BookmarksPageContent() {
                             className="flex items-start justify-between gap-3 px-3 py-2 transition-colors hover:bg-foreground/5"
                           >
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm leading-relaxed text-slate-gray">{question.text}</p>
+                              <p className="text-sm leading-relaxed text-slate-gray">{previewText}</p>
                             </div>
                             <div className="flex items-center gap-2">
                               {allowRemoveBookmark ? (
@@ -432,7 +440,7 @@ function BookmarksPageContent() {
                                     event.stopPropagation();
                                     handleConfirmRemoveBookmark(question.id);
                                   }}
-                                  className="flex-shrink-0 rounded-md p-1.5 text-slate-gray/40 transition-colors hover:bg-error-light hover:text-red-500"
+                                  className="flex-shrink-0 rounded-2xl p-1.5 text-slate-gray/40 transition-colors hover:bg-error-light hover:text-error"
                                   aria-label="Remove bookmark"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -455,54 +463,81 @@ function BookmarksPageContent() {
                                 transition={{ duration: 0.2 }}
                                 className="overflow-hidden"
                               >
-                                <div className="space-y-2 border-t border-border-subtle px-3 py-3">
-                                  {question.options.map((option) => {
-                                    const isCorrect = option.id === question.correctOptionId;
-
-                                    return (
-                                      <div
-                                        key={option.id}
-                                        className={`rounded-md border px-3 py-2 ${
-                                          isCorrect
-                                            ? "border-primary/30 bg-primary/5"
-                                            : "border-border-subtle bg-slate-gray/5"
-                                        }`}
-                                      >
-                                        <div className="flex items-start gap-2.5">
-                                          <span
-                                            className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                                              isCorrect
-                                                ? "bg-primary text-white"
-                                                : "bg-slate-gray/20 text-muted-foreground"
-                                            }`}
+                                <div className="space-y-3 border-t border-border-subtle px-3 py-3">
+                                  {isShortAnswer && question.shortAnswer ? (
+                                    <>
+                                      <StimulusPanel
+                                        stem={question.shortAnswer.stem}
+                                        stimulus={question.shortAnswer.stimulus}
+                                      />
+                                      <div className="space-y-2">
+                                        {question.shortAnswer.parts.map((part) => (
+                                          <div
+                                            key={part.label}
+                                            className="rounded-2xl border border-border-subtle bg-slate-gray/5 px-3 py-2"
                                           >
-                                            {option.id.toUpperCase()}
-                                          </span>
-                                          <div className="flex-1">
-                                            <p
-                                              className={`text-sm ${
-                                                isCorrect ? "font-medium text-slate-gray" : "text-slate-gray/90"
+                                            <div className="flex items-start gap-2.5">
+                                              <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-gray/20 text-[11px] font-semibold text-muted-foreground">
+                                                {part.label}
+                                              </span>
+                                              <p className="flex-1 text-sm text-slate-gray/90">
+                                                {part.prompt}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    question.options.map((option) => {
+                                      const isCorrect = option.id === question.correctOptionId;
+
+                                      return (
+                                        <div
+                                          key={option.id}
+                                          className={`rounded-2xl border px-3 py-2 ${
+                                            isCorrect
+                                              ? "border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)]"
+                                              : "border-border-subtle bg-slate-gray/5"
+                                          }`}
+                                        >
+                                          <div className="flex items-start gap-2.5">
+                                            <span
+                                              className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                                                isCorrect
+                                                  ? "bg-[var(--assignment-completed)] text-[var(--assignment-on-accent)]"
+                                                  : "bg-slate-gray/20 text-muted-foreground"
                                               }`}
                                             >
-                                              {option.text}
-                                            </p>
-                                            {option.feedback ? (
-                                              <p className="mt-1 text-xs text-muted-foreground">{option.feedback}</p>
+                                              {option.id.toUpperCase()}
+                                            </span>
+                                            <div className="flex-1">
+                                              <p
+                                                className={`text-sm ${
+                                                  isCorrect ? "font-medium text-slate-gray" : "text-slate-gray/90"
+                                                }`}
+                                              >
+                                                {option.text}
+                                              </p>
+                                              {option.feedback ? (
+                                                <p className="mt-1 text-xs text-muted-foreground">{option.feedback}</p>
+                                              ) : null}
+                                            </div>
+                                            {isCorrect ? (
+                                              <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-[var(--assignment-completed)]" />
                                             ) : null}
                                           </div>
-                                          {isCorrect ? (
-                                            <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary" />
-                                          ) : null}
                                         </div>
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    })
+                                  )}
                                 </div>
                               </motion.div>
                             ) : null}
                           </AnimatePresence>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </motion.div>
                 )}
@@ -517,7 +552,10 @@ function BookmarksPageContent() {
   if (!isLoaded) {
     return (
       <main className="h-[calc(100vh-4rem)] overflow-hidden lg:h-screen">
-        <div className="mx-auto flex h-full max-w-6xl items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <div
+          className="mx-auto flex h-full w-full items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10 xl:px-12"
+          style={{ maxWidth: 1500 }}
+        >
           <div className="text-slate-gray">Loading...</div>
         </div>
       </main>
@@ -526,7 +564,10 @@ function BookmarksPageContent() {
 
   return (
     <main className="h-[calc(100vh-4rem)] overflow-hidden lg:h-screen">
-      <div className="mx-auto flex h-full max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+      <div
+        className="mx-auto flex h-full w-full flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10 xl:px-12"
+        style={{ maxWidth: 1500 }}
+      >
         <div className="mb-6 flex items-start justify-between gap-3">
           <h1 className="font-heading text-2xl font-bold text-heading sm:text-3xl">Review</h1>
           {totalReviewQuestions > 0 && !isChoosingTopics ? (
@@ -574,7 +615,7 @@ function BookmarksPageContent() {
               <button
                 type="button"
                 onClick={handleToggleAllPracticeTopics}
-                className="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold text-heading transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold text-heading transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 style={{
                   background: "var(--assignment-row-cta-bg)",
                   border: "1.5px solid var(--assignment-row-cta-border)",
@@ -593,7 +634,10 @@ function BookmarksPageContent() {
                 );
                 return (
                   <div key={module}>
-                    <h3 className="mb-2 text-sm font-semibold text-slate-gray">
+                    <h3
+                      className="mb-2 text-sm font-semibold text-slate-gray"
+                      style={{ fontFamily: "var(--font-geist), ui-sans-serif, sans-serif" }}
+                    >
                       Module {module}: {REVIEW_MODULE_LABELS[module]}
                     </h3>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -608,12 +652,12 @@ function BookmarksPageContent() {
                             type="button"
                             disabled={!isAvailable}
                             onClick={() => handleTogglePracticeTopic(entry.key)}
-                            className="relative h-[98px] w-full rounded-[22px] border px-3 py-3 text-center transition-colors"
+                            className="relative h-[98px] w-full rounded-2xl border px-3 py-3 text-center transition-colors"
                             style={{
                               background: !isAvailable
                                 ? "var(--assignment-row-cta-bg)"
                                 : isSelected
-                                  ? "var(--primary-light)"
+                                  ? "var(--mastery-mastered-bg)"
                                   : "var(--surface)",
                               border: isSelected
                                 ? "2px solid var(--assignment-completed)"
@@ -683,8 +727,8 @@ function BookmarksPageContent() {
                 onClick={() => setActiveReviewTab("needs")}
                 className={`relative inline-flex rounded-t-2xl rounded-b-none px-4 py-2.5 text-sm font-semibold transition-all ${
                   activeReviewTab === "needs"
-                    ? "z-20 translate-y-0 border border-white/90 border-b-0 bg-white text-heading"
-                    : "z-10 translate-y-1 border border-white/70 bg-white/75 text-slate-gray/75 hover:bg-white/85"
+                    ? "z-20 translate-y-0 border border-[var(--assignment-glass-border)] border-b-0 bg-surface text-heading"
+                    : "z-10 translate-y-1 border border-[var(--assignment-glass-border)]/60 bg-[var(--surface)]/75 text-slate-gray/75 hover:bg-[var(--surface)]/85"
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
@@ -692,7 +736,7 @@ function BookmarksPageContent() {
                   Need Review
                 </span>
                 {activeReviewTab === "needs" ? (
-                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
+                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[var(--assignment-completed)]" />
                 ) : null}
               </button>
 
@@ -701,8 +745,8 @@ function BookmarksPageContent() {
                 onClick={() => setActiveReviewTab("bookmarked")}
                 className={`relative inline-flex rounded-t-2xl rounded-b-none px-4 py-2.5 text-sm font-semibold transition-all ${
                   activeReviewTab === "bookmarked"
-                    ? "z-20 translate-y-0 border border-white/90 border-b-0 bg-white text-heading"
-                    : "z-10 translate-y-1 border border-white/70 bg-white/75 text-slate-gray/75 hover:bg-white/85"
+                    ? "z-20 translate-y-0 border border-[var(--assignment-glass-border)] border-b-0 bg-surface text-heading"
+                    : "z-10 translate-y-1 border border-[var(--assignment-glass-border)]/60 bg-[var(--surface)]/75 text-slate-gray/75 hover:bg-[var(--surface)]/85"
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
@@ -710,7 +754,7 @@ function BookmarksPageContent() {
                   Bookmarked
                 </span>
                 {activeReviewTab === "bookmarked" ? (
-                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
+                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[var(--assignment-completed)]" />
                 ) : null}
               </button>
 
@@ -719,8 +763,8 @@ function BookmarksPageContent() {
                 onClick={() => setActiveReviewTab("notes")}
                 className={`relative inline-flex rounded-t-2xl rounded-b-none px-4 py-2.5 text-sm font-semibold transition-all ${
                   activeReviewTab === "notes"
-                    ? "z-20 translate-y-0 border border-white/90 border-b-0 bg-white text-heading"
-                    : "z-10 translate-y-1 border border-white/70 bg-white/75 text-slate-gray/75 hover:bg-white/85"
+                    ? "z-20 translate-y-0 border border-[var(--assignment-glass-border)] border-b-0 bg-surface text-heading"
+                    : "z-10 translate-y-1 border border-[var(--assignment-glass-border)]/60 bg-[var(--surface)]/75 text-slate-gray/75 hover:bg-[var(--surface)]/85"
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
@@ -728,12 +772,15 @@ function BookmarksPageContent() {
                   Notes
                 </span>
                 {activeReviewTab === "notes" ? (
-                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
+                  <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[var(--assignment-completed)]" />
                 ) : null}
               </button>
             </div>
 
-            <section className="relative mt-0 rounded-tl-none rounded-tr-3xl rounded-br-3xl rounded-bl-3xl border border-white/90 border-t-0 bg-white p-4 shadow-[0_12px_30px_rgba(31,45,31,0.1)] sm:p-5">
+            <section
+              className="relative mt-0 rounded-tl-none rounded-tr-[28px] rounded-br-[28px] rounded-bl-[28px] border border-[var(--assignment-glass-border)] border-t-0 bg-surface p-4 sm:p-5"
+              style={{ boxShadow: "var(--assignment-card-shadow)" }}
+            >
               {activeReviewTab === "needs"
                 ? renderTopicSections(needsReviewGroups, "needs", false)
                 : activeReviewTab === "bookmarked"
@@ -743,6 +790,7 @@ function BookmarksPageContent() {
                       notes={notes}
                       isLoaded={notesLoaded}
                       error={notesError}
+                      questionById={questionById}
                     />
                   )}
             </section>
