@@ -165,21 +165,25 @@ export function useAnalyticsSession(
   const hiddenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startInFlightRef = useRef(false);
 
+  // No cleanup-driven cancellation here: under React Strict Mode's dev-only
+  // mount → cleanup → remount cycle, the second invocation sees
+  // `startInFlightRef.current` still true (the first invocation's request is
+  // in flight) and bails out without starting its own request or cleanup. A
+  // `cancelled` flag tied to the first invocation's cleanup would then
+  // permanently swallow that in-flight request's result once it resolves —
+  // leaving `sessionId` stuck at null for the lifetime of the component.
+  // `sessionIdRef.current` in the resolved-callback is guard enough against
+  // acting twice.
   useEffect(() => {
     if (!enabled) return;
     if (typeof window === "undefined") return;
     if (startInFlightRef.current || sessionIdRef.current) return;
     startInFlightRef.current = true;
 
-    let cancelled = false;
-
     void (async () => {
       const session = await requestStartSession({ mode, assignmentId });
-      if (cancelled) return;
-      if (!session) {
-        startInFlightRef.current = false;
-        return;
-      }
+      startInFlightRef.current = false;
+      if (!session || sessionIdRef.current) return;
       sessionIdRef.current = session.id;
       setSessionId(session.id);
       writeStoredSession(session);
@@ -197,10 +201,6 @@ export function useAnalyticsSession(
         sessionId: session.id,
       });
     })();
-
-    return () => {
-      cancelled = true;
-    };
   }, [enabled, mode, assignmentId]);
 
   useEffect(() => {

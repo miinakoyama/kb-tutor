@@ -140,6 +140,8 @@ export interface Question {
 
   source: QuestionSource;
   questionSetId?: string;
+  /** Immutable database version used to score delayed/offline attempts. */
+  contentVersion?: string;
   dok?: DOKLevel;
   isVisible?: boolean;
   /** When set is linked for Self Practice, include this question in the student bank (generated sets only). */

@@ -136,3 +136,9 @@ Supabase is a hosted service (not local); the required env vars (`NEXT_PUBLIC_SU
 
 - Node.js 22.x is used. The project uses `package-lock.json` (npm).
 - There is no `.env` file committed; environment variables come from Cursor Cloud secrets.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/003-bkt-adaptive-mastery/plan.md
+<!-- SPECKIT END -->

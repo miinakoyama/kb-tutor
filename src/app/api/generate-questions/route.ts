@@ -261,6 +261,18 @@ function validateQuestion(
     .replace(/[^a-z0-9]+/g, "-")
     .slice(0, 20);
   const moduleFromStandard = selectedStandard?.module === "B" ? 2 : 1;
+  const generatedKcCode =
+    selectedKC?.code ??
+    (typeof question.kcCode === "string" ? question.kcCode.trim() : "");
+  const validGeneratedKc = getKCsByStandard(selectedStandard.id).find(
+    (kc) => kc.code === generatedKcCode,
+  );
+  if (!validGeneratedKc) {
+    console.warn(
+      `Question ${index} is missing a valid KC for standard ${selectedStandard.id}`,
+    );
+    return null;
+  }
   const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
     question.inlineTerms,
     question.sidebarTerms,
@@ -281,12 +293,8 @@ function validateQuestion(
     correctOptionId: question.correctOptionId as string,
     focusHint: (question.focusHint as string) || undefined,
     keyKnowledge: (question.keyKnowledge as string) || undefined,
-    kcCode:
-      selectedKC?.code ??
-      (typeof question.kcCode === "string" ? question.kcCode : undefined),
-    kcStatement:
-      selectedKC?.statement ??
-      (typeof question.kcStatement === "string" ? question.kcStatement : undefined),
+    kcCode: validGeneratedKc.code,
+    kcStatement: validGeneratedKc.statement,
     commonMisconception: (question.commonMisconception as string) || undefined,
     inlineTerms,
     sidebarTerms,
@@ -578,7 +586,7 @@ export async function POST(request: NextRequest) {
       const retrySuffix =
         attempt === 0
           ? ""
-          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} question(s), exact standard alignment, the requested KC, and the requested stimulus type/counts. Keep the MCQ Quality Checklist constraints (single best answer, plausible distractors, no giveaway cues).`;
+          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} question(s), exact standard alignment, a valid KC from the provided catalog, and the requested stimulus type/counts. Keep the MCQ Quality Checklist constraints (single best answer, plausible distractors, no giveaway cues).`;
       const finalPrompt = `${basePrompt}${retrySuffix}`;
 
       try {

@@ -1,6 +1,7 @@
 import type { DOKLevel, DiagramType } from "@/types/question";
 import type { StimulusType } from "@/types/short-answer";
 import { getStandardById } from "@/lib/standards";
+import { getKCsByStandard } from "@/lib/short-answer/generation/data";
 
 interface DiagramConfig {
   chart: number;
@@ -236,17 +237,34 @@ export function buildGenerationPrompt(settings: GenerationSettings): string {
   ]
     .filter(Boolean)
     .join("\n");
-  const kcInstructions =
-    settings.fixedCoreKC && settings.fixedCoreKCStatement
-      ? `
+  let kcInstructions = "";
+  if (settings.fixedCoreKC && settings.fixedCoreKCStatement) {
+    kcInstructions = `
 ## Knowledge Component
 Anchor every generated question to this KC:
 - kcCode: ${settings.fixedCoreKC}
 - kcStatement: ${settings.fixedCoreKCStatement}
 
 The question must directly assess this KC within the selected standard. Include these exact values in the output fields "kcCode" and "kcStatement".
-`
-      : "";
+`;
+  } else if (settings.standards.length > 1) {
+    const catalogs = settings.standards
+      .map((standardId) => {
+        const entries = getKCsByStandard(standardId)
+          .map((kc) => `- ${kc.code}: ${kc.statement}`)
+          .join("\n");
+        return `### ${standardId}\n${entries || "- No active KCs available"}`;
+      })
+      .join("\n\n");
+    kcInstructions = `
+## Knowledge Components
+For each question, select exactly one KC from the catalog for that question's standard:
+
+${catalogs}
+
+Copy the selected code and statement exactly into "kcCode" and "kcStatement". Never use a KC from a different standard or invent a code.
+`;
+  }
 
   let diagramInstructions = "";
   if (settings.stimulusType) {
