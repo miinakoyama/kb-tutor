@@ -25,14 +25,13 @@ import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
-import { PracticeHeader } from "@/components/shared/PracticeHeader";
+import { PracticeHeader, getBackLabel } from "@/components/shared/PracticeHeader";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { QuestionNoteDrawer } from "@/components/notes/QuestionNoteDrawer";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { getStandardForTopic } from "@/lib/standards";
-import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
@@ -297,19 +296,23 @@ export function AdaptivePracticeMode({
   const assignmentPrimaryButtonStyle = {
     color: "var(--assignment-cta-text)",
     background: "var(--assignment-cta-bg-strong)",
-    border: "1.5px solid var(--assignment-cta-border-hover)",
+    border: "1.5px solid var(--assignment-glass-border)",
     boxShadow: "var(--assignment-cta-elevated-shadow)",
+    letterSpacing: "0.3px",
+    wordSpacing: "1px",
   };
+  // Background stays in the class (bg-[...]) so hover/active bg utilities can win.
   const assignmentSecondaryButtonStyle = {
     color: "var(--assignment-row-cta-text)",
-    background: "var(--assignment-row-cta-bg)",
     border: "1.5px solid var(--assignment-row-cta-border)",
     boxShadow: "var(--assignment-row-cta-shadow)",
+    letterSpacing: "0.3px",
+    wordSpacing: "1px",
   };
   const assignmentPrimaryButtonClass =
-    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
+    "inline-flex items-center justify-center gap-1.5 px-5 h-[46px] rounded-full font-bold text-[16px] transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed";
   const assignmentSecondaryButtonClass =
-    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
+    "inline-flex items-center justify-center gap-1.5 px-5 h-[46px] rounded-full font-bold text-[16px] bg-[var(--assignment-row-cta-bg)] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
 
   useEffect(() => {
     if (!question || showSummary) {
@@ -658,7 +661,6 @@ export function AdaptivePracticeMode({
     const resolvedStandard = question.standardId
       ? { id: question.standardId, label: question.standardLabel }
       : getStandardForTopic(question.topic);
-    const student = getStudentById(DEFAULT_STUDENT_ID);
     saveAnswer({
       questionId: question.id,
       selectedOptionId: selectedOptionId,
@@ -671,9 +673,6 @@ export function AdaptivePracticeMode({
       standardLabel: resolvedStandard.label,
       timeSpentSec: elapsedSec,
       assignmentId,
-      studentId: student?.id,
-      classId: student?.classId,
-      teacherId: student?.teacherId,
     });
 
     trackAnalyticsEvent({
@@ -862,15 +861,23 @@ export function AdaptivePracticeMode({
   if (sessionQuestions.length === 0 || !question) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
+        <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
             No questions available for this selection yet.
           </p>
           <Link
-            href="/self-practice"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover"
+            href={backHref}
+            className="inline-flex items-center justify-center gap-2 px-5 h-[46px] rounded-full font-bold text-[16px] transition duration-200 hover:brightness-110 active:brightness-95"
+            style={{
+              color: "var(--assignment-cta-text)",
+              background: "var(--assignment-cta-bg-strong)",
+              border: "1.5px solid var(--assignment-glass-border)",
+              boxShadow: "var(--assignment-cta-elevated-shadow)",
+              letterSpacing: "0.3px",
+              wordSpacing: "1px",
+            }}
           >
-            Back to Self Practice
+            {getBackLabel(backHref)}
           </Link>
         </div>
       </div>
@@ -910,9 +917,9 @@ export function AdaptivePracticeMode({
             <div className="mb-4 flex items-center justify-between gap-3">
               <button
                 onClick={() => setSummaryReviewIndex(null)}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
               >
-                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--assignment-calendar-nav-bg)]">
                   <ArrowLeft className="w-4 h-4 text-heading" />
                 </span>
                 Back to results
@@ -934,7 +941,7 @@ export function AdaptivePracticeMode({
                 </button>
               ) : null}
             </div>
-            <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+            <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-4 sm:p-6">
               <p className="text-sm text-muted-foreground mb-3">
                 Question {summaryReviewIndex + 1}
               </p>
@@ -956,7 +963,7 @@ export function AdaptivePracticeMode({
                       key={opt.id}
                       className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
                         isCorrect
-                          ? "border-primary/40 bg-primary/5"
+                          ? "border-[var(--assignment-selected-accent)] bg-[var(--assignment-calendar-nav-bg)]"
                           : wrongSelection
                             ? "border-error-border bg-error-light"
                             : "border-border-default bg-surface"
@@ -1006,7 +1013,7 @@ export function AdaptivePracticeMode({
         animate={{ opacity: 1, y: 0 }}
         className="w-full space-y-4 pb-8"
       >
-        <div className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-6 text-center">
           {topicName && <p className="text-sm text-muted-foreground mb-2">{topicName}</p>}
           <h2 className="text-2xl font-bold text-slate-gray mb-2">
             {mode === "review" ? "Review Complete" : "Session Complete"}
@@ -1017,7 +1024,7 @@ export function AdaptivePracticeMode({
           </p>
         </div>
 
-        <div className="rounded-xl border border-primary/30 bg-surface p-4 shadow-sm">
+        <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-4">
           <h3 className="text-base font-semibold text-slate-gray mb-3">
             Review Questions
           </h3>
@@ -1029,7 +1036,7 @@ export function AdaptivePracticeMode({
                   key={`${q.id}-${index}`}
                   onClick={() => setSummaryReviewIndex(index)}
                   className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-foreground/5 ${
-                    isCorrect ? "border-primary/20" : "border-error-border"
+                    isCorrect ? "border-[var(--assignment-completed-muted)]" : "border-error-border"
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -1188,7 +1195,13 @@ export function AdaptivePracticeMode({
                   >
                     <button
                       onClick={handleGlossaryModalOpen}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary/30 text-forest bg-surface hover:bg-primary/5 transition-colors text-xs font-medium"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-slate-gray bg-[var(--assignment-calendar-nav-bg)] hover:bg-[var(--assignment-calendar-nav-bg-hover)] transition-colors text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      style={{
+                        border: "1px solid var(--assignment-glass-border)",
+                        boxShadow: "var(--assignment-nav-shadow)",
+                        backdropFilter: "blur(10px) saturate(130%)",
+                        WebkitBackdropFilter: "blur(10px) saturate(130%)",
+                      }}
                     >
                       <BookOpen className="w-3.5 h-3.5" />
                       Glossary
@@ -1251,11 +1264,11 @@ export function AdaptivePracticeMode({
               belowOptionsSlot={
                 <>
                   {showScaffold && question.focusHint && !isCompleted && attempts.length === 0 ? (
-                    <div className="mt-4 rounded-xl border border-primary/25 bg-primary-light p-3">
+                    <div className="mt-4 rounded-2xl border border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)] p-3">
                       <div className="flex items-start gap-2.5">
                         <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-forest mb-0.5">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--mastery-mastered)] mb-0.5">
                             Focus Hint
                           </p>
                           <p className="text-sm text-slate-gray leading-relaxed">{question.focusHint}</p>
@@ -1411,7 +1424,7 @@ export function AdaptivePracticeMode({
         >
           <div className="mx-auto max-w-2xl h-full flex items-center justify-center">
             <div
-              className="w-full max-h-[85vh] overflow-hidden rounded-xl bg-surface shadow-xl border border-primary/20"
+              className="w-full max-h-[85vh] overflow-hidden rounded-2xl bg-surface shadow-[var(--assignment-popover-shadow)] border border-[var(--assignment-popover-border)]"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">

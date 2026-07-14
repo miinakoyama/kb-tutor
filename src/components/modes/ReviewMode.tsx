@@ -25,6 +25,8 @@ interface ReviewModeProps {
    * attempts under the assignment.
    */
   assignmentId?: string;
+  /** Where the header back link leads (set by the caller from the entry point). */
+  backHref?: string;
   /** Hard cap on the review session size for non-assignment runs. */
   questionCount?: number;
   /** Fires when the completion API reports every school assignment is done. */
@@ -35,6 +37,7 @@ export function ReviewMode({
   questions,
   topicName,
   assignmentId,
+  backHref = "/",
   questionCount,
   onAllSchoolAssignmentsCompleted,
 }: ReviewModeProps) {
@@ -87,8 +90,8 @@ export function ReviewMode({
   if (reviewQuestions.length === 0) {
     return (
       <div className="max-w-lg mx-auto pt-8">
-        <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center shadow-sm">
-          <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-4" />
+        <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-8 text-center">
+          <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-[var(--assignment-completed)]" />
           <h2 className="text-xl font-bold text-slate-gray mb-2">
             Nothing to Review!
           </h2>
@@ -98,7 +101,15 @@ export function ReviewMode({
           </p>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover transition-colors"
+            className="inline-flex items-center gap-2 px-5 h-[46px] rounded-full font-bold text-[16px] transition duration-200 hover:brightness-110 active:brightness-95"
+            style={{
+              color: "var(--assignment-cta-text)",
+              background: "var(--assignment-cta-bg-strong)",
+              border: "1.5px solid var(--assignment-glass-border)",
+              boxShadow: "var(--assignment-cta-elevated-shadow)",
+              letterSpacing: "0.3px",
+              wordSpacing: "1px",
+            }}
           >
             <Home className="w-4 h-4" />
             Go to Home
@@ -114,7 +125,7 @@ export function ReviewMode({
       topicName={topicName}
       questionCount={reviewQuestions.length || MAX_REVIEW_QUESTIONS}
       mode="review"
-      backHref="/"
+      backHref={backHref}
       showBackLink
       assignmentId={assignmentId}
       // Review sessions always start fresh (no resume), but AdaptivePracticeMode

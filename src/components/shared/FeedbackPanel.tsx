@@ -90,24 +90,26 @@ export function FeedbackPanel({
       className="mt-5 space-y-3"
     >
       <div
-        className={`p-4 rounded-xl border ${
+        className={`p-4 rounded-2xl border ${
           displayIsCorrect
-            ? "border-primary/40 bg-primary-light"
+            ? "border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)]"
             : "border-error-border bg-error-light"
         }`}
       >
         <div className="flex items-start gap-3">
           {displayIsCorrect ? (
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary" />
+            <CheckCircle2
+              className="w-5 h-5 flex-shrink-0 mt-0.5"
+              style={{ color: "var(--mastery-mastered)" }}
+            />
           ) : (
             <XCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
           )}
           <div className="flex-1 min-w-0">
             <div className="mb-1 flex items-start justify-between gap-2">
               <p
-                className={`text-sm font-semibold ${
-                  displayIsCorrect ? "text-forest" : "text-error"
-                }`}
+                className="text-sm font-semibold"
+                style={{ color: displayIsCorrect ? "var(--mastery-mastered)" : "var(--error-color)" }}
               >
                 {displayIsCorrect ? "Correct!" : "Incorrect"}
               </p>

@@ -33,7 +33,7 @@ import { OptionButton } from "@/components/shared/OptionButton";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ExamNavigator } from "@/components/shared/ExamNavigator";
 import { Timer } from "@/components/shared/Timer";
-import { PracticeHeader } from "@/components/shared/PracticeHeader";
+import { PracticeHeader, getBackLabel } from "@/components/shared/PracticeHeader";
 import { fetchBookmarkIds, saveAnswer, saveAnswerBatch, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
@@ -43,7 +43,6 @@ import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { getStandardForTopic } from "@/lib/standards";
-import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
@@ -73,6 +72,8 @@ interface ExamModeProps {
   topicName?: string;
   requestedQuestionCount?: number;
   assignmentId?: string;
+  /** Where the header back link leads (set by the caller from the entry point). */
+  backHref?: string;
   /**
    * Pre-answered questions keyed by question id, for assignment-mode resume.
    * When provided, the component trusts the server's question order, pre-fills
@@ -170,6 +171,7 @@ export function ExamMode({
   topicName,
   requestedQuestionCount,
   assignmentId,
+  backHref = "/self-practice",
   answered,
   onAllSchoolAssignmentsCompleted,
 }: ExamModeProps) {
@@ -639,7 +641,6 @@ export function ExamMode({
         const resolvedStandard = q.standardId
           ? { id: q.standardId, label: q.standardLabel }
           : getStandardForTopic(q.topic);
-        const student = getStudentById(DEFAULT_STUDENT_ID);
         saveAnswer({
           questionId: q.id,
           selectedOptionId: optionId,
@@ -651,9 +652,6 @@ export function ExamMode({
           standardId: resolvedStandard.id,
           standardLabel: resolvedStandard.label,
           assignmentId,
-          studentId: student?.id,
-          classId: student?.classId,
-          teacherId: student?.teacherId,
           ...(timeSpentSec !== null ? { timeSpentSec } : {}),
         });
         assignmentPersistedDwellMsRef.current[currentIndex] = totalDwellMs;
@@ -829,7 +827,6 @@ export function ExamMode({
   }, []);
 
   const confirmSubmit = useCallback(async () => {
-    const student = getStudentById(DEFAULT_STUDENT_ID);
     flushQuestionVisit();
 
     // Grade deferred short-answer parts before showing results. The grade
@@ -866,9 +863,6 @@ export function ExamMode({
             standardId: resolvedStandard.id,
             standardLabel: resolvedStandard.label,
             ...(timeSpentSec !== null ? { timeSpentSec } : {}),
-            studentId: student?.id,
-            classId: student?.classId,
-            teacherId: student?.teacherId,
           },
         };
       });
@@ -917,9 +911,6 @@ export function ExamMode({
           standardId: resolvedStandard.id,
           standardLabel: resolvedStandard.label,
           assignmentId,
-          studentId: student?.id,
-          classId: student?.classId,
-          teacherId: student?.teacherId,
           ...(timeSpentSec !== null ? { timeSpentSec } : {}),
         });
         assignmentPersistedDwellMsRef.current[i] = totalDwellMs;
@@ -979,6 +970,7 @@ export function ExamMode({
         setQuestionCount={setQuestionCount}
         onStart={startExam}
         topicName={topicName}
+        backHref={backHref}
       />
     );
   }
@@ -1249,16 +1241,16 @@ export function ExamMode({
   if (sessionQuestions.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
+        <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
             No questions are available for this selection yet. Please select different standards or check back later.
           </p>
           <Link
-            href="/self-practice"
+            href={backHref}
             className={assignmentPrimaryButtonClass}
             style={assignmentPrimaryButtonStyle}
           >
-            Back to Self Practice
+            {getBackLabel(backHref)}
           </Link>
         </div>
       </div>
@@ -1338,7 +1330,7 @@ export function ExamMode({
         topicName={undefined}
         mode="exam"
         modeLabel=""
-        backHref="/self-practice"
+        backHref={backHref}
         showBackLink={false}
         inlineProgress
         compactSpacing
@@ -1681,11 +1673,13 @@ function ExamConfig({
   setQuestionCount,
   onStart,
   topicName,
+  backHref,
 }: {
   questionCount: number;
   setQuestionCount: (n: number) => void;
   onStart: () => void;
   topicName?: string;
+  backHref: string;
 }) {
   const options = [
     { count: 20, label: "Quick", description: "~20 min" },
@@ -1699,13 +1693,13 @@ function ExamConfig({
     <div className="max-w-lg mx-auto">
       <div className="mb-6">
         <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-4"
+          href={backHref}
+          className="inline-flex items-center gap-2 text-base font-semibold text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-            <ArrowLeft className="w-4 h-4 text-heading" />
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--assignment-calendar-nav-bg)]">
+            <ArrowLeft className="w-4 h-4" />
           </span>
-          Back to Home
+          {getBackLabel(backHref)}
         </Link>
         <h1 className="text-xl sm:text-2xl font-bold font-heading text-heading">
           {isFullExam ? "Mock Exam" : topicName}

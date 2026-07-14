@@ -71,14 +71,19 @@ export function QuestionDisplay({
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.2 }}
-        className={`rounded-xl border border-primary/30 bg-surface shadow-sm ${
+        className={`rounded-2xl border ${
           compactLayout ? "p-4 sm:p-5" : "p-4 sm:p-6"
         }`}
+        style={{
+          background: "var(--assignment-glass-bg-strong)",
+          borderColor: "var(--assignment-glass-border)",
+          boxShadow: "var(--assignment-card-shadow)",
+        }}
       >
         {showHeader && (
           <div className={`flex items-start justify-between gap-3 ${compactLayout ? "mb-2" : "mb-3"}`}>
             <div className="flex items-center gap-3">
-              <p className={`${compactLayout ? "text-base" : "text-sm"} font-bold text-slate-gray`}>
+              <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
                 Question {questionNumber}
               </p>
               {questionMetaText && (
@@ -114,11 +119,11 @@ export function QuestionDisplay({
           }`}
         >
           {renderQuestionText ? (
-            <div className={`whitespace-pre-wrap font-medium leading-relaxed ${compactLayout ? "text-[15px]" : "text-base"}`}>
+            <div className="whitespace-pre-wrap font-medium leading-relaxed text-[15px]">
               {renderQuestionText(question.text)}
             </div>
           ) : (
-            <p className={`whitespace-pre-wrap font-medium leading-relaxed ${compactLayout ? "text-[15px]" : "text-base"}`}>
+            <p className="whitespace-pre-wrap font-medium leading-relaxed text-[15px]">
               {question.text}
             </p>
           )}
