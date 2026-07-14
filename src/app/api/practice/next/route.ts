@@ -71,11 +71,17 @@ export async function POST(request: Request) {
     : { data: [], error: null };
   if (mappingResult.error) return NextResponse.json({ error: "Unable to load mapped question candidates" }, { status: 500 });
   const attemptResult = questionIds.length
-    ? await admin.from("attempts").select("question_set_id,question_id,answered_at").eq("user_id", user.id).in("question_id", questionIds).order("answered_at", { ascending: false })
+    ? await admin.from("attempts").select("question_set_id,question_id,answered_at").eq("user_id", user.id).in("question_id", questionIds).neq("selected_option_id", "short-answer").order("answered_at", { ascending: false })
     : { data: [], error: null };
   const saqAttemptResult = questionIds.length
     ? await admin.from("short_answer_attempts").select("question_set_id,question_id,answered_at").eq("user_id", user.id).in("question_id", questionIds).order("answered_at", { ascending: false })
     : { data: [], error: null };
+  if (attemptResult.error || saqAttemptResult.error) {
+    return NextResponse.json(
+      { error: "Unable to load question attempt history" },
+      { status: 500 },
+    );
+  }
 
   const mastery = new Map((masteryResult.data ?? []).map((row) => [String(row.kc_code), row]));
   const lastKc = new Map<string, string | null>();
