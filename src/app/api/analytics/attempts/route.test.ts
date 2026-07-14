@@ -245,6 +245,56 @@ describe("POST /api/analytics/attempts", () => {
     });
   });
 
+  it("rejects ambiguous assignment snapshots with the same identity", async () => {
+    const version = "00000000-0000-4000-8000-000000000043";
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [{
+            id: "assignment-1",
+            school_id: "school-1",
+            created_at: "2026-05-01T00:00:00.000Z",
+          }],
+        },
+        assignment_targets: {
+          rows: [{ assignment_id: "assignment-1", student_user_id: "student-1" }],
+        },
+        school_members: { rows: [] },
+        assignment_question_snapshots: {
+          rows: ["A", "B"].map((correctOptionId) => ({
+            assignment_id: "assignment-1",
+            question_id: "q1",
+            payload: {
+              correctOptionId,
+              questionSetId: "set-a",
+              contentVersion: version,
+            },
+          })),
+        },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(attemptRequest("assignment-1", {
+      questionSetId: "set-a",
+      questionContentVersion: version,
+    }));
+
+    expect(response.status).toBe(404);
+    expect(tables.attempts.rows).toHaveLength(0);
+    expect(consoleError).toHaveBeenCalledWith(
+      "Ambiguous assignment question snapshot identity",
+      expect.objectContaining({ matchingSnapshotCount: 2 }),
+    );
+    consoleError.mockRestore();
+  });
+
   it("recomputes correctness from authorized content instead of trusting the client", async () => {
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser("student-1"),

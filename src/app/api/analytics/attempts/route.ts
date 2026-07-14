@@ -203,6 +203,18 @@ async function resolveAuthoritativeQuestion(
       : snapshots.length === 1
         ? snapshots
         : [];
+    if (matchingSnapshots.length !== 1) {
+      if (matchingSnapshots.length > 1) {
+        console.error("Ambiguous assignment question snapshot identity", {
+          assignmentId,
+          questionId,
+          questionSetId,
+          questionContentVersion,
+          matchingSnapshotCount: matchingSnapshots.length,
+        });
+      }
+      return null;
+    }
     const snapshot = matchingSnapshots[0];
     const correctOptionId = correctOptionIdFromPayload(snapshot?.payload);
     if (!correctOptionId) return null;
