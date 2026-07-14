@@ -1,31 +1,16 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { SelfPracticePlanner } from "./SelfPracticePlanner";
-import type { StoredAnswer } from "@/lib/storage";
 
-const { fetchAnswerHistoryMock } = vi.hoisted(() => ({
-  fetchAnswerHistoryMock: vi.fn(),
-}));
-
-vi.mock("@/lib/storage", () => ({
-  fetchAnswerHistory: fetchAnswerHistoryMock,
-}));
-
-describe("SelfPracticePlanner mastery statistics", () => {
-  beforeEach(() => {
-    fetchAnswerHistoryMock.mockReset();
-  });
-
+describe("SelfPracticePlanner flow", () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("starts on the mode selection step with Next disabled until a mode is chosen", async () => {
-    fetchAnswerHistoryMock.mockResolvedValue([]);
-
+  it("starts on the mode selection step with Next disabled until a mode is chosen", () => {
     render(<SelfPracticePlanner />);
 
-    const nextButton = await screen.findByRole("button", { name: "Next" });
+    const nextButton = screen.getByRole("button", { name: "Next" });
 
     expect(screen.getByText("Select Mode")).toBeTruthy();
     expect(
@@ -35,7 +20,7 @@ describe("SelfPracticePlanner mastery statistics", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("button", {
-        name: /Exam No hints\. Just like test day\./,
+        name: /Exam Simulate real exam conditions under test-day rules\./,
       }),
     ).toBeTruthy();
     expect((nextButton as HTMLButtonElement).disabled).toBe(true);
@@ -51,20 +36,8 @@ describe("SelfPracticePlanner mastery statistics", () => {
     );
   });
 
-  it("renders mastery from the asynchronous answer history after advancing to topics", async () => {
-    const history: StoredAnswer[] = Array.from({ length: 20 }, (_, index) => ({
-      questionId: `question-${index}`,
-      selectedOptionId: "A",
-      isCorrect: index < 18,
-      standardId: "3.1.9-12.A",
-      timestamp: index,
-      mode: "practice",
-    }));
-    fetchAnswerHistoryMock.mockResolvedValue(history);
-
+  it("advances to topic selection without showing mastery tags", () => {
     render(<SelfPracticePlanner />);
-
-    expect(fetchAnswerHistoryMock).toHaveBeenCalledOnce();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -74,9 +47,14 @@ describe("SelfPracticePlanner mastery statistics", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
-    expect(await screen.findByText("Choose Topics")).toBeTruthy();
-    expect(await screen.findByText("Mastered")).toBeTruthy();
+    expect(screen.getByText("Choose Topics")).toBeTruthy();
+    // Mastery tags are teacher-facing only and must not render for students.
+    expect(screen.queryByText("Mastered")).toBeNull();
+    expect(screen.queryByText("Proficient")).toBeNull();
+    expect(screen.queryByText("Building up")).toBeNull();
     expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Start Practice" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Start Practice" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 });

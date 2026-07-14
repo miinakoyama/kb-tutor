@@ -20,18 +20,15 @@ function renderPartCard(initialValue = "", checkDisabled = false) {
   return render(
     <PartCard
       part={part}
-      index={0}
       status="active"
       attempts={[]}
       maxAttempts={2}
       latestFeedback={null}
       triesLeft={2}
-      reported={false}
       initialValue={initialValue}
       checkDisabled={checkDisabled}
       onCheck={vi.fn()}
       onOpenAttempt={vi.fn()}
-      onReport={vi.fn()}
       onGlossaryClick={vi.fn()}
     />,
   );
@@ -47,17 +44,14 @@ describe("PartCard", () => {
     rerender(
       <PartCard
         part={part}
-        index={0}
         status="active"
         attempts={[]}
         maxAttempts={2}
         latestFeedback={null}
         triesLeft={2}
-        reported={false}
         initialValue="DNA"
         onCheck={vi.fn()}
         onOpenAttempt={vi.fn()}
-        onReport={vi.fn()}
         onGlossaryClick={vi.fn()}
       />,
     );

@@ -270,6 +270,10 @@ export function PracticePageClient({
     ? handleAllSchoolAssignmentsCompleted
     : undefined;
 
+  // Entry point decides where "Back" leads: assignment runs come from
+  // My Assignment, everything else from Self Practice.
+  const runBackHref = assignmentIdParam?.trim() ? "/assignments" : "/self-practice";
+
   switch (normalizedModeParam) {
     case "practice":
       return (
@@ -278,6 +282,8 @@ export function PracticePageClient({
           topicName={topicName}
           questionCount={requestedQuestionCount}
           assignmentId={assignmentIdParam}
+          backHref={runBackHref}
+          showBackLink
           preferReviewTopicsCta={!hasAssignmentSnapshot && Boolean(questionIdsParam)}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
           assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
@@ -296,16 +302,22 @@ export function PracticePageClient({
         />
       );
     case "exam": {
+      // ExamMode still expects the legacy centered scroll container that the
+      // /practice page used to provide; the shell-based modes manage their
+      // own layout regions.
       return (
-        <ExamMode
-          questions={filteredQuestions}
-          topicName={topicName}
-          requestedQuestionCount={requestedQuestionCount ?? 10}
-          assignmentId={assignmentIdParam}
-          answered={hasAssignmentSnapshot ? answeredMap : undefined}
-          assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
-          onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
-        />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 sm:pt-4 lg:pt-5 pb-1 sm:pb-2 lg:pb-3 h-full overflow-y-auto">
+          <ExamMode
+            questions={filteredQuestions}
+            topicName={topicName}
+            requestedQuestionCount={requestedQuestionCount ?? 10}
+            assignmentId={assignmentIdParam}
+            backHref={runBackHref}
+            answered={hasAssignmentSnapshot ? answeredMap : undefined}
+            assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
+            onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+          />
+        </div>
       );
     }
     case "review":
@@ -314,6 +326,7 @@ export function PracticePageClient({
           questions={filteredQuestions}
           topicName={topicName}
           assignmentId={assignmentIdParam}
+          backHref={runBackHref}
           questionCount={requestedQuestionCount}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
         />
