@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import questionsData from "@/data/questions.json";
 import type { Question } from "@/types/question";
 import { resolveRole } from "@/lib/auth/role";
 import type { AppRole } from "@/lib/auth/types";
@@ -14,8 +13,6 @@ import {
 import { fetchStudentSelfPracticeQuestions } from "@/lib/school-generated-questions";
 import { getDefaultStandardForTopic } from "@/lib/standards";
 import { filterRenderableQuestions } from "@/lib/short-answer/question-guards";
-
-const fileQuestions = questionsData as Question[];
 
 function withStandard(question: Question): Question {
   if (question.standardId) {
@@ -36,6 +33,23 @@ export function useQuestions() {
 
   const loadQuestions = useCallback(async () => {
     if (typeof window === "undefined") return;
+
+    if (process.env.NEXT_PUBLIC_E2E_AUTH_BYPASS === "1") {
+      try {
+        const response = await fetch("/api/e2e/questions", { cache: "no-store" });
+        const payload = (await response.json()) as { questions?: Question[] };
+        setRole("student");
+        setDynamicQuestions(
+          filterRenderableQuestions(payload.questions ?? []).map(withStandard),
+        );
+      } catch {
+        setRole("student");
+        setDynamicQuestions([]);
+      } finally {
+        setIsLoaded(true);
+      }
+      return;
+    }
 
     if (!hasSupabaseEnv()) {
       setRole(null);
@@ -86,7 +100,7 @@ export function useQuestions() {
     if (role === "student") {
       return dynamicQuestions.map(withStandard);
     }
-    return [...fileQuestions, ...dynamicQuestions].map(withStandard);
+    return dynamicQuestions.map(withStandard);
   }, [role, dynamicQuestions]);
 
   /** Same as `allQuestions`; visibility is controlled only via Self Practice inclusion for generated sets. */
@@ -99,8 +113,4 @@ export function useQuestions() {
     reload: loadQuestions,
     role,
   };
-}
-
-export function getStaticQuestions(): Question[] {
-  return fileQuestions.filter((q) => q.isVisible !== false).map(withStandard);
 }

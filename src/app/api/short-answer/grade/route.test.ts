@@ -342,7 +342,7 @@ describe("POST /api/short-answer/grade", () => {
     });
   });
 
-  it("scopes short-answer summary lookup to the current assignment run", async () => {
+  it("scopes short-answer summaries to the assignment run and question set", async () => {
     resolveAssignmentRunAfter.mockResolvedValue("2026-04-10T10:00:00.000Z");
     adminTableState["short_answer_attempts"] = {
       select: item.parts.map((part) => ({
@@ -365,7 +365,11 @@ describe("POST /api/short-answer/grade", () => {
 
     const { POST } = await load();
     const res = await POST(
-      makeRequest({ ...validBody, assignmentId: "asg-1" }),
+      makeRequest({
+        ...validBody,
+        questionSetId: "set-a",
+        assignmentId: "asg-1",
+      }),
     );
 
     expect(res.status).toBe(200);
@@ -374,6 +378,27 @@ describe("POST /api/short-answer/grade", () => {
       method: "gt",
       column: "answered_at",
       value: "2026-04-10T10:00:00.000Z",
+    });
+    expect(adminQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "eq",
+      column: "question_set_id",
+      value: "set-a",
+    });
+    expect(adminQueryCalls).toContainEqual({
+      table: "attempts",
+      method: "eq",
+      column: "question_set_id",
+      value: "set-a",
+    });
+    expect(adminQueryCalls).toContainEqual({
+      table: "attempts",
+      method: "insert",
+      value: expect.objectContaining({
+        question_id: validBody.questionId,
+        question_set_id: "set-a",
+        selected_option_id: "short-answer",
+      }),
     });
   });
 

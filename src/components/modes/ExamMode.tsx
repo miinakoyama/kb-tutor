@@ -52,6 +52,7 @@ import { getStandardForTopic } from "@/lib/standards";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
+import { answeredEntryForQuestion } from "@/lib/assignments/answered-map";
 
 const PRIMARY_COLOR = "#16a34a";
 const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
@@ -212,7 +213,7 @@ export function ExamMode({
   const examOnboardingOfferedRef = useRef(false);
   /** Cumulative time (ms) the learner had each question visible during the exam phase (multiple visits add up). */
   const questionDwellMsRef = useRef<Record<number, number>>({});
-  const assignmentPersistedDwellMsRef = useRef<Record<number, number>>({});
+  const assignmentFinalAttemptIdsRef = useRef<Record<number, string>>({});
   const visitRef = useRef<{ index: number; startMs: number } | null>(null);
   const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const examRunStartedAtRef = useRef(new Date().toISOString());
@@ -236,7 +237,7 @@ export function ExamMode({
     clearBlurFlushTimer();
     flushQuestionVisit();
     questionDwellMsRef.current = {};
-    assignmentPersistedDwellMsRef.current = {};
+    assignmentFinalAttemptIdsRef.current = {};
   }, [clearBlurFlushTimer, flushQuestionVisit]);
 
   const isExamTimingPausedByOnboarding =
@@ -344,7 +345,7 @@ export function ExamMode({
     if (isAssignmentRun && answered) {
       const prefilled: Record<number, AnswerRecord> = {};
       ordered.forEach((q, index) => {
-        const prior = answered[q.id];
+        const prior = answeredEntryForQuestion(answered, q);
         if (prior && prior.selectedOptionId) {
           prefilled[index] = {
             selectedOptionId: prior.selectedOptionId,
@@ -354,7 +355,7 @@ export function ExamMode({
       });
       setAnswers(prefilled);
       const firstUnanswered = ordered.findIndex((q) => {
-        const prior = answered[q.id];
+        const prior = answeredEntryForQuestion(answered, q);
         return !prior?.selectedOptionId;
       });
       setCurrentIndex(firstUnanswered === -1 ? 0 : firstUnanswered);
@@ -628,6 +629,9 @@ export function ExamMode({
           : getStandardForTopic(q.topic);
         saveAnswer({
           questionId: q.id,
+          questionSetId: q.questionSetId,
+          questionContentVersion: q.contentVersion,
+          isFinalized: false,
           selectedOptionId: optionId,
           isCorrect,
           timestamp: Date.now(),
@@ -639,7 +643,6 @@ export function ExamMode({
           assignmentId,
           ...(timeSpentSec !== null ? { timeSpentSec } : {}),
         });
-        assignmentPersistedDwellMsRef.current[currentIndex] = totalDwellMs;
       }
 
       trackAnalyticsEvent({
@@ -839,6 +842,8 @@ export function ExamMode({
           isSaq: isSaqQuestion(q),
           record: {
             questionId: q.id,
+            questionSetId: q.questionSetId,
+            questionContentVersion: q.contentVersion,
             selectedOptionId: a?.selectedOptionId ?? "",
             isCorrect: a?.isCorrect ?? false,
             timestamp: Date.now(),
@@ -859,34 +864,27 @@ export function ExamMode({
     }
 
     if (isAssignmentRun && assignmentId) {
-      // Persist any additional dwell collected after the last answer click.
-      // This avoids under-reporting when a learner answers once and then
-      // spends more time reviewing before submitting.
+      // Draft option clicks support resume but are not BKT evidence. Submit
+      // exactly one finalized attempt per answered MCQ, including resumed
+      // drafts whose dwell time did not change in this browser session.
       sessionQuestions.forEach((q, i) => {
         if (isSaqQuestion(q)) return;
         const a = answers[i];
         if (!a?.selectedOptionId) return;
-        // Only questions persisted in this browser session should be eligible
-        // for submit-time dwell delta writes. Resumed pre-answered questions
-        // have no baseline here; treating them as 0 would create duplicate
-        // attempts even when the learner never changed their answer.
-        if (
-          !Object.prototype.hasOwnProperty.call(
-            assignmentPersistedDwellMsRef.current,
-            i,
-          )
-        ) {
-          return;
-        }
         const totalDwellMs = questionDwellMsRef.current[i] ?? 0;
-        const persistedDwellMs = assignmentPersistedDwellMsRef.current[i] ?? 0;
-        if (totalDwellMs <= persistedDwellMs) return;
         const resolvedStandard = q.standardId
           ? { id: q.standardId, label: q.standardLabel }
           : getStandardForTopic(q.topic);
         const timeSpentSec = dwellMsToRecordedSec(totalDwellMs);
+        const clientAttemptId =
+          assignmentFinalAttemptIdsRef.current[i] ?? crypto.randomUUID();
+        assignmentFinalAttemptIdsRef.current[i] = clientAttemptId;
         saveAnswer({
+          clientAttemptId,
           questionId: q.id,
+          questionSetId: q.questionSetId,
+          questionContentVersion: q.contentVersion,
+          isFinalized: true,
           selectedOptionId: a.selectedOptionId,
           isCorrect: a.isCorrect,
           timestamp: nowMs(),
@@ -898,7 +896,6 @@ export function ExamMode({
           assignmentId,
           ...(timeSpentSec !== null ? { timeSpentSec } : {}),
         });
-        assignmentPersistedDwellMsRef.current[i] = totalDwellMs;
       });
 
       void (async () => {

@@ -12,6 +12,7 @@ import type {
 } from "@/types/short-answer";
 import { getAllStandards } from "@/lib/standards";
 import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
+import { fetchActiveKcsForStandard, type KnowledgeComponent } from "@/lib/knowledge-components";
 
 const ALL_STANDARDS = getAllStandards();
 type GlossaryListKey = "inlineTerms" | "sidebarTerms";
@@ -133,6 +134,27 @@ export function QuestionEditModal({
       : "";
   });
   const [chartDataError, setChartDataError] = useState<string | null>(null);
+  const [availableKcs, setAvailableKcs] = useState<KnowledgeComponent[]>([]);
+  const [kcsLoading, setKcsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const standardId = edited.standardId ?? "";
+    if (!standardId) {
+      setAvailableKcs([]);
+      return;
+    }
+    setKcsLoading(true);
+    void fetchActiveKcsForStandard(standardId).then((kcs) => {
+      if (!cancelled) {
+        setAvailableKcs(kcs);
+        setKcsLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [edited.standardId]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -395,6 +417,9 @@ export function QuestionEditModal({
     );
     onSave({
       ...edited,
+      includeInSelfPractice: edited.kcCode
+        ? edited.includeInSelfPractice
+        : false,
       inlineTerms,
       sidebarTerms,
     });
@@ -779,6 +804,9 @@ export function QuestionEditModal({
                     ...prev,
                     standardId: e.target.value,
                     standardLabel: selected?.label,
+                    // Clear the KC so a stale assignment from the old standard
+                    // is never saved against the new one.
+                    kcCode: undefined,
                   }));
                 }}
                 className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm"
@@ -787,6 +815,43 @@ export function QuestionEditModal({
                 {ALL_STANDARDS.map((standard) => (
                   <option key={standard.id} value={standard.id}>
                     {standard.id} - {standard.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="question-kc-code"
+                className="block text-sm font-medium text-slate-gray mb-1"
+              >
+                Knowledge Component
+              </label>
+              <select
+                id="question-kc-code"
+                value={edited.kcCode || ""}
+                onChange={(e) => {
+                  const kcCode = e.target.value || undefined;
+                  setEdited((prev) => ({
+                    ...prev,
+                    kcCode,
+                    includeInSelfPractice: kcCode
+                      ? prev.includeInSelfPractice
+                      : false,
+                  }));
+                }}
+                disabled={!edited.standardId || kcsLoading}
+                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm disabled:opacity-50"
+              >
+                <option value="">
+                  {!edited.standardId
+                    ? "Select a standard first"
+                    : kcsLoading
+                      ? "Loading…"
+                      : "Unassigned (excludes from adaptive Practice)"}
+                </option>
+                {availableKcs.map((kc) => (
+                  <option key={kc.code} value={kc.code}>
+                    {kc.code} — {kc.statement.length > 90 ? `${kc.statement.slice(0, 90)}…` : kc.statement}
                   </option>
                 ))}
               </select>

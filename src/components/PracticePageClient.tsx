@@ -288,6 +288,17 @@ export function PracticePageClient({
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
           assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+          adaptiveStandardIds={
+            hasAssignmentSnapshot || selectedQuestionIds.length > 0
+              ? undefined
+              : Array.from(
+                  new Set(
+                    filteredQuestions.flatMap((question) =>
+                      question.standardId ? [question.standardId] : [],
+                    ),
+                  ),
+                )
+          }
         />
       );
     case "exam": {

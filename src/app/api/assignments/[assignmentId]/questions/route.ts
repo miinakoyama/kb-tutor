@@ -252,7 +252,7 @@ export async function GET(
     if (questionIds.length > 0) {
       const { data: attemptRows } = await admin
         .from("attempts")
-        .select("question_id,selected_option_id,is_correct,answered_at")
+        .select("question_set_id,question_id,selected_option_id,is_correct,answered_at")
         .eq("user_id", requester.id)
         .eq("assignment_id", normalizedAssignmentId)
         .in("question_id", questionIds)
@@ -267,7 +267,7 @@ export async function GET(
       let saqQuery = admin
         .from("short_answer_attempts")
         .select(
-          "id, question_id, part_label, attempt_number, response_text, feedback, is_correct, answered_at",
+          "id, question_set_id, question_id, part_label, attempt_number, response_text, feedback, is_correct, answered_at",
         )
         .eq("user_id", requester.id)
         .eq("assignment_id", normalizedAssignmentId)

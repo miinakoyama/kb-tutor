@@ -48,7 +48,7 @@ export async function fetchStudentSelfPracticeQuestions(
         .in("id", setIds),
       supabase
         .from("generated_questions")
-        .select("id,set_id,payload,is_visible,include_in_self_practice")
+        .select("id,set_id,payload,is_visible,include_in_self_practice,content_version")
         .eq("include_in_self_practice", true)
         .in("set_id", setIds)
         .order("created_at", { ascending: true })
@@ -66,7 +66,12 @@ export async function fetchStudentSelfPracticeQuestions(
     const list = questionBySet.get(setId) ?? [];
     list.push({
       ...withStandard(payload),
+      id: String(row.id),
       questionSetId: setId,
+      contentVersion:
+        typeof row.content_version === "string"
+          ? row.content_version
+          : undefined,
       isVisible: true,
       includeInSelfPractice: true,
     });

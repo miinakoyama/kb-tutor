@@ -40,7 +40,9 @@ import { getStandardForTopic } from "@/lib/standards";
 import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
+import { processQueue } from "@/lib/sync-queue";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
+import { answeredEntryForQuestion } from "@/lib/assignments/answered-map";
 
 const MAX_ATTEMPTS = 2;
 const GLOSSARY_FALLBACK_LIMIT = 6;
@@ -59,6 +61,7 @@ const FEATURE_SPOTLIGHT_TARGET_IDS = {
 } as const;
 
 type FeatureSpotlightType = "read-aloud" | "sidebar-glossary" | "inline-glossary";
+type AdaptiveRequestResult = "selected" | "stopped" | "scope_unavailable";
 
 function isDocumentActiveForTiming(): boolean {
   if (typeof document === "undefined") return false;
@@ -89,6 +92,8 @@ interface AdaptivePracticeModeProps {
   assignmentRunAfter?: string | null;
   /** Fires when the completion API reports every school assignment is done. */
   onAllSchoolAssignmentsCompleted?: () => void;
+  /** Ordered adaptive scope. Omit for assignments and Review. */
+  adaptiveStandardIds?: string[];
 }
 
 interface AttemptRecord {
@@ -108,6 +113,7 @@ export function AdaptivePracticeMode({
   answered,
   assignmentRunAfter,
   onAllSchoolAssignmentsCompleted,
+  adaptiveStandardIds,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -134,6 +140,9 @@ export function AdaptivePracticeMode({
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
+  const [adaptiveLoading, setAdaptiveLoading] = useState(false);
+  const [adaptiveStopReason, setAdaptiveStopReason] = useState<string | null>(null);
+  const [adaptiveUnavailable, setAdaptiveUnavailable] = useState(false);
   const [activeFeatureSpotlight, setActiveFeatureSpotlight] =
     useState<FeatureSpotlightType | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -154,6 +163,64 @@ export function AdaptivePracticeMode({
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+
+  const adaptiveScopeKey = adaptiveStandardIds?.join(",") ?? "";
+  const adaptiveRequested =
+    !isAssignmentRun && mode === "practice" && Boolean(adaptiveScopeKey);
+  const adaptiveEnabled = adaptiveRequested && !adaptiveUnavailable;
+
+  const requestAdaptiveQuestion = useCallback(
+    async (append: boolean): Promise<AdaptiveRequestResult> => {
+      const standardIds = adaptiveScopeKey.split(",").filter(Boolean);
+      if (!standardIds.length) return "stopped";
+      setAdaptiveLoading(true);
+      setAdaptiveStopReason(null);
+      try {
+        const response = await fetch("/api/practice/next", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            standardIds,
+            sessionId: sessionIdRef.current,
+          }),
+        });
+        const payload = (await response.json()) as {
+          status?: string;
+          reason?: string;
+          error?: string;
+          question?: Question;
+        };
+        if (!response.ok) throw new Error(payload.error ?? "Unable to select the next question");
+        if (payload.status === "unavailable" && payload.reason === "scope_unavailable") {
+          setAdaptiveStopReason(null);
+          return "scope_unavailable";
+        }
+        if (payload.status !== "selected" || !payload.question) {
+          setAdaptiveStopReason(
+            payload.status === "complete"
+              ? "All KCs in this practice scope are mastered."
+              : "Practice paused because no mapped question is available for the next KC.",
+          );
+          return "stopped";
+        }
+        setSessionQuestions((previous) => append ? [...previous, payload.question!] : [payload.question!]);
+        const bookmarkIds = await fetchBookmarkIds();
+        if (bookmarkIds.includes(payload.question.id)) {
+          setBookmarkedQuestions((previous) => new Set(previous).add(payload.question!.id));
+        }
+        return "selected";
+      } catch (adaptiveError) {
+        setAdaptiveStopReason(
+          adaptiveError instanceof Error ? adaptiveError.message : "Unable to select the next question",
+        );
+        return "stopped";
+      } finally {
+        setAdaptiveLoading(false);
+      }
+    },
+    [adaptiveScopeKey],
+  );
 
   // When mode === "review", emit the mode-level entry/exit events in addition
   // to the per-item `review_item_*` events that already fire below. Runs once
@@ -200,48 +267,67 @@ export function AdaptivePracticeMode({
     // For assignments we trust the server's deterministic ordering so resume
     // always lands on the same question. Self-practice keeps the legacy
     // random-shuffle-and-cap behavior.
-    const count = questionCount ?? questions.length;
-    const selected = isAssignmentRun
-      ? questions.slice(0, count)
-      : shuffleArray(questions).slice(0, count);
-    setSessionQuestions(selected);
-    // Seed bookmark state from Supabase so it stays correct across devices.
-    // toggleBookmark updates the localStorage cache synchronously after this
-    // point, so the UI stays responsive without more DB round-trips.
-    void fetchBookmarkIds().then((ids) => {
-      const bookmarked = new Set(ids);
-      setBookmarkedQuestions(
-        new Set(selected.map((q) => q.id).filter((id) => bookmarked.has(id))),
-      );
-    });
-
-    if (isAssignmentRun && answered) {
-      const prefilledFinals: Record<number, AnswerRecord> = {};
-      const prefilledAttempts: Record<number, AttemptRecord[]> = {};
-      selected.forEach((q, index) => {
-        const prior = answered[q.id];
-        if (!prior) return;
-        prefilledFinals[index] = {
-          selectedOptionId: prior.selectedOptionId ?? "",
-          isCorrect: prior.isCorrect,
-        };
-        if (prior.selectedOptionId) {
-          prefilledAttempts[index] = [
-            {
-              selectedOptionId: prior.selectedOptionId,
-              isCorrect: prior.isCorrect,
-            },
-          ];
-        }
+    const initializeFixedPractice = () => {
+      const count = questionCount ?? questions.length;
+      const selected = isAssignmentRun
+        ? questions.slice(0, count)
+        : shuffleArray(questions).slice(0, count);
+      setSessionQuestions(selected);
+      // Seed bookmark state from Supabase so it stays correct across devices.
+      // toggleBookmark updates the localStorage cache synchronously after this
+      // point, so the UI stays responsive without more DB round-trips.
+      void fetchBookmarkIds().then((ids) => {
+        const bookmarked = new Set(ids);
+        setBookmarkedQuestions(
+          new Set(selected.map((q) => q.id).filter((id) => bookmarked.has(id))),
+        );
       });
-      setFinalAnswers(prefilledFinals);
-      setAttemptsByIndex(prefilledAttempts);
-      const firstUnanswered = selected.findIndex((q) => !answered[q.id]);
-      setCurrentIndex(firstUnanswered === -1 ? selected.length - 1 : firstUnanswered);
-    }
 
+      if (isAssignmentRun && answered) {
+        const prefilledFinals: Record<number, AnswerRecord> = {};
+        const prefilledAttempts: Record<number, AttemptRecord[]> = {};
+        selected.forEach((q, index) => {
+          const prior = answeredEntryForQuestion(answered, q);
+          if (!prior) return;
+          prefilledFinals[index] = {
+            selectedOptionId: prior.selectedOptionId ?? "",
+            isCorrect: prior.isCorrect,
+          };
+          if (prior.selectedOptionId) {
+            prefilledAttempts[index] = [
+              {
+                selectedOptionId: prior.selectedOptionId,
+                isCorrect: prior.isCorrect,
+              },
+            ];
+          }
+        });
+        setFinalAnswers(prefilledFinals);
+        setAttemptsByIndex(prefilledAttempts);
+        const firstUnanswered = selected.findIndex(
+          (q) => !answeredEntryForQuestion(answered, q),
+        );
+        setCurrentIndex(firstUnanswered === -1 ? selected.length - 1 : firstUnanswered);
+      }
+    };
+
+    if (adaptiveRequested) {
+      setAdaptiveUnavailable(false);
+      setSessionQuestions([]);
+      setCurrentIndex(0);
+      setIsInitialized(false);
+      void requestAdaptiveQuestion(false).then((result) => {
+        if (result === "scope_unavailable") {
+          setAdaptiveUnavailable(true);
+          initializeFixedPractice();
+        }
+      }).finally(() => setIsInitialized(true));
+      return;
+    }
+    setAdaptiveUnavailable(false);
+    initializeFixedPractice();
     setIsInitialized(true);
-  }, [questions, questionCount, isAssignmentRun, answered]);
+  }, [questions, questionCount, isAssignmentRun, answered, adaptiveRequested, requestAdaptiveQuestion]);
 
   useEffect(() => {
     setSelectedOptionId(null);
@@ -668,6 +754,8 @@ export function AdaptivePracticeMode({
       : getStandardForTopic(question.topic);
     saveAnswer({
       questionId: question.id,
+      questionSetId: question.questionSetId,
+      questionContentVersion: question.contentVersion,
       selectedOptionId: selectedOptionId,
       isCorrect: result.isCorrect,
       timestamp: Date.now(),
@@ -811,7 +899,7 @@ export function AdaptivePracticeMode({
     setShowSummary(true);
   }, [assignmentId, markStageCompleted, mode]);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
     if (!isCompleted) return;
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex((prev) => prev + 1);
@@ -823,6 +911,21 @@ export function AdaptivePracticeMode({
     if (allCompleted) {
       if (isAssignmentRun) {
         finishSession();
+      } else if (adaptiveEnabled) {
+        if (questionCount && completedCount >= questionCount) {
+          finishSession();
+          return;
+        }
+        await processQueue();
+        const result = await requestAdaptiveQuestion(true);
+        if (result === "selected") {
+          setCurrentIndex((prev) => prev + 1);
+          requestAnimationFrame(() => {
+            scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        } else {
+          finishSession();
+        }
       } else {
         // Self-practice: cycle by appending another shuffled batch
         setSessionQuestions((prev) => [...prev, ...shuffleArray(questions)]);
@@ -834,11 +937,15 @@ export function AdaptivePracticeMode({
     }
   }, [
     allCompleted,
+    adaptiveEnabled,
+    completedCount,
     currentIndex,
     finishSession,
     isAssignmentRun,
     isCompleted,
     questions,
+    questionCount,
+    requestAdaptiveQuestion,
     totalQuestions,
   ]);
 
@@ -1030,6 +1137,9 @@ export function AdaptivePracticeMode({
           <p className="text-sm text-muted-foreground">
             {correctCount} of {answeredTotal} final answers correct
           </p>
+          {adaptiveStopReason ? (
+            <p className="mt-3 text-sm text-muted-foreground">{adaptiveStopReason}</p>
+          ) : null}
         </div>
 
         <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-4">
@@ -1136,7 +1246,7 @@ export function AdaptivePracticeMode({
       <button
         type="button"
         onClick={handleNext}
-        disabled={!isCompleted}
+        disabled={!isCompleted || adaptiveLoading}
         className={sessionPrimaryButtonClass}
         style={sessionPrimaryButtonStyle}
       >
