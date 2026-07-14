@@ -104,6 +104,7 @@ async function maybeRecordQuestionSummary(
   params: {
     userId: string;
     questionId: string;
+    questionSetId: string | null;
     assignmentId: string | null | undefined;
     assignmentRunAfter: string | null;
     practiceRunAfter?: string | null;
@@ -120,6 +121,9 @@ async function maybeRecordQuestionSummary(
     )
     .eq("user_id", params.userId)
     .eq("question_id", params.questionId);
+  query = params.questionSetId
+    ? query.eq("question_set_id", params.questionSetId)
+    : query.is("question_set_id", null);
   if (params.assignmentId) {
     query = query.eq("assignment_id", params.assignmentId);
     query = applyAssignmentRunFilter(
@@ -147,6 +151,9 @@ async function maybeRecordQuestionSummary(
     .eq("user_id", params.userId)
     .eq("question_id", params.questionId)
     .eq("selected_option_id", "short-answer");
+  existingQuery = params.questionSetId
+    ? existingQuery.eq("question_set_id", params.questionSetId)
+    : existingQuery.is("question_set_id", null);
   existingQuery = params.assignmentId
     ? existingQuery.eq("assignment_id", params.assignmentId)
     : existingQuery.is("assignment_id", null);
@@ -162,6 +169,7 @@ async function maybeRecordQuestionSummary(
     user_id: params.userId,
     assignment_id: params.assignmentId ?? null,
     question_id: params.questionId,
+    question_set_id: params.questionSetId,
     selected_option_id: "short-answer",
     is_correct: completion.allCorrect,
     mode: params.mode,
@@ -456,6 +464,7 @@ export async function POST(request: Request) {
     await maybeRecordQuestionSummary(admin, {
       userId: user.id,
       questionId: body.questionId,
+      questionSetId: body.questionSetId ?? null,
       assignmentId: body.assignmentId,
       assignmentRunAfter,
       practiceRunAfter: body.assignmentId ? null : body.practiceRunAfter,

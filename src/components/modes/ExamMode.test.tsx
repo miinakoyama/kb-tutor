@@ -4,6 +4,7 @@ import { ExamMode } from "./ExamMode";
 import sampleShortAnswerItem from "@/data/short-answer/sample-item.json";
 import type { Question } from "@/types/question";
 import type { ShortAnswerItem } from "@/types/short-answer";
+import { getAnswerHistory } from "@/lib/storage";
 
 const EXAM_ONBOARDING_DISMISSED_KEY = "kb-tutor-exam-onboarding-dismissed-v1";
 
@@ -175,6 +176,13 @@ describe("ExamMode onboarding timing + analytics gating", () => {
 
     await screen.findByText("Question one prompt");
     fireEvent.click(screen.getByRole("button", { name: /B\s*Option B/i }));
+    expect(getAnswerHistory()).toContainEqual(
+      expect.objectContaining({
+        questionId: "q-1",
+        mode: "exam",
+        isFinalized: false,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     await screen.findByText("Submit Exam?");
@@ -183,6 +191,13 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     fireEvent.click(submitButtons[submitButtons.length - 1]);
 
     await screen.findByText("Exam Complete!");
+    expect(getAnswerHistory()).toContainEqual(
+      expect.objectContaining({
+        questionId: "q-1",
+        mode: "exam",
+        isFinalized: true,
+      }),
+    );
     expect(screen.getByText("50%")).toBeTruthy();
     expect(screen.getByText("Correct").previousElementSibling?.textContent).toBe("1");
     expect(screen.getByText("Incorrect").previousElementSibling?.textContent).toBe("1");

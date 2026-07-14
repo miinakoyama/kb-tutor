@@ -8,6 +8,7 @@ import { AdaptivePracticeMode } from "@/components/modes/AdaptivePracticeMode";
 import { fetchIncorrectQuestionCounts } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { prioritizeQuestionsByWrongCount } from "@/lib/review-priority";
+import { questionHistoryKey } from "@/lib/bkt/question-history";
 
 const MAX_REVIEW_QUESTIONS = 10;
 
@@ -57,23 +58,46 @@ export function ReviewMode({
       // only used as an offline fallback inside the fetch.
       const incorrectCounts = await fetchIncorrectQuestionCounts();
       const wrongCountByQuestion = new Map<string, number>(
-        Object.entries(incorrectCounts).map(([questionId, count]) => [
-          questionId,
+        Object.entries(incorrectCounts).map(([questionKey, count]) => [
+          questionKey,
           Number(count),
         ]),
       );
-      const incorrectQuestions = questions.filter((q) =>
-        wrongCountByQuestion.has(q.id),
-      );
+      const questionIdFrequency = new Map<string, number>();
+      for (const question of questions) {
+        questionIdFrequency.set(
+          question.id,
+          (questionIdFrequency.get(question.id) ?? 0) + 1,
+        );
+      }
+      const wrongCountByCandidate = new Map<string, number>();
+      const incorrectQuestions = questions.flatMap((question) => {
+        const scopedKey = questionHistoryKey(
+          question.questionSetId ?? null,
+          question.id,
+        );
+        const legacyKey = questionHistoryKey(null, question.id);
+        const scopedCount = wrongCountByQuestion.get(scopedKey) ?? 0;
+        const legacyCount =
+          scopedKey !== legacyKey && questionIdFrequency.get(question.id) === 1
+            ? (wrongCountByQuestion.get(legacyKey) ?? 0)
+            : 0;
+        const wrongCount = scopedCount + legacyCount;
+        if (wrongCount === 0) return [];
+        wrongCountByCandidate.set(scopedKey, wrongCount);
+        return [{ id: scopedKey, question }];
+      });
       const cap = questionCount ?? MAX_REVIEW_QUESTIONS;
       const prioritized = prioritizeQuestionsByWrongCount(
         incorrectQuestions,
-        wrongCountByQuestion,
+        wrongCountByCandidate,
         {
           shuffleWithinSameWrongCount: (bucket) => shuffleArray(bucket),
         },
       );
-      setReviewQuestions(prioritized.slice(0, cap));
+      setReviewQuestions(
+        prioritized.slice(0, cap).map(({ question }) => question),
+      );
       setIsInitialized(true);
     };
     void load();

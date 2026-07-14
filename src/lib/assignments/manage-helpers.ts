@@ -484,6 +484,8 @@ export function normalizeQuestionPayload(
     explanation: asOptionalString(question.explanation),
     focusHint: asOptionalString(question.focusHint),
     keyKnowledge: asOptionalString(question.keyKnowledge),
+    kcCode: asOptionalString(question.kcCode),
+    kcStatement: asOptionalString(question.kcStatement),
     commonMisconception: asOptionalString(question.commonMisconception),
     dok: asDokLevel(question.dok),
     rationaleQuestion: asRationaleQuestion(question.rationaleQuestion),
@@ -491,6 +493,8 @@ export function normalizeQuestionPayload(
     sidebarTerms,
     diagram,
     source: "generated" as const,
+    questionSetId: asOptionalString(question.questionSetId),
+    contentVersion: asOptionalString(question.contentVersion),
     isVisible: true,
     generatedAt: new Date().toISOString(),
   };
@@ -598,21 +602,30 @@ async function resolveSelectedQuestions(
 
   const { data: questionRows, error: questionError } = await admin
     .from("generated_questions")
-    .select("set_id,id,payload,created_at")
+    .select("set_id,id,payload,content_version,created_at")
     .in("set_id", setIds)
     .order("created_at", { ascending: true });
   if (questionError) {
     return { error: questionError.message, status: 400 };
   }
 
-  const questionsBySet = new Map<string, Map<string, unknown>>();
+  const questionsBySet = new Map<
+    string,
+    Map<string, { payload: unknown; contentVersion?: string }>
+  >();
   for (const row of questionRows ?? []) {
     const setId = String(row.set_id);
     const questionId = String(row.id);
     if (!questionsBySet.has(setId)) {
       questionsBySet.set(setId, new Map());
     }
-    questionsBySet.get(setId)!.set(questionId, row.payload);
+    questionsBySet.get(setId)!.set(questionId, {
+      payload: row.payload,
+      contentVersion:
+        typeof row.content_version === "string"
+          ? row.content_version
+          : undefined,
+    });
   }
 
   const questions: Question[] = [];
@@ -621,15 +634,19 @@ async function resolveSelectedQuestions(
     const pool = questionsBySet.get(entry.setId);
     if (!pool) continue;
     for (const questionId of entry.questionIds) {
-      const payload = pool.get(questionId);
-      if (!payload) continue;
+      const source = pool.get(questionId);
+      if (!source) continue;
       const normalized = normalizeQuestionPayload(
-        payload,
+        source.payload,
         runningIndex,
         "existing_set",
       );
       if (normalized) {
-        questions.push(normalized);
+        questions.push({
+          ...normalized,
+          questionSetId: entry.setId,
+          contentVersion: source.contentVersion,
+        });
         runningIndex += 1;
       }
     }
@@ -689,7 +706,7 @@ export async function resolveSnapshotQuestions(
 
     const { data: questionRows, error: questionError } = await admin
       .from("generated_questions")
-      .select("payload,created_at")
+      .select("payload,content_version,created_at")
       .eq("set_id", setId)
       .order("created_at", { ascending: true });
     if (questionError) {
@@ -697,10 +714,24 @@ export async function resolveSnapshotQuestions(
     }
 
     const questions = (questionRows ?? [])
-      .map((row, index) =>
-        normalizeQuestionPayload(row.payload, index, "existing_set"),
-      )
-      .filter((row): row is Question => row !== null);
+      .map((row, index) => {
+        const normalized = normalizeQuestionPayload(
+          row.payload,
+          index,
+          "existing_set",
+        );
+        return normalized
+          ? {
+              ...normalized,
+              questionSetId: setId,
+              contentVersion:
+                typeof row.content_version === "string"
+                  ? row.content_version
+                  : undefined,
+            }
+          : null;
+      })
+      .filter((row) => row !== null);
     if (questions.length === 0) {
       return {
         error: "Selected question set has no usable questions.",
