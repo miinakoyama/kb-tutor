@@ -289,7 +289,7 @@ export function PracticePageClient({
           assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
           adaptiveStandardIds={
-            hasAssignmentSnapshot
+            hasAssignmentSnapshot || selectedQuestionIds.length > 0
               ? undefined
               : Array.from(
                   new Set(

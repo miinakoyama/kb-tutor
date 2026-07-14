@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   if (rolloutError) return NextResponse.json({ error: "Unable to load adaptive rollout state" }, { status: 500 });
   const enabled = new Set((rolloutRows ?? []).map((row) => String(row.standard_id)));
   const enabledStandards = body.standardIds.filter((standardId) => enabled.has(standardId));
-  if (!enabledStandards.length) {
+  if (enabledStandards.length !== body.standardIds.length) {
     return NextResponse.json({ status: "unavailable", reason: "scope_unavailable" });
   }
 

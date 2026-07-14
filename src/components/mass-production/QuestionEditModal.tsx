@@ -417,6 +417,9 @@ export function QuestionEditModal({
     );
     onSave({
       ...edited,
+      includeInSelfPractice: edited.kcCode
+        ? edited.includeInSelfPractice
+        : false,
       inlineTerms,
       sidebarTerms,
     });
@@ -817,14 +820,25 @@ export function QuestionEditModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-gray mb-1">
+              <label
+                htmlFor="question-kc-code"
+                className="block text-sm font-medium text-slate-gray mb-1"
+              >
                 Knowledge Component
               </label>
               <select
+                id="question-kc-code"
                 value={edited.kcCode || ""}
-                onChange={(e) =>
-                  setEdited((prev) => ({ ...prev, kcCode: e.target.value || undefined }))
-                }
+                onChange={(e) => {
+                  const kcCode = e.target.value || undefined;
+                  setEdited((prev) => ({
+                    ...prev,
+                    kcCode,
+                    includeInSelfPractice: kcCode
+                      ? prev.includeInSelfPractice
+                      : false,
+                  }));
+                }}
                 disabled={!edited.standardId || kcsLoading}
                 className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-leaf/50 text-sm disabled:opacity-50"
               >
