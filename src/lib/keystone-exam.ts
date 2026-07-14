@@ -1,9 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type KeystoneExamInfo = {
-  schoolId: string;
+  schoolId: string | null;
   schoolName: string | null;
   examDate: string;
+  /**
+   * "personal" when the student set their own date in user_settings
+   * (it overrides the school default); "school" otherwise.
+   */
+  source: "personal" | "school";
 };
 
 type SchoolMemberRow = {
@@ -36,29 +41,53 @@ export interface GetStudentKeystoneExamOptions {
 }
 
 /**
- * Returns the nearest upcoming keystone exam date across all the student's
- * enrolled schools, or `null` if no school has one configured (or all
- * configured dates are already in the past).
+ * Returns the student's Keystone exam date for the countdown:
  *
- * We intentionally prefer a server-side filter on the date so that past
- * exams naturally disappear from the student's home page.
+ * 1. A personal date the student set themselves
+ *    (`user_settings.keystone_exam_date`) wins outright — it exists
+ *    precisely to override the school default.
+ * 2. Otherwise the nearest upcoming date across the student's enrolled
+ *    schools.
+ * 3. `null` when neither yields a today-or-future date — past exams
+ *    naturally disappear from the student's home page.
  */
 export async function getStudentKeystoneExam(
   supabase: SupabaseClient,
   userId: string,
   options: GetStudentKeystoneExamOptions = {},
 ): Promise<KeystoneExamInfo | null> {
-  const { data, error } = await supabase
-    .from("school_members")
-    .select(
-      "school_id,schools(id,name,keystone_exam_date)",
-    )
-    .eq("student_user_id", userId);
-
-  if (error || !data) return null;
-
   const now = options.now ?? new Date();
   const todayYmd = todayYmdInTimeZone(options.timeZone, now);
+
+  const [{ data: settingsRow }, { data, error }] = await Promise.all([
+    supabase
+      .from("user_settings")
+      .select("keystone_exam_date")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("school_members")
+      .select("school_id,schools(id,name,keystone_exam_date)")
+      .eq("student_user_id", userId),
+  ]);
+
+  const personalDate =
+    typeof settingsRow?.keystone_exam_date === "string" &&
+    parseYmd(settingsRow.keystone_exam_date) &&
+    settingsRow.keystone_exam_date >= todayYmd
+      ? settingsRow.keystone_exam_date
+      : null;
+
+  if (personalDate) {
+    return {
+      schoolId: null,
+      schoolName: null,
+      examDate: personalDate,
+      source: "personal",
+    };
+  }
+
+  if (error || !data) return null;
 
   const candidates: KeystoneExamInfo[] = [];
   for (const row of data as SchoolMemberRow[]) {
@@ -69,6 +98,7 @@ export async function getStudentKeystoneExam(
       schoolId: school.id,
       schoolName: school.name,
       examDate: school.keystone_exam_date,
+      source: "school",
     });
   }
 
