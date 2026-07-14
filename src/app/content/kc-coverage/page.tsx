@@ -562,7 +562,7 @@ function ExceptionsList({
                       command(
                         key,
                         { action: "withdraw_mapping", questionSetId, questionId, partLabel: null },
-                        `Clear the invalid mapping for question ${questionId}? It stays unresolved until a new KC is assigned.`,
+                        `Clear the invalid mapping for question ${questionId}? It will be removed from Self Practice until a new KC is assigned.`,
                       )
                     }
                   >

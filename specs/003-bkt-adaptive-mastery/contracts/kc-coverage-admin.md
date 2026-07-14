@@ -66,7 +66,7 @@ Actions:
 - `enable_standard`: compare current hash and move `ready -> enabled`
 - `disable_standard`: move to disabled with an English reason
 - `replace_mapping`: admin correction with question, part (nullable), and KC
-- `withdraw_mapping`: close active mapping and disable/revalidate the standard
+- `withdraw_mapping`: remove the embedded MCQ mapping, exclude the question from Self Practice, and disable/revalidate the standard
 
 Every destructive or activation action requires UI confirmation and is reversible where defined. Server calls restricted database functions and returns updated counts/status.
 
@@ -85,4 +85,3 @@ Every destructive or activation action requires UI confirmation and is reversibl
 ```
 
 Activation fails `409` when the coverage hash changed or any blocking count is non-zero.
-

@@ -12,6 +12,7 @@ const PROMPT_VERSION = "legacy-kc-v1";
 const BATCH_SIZE = 10;
 
 export interface ClassifierOutput {
+  questionSetId: string;
   questionId: string;
   outcome: "assigned" | "ambiguous" | "invalid";
   kcCode: string | null;
@@ -75,6 +76,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function questionKey(questionSetId: string, questionId: string): string {
+  return `${questionSetId}\0${questionId}`;
+}
+
 export function parseClassifierBatch(
   raw: string,
   expected: readonly FrozenQuestion[],
@@ -84,14 +89,23 @@ export function parseClassifierBatch(
   if (!isRecord(parsed) || !Array.isArray(parsed.decisions)) {
     throw new Error("Classifier response must contain a decisions array");
   }
-  const expectedById = new Map(expected.map((question) => [question.questionId, question]));
+  const expectedByKey = new Map(
+    expected.map((question) => [
+      questionKey(question.questionSetId, question.questionId),
+      question,
+    ]),
+  );
   const seen = new Set<string>();
   return parsed.decisions.map((item: unknown) => {
     if (!isRecord(item)) throw new Error("Classifier decision must be an object");
+    const questionSetId = typeof item.questionSetId === "string" ? item.questionSetId : "";
     const questionId = typeof item.questionId === "string" ? item.questionId : "";
-    const question = expectedById.get(questionId);
-    if (!question || seen.has(questionId)) throw new Error(`Unexpected or duplicate questionId: ${questionId}`);
-    seen.add(questionId);
+    const key = questionKey(questionSetId, questionId);
+    const question = expectedByKey.get(key);
+    if (!question || seen.has(key)) {
+      throw new Error(`Unexpected or duplicate question identity: ${questionSetId}/${questionId}`);
+    }
+    seen.add(key);
     const outcome = item.outcome;
     if (outcome !== "assigned" && outcome !== "ambiguous" && outcome !== "invalid") {
       throw new Error(`Invalid outcome for ${questionId}`);
@@ -104,7 +118,13 @@ export function parseClassifierBatch(
     if (outcome === "assigned" && (!kcCode || !allowedKcs.get(question.standardId)?.has(kcCode))) {
       throw new Error(`Assigned KC is not active in ${question.standardId}`);
     }
-    return { questionId, outcome, kcCode: outcome === "assigned" ? kcCode : null, rationale };
+    return {
+      questionSetId,
+      questionId,
+      outcome,
+      kcCode: outcome === "assigned" ? kcCode : null,
+      rationale,
+    };
   });
 }
 
@@ -113,9 +133,10 @@ function promptFor(questions: readonly FrozenQuestion[], catalog: Map<string, Ca
     instruction:
       "Assign the single Knowledge Component directly assessed by each MCQ. Use only the supplied KCs. Mark ambiguous when more than one KC is equally central and invalid when the item cannot be classified.",
     outputSchema: {
-      decisions: [{ questionId: "string", outcome: "assigned|ambiguous|invalid", kcCode: "string|null", rationale: "short string" }],
+      decisions: [{ questionSetId: "string", questionId: "string", outcome: "assigned|ambiguous|invalid", kcCode: "string|null", rationale: "short string" }],
     },
     questions: questions.map((question) => ({
+      questionSetId: question.questionSetId,
       questionId: question.questionId,
       standardId: question.standardId,
       text: question.text,
@@ -180,6 +201,30 @@ function payloadQuestion(row: Record<string, unknown>, hash: string): FrozenQues
   };
 }
 
+export function freezeSelectedQuestions(
+  rows: readonly Record<string, unknown>[],
+  selected: readonly {
+    questionSetId: string;
+    questionId: string;
+    contentHash: string;
+  }[],
+): FrozenQuestion[] {
+  const hashByKey = new Map(
+    selected.map((item) => [
+      questionKey(item.questionSetId, item.questionId),
+      item.contentHash,
+    ]),
+  );
+  return rows.flatMap((row) => {
+    const questionSetId = typeof row.set_id === "string" ? row.set_id : "";
+    const questionId = typeof row.id === "string" ? row.id : "";
+    const hash = hashByKey.get(questionKey(questionSetId, questionId));
+    if (!hash) return [];
+    const question = payloadQuestion(row, hash);
+    return question ? [question] : [];
+  });
+}
+
 async function loadQuestions(db: SupabaseClient, options: CliOptions): Promise<FrozenQuestion[]> {
   let coverageQuery = db
     .from("bkt_question_coverage")
@@ -204,11 +249,14 @@ async function loadQuestions(db: SupabaseClient, options: CliOptions): Promise<F
     .in("set_id", setIds)
     .in("id", ids);
   if (error) throw new Error(error.message);
-  const hashByKey = new Map(selected.map((row) => [`${row.question_set_id}/${row.question_id}`, String(row.current_content_hash)]));
-  return (rows ?? []).flatMap((row) => {
-    const question = payloadQuestion(row as Record<string, unknown>, hashByKey.get(`${row.set_id}/${row.id}`) ?? "");
-    return question ? [question] : [];
-  });
+  return freezeSelectedQuestions(
+    (rows ?? []) as Record<string, unknown>[],
+    selected.map((row) => ({
+      questionSetId: String(row.question_set_id),
+      questionId: String(row.question_id),
+      contentHash: String(row.current_content_hash),
+    })),
+  );
 }
 
 async function loadFrozenQuestions(db: SupabaseClient, runId: string): Promise<FrozenQuestion[]> {
@@ -236,13 +284,14 @@ async function loadFrozenQuestions(db: SupabaseClient, runId: string): Promise<F
     .in("set_id", [...new Set(frozen.map((item) => item.setId))])
     .in("id", [...new Set(frozen.map((item) => item.questionId))]);
   if (error) throw new Error(error.message);
-  const frozenByKey = new Map(frozen.map((item) => [`${item.setId}/${item.questionId}`, item.contentHash]));
-  return (rows ?? []).flatMap((row) => {
-    const hash = frozenByKey.get(`${row.set_id}/${row.id}`);
-    if (!hash) return [];
-    const question = payloadQuestion(row as Record<string, unknown>, hash);
-    return question ? [question] : [];
-  });
+  return freezeSelectedQuestions(
+    (rows ?? []) as Record<string, unknown>[],
+    frozen.map((item) => ({
+      questionSetId: item.setId,
+      questionId: item.questionId,
+      contentHash: item.contentHash,
+    })),
+  );
 }
 
 async function run() {
@@ -331,10 +380,21 @@ async function run() {
         const result = await classifyBatch(client, model, passBatch, catalog);
         inputTokens += result.inputTokens;
         outputTokens += result.outputTokens;
-        const byId = new Map(result.decisions.map((decision) => [decision.questionId, decision]));
+        const byKey = new Map(
+          result.decisions.map((decision) => [
+            questionKey(decision.questionSetId, decision.questionId),
+            decision,
+          ]),
+        );
         const rows = passBatch.map((question) => {
-          const decision = byId.get(question.questionId);
-          if (!decision) throw new Error(`Missing decision for ${question.questionId}`);
+          const decision = byKey.get(
+            questionKey(question.questionSetId, question.questionId),
+          );
+          if (!decision) {
+            throw new Error(
+              `Missing decision for ${question.questionSetId}/${question.questionId}`,
+            );
+          }
           return {
             run_id: runId,
             question_set_id: question.questionSetId,
@@ -411,7 +471,11 @@ async function run() {
   console.log(`Input tokens: ${inputTokens}`);
   console.log(`Output tokens: ${outputTokens}`);
   console.log("Active mappings changed: 0");
-  if (options.verbose) console.log(`Question IDs: ${questions.map((question) => question.questionId).join(", ")}`);
+  if (options.verbose) {
+    console.log(
+      `Questions: ${questions.map((question) => `${question.questionSetId}/${question.questionId}`).join(", ")}`,
+    );
+  }
 }
 
 if (process.argv[1]?.endsWith("classify-legacy-kcs.ts")) {

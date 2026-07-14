@@ -55,12 +55,13 @@ SELECT results_eq(
 );
 
 INSERT INTO public.attempts (
-  id, user_id, client_attempt_id, question_id, selected_option_id, is_correct, mode, answered_at
+  id, user_id, client_attempt_id, question_id, question_set_id,
+  selected_option_id, is_correct, mode, answered_at
 ) VALUES (
   '20000000-0000-4000-8000-000000000001',
   '10000000-0000-4000-8000-000000000001',
   '30000000-0000-4000-8000-000000000001',
-  'bkt-mcq', 'A', true, 'practice', '2026-07-11T10:00:00Z'
+  'bkt-mcq', 'bkt-test-set', 'A', true, 'practice', now()
 );
 
 SELECT is(
@@ -77,12 +78,13 @@ SELECT results_eq(
 );
 
 INSERT INTO public.attempts (
-  id, user_id, client_attempt_id, question_id, selected_option_id, is_correct, mode, answered_at
+  id, user_id, client_attempt_id, question_id, question_set_id,
+  selected_option_id, is_correct, mode, answered_at
 ) VALUES (
   '20000000-0000-4000-8000-000000000099',
   '10000000-0000-4000-8000-000000000001',
   '30000000-0000-4000-8000-000000000001',
-  'bkt-mcq', 'A', true, 'practice', '2026-07-11T10:00:00Z'
+  'bkt-mcq', 'bkt-test-set', 'A', true, 'practice', now()
 ) ON CONFLICT (client_attempt_id) DO NOTHING;
 SELECT results_eq(
   $$ SELECT count(*)::bigint FROM public.bkt_mastery_events WHERE source_kind = 'mcq_attempt' AND event_type <> 'replay' $$,
@@ -114,7 +116,7 @@ INSERT INTO public.short_answer_attempts (
   '10000000-0000-4000-8000-000000000001',
   'bkt-saq', 'bkt-test-set', 'A', 1,
   '50000000-0000-4000-8000-000000000001', 'practice', 'answer', 2, 2, true,
-  '{}'::jsonb, 'none', '2026-07-11T10:05:00Z'
+  '{}'::jsonb, 'none', now()
 );
 SELECT is(
   round((SELECT probability::numeric FROM public.student_kc_mastery

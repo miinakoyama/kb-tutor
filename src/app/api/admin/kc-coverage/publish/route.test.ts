@@ -76,4 +76,36 @@ describe("POST /api/admin/kc-coverage/publish", () => {
     expect(response.status).toBe(400);
     expect(from).not.toHaveBeenCalled();
   });
+
+  it("withdraws a KC mapping through the atomic database function", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { standardId: "3.1.9-12.A", mappingChanged: true },
+      error: null,
+    });
+    mocks.createSupabaseAdminClient.mockReturnValue({ rpc });
+
+    const response = await POST(new Request("http://localhost/api/admin/kc-coverage/publish", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "withdraw_mapping",
+        questionSetId: "set-1",
+        questionId: "question-1",
+        partLabel: null,
+        confirmed: true,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      standardId: "3.1.9-12.A",
+      mappingChanged: true,
+    });
+    expect(rpc).toHaveBeenCalledWith("withdraw_question_kc_mapping", {
+      p_question_set_id: "set-1",
+      p_question_id: "question-1",
+      p_part_label: null,
+      p_actor: "admin-id",
+    });
+  });
 });

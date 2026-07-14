@@ -87,27 +87,22 @@ export async function POST(request: Request) {
     });
   }
 
-  const { data: question, error: questionError } = await db
-    .from("generated_questions")
-    .select("payload")
-    .eq("set_id", command.questionSetId)
-    .eq("id", command.questionId)
-    .maybeSingle();
-  if (questionError || !question) return NextResponse.json({ error: "Question not found" }, { status: 404 });
-  const partLabel = command.partLabel ?? null;
-  const closeQuery = db.from("question_kc_assignments").update({ valid_to: new Date().toISOString() })
-    .eq("question_set_id", command.questionSetId).eq("question_id", command.questionId).is("valid_to", null);
-  const { data: closedRows, error: closeError } = partLabel
-    ? await closeQuery.eq("part_label", partLabel).select("id")
-    : await closeQuery.is("part_label", null).select("id");
-  if (closeError) return NextResponse.json({ error: "Unable to close current mapping" }, { status: 500 });
-  const mappingChanged = (closedRows?.length ?? 0) > 0;
-  const standardId = isRecord(question.payload) && typeof question.payload.standardId === "string" ? question.payload.standardId : "";
-  // Only force the standard back to disabled when a mapping actually changed —
-  // a withdraw on a question with no open mapping (e.g. never confirmed) is a
-  // no-op and must not silently disable an otherwise-healthy standard.
-  if (mappingChanged && standardId) {
-    await db.from("bkt_standard_rollouts").upsert({ standard_id: standardId, status: "disabled", disable_reason: "KC mapping changed", disabled_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+  const { data, error } = await db.rpc("withdraw_question_kc_mapping", {
+    p_question_set_id: command.questionSetId,
+    p_question_id: command.questionId,
+    p_part_label: command.partLabel ?? null,
+    p_actor: guard.userId,
+  });
+  if (error) {
+    const status = error.code === "P0002" ? 404 : error.code === "23514" ? 400 : 409;
+    return NextResponse.json({ error: error.message }, { status });
   }
-  return NextResponse.json({ ok: true, standardId, mappingChanged });
+  if (!isRecord(data)) {
+    return NextResponse.json({ error: "Unable to withdraw KC mapping" }, { status: 500 });
+  }
+  return NextResponse.json({
+    ok: true,
+    standardId: typeof data.standardId === "string" ? data.standardId : "",
+    mappingChanged: data.mappingChanged === true,
+  });
 }

@@ -112,6 +112,30 @@ function correctOptionIdFromPayload(value: unknown): string | null {
   return typeof correctOptionId === "string" && correctOptionId ? correctOptionId : null;
 }
 
+interface AuthoritativeQuestion {
+  correctOptionId: string;
+  questionSetId: string | null;
+  questionContentVersion: string | null;
+}
+
+function questionIdentityFromPayload(
+  value: unknown,
+): Pick<AuthoritativeQuestion, "questionSetId" | "questionContentVersion"> {
+  if (!value || typeof value !== "object") {
+    return { questionSetId: null, questionContentVersion: null };
+  }
+  const payload = value as Record<string, unknown>;
+  const questionSetId =
+    typeof payload.questionSetId === "string" && payload.questionSetId.trim()
+      ? payload.questionSetId.trim()
+      : null;
+  const questionContentVersion =
+    typeof payload.contentVersion === "string" && UUID_RE.test(payload.contentVersion)
+      ? payload.contentVersion
+      : null;
+  return { questionSetId, questionContentVersion };
+}
+
 async function canAccessHistoricalQuestion(
   requester: SupabaseClient,
   admin: SupabaseClient,
@@ -150,7 +174,7 @@ async function canAccessHistoricalQuestion(
   return !membershipError && (memberships?.length ?? 0) > 0;
 }
 
-async function resolveAuthoritativeCorrectOptionId(
+async function resolveAuthoritativeQuestion(
   requester: SupabaseClient,
   admin: SupabaseClient,
   userId: string,
@@ -158,7 +182,7 @@ async function resolveAuthoritativeCorrectOptionId(
   assignmentId: string | null,
   questionSetId: string | null,
   questionContentVersion: string | null,
-): Promise<string | null> {
+): Promise<AuthoritativeQuestion | null> {
   if (assignmentId) {
     const { data } = await admin
       .from("assignment_question_snapshots")
@@ -166,7 +190,12 @@ async function resolveAuthoritativeCorrectOptionId(
       .eq("assignment_id", assignmentId)
       .eq("question_id", questionId)
       .maybeSingle();
-    return correctOptionIdFromPayload(data?.payload);
+    const correctOptionId = correctOptionIdFromPayload(data?.payload);
+    if (!correctOptionId) return null;
+    return {
+      correctOptionId,
+      ...questionIdentityFromPayload(data?.payload),
+    };
   }
 
   if (questionSetId) {
@@ -187,7 +216,10 @@ async function resolveAuthoritativeCorrectOptionId(
         .eq("question_id", questionId)
         .eq("content_version", questionContentVersion)
         .maybeSingle();
-      return correctOptionIdFromPayload(version?.payload);
+      const correctOptionId = correctOptionIdFromPayload(version?.payload);
+      return correctOptionId
+        ? { correctOptionId, questionSetId, questionContentVersion }
+        : null;
     }
 
     const { data } = await requester
@@ -198,7 +230,10 @@ async function resolveAuthoritativeCorrectOptionId(
       .eq("is_visible", true)
       .maybeSingle();
     if (!data) return null;
-    return correctOptionIdFromPayload(data.payload);
+    const correctOptionId = correctOptionIdFromPayload(data.payload);
+    return correctOptionId
+      ? { correctOptionId, questionSetId, questionContentVersion: null }
+      : null;
   }
 
   // Backward compatibility for attempts queued before question identity
@@ -210,7 +245,10 @@ async function resolveAuthoritativeCorrectOptionId(
     .eq("is_visible", true)
     .limit(2);
   if (!data || data.length !== 1) return null;
-  return correctOptionIdFromPayload(data[0].payload);
+  const correctOptionId = correctOptionIdFromPayload(data[0].payload);
+  return correctOptionId
+    ? { correctOptionId, questionSetId: null, questionContentVersion: null }
+    : null;
 }
 
 export async function POST(request: Request) {
@@ -265,7 +303,7 @@ export async function POST(request: Request) {
   if (assignmentResolution.error) {
     return toHttpError(400, assignmentResolution.error);
   }
-  const correctOptionId = await resolveAuthoritativeCorrectOptionId(
+  const authoritativeQuestion = await resolveAuthoritativeQuestion(
     supabase,
     admin,
     user.id,
@@ -274,17 +312,17 @@ export async function POST(request: Request) {
     questionSetId,
     questionContentVersion,
   );
-  if (!correctOptionId) {
+  if (!authoritativeQuestion) {
     return toHttpError(404, "Question not found or inaccessible");
   }
-  const isCorrect = body.selectedOptionId === correctOptionId;
+  const isCorrect = body.selectedOptionId === authoritativeQuestion.correctOptionId;
 
   const payload = {
     user_id: user.id,
     client_attempt_id: body.clientAttemptId,
     question_id: body.questionId,
-    question_set_id: questionSetId,
-    question_content_version: questionContentVersion,
+    question_set_id: authoritativeQuestion.questionSetId,
+    question_content_version: authoritativeQuestion.questionContentVersion,
     selected_option_id: body.selectedOptionId,
     is_correct: isCorrect,
     mode: body.mode,

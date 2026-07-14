@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(17);
+SELECT plan(33);
 
 SELECT has_table('public', 'kc_classification_runs', 'classification runs exist');
 SELECT has_table('public', 'kc_classification_decisions', 'classification decisions exist');
@@ -9,6 +9,8 @@ SELECT has_function('public', 'publish_kc_classification_run', ARRAY['uuid', 'uu
 SELECT has_function('public', 'rollback_kc_classification_run', ARRAY['uuid', 'uuid'], 'rollback function exists');
 SELECT has_function('public', 'validate_bkt_standard_rollout', ARRAY['text', 'uuid'], 'validation function exists');
 SELECT has_function('public', 'set_bkt_standard_rollout', ARRAY['text', 'uuid', 'boolean', 'text'], 'rollout state function exists');
+SELECT has_function('public', 'replace_question_kc_mapping', ARRAY['text', 'text', 'text', 'text', 'uuid'], 'atomic mapping replacement function exists');
+SELECT has_function('public', 'withdraw_question_kc_mapping', ARRAY['text', 'text', 'text', 'uuid'], 'atomic mapping withdrawal function exists');
 
 INSERT INTO auth.users (
   id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -86,6 +88,19 @@ SELECT results_eq(
   ARRAY[1],
   'publication creates one active run mapping'
 );
+SELECT is(
+  (SELECT payload->>'kcCode' FROM public.generated_questions
+   WHERE set_id = 'bkt-classification-test-set' AND id = 'legacy-mcq'),
+  '3.1.9-12.A1',
+  'publication persists the classified KC in the question payload'
+);
+SELECT is(
+  (SELECT provenance FROM public.question_kc_assignments
+   WHERE question_set_id = 'bkt-classification-test-set'
+     AND question_id = 'legacy-mcq' AND valid_to IS NULL),
+  'model',
+  'publication retains model provenance on the trigger-created mapping'
+);
 
 INSERT INTO public.generated_questions (
   id, set_id, user_id, payload, include_in_self_practice
@@ -146,6 +161,17 @@ SELECT is(
   1,
   'rollback closes the published run mapping'
 );
+SELECT ok(
+  NOT (SELECT payload ? 'kcCode' FROM public.generated_questions
+       WHERE set_id = 'bkt-classification-test-set' AND id = 'legacy-mcq'),
+  'rollback removes the published KC from the question payload'
+);
+SELECT is(
+  (SELECT include_in_self_practice FROM public.generated_questions
+   WHERE set_id = 'bkt-classification-test-set' AND id = 'legacy-mcq'),
+  false,
+  'rollback excludes the now-unmapped question from Self Practice'
+);
 SELECT is(
   public.rollback_kc_classification_run(
     '74000000-0000-4000-8000-000000000002',
@@ -153,6 +179,119 @@ SELECT is(
   ),
   0,
   'repeated rollback is idempotent'
+);
+
+SELECT is(
+  (public.replace_question_kc_mapping(
+    'bkt-classification-test-set',
+    'coverage-1',
+    NULL,
+    '3.1.9-12.A2',
+    '74000000-0000-4000-8000-000000000001'
+  )->>'mappingChanged')::boolean,
+  true,
+  'admin replacement succeeds atomically'
+);
+SELECT is(
+  (SELECT payload->>'kcCode' FROM public.generated_questions
+   WHERE set_id = 'bkt-classification-test-set' AND id = 'coverage-1'),
+  '3.1.9-12.A2',
+  'admin replacement persists the KC in the question payload'
+);
+UPDATE public.generated_questions
+SET payload = jsonb_set(payload, '{text}', '"Edited after replacement"'::jsonb)
+WHERE set_id = 'bkt-classification-test-set' AND id = 'coverage-1';
+SELECT is(
+  (SELECT kc_code FROM public.question_kc_assignments
+   WHERE question_set_id = 'bkt-classification-test-set'
+     AND question_id = 'coverage-1'
+     AND part_label IS NULL
+     AND valid_to IS NULL
+     AND status = 'confirmed'),
+  '3.1.9-12.A2',
+  'later question edits preserve the admin-selected KC'
+);
+SELECT is(
+  (public.withdraw_question_kc_mapping(
+    'bkt-classification-test-set',
+    'coverage-1',
+    NULL,
+    '74000000-0000-4000-8000-000000000001'
+  )->>'mappingChanged')::boolean,
+  true,
+  'admin withdrawal succeeds atomically'
+);
+SELECT ok(
+  NOT (SELECT payload ? 'kcCode' FROM public.generated_questions
+       WHERE set_id = 'bkt-classification-test-set' AND id = 'coverage-1'),
+  'admin withdrawal removes the embedded KC'
+);
+SELECT is(
+  (SELECT include_in_self_practice FROM public.generated_questions
+   WHERE set_id = 'bkt-classification-test-set' AND id = 'coverage-1'),
+  false,
+  'admin withdrawal excludes the question from Self Practice'
+);
+SELECT results_eq(
+  $$ SELECT count(*)::integer FROM public.question_kc_assignments
+     WHERE question_set_id = 'bkt-classification-test-set'
+       AND question_id = 'coverage-1'
+       AND valid_to IS NULL $$,
+  ARRAY[0],
+  'admin withdrawal leaves no open mapping that a later edit can revive'
+);
+
+INSERT INTO public.generated_questions (
+  id, set_id, user_id, payload, include_in_self_practice
+) VALUES (
+  'coverage-saq',
+  'bkt-classification-test-set',
+  '74000000-0000-4000-8000-000000000001',
+  '{
+    "id":"coverage-saq",
+    "standardId":"3.1.9-12.A",
+    "questionType":"open-ended",
+    "text":"SAQ coverage question",
+    "shortAnswer":{
+      "parts":[{"label":"A"},{"label":"B"}],
+      "blueprint":{"taskSequence":{
+        "A":{"kcCode":"3.1.9-12.A3"},
+        "B":{"kcCode":"3.1.9-12.A4"}
+      }}
+    }
+  }'::jsonb,
+  true
+);
+SELECT is(
+  (public.replace_question_kc_mapping(
+    'bkt-classification-test-set',
+    'coverage-saq',
+    'A',
+    '3.1.9-12.A2',
+    '74000000-0000-4000-8000-000000000001'
+  )->>'mappingChanged')::boolean,
+  true,
+  'admin can atomically replace one SAQ part mapping'
+);
+SELECT is(
+  (SELECT payload#>>'{shortAnswer,blueprint,taskSequence,A,kcCode}'
+   FROM public.generated_questions
+   WHERE set_id = 'bkt-classification-test-set' AND id = 'coverage-saq'),
+  '3.1.9-12.A2',
+  'SAQ replacement persists the part KC in the nested payload'
+);
+UPDATE public.generated_questions
+SET payload = jsonb_set(payload, '{text}', '"Edited SAQ after replacement"'::jsonb)
+WHERE set_id = 'bkt-classification-test-set' AND id = 'coverage-saq';
+SELECT is(
+  (SELECT kc_code FROM public.question_kc_assignments
+   WHERE question_set_id = 'bkt-classification-test-set'
+     AND question_id = 'coverage-saq'
+     AND part_label = 'A'
+     AND valid_to IS NULL
+     AND status = 'confirmed'),
+  '3.1.9-12.A2',
+  'later SAQ edits preserve the admin-selected part KC'
 );
 
 SELECT * FROM finish();

@@ -136,6 +136,53 @@ describe("POST /api/analytics/attempts", () => {
     ]);
   });
 
+  it("uses assignment snapshot identity instead of client-supplied set identity", async () => {
+    const snapshotVersion = "00000000-0000-4000-8000-000000000031";
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [{
+            id: "assignment-1",
+            school_id: "school-1",
+            created_at: "2026-05-01T00:00:00.000Z",
+          }],
+        },
+        assignment_targets: {
+          rows: [{ assignment_id: "assignment-1", student_user_id: "student-1" }],
+        },
+        school_members: { rows: [] },
+        assignment_question_snapshots: {
+          rows: [{
+            assignment_id: "assignment-1",
+            question_id: "q1",
+            payload: {
+              correctOptionId: "A",
+              questionSetId: "snapshot-set",
+              contentVersion: snapshotVersion,
+            },
+          }],
+        },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(attemptRequest("assignment-1", {
+      questionSetId: "spoofed-set",
+      questionContentVersion: "00000000-0000-4000-8000-000000000032",
+    }));
+
+    expect(response.status).toBe(200);
+    expect(tables.attempts.rows[0]).toMatchObject({
+      question_set_id: "snapshot-set",
+      question_content_version: snapshotVersion,
+    });
+  });
+
   it("recomputes correctness from authorized content instead of trusting the client", async () => {
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser("student-1"),
