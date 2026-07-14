@@ -8,6 +8,7 @@ interface AttemptBody {
   questionId?: string;
   questionSetId?: string | null;
   questionContentVersion?: string | null;
+  isFinalized?: boolean;
   selectedOptionId?: string;
   isCorrect?: boolean;
   mode?: string;
@@ -184,17 +185,30 @@ async function resolveAuthoritativeQuestion(
   questionContentVersion: string | null,
 ): Promise<AuthoritativeQuestion | null> {
   if (assignmentId) {
-    const { data } = await admin
+    const { data, error } = await admin
       .from("assignment_question_snapshots")
       .select("payload")
       .eq("assignment_id", assignmentId)
-      .eq("question_id", questionId)
-      .maybeSingle();
-    const correctOptionId = correctOptionIdFromPayload(data?.payload);
+      .eq("question_id", questionId);
+    if (error) return null;
+
+    const snapshots = data ?? [];
+    const matchingSnapshots = questionSetId
+      ? snapshots.filter((snapshot) => {
+          const identity = questionIdentityFromPayload(snapshot.payload);
+          return identity.questionSetId === questionSetId &&
+            (!questionContentVersion ||
+              identity.questionContentVersion === questionContentVersion);
+        })
+      : snapshots.length === 1
+        ? snapshots
+        : [];
+    const snapshot = matchingSnapshots[0];
+    const correctOptionId = correctOptionIdFromPayload(snapshot?.payload);
     if (!correctOptionId) return null;
     return {
       correctOptionId,
-      ...questionIdentityFromPayload(data?.payload),
+      ...questionIdentityFromPayload(snapshot.payload),
     };
   }
 
@@ -316,6 +330,11 @@ export async function POST(request: Request) {
     return toHttpError(404, "Question not found or inaccessible");
   }
   const isCorrect = body.selectedOptionId === authoritativeQuestion.correctOptionId;
+  const isFinalized = !(
+    body.isFinalized === false &&
+    body.mode === "exam" &&
+    assignmentResolution.assignmentId
+  );
 
   const payload = {
     user_id: user.id,
@@ -323,6 +342,7 @@ export async function POST(request: Request) {
     question_id: body.questionId,
     question_set_id: authoritativeQuestion.questionSetId,
     question_content_version: authoritativeQuestion.questionContentVersion,
+    is_finalized: isFinalized,
     selected_option_id: body.selectedOptionId,
     is_correct: isCorrect,
     mode: body.mode,

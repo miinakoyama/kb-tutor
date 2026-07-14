@@ -10,7 +10,8 @@ Mastery updates are an internal persistence contract shared by MCQ attempts and 
 - Route re-verifies the user and access to the question or assignment snapshot.
 - Route derives `is_correct` by comparing `selectedOptionId` with authoritative question content; a client `isCorrect` field is ignored for persistence or retained only for backward-compatible validation telemetry.
 - Insert/upsert into `attempts` retains `client_attempt_id` idempotency.
-- Trigger processes rows whose `selected_option_id != 'short-answer'`.
+- Assignment Exam option clicks persist with `is_finalized=false` for resume; exam submission appends one finalized MCQ attempt per answered question.
+- Trigger processes only rows whose `is_finalized=true` and `selected_option_id != 'short-answer'`.
 
 ### SAQ
 
@@ -82,4 +83,3 @@ The attempt API response may include the server-derived result without exposing 
 - SAQ A/B/C sharing one KC -> three ordered observations.
 - Incorrect retry then correct retry -> two ordered observations.
 - Same two sources arriving in opposite receipt order -> equal replayed final state.
-

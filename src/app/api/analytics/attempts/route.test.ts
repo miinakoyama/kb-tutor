@@ -136,7 +136,7 @@ describe("POST /api/analytics/attempts", () => {
     ]);
   });
 
-  it("uses assignment snapshot identity instead of client-supplied set identity", async () => {
+  it("rejects a client-supplied set identity that does not match the snapshot", async () => {
     const snapshotVersion = "00000000-0000-4000-8000-000000000031";
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser("student-1"),
@@ -176,10 +176,72 @@ describe("POST /api/analytics/attempts", () => {
       questionContentVersion: "00000000-0000-4000-8000-000000000032",
     }));
 
+    expect(response.status).toBe(404);
+    expect(tables.attempts.rows).toHaveLength(0);
+  });
+
+  it("selects the assignment snapshot by set when question ids collide", async () => {
+    const setAVersion = "00000000-0000-4000-8000-000000000041";
+    const setBVersion = "00000000-0000-4000-8000-000000000042";
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [{
+            id: "assignment-1",
+            school_id: "school-1",
+            created_at: "2026-05-01T00:00:00.000Z",
+          }],
+        },
+        assignment_targets: {
+          rows: [{ assignment_id: "assignment-1", student_user_id: "student-1" }],
+        },
+        school_members: { rows: [] },
+        assignment_question_snapshots: {
+          rows: [
+            {
+              assignment_id: "assignment-1",
+              question_id: "q1",
+              payload: {
+                correctOptionId: "A",
+                questionSetId: "set-a",
+                contentVersion: setAVersion,
+              },
+            },
+            {
+              assignment_id: "assignment-1",
+              question_id: "q1",
+              payload: {
+                correctOptionId: "B",
+                questionSetId: "set-b",
+                contentVersion: setBVersion,
+              },
+            },
+          ],
+        },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(attemptRequest("assignment-1", {
+      questionSetId: "set-b",
+      questionContentVersion: setBVersion,
+      selectedOptionId: "B",
+      mode: "exam",
+      isFinalized: false,
+    }));
+
     expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ isCorrect: true });
     expect(tables.attempts.rows[0]).toMatchObject({
-      question_set_id: "snapshot-set",
-      question_content_version: snapshotVersion,
+      question_set_id: "set-b",
+      question_content_version: setBVersion,
+      is_correct: true,
+      is_finalized: false,
     });
   });
 
@@ -198,10 +260,11 @@ describe("POST /api/analytics/attempts", () => {
     mockState.serverClient = serverClient;
     mockState.adminClient = adminClient;
 
-    const response = await POST(attemptRequest(""));
+    const response = await POST(attemptRequest("", { isFinalized: false }));
 
     expect(response.status).toBe(200);
     expect(tables.attempts.rows[0].is_correct).toBe(false);
+    expect(tables.attempts.rows[0].is_finalized).toBe(true);
     await expect(response.json()).resolves.toMatchObject({ isCorrect: false });
   });
 

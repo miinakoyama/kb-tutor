@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(17);
+SELECT plan(19);
 
 SELECT has_table('public', 'bkt_parameter_sets', 'parameter versions exist');
 SELECT has_table('public', 'student_kc_mastery', 'current mastery exists');
@@ -56,13 +56,31 @@ SELECT results_eq(
 
 INSERT INTO public.attempts (
   id, user_id, client_attempt_id, question_id, question_set_id,
-  selected_option_id, is_correct, mode, answered_at
+  selected_option_id, is_correct, is_finalized, mode, answered_at
 ) VALUES (
   '20000000-0000-4000-8000-000000000001',
   '10000000-0000-4000-8000-000000000001',
   '30000000-0000-4000-8000-000000000001',
-  'bkt-mcq', 'bkt-test-set', 'A', true, 'practice', now()
+  'bkt-mcq', 'bkt-test-set', 'A', true, false, 'exam', now()
 );
+
+SELECT results_eq(
+  $$ SELECT count(*)::bigint FROM public.bkt_mastery_events
+     WHERE source_attempt_id = '20000000-0000-4000-8000-000000000001' $$,
+  ARRAY[0::bigint],
+  'draft exam save does not create BKT evidence'
+);
+SELECT results_eq(
+  $$ SELECT count(*)::bigint FROM public.student_kc_mastery
+     WHERE user_id = '10000000-0000-4000-8000-000000000001'
+       AND kc_code = '3.1.9-12.A2' $$,
+  ARRAY[0::bigint],
+  'draft exam save does not change current mastery'
+);
+
+UPDATE public.attempts
+SET is_finalized = true
+WHERE id = '20000000-0000-4000-8000-000000000001';
 
 SELECT is(
   round((SELECT probability::numeric FROM public.student_kc_mastery

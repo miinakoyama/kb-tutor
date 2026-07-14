@@ -73,6 +73,50 @@ describe("legacy KC classifier contract", () => {
     ]);
   });
 
+  it("rejects classifier decisions without a non-empty question set id", () => {
+    const question = {
+      questionSetId: "set",
+      questionId: "q1",
+      standardId: "S",
+      contentHash: "a".repeat(64),
+      text: "Question",
+      options: [],
+      correctOptionId: "a",
+      explanation: "",
+    };
+
+    expect(() =>
+      parseClassifierBatch(
+        JSON.stringify({
+          decisions: [{
+            questionId: "q1",
+            outcome: "assigned",
+            kcCode: "S1",
+            rationale: "Directly assessed.",
+          }],
+        }),
+        [question],
+        new Map([["S", new Set(["S1"])]]),
+      ),
+    ).toThrow("missing questionSetId");
+
+    expect(() =>
+      parseClassifierBatch(
+        JSON.stringify({
+          decisions: [{
+            questionSetId: "   ",
+            questionId: "q1",
+            outcome: "assigned",
+            kcCode: "S1",
+            rationale: "Directly assessed.",
+          }],
+        }),
+        [question],
+        new Map([["S", new Set(["S1"])]]),
+      ),
+    ).toThrow("missing questionSetId");
+  });
+
   it("drops cross-product rows outside the frozen composite scope", () => {
     const payload = {
       standardId: "S",

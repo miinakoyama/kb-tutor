@@ -57,6 +57,16 @@ describe("answer history", () => {
     saveAnswer(makeAnswer({ questionId: "q1", clientAttemptId: "fixed-id" }));
     expect(getAnswerHistory()[0].clientAttemptId).toBe("fixed-id");
   });
+
+  it("excludes draft exam selections from incorrect-answer history", async () => {
+    saveAnswer(makeAnswer({
+      mode: "exam",
+      isCorrect: false,
+      isFinalized: false,
+    }));
+
+    await expect(fetchIncorrectQuestionCounts()).resolves.toEqual({});
+  });
 });
 
 describe("bookmarks", () => {

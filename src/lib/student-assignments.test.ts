@@ -257,6 +257,15 @@ describe("resolveReviewQuestionsForAssignment", () => {
           is_correct: false,
           answered_at: "2026-04-02T10:05:00.000Z",
         },
+        {
+          user_id: "student-1",
+          question_id: "q3",
+          topic: "Genetics",
+          standard_id: "3.1.9-12.P",
+          is_correct: false,
+          is_finalized: false,
+          answered_at: "2026-04-02T10:10:00.000Z",
+        },
       ],
       generated_questions: [
         {
@@ -268,6 +277,10 @@ describe("resolveReviewQuestionsForAssignment", () => {
         {
           id: "q2",
           payload: { id: "q2", text: "Q2" } as Question,
+        },
+        {
+          id: "q3",
+          payload: { id: "q3", text: "Draft Q3" } as Question,
         },
       ],
     });

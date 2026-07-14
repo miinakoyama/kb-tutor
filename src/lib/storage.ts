@@ -20,6 +20,7 @@ export interface StoredAnswer {
   questionId: string;
   questionSetId?: string;
   questionContentVersion?: string;
+  isFinalized?: boolean;
   selectedOptionId: string;
   isCorrect: boolean;
   confidenceLevel?: ConfidenceLevel;
@@ -107,6 +108,7 @@ function toAttemptPayload(answer: StoredAnswer): AttemptPayload {
     questionId: answer.questionId,
     questionSetId: answer.questionSetId ?? null,
     questionContentVersion: answer.questionContentVersion ?? null,
+    isFinalized: answer.isFinalized ?? true,
     selectedOptionId: answer.selectedOptionId,
     isCorrect: answer.isCorrect,
     mode: answer.mode,
@@ -194,7 +196,9 @@ export function toggleBookmark(questionId: string): boolean {
 
 export function getTopicAccuracy(topic: string): TopicAccuracy {
   const history = getAnswerHistory().filter(
-    (a) => a.questionId.startsWith(topic.toLowerCase().replace(/\s+/g, "-"))
+    (a) =>
+      a.isFinalized !== false &&
+      a.questionId.startsWith(topic.toLowerCase().replace(/\s+/g, "-"))
   );
   const correct = history.filter((a) => a.isCorrect).length;
   const total = history.length;
@@ -213,7 +217,9 @@ function computeIncorrectIds(history: StoredAnswer[]): string[] {
 
 function computeFirstTryIncorrectIds(history: StoredAnswer[]): string[] {
   const firstOutcomeByQuestion = new Map<string, boolean>();
-  const sortedByTime = [...history].sort((a, b) => a.timestamp - b.timestamp);
+  const sortedByTime = history
+    .filter((answer) => answer.isFinalized !== false)
+    .sort((a, b) => a.timestamp - b.timestamp);
 
   for (const answer of sortedByTime) {
     if (!firstOutcomeByQuestion.has(answer.questionId)) {
@@ -229,6 +235,7 @@ function computeFirstTryIncorrectIds(history: StoredAnswer[]): string[] {
 function computeIncorrectCounts(history: StoredAnswer[]): Map<string, number> {
   const wrongCountByQuestion = new Map<string, number>();
   for (const answer of history) {
+    if (answer.isFinalized === false) continue;
     incrementWrongCount(
       wrongCountByQuestion,
       answer.questionId,
@@ -284,6 +291,9 @@ function toDbAttempt(answer: StoredAnswer) {
   return {
     client_attempt_id: answer.clientAttemptId ?? null,
     question_id: answer.questionId,
+    question_set_id: answer.questionSetId ?? null,
+    question_content_version: answer.questionContentVersion ?? null,
+    is_finalized: answer.isFinalized ?? true,
     selected_option_id: answer.selectedOptionId,
     is_correct: answer.isCorrect,
     mode: answer.mode,
@@ -321,15 +331,20 @@ export async function syncAnswerHistoryFromDb(): Promise<StoredAnswer[]> {
     const { data, error } = await supabase
       .from("attempts")
       .select(
-        "question_id,selected_option_id,is_correct,mode,module,topic,standard_id,standard_label,time_spent_sec,assignment_id,answered_at,client_attempt_id",
+        "question_id,question_set_id,question_content_version,selected_option_id,is_correct,is_finalized,mode,module,topic,standard_id,standard_label,time_spent_sec,assignment_id,answered_at,client_attempt_id",
       )
       .order("answered_at", { ascending: true });
     if (error || !data) return getAnswerHistory();
 
     const answers: StoredAnswer[] = data.map((row) => ({
       questionId: String(row.question_id),
+      questionSetId: row.question_set_id ? String(row.question_set_id) : undefined,
+      questionContentVersion: row.question_content_version
+        ? String(row.question_content_version)
+        : undefined,
       selectedOptionId: String(row.selected_option_id),
       isCorrect: Boolean(row.is_correct),
+      isFinalized: row.is_finalized !== false,
       mode: String(row.mode),
       module: row.module ? Number(row.module) : undefined,
       topic: row.topic ? String(row.topic) : undefined,

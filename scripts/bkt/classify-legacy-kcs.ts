@@ -98,8 +98,14 @@ export function parseClassifierBatch(
   const seen = new Set<string>();
   return parsed.decisions.map((item: unknown) => {
     if (!isRecord(item)) throw new Error("Classifier decision must be an object");
-    const questionSetId = typeof item.questionSetId === "string" ? item.questionSetId : "";
-    const questionId = typeof item.questionId === "string" ? item.questionId : "";
+    if (typeof item.questionSetId !== "string" || !item.questionSetId.trim()) {
+      throw new Error("Classifier decision is missing questionSetId");
+    }
+    if (typeof item.questionId !== "string" || !item.questionId.trim()) {
+      throw new Error("Classifier decision is missing questionId");
+    }
+    const questionSetId = item.questionSetId;
+    const questionId = item.questionId;
     const key = questionKey(questionSetId, questionId);
     const question = expectedByKey.get(key);
     if (!question || seen.has(key)) {

@@ -602,7 +602,7 @@ export async function resolveReviewQuestionsForAssignment(
 
   const { data: allAttempts, error: allAttemptsError } = await admin
     .from("attempts")
-    .select("question_id,topic,standard_id,is_correct,answered_at")
+    .select("question_id,topic,standard_id,is_correct,is_finalized,answered_at")
     .eq("user_id", studentUserId)
     .order("answered_at", { ascending: true });
   if (allAttemptsError) {
@@ -614,6 +614,7 @@ export async function resolveReviewQuestionsForAssignment(
   const standardsSet = new Set(standards);
   const wrongCountByQuestion = new Map<string, number>();
   for (const attempt of allAttempts ?? []) {
+    if (attempt.is_finalized === false) continue;
     const questionId = String(attempt.question_id);
     // OR semantic: a question matches the review scope when either its
     // standard_id matches a selected standard, or (fallback for legacy

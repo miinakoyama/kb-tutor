@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  answeredEntryForQuestion,
   buildAnsweredMap,
   collectQuestionIds,
   countAnsweredQuestions,
@@ -81,6 +82,31 @@ describe("buildAnsweredMap", () => {
     );
     expect(map.q1.selectedOptionId).toBe("b");
     expect(map.q1.isCorrect).toBe(true);
+  });
+
+  it("keeps duplicate question ids separate across generated sets", () => {
+    const map = buildAnsweredMap(
+      [
+        row({ question_set_id: "set-a", question_id: "q1", selected_option_id: "a" }),
+        row({
+          question_set_id: "set-b",
+          question_id: "q1",
+          selected_option_id: "b",
+          answered_at: "2026-04-19T10:05:00.000Z",
+        }),
+      ],
+      { lastCompletedAt: null },
+    );
+
+    expect(Object.keys(map)).toHaveLength(2);
+    expect(map["set-question:set-a\0q1"].selectedOptionId).toBe("a");
+    expect(map["set-question:set-b\0q1"].selectedOptionId).toBe("b");
+    expect(
+      answeredEntryForQuestion(map, { id: "q1", questionSetId: "set-a" }),
+    ).toMatchObject({ selectedOptionId: "a" });
+    expect(
+      answeredEntryForQuestion(map, { id: "q1", questionSetId: "set-b" }),
+    ).toMatchObject({ selectedOptionId: "b" });
   });
 
   it("skips rows with invalid question_id or answered_at", () => {

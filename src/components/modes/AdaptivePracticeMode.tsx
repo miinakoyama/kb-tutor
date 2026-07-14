@@ -42,6 +42,7 @@ import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
 import { processQueue } from "@/lib/sync-queue";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
+import { answeredEntryForQuestion } from "@/lib/assignments/answered-map";
 
 const MAX_ATTEMPTS = 2;
 const GLOSSARY_FALLBACK_LIMIT = 6;
@@ -286,7 +287,7 @@ export function AdaptivePracticeMode({
         const prefilledFinals: Record<number, AnswerRecord> = {};
         const prefilledAttempts: Record<number, AttemptRecord[]> = {};
         selected.forEach((q, index) => {
-          const prior = answered[q.id];
+          const prior = answeredEntryForQuestion(answered, q);
           if (!prior) return;
           prefilledFinals[index] = {
             selectedOptionId: prior.selectedOptionId ?? "",
@@ -303,7 +304,9 @@ export function AdaptivePracticeMode({
         });
         setFinalAnswers(prefilledFinals);
         setAttemptsByIndex(prefilledAttempts);
-        const firstUnanswered = selected.findIndex((q) => !answered[q.id]);
+        const firstUnanswered = selected.findIndex(
+          (q) => !answeredEntryForQuestion(answered, q),
+        );
         setCurrentIndex(firstUnanswered === -1 ? selected.length - 1 : firstUnanswered);
       }
     };
