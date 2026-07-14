@@ -12,8 +12,12 @@ import {
 
 const TZ = "America/New_York";
 
-function item(at: string, seconds: number | null): EffortItem {
-  return { at, seconds };
+function item(
+  at: string,
+  seconds: number | null,
+  category: EffortItem["category"] = "practice",
+): EffortItem {
+  return { at, seconds, category };
 }
 
 describe("itemSeconds", () => {
@@ -157,12 +161,36 @@ describe("buildLearningEffort", () => {
     expect(effort.monthly.bars[1].seconds).toBe(30 * 60);
   });
 
+  it("splits each period's time by category, omitting empty slices", () => {
+    const now = new Date("2026-07-09T01:00:00Z"); // Wed Jul 8, NY
+    const items = [
+      item("2026-07-08T15:00:00Z", 600, "practice"), // this week + this month
+      item("2026-07-08T16:00:00Z", 300, "review"), // this week + this month
+      item("2026-07-01T15:00:00Z", 120, "exam"), // this month only (prev week)
+    ];
+    const effort = buildLearningEffort(items, TZ, now);
+
+    // This week has practice + review, no exam slice.
+    expect(effort.weekly.breakdown).toEqual([
+      { category: "practice", seconds: 600 },
+      { category: "review", seconds: 300 },
+    ]);
+    // This month adds the exam item, in fixed practice/exam/review order.
+    expect(effort.monthly.breakdown).toEqual([
+      { category: "practice", seconds: 600 },
+      { category: "exam", seconds: 120 },
+      { category: "review", seconds: 300 },
+    ]);
+  });
+
   it("returns all-zero series with null deltas for a student with no items", () => {
     const effort = buildLearningEffort([], TZ, new Date("2026-07-09T01:00:00Z"));
     expect(effort.weekly.totalSeconds).toBe(0);
     expect(effort.weekly.deltaPercent).toBeNull();
+    expect(effort.weekly.breakdown).toEqual([]);
     expect(effort.monthly.totalSeconds).toBe(0);
     expect(effort.monthly.deltaPercent).toBeNull();
+    expect(effort.monthly.breakdown).toEqual([]);
   });
 });
 
@@ -178,11 +206,13 @@ describe("getLearningEffort", () => {
               user_id: "student-1",
               answered_at: "2026-07-08T15:00:00Z",
               time_spent_sec: 120,
+              mode: "practice",
             },
             {
               user_id: "student-2",
               answered_at: "2026-07-08T15:00:00Z",
               time_spent_sec: 999,
+              mode: "practice",
             },
           ],
         },
@@ -192,12 +222,14 @@ describe("getLearningEffort", () => {
               user_id: "student-1",
               answered_at: "2026-07-08T16:00:00Z",
               time_spent_sec: 300,
+              mode: "exam",
             },
             // Pre-migration row — no measured time, contributes 0.
             {
               user_id: "student-1",
               answered_at: "2026-07-08T16:30:00Z",
               time_spent_sec: null,
+              mode: "practice",
             },
           ],
         },
@@ -219,6 +251,12 @@ describe("getLearningEffort", () => {
     });
     expect(effort).not.toBeNull();
     expect(effort!.weekly.totalSeconds).toBe(120 + 300 + 30);
+    // MCQ→practice, SAQ exam-mode→exam, dwell→review.
+    expect(effort!.weekly.breakdown).toEqual([
+      { category: "practice", seconds: 120 },
+      { category: "exam", seconds: 300 },
+      { category: "review", seconds: 30 },
+    ]);
   });
 
   it("returns null when any source query fails, so the UI can omit the card", async () => {
