@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   dateTimeLocalValueToIso,
   formatDueDateTime,
+  formatDueRelative,
+  isDueUrgent,
   isoToDateTimeLocalValue,
 } from "@/lib/due-date";
 
@@ -68,5 +70,60 @@ describe("formatDueDateTime", () => {
     expect(formatDueDateTime("2026-04-15T14:30:00.000Z").length).toBeGreaterThan(
       0,
     );
+  });
+});
+
+describe("formatDueRelative", () => {
+  // Fixed "now": Wed 2026-07-08 15:00 UTC. Pin the timezone to UTC so the
+  // day-boundary assertions don't depend on where the test runs.
+  const OPTS = { now: new Date("2026-07-08T15:00:00Z"), timeZone: "UTC" };
+
+  it("returns an empty string for null or invalid input", () => {
+    expect(formatDueRelative(null, OPTS)).toBe("");
+    expect(formatDueRelative(undefined, OPTS)).toBe("");
+    expect(formatDueRelative("not-a-date", OPTS)).toBe("");
+  });
+
+  it("returns Overdue for a past due date", () => {
+    expect(formatDueRelative("2026-07-08T14:00:00Z", OPTS)).toBe("Overdue");
+    expect(formatDueRelative("2026-07-01T00:00:00Z", OPTS)).toBe("Overdue");
+  });
+
+  it("returns Due today for later the same day", () => {
+    expect(formatDueRelative("2026-07-08T23:00:00Z", OPTS)).toBe("Due today");
+  });
+
+  it("returns Due tomorrow for the next calendar day", () => {
+    expect(formatDueRelative("2026-07-09T01:00:00Z", OPTS)).toBe("Due tomorrow");
+    expect(formatDueRelative("2026-07-09T23:59:00Z", OPTS)).toBe("Due tomorrow");
+  });
+
+  it("returns a short absolute date further out", () => {
+    expect(formatDueRelative("2026-07-20T15:00:00Z", OPTS)).toBe("Due Jul 20");
+  });
+
+  it("respects the timeZone for the day comparison", () => {
+    // 2026-07-09T02:00Z is Jul 9 in UTC (tomorrow) but still Jul 8 evening
+    // in New York (today).
+    const iso = "2026-07-09T02:00:00Z";
+    expect(formatDueRelative(iso, OPTS)).toBe("Due tomorrow");
+    expect(
+      formatDueRelative(iso, { ...OPTS, timeZone: "America/New_York" }),
+    ).toBe("Due today");
+  });
+});
+
+describe("isDueUrgent", () => {
+  const OPTS = { now: new Date("2026-07-08T15:00:00Z"), timeZone: "UTC" };
+
+  it("is true for overdue, today, and tomorrow", () => {
+    expect(isDueUrgent("2026-07-08T14:00:00Z", OPTS)).toBe(true);
+    expect(isDueUrgent("2026-07-08T23:00:00Z", OPTS)).toBe(true);
+    expect(isDueUrgent("2026-07-09T12:00:00Z", OPTS)).toBe(true);
+  });
+
+  it("is false further out and for missing dates", () => {
+    expect(isDueUrgent("2026-07-20T15:00:00Z", OPTS)).toBe(false);
+    expect(isDueUrgent(null, OPTS)).toBe(false);
   });
 });

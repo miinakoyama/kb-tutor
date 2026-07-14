@@ -103,8 +103,20 @@ interface QuestionSessionShellProps {
   totalQuestions: number;
   /** Small muted line under the question counter (mode label, topic, ...). */
   contextLabel?: string;
+  /** Hide the segmented progress bar under the question counter (exam mode). */
+  hideProgress?: boolean;
   /** When set, renders the secondary "Finish Session" header action. */
   onFinishSession?: () => void;
+  /**
+   * Right side of the header. When provided, replaces the default Finish
+   * Session button (exam mode uses it for the timer + submit-exam action).
+   */
+  headerRight?: ReactNode;
+  /**
+   * Middle slot of the bottom action bar. When provided, replaces the default
+   * bookmark button (exam mode uses it for bookmark + mark-for-review).
+   */
+  footerCenter?: ReactNode;
   /**
    * Workspace variant: "mcq" keeps a single vertical reading column
    * (max 1120px, or 1280px when mediaHeavy), "split" widens the workspace
@@ -136,7 +148,10 @@ export function QuestionSessionShell({
   currentQuestion,
   totalQuestions,
   contextLabel,
+  hideProgress = false,
   onFinishSession,
+  headerRight,
+  footerCenter,
   variant,
   mediaHeavy = false,
   scrollRef,
@@ -189,20 +204,23 @@ export function QuestionSessionShell({
               </span>
             ) : null}
           </p>
-          <CompactProgress current={currentQuestion} total={totalQuestions} />
+          {!hideProgress && (
+            <CompactProgress current={currentQuestion} total={totalQuestions} />
+          )}
         </div>
 
-        <div className="flex items-center justify-end min-w-0">
-          {onFinishSession && (
-            <button
-              type="button"
-              onClick={onFinishSession}
-              className={headerButtonClass}
-              style={sessionSecondaryButtonStyle}
-            >
-              Finish Session
-            </button>
-          )}
+        <div className="flex items-center justify-end gap-3 min-w-0">
+          {headerRight ??
+            (onFinishSession ? (
+              <button
+                type="button"
+                onClick={onFinishSession}
+                className={headerButtonClass}
+                style={sessionSecondaryButtonStyle}
+              >
+                Finish Session
+              </button>
+            ) : null)}
         </div>
       </header>
 
@@ -229,7 +247,9 @@ export function QuestionSessionShell({
           Previous
         </button>
 
-        {onToggleBookmark ? (
+        {footerCenter ? (
+          <div className="flex items-center gap-3">{footerCenter}</div>
+        ) : onToggleBookmark ? (
           <button
             type="button"
             onClick={onToggleBookmark}

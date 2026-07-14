@@ -154,6 +154,14 @@ export function ShortAnswerQuestionView({
   const [runtimes, setRuntimes] = useState<PartRuntime[]>(
     item.parts.map((_, i) => initialRuntime(i)),
   );
+  /**
+   * Answering-time measurement per part (→ time_spent_sec on the attempt,
+   * same semantics as MCQ attempts): stamped when a part becomes answerable
+   * (mount, unlock, server hydration), re-stamped after each recorded
+   * attempt so a retry times only the retry. A failed submission keeps the
+   * stamp — the attempt wasn't consumed, so the clock keeps running.
+   */
+  const partActiveSinceRef = useRef<Partial<Record<PartLabel, number>>>({});
   const [showCompletion, setShowCompletion] = useState(false);
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [historyModal, setHistoryModal] = useState<{
@@ -251,6 +259,7 @@ export function ShortAnswerQuestionView({
     setHydrationReady(false);
     setShowCompletion(false);
     allResolvedFiredRef.current = false;
+    partActiveSinceRef.current = {};
     setRuntimes(item.parts.map((_, i) => initialRuntime(i)));
     void hydrateFromServer();
   }, [
@@ -261,6 +270,18 @@ export function ShortAnswerQuestionView({
     assignmentRunAfter,
     sessionId,
   ]);
+
+  // Stamp the answering-time start for any part that just became active and
+  // isn't being timed yet — covers initial mount, unlockNext, and hydration.
+  useEffect(() => {
+    runtimes.forEach((runtime, i) => {
+      const label = item.parts[i]?.label;
+      if (!label) return;
+      if (runtime.status === "active" && partActiveSinceRef.current[label] === undefined) {
+        partActiveSinceRef.current[label] = Date.now();
+      }
+    });
+  }, [runtimes, item.parts]);
 
   const tourSteps: TourStep[] = [
     {
@@ -364,6 +385,12 @@ export function ShortAnswerQuestionView({
         prev.map((r, i) => (i === index ? { ...r, status: "submitting" } : r)),
       );
 
+      const activeSince = partActiveSinceRef.current[part.label];
+      const timeSpentSec =
+        activeSince !== undefined
+          ? Math.max(1, Math.round((Date.now() - activeSince) / 1000))
+          : null;
+
       try {
         const res = await fetch("/api/short-answer/grade", {
           method: "POST",
@@ -378,6 +405,7 @@ export function ShortAnswerQuestionView({
             attemptNumber,
             mode,
             clientAttemptId: crypto.randomUUID(),
+            timeSpentSec,
           }),
         });
 
@@ -410,6 +438,8 @@ export function ShortAnswerQuestionView({
         }
 
         const data = (await res.json()) as GradeResponse;
+        // This attempt is recorded — a later retry times only the retry.
+        partActiveSinceRef.current[part.label] = Date.now();
         const entry: AttemptHistoryEntry = {
           attemptNumber,
           correct: data.correct,
