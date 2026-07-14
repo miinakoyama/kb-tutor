@@ -105,6 +105,12 @@ interface QuestionSessionShellProps {
   contextLabel?: string;
   /** Hide the segmented progress bar under the question counter (exam mode). */
   hideProgress?: boolean;
+  /**
+   * Hide the "Question X of Y" counter and progress bar entirely (open-ended
+   * self-practice sessions, which have no fixed total the student is working
+   * toward — they end only when the student chooses to finish).
+   */
+  hideQuestionCounter?: boolean;
   /** When set, renders the secondary "Finish Session" header action. */
   onFinishSession?: () => void;
   /**
@@ -149,6 +155,7 @@ export function QuestionSessionShell({
   totalQuestions,
   contextLabel,
   hideProgress = false,
+  hideQuestionCounter = false,
   onFinishSession,
   headerRight,
   footerCenter,
@@ -196,15 +203,17 @@ export function QuestionSessionShell({
         </div>
 
         <div className="flex flex-col items-center justify-center gap-1.5 min-w-0">
-          <p className="font-heading font-semibold text-slate-gray text-[15px] leading-none whitespace-nowrap">
-            Question {currentQuestion} of {totalQuestions}
-            {contextLabel ? (
-              <span className="ml-2 hidden md:inline text-[13px] font-normal text-muted-foreground">
-                {contextLabel}
-              </span>
-            ) : null}
-          </p>
-          {!hideProgress && (
+          {!hideQuestionCounter && (
+            <p className="font-heading font-semibold text-slate-gray text-[15px] leading-none whitespace-nowrap">
+              Question {currentQuestion} of {totalQuestions}
+              {contextLabel ? (
+                <span className="ml-2 hidden md:inline text-[13px] font-normal text-muted-foreground">
+                  {contextLabel}
+                </span>
+              ) : null}
+            </p>
+          )}
+          {!hideProgress && !hideQuestionCounter && (
             <CompactProgress current={currentQuestion} total={totalQuestions} />
           )}
         </div>

@@ -1290,6 +1290,7 @@ export function AdaptivePracticeMode({
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
         contextLabel={contextLabel}
+        hideQuestionCounter={mode === "practice" && !isAssignmentRun}
         onFinishSession={!isAssignmentRun ? finishSession : undefined}
         variant={
           isShortAnswerQuestion && question.shortAnswer ? "split" : "mcq"
