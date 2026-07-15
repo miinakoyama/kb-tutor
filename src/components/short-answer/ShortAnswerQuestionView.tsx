@@ -374,6 +374,11 @@ export function ShortAnswerQuestionView({
 
   const handleCheck = useCallback(
     async (index: number, response: string) => {
+      if (stimulusImageLoading) {
+        setErrorToast("Loading the question illustration. Please wait before checking your answer.");
+        return;
+      }
+
       if (!assignmentId && !sessionId) {
         setErrorToast("Preparing your practice session. Please try again in a moment.");
         return;
@@ -484,6 +489,7 @@ export function ShortAnswerQuestionView({
       questionSetId,
       runtimes,
       sessionId,
+      stimulusImageLoading,
     ],
   );
 
@@ -516,6 +522,7 @@ export function ShortAnswerQuestionView({
 
   const activeIndex = runtimes.findIndex((r) => r.status !== "resolved");
   const waitingForPracticeSession = !assignmentId && !sessionId;
+  const checkDisabled = waitingForPracticeSession || stimulusImageLoading;
 
   // The toolbar's Report button always targets whichever part the student is
   // currently engaging with: the active part, or — during the brief unlock
@@ -725,7 +732,7 @@ export function ShortAnswerQuestionView({
                 initialValue={
                   runtime.attempts[runtime.attempts.length - 1]?.responseText ?? ""
                 }
-                checkDisabled={waitingForPracticeSession}
+                checkDisabled={checkDisabled}
                 previousLabel={i > 0 ? item.parts[i - 1].label : undefined}
                 unlock={
                   runtime.countdownActive

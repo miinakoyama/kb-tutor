@@ -219,6 +219,13 @@ export function ExamMode({
   const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const examRunStartedAtRef = useRef(new Date().toISOString());
 
+  const { question: hydratedCurrentQuestion, isMediaPending } =
+    useQuestionMedia(sessionQuestions[currentIndex] ?? null);
+  const { question: hydratedReviewQuestion, isMediaPending: isReviewMediaPending } =
+    useQuestionMedia(
+      reviewIndex !== null ? (sessionQuestions[reviewIndex] ?? null) : null,
+    );
+
   const clearBlurFlushTimer = useCallback(() => {
     if (blurFlushTimerRef.current === null) return;
     clearTimeout(blurFlushTimerRef.current);
@@ -812,10 +819,12 @@ export function ExamMode({
   }, [currentIndex]);
 
   const handleSubmit = useCallback(() => {
+    if (isMediaPending) return;
     setPhase("confirm");
-  }, []);
+  }, [isMediaPending]);
 
   const confirmSubmit = useCallback(async () => {
+    if (isMediaPending) return;
     flushQuestionVisit();
 
     // Grade deferred short-answer parts before showing results. The grade
@@ -944,14 +953,8 @@ export function ExamMode({
     markStageCompleted,
     sessionId,
     onAllSchoolAssignmentsCompleted,
+    isMediaPending,
   ]);
-
-  const { question: hydratedCurrentQuestion, isMediaPending } =
-    useQuestionMedia(sessionQuestions[currentIndex] ?? null);
-  const { question: hydratedReviewQuestion, isMediaPending: isReviewMediaPending } =
-    useQuestionMedia(
-      reviewIndex !== null ? (sessionQuestions[reviewIndex] ?? null) : null,
-    );
 
   if (phase === "config") {
     return (
@@ -1332,6 +1335,7 @@ export function ExamMode({
             />
             <button
               onClick={handleSubmit}
+              disabled={isMediaPending}
               className={assignmentPrimaryButtonClass}
               style={assignmentPrimaryButtonStyle}
             >
@@ -1576,6 +1580,7 @@ function ExamShortAnswerCard({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
+      aria-busy={stimulusImageLoading}
       className="rounded-[24px] border"
       style={{
         background: "var(--assignment-glass-bg-strong)",
@@ -1667,12 +1672,17 @@ function ExamShortAnswerCard({
                 <div className="mt-3">
                   <textarea
                     value={value}
-                    onChange={(e) => onChange(part.label, e.target.value)}
+                    onChange={(e) => {
+                      if (!stimulusImageLoading) {
+                        onChange(part.label, e.target.value);
+                      }
+                    }}
+                    disabled={stimulusImageLoading}
                     maxLength={part.maxLength}
                     rows={3}
                     placeholder="Type your answer…"
                     aria-label={`Answer for Part ${part.label}`}
-                    className="w-full resize-none rounded-xl border border-[color:var(--assignment-panel-border)] bg-white/70 px-3 py-2 text-[15px] text-[color:var(--foreground)] focus:border-[var(--assignment-completed)] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full resize-none rounded-xl border border-[color:var(--assignment-panel-border)] bg-white/70 px-3 py-2 text-[15px] text-[color:var(--foreground)] focus:border-[var(--assignment-completed)] focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <div className="mt-1 flex items-center justify-end">
                     <span className="text-[11px] text-[color:var(--foreground)]/40">
