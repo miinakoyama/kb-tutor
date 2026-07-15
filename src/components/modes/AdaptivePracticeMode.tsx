@@ -33,6 +33,7 @@ import {
 } from "@/components/shared/QuestionSessionShell";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { QuestionNoteDrawer } from "@/components/notes/QuestionNoteDrawer";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
@@ -364,7 +365,10 @@ export function AdaptivePracticeMode({
     onAllSchoolAssignmentsCompleted,
   ]);
 
-  const question = sessionQuestions[currentIndex];
+  const rawQuestion = sessionQuestions[currentIndex];
+  const { question: hydratedQuestion, isMediaPending } =
+    useQuestionMedia(rawQuestion);
+  const question = hydratedQuestion ?? rawQuestion;
   const isShortAnswerQuestion =
     question?.questionType === "open-ended" && Boolean(question?.shortAnswer);
   const attempts = useMemo(
@@ -405,8 +409,11 @@ export function AdaptivePracticeMode({
   const assignmentSecondaryButtonClass =
     "inline-flex items-center justify-center gap-1.5 px-5 h-[46px] rounded-full font-bold text-[16px] bg-[var(--assignment-row-cta-bg)] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
 
+  // Dwell/analytics effects key on `rawQuestion` (stable identity from
+  // sessionQuestions): the hydrated `question` gets a new object identity when
+  // stripped media arrives, which must not reset dwell timing or re-emit events.
   useEffect(() => {
-    if (!question || showSummary) {
+    if (!rawQuestion || showSummary) {
       resetAttemptDwell();
       return;
     }
@@ -421,13 +428,13 @@ export function AdaptivePracticeMode({
     clearBlurFlushTimer,
     currentIndex,
     flushAttemptVisit,
-    question,
+    rawQuestion,
     resetAttemptDwell,
     showSummary,
   ]);
 
   useEffect(() => {
-    if (!question || showSummary) return;
+    if (!rawQuestion || showSummary) return;
     const handleVisibilityChange = () => {
       if (document.hidden) {
         clearBlurFlushTimer();
@@ -467,20 +474,20 @@ export function AdaptivePracticeMode({
     clearBlurFlushTimer,
     currentIndex,
     flushAttemptVisit,
-    question,
+    rawQuestion,
     showSummary,
   ]);
 
   useEffect(() => {
-    if (!question) return;
+    if (!rawQuestion) return;
     trackAnalyticsEvent({
       eventType: mode === "review" ? "review_item_opened" : "question_viewed",
       mode,
-      questionId: question.id,
+      questionId: rawQuestion.id,
       assignmentId,
       sessionId: sessionIdRef.current ?? undefined,
     });
-  }, [assignmentId, mode, question]);
+  }, [assignmentId, mode, rawQuestion]);
 
   // `hint_opened` fires whenever the scaffold transitions to visible; the
   // paired `hint_closed` fires when the scaffold disappears (correct answer,
@@ -1319,6 +1326,7 @@ export function AdaptivePracticeMode({
                 }
                 onContinue={handleNext}
                 showCompletionContinue={false}
+                stimulusImageLoading={isMediaPending}
                 onAllPartsResolved={({ correctParts, totalParts }) => {
                   setFinalAnswers((prev) => ({
                     ...prev,

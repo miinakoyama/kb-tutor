@@ -146,6 +146,10 @@ export interface Question {
   isVisible?: boolean;
   /** When set is linked for Self Practice, include this question in the student bank (generated sets only). */
   includeInSelfPractice?: boolean;
+  /** Self Practice bank rows only: the stored payload has an illustration (imageUrl) that was stripped from the list response; load it lazily via useQuestionMedia. */
+  hasImage?: boolean;
+  /** Self Practice bank rows only: shortAnswer.stimulus.imageB64 was stripped from the list response; load it lazily via useQuestionMedia. */
+  hasStimulusImage?: boolean;
   generatedAt?: string;
   diagram?: Diagram;
 }

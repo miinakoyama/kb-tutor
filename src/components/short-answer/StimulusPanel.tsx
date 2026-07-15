@@ -177,10 +177,12 @@ function IllustrationStimulusView({
   prompt,
   imageB64,
   title,
+  imageLoading = false,
 }: {
   prompt: string;
   imageB64?: string;
   title: string;
+  imageLoading?: boolean;
 }) {
   if (imageB64) {
     return (
@@ -192,6 +194,15 @@ function IllustrationStimulusView({
       />
     );
   }
+  if (imageLoading) {
+    return (
+      <div
+        role="status"
+        aria-label="Loading illustration"
+        className="h-48 w-full animate-pulse rounded-xl bg-[color:var(--foreground)]/10"
+      />
+    );
+  }
   return (
     <div className="rounded-xl border border-dashed border-[color:var(--assignment-panel-border)] p-4 text-sm text-[color:var(--foreground)]/60">
       Illustration: {prompt}
@@ -199,7 +210,13 @@ function IllustrationStimulusView({
   );
 }
 
-function StimulusBody({ stimulus }: { stimulus: StimulusAsset }): ReactNode {
+function StimulusBody({
+  stimulus,
+  imageLoading,
+}: {
+  stimulus: StimulusAsset;
+  imageLoading?: boolean;
+}): ReactNode {
   switch (stimulus.type) {
     case "table":
       return <TableStimulusView md={stimulus.tableMarkdown} />;
@@ -221,6 +238,7 @@ function StimulusBody({ stimulus }: { stimulus: StimulusAsset }): ReactNode {
           prompt={stimulus.illustrationPrompt}
           imageB64={stimulus.imageB64}
           title={stimulus.title}
+          imageLoading={imageLoading}
         />
       );
   }
@@ -234,12 +252,15 @@ interface StimulusPanelProps {
    * inside a shared split-workspace surface that provides border/background.
    */
   framed?: boolean;
+  /** True while a stripped illustration image is still being fetched (see useQuestionMedia). */
+  imageLoading?: boolean;
 }
 
 export function StimulusPanel({
   stem,
   stimulus,
   framed = true,
+  imageLoading = false,
 }: StimulusPanelProps) {
   return (
     <section
@@ -266,7 +287,7 @@ export function StimulusPanel({
             {stimulus.title}
           </p>
         )}
-        <StimulusBody stimulus={stimulus} />
+        <StimulusBody stimulus={stimulus} imageLoading={imageLoading} />
       </div>
     </section>
   );
