@@ -45,8 +45,9 @@ describe("POST /api/practice/next", () => {
     }).client;
     state.admin = createMockSupabaseClient({
       tables: {
+        school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
         bkt_standard_rollouts: {
-          rows: [{ standard_id: "3.1.9-12.A", status: "enabled" }],
+          rows: [{ school_id: "school-a", standard_id: "3.1.9-12.A", status: "enabled" }],
         },
       },
     }).client;
@@ -54,6 +55,33 @@ describe("POST /api/practice/next", () => {
     const response = await POST(new Request("http://localhost/api/practice/next", {
       method: "POST",
       body: JSON.stringify({ standardIds: ["3.1.9-12.A", "3.1.9-12.B"] }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      status: "unavailable",
+      reason: "scope_unavailable",
+    });
+  });
+
+  it("does not serve a standard enabled only for a school the student is not in", async () => {
+    state.server = createMockSupabaseClient({
+      user: { id: "student", app_metadata: {}, user_metadata: {}, aud: "authenticated", created_at: "2026-01-01" },
+    }).client;
+    state.admin = createMockSupabaseClient({
+      tables: {
+        school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
+        // Enabled for school-b only — school-a has never been validated, so its
+        // bank may have no question for some KC in this standard.
+        bkt_standard_rollouts: {
+          rows: [{ school_id: "school-b", standard_id: "3.1.9-12.A", status: "enabled" }],
+        },
+      },
+    }).client;
+
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({ standardIds: ["3.1.9-12.A"] }),
     }));
 
     expect(response.status).toBe(200);
@@ -101,8 +129,9 @@ describe("POST /api/practice/next", () => {
     }).client;
     state.admin = createMockSupabaseClient({
       tables: {
+        school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
         bkt_standard_rollouts: {
-          rows: [{ standard_id: "3.1.9-12.A", status: "enabled" }],
+          rows: [{ school_id: "school-a", standard_id: "3.1.9-12.A", status: "enabled" }],
         },
         knowledge_components: {
           rows: [{ code: "3.1.9-12.A1", standard_id: "3.1.9-12.A", catalog_order: 1, active: true }],

@@ -5,9 +5,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 type CoverageCommand =
   | { action: "publish_run"; runId: string; confirmed: boolean }
   | { action: "rollback_run"; runId: string; confirmed: boolean }
-  | { action: "validate_standard"; standardId: string; confirmed: boolean }
-  | { action: "enable_standard"; standardId: string; reason?: string; confirmed: boolean }
-  | { action: "disable_standard"; standardId: string; reason?: string; confirmed: boolean }
+  | { action: "validate_standard"; schoolId: string; standardId: string; confirmed: boolean }
+  | { action: "enable_standard"; schoolId: string; standardId: string; reason?: string; confirmed: boolean }
+  | { action: "disable_standard"; schoolId: string; standardId: string; reason?: string; confirmed: boolean }
   | { action: "replace_mapping"; questionSetId: string; questionId: string; partLabel?: string | null; kcCode: string; confirmed: boolean }
   | { action: "withdraw_mapping"; questionSetId: string; questionId: string; partLabel?: string | null; confirmed: boolean };
 
@@ -20,11 +20,21 @@ function parseCommand(value: unknown): CoverageCommand | null {
   if ((value.action === "publish_run" || value.action === "rollback_run") && typeof value.runId === "string") {
     return { action: value.action, runId: value.runId, confirmed: true };
   }
+  // A rollout is only meaningful for one school's question bank, so a standard
+  // command without a school is rejected rather than applied everywhere.
   if (
     (value.action === "validate_standard" || value.action === "enable_standard" || value.action === "disable_standard") &&
-    typeof value.standardId === "string"
+    typeof value.standardId === "string" &&
+    typeof value.schoolId === "string" &&
+    value.schoolId.length > 0
   ) {
-    return { action: value.action, standardId: value.standardId, reason: typeof value.reason === "string" ? value.reason : undefined, confirmed: true } as CoverageCommand;
+    return {
+      action: value.action,
+      schoolId: value.schoolId,
+      standardId: value.standardId,
+      reason: typeof value.reason === "string" ? value.reason : undefined,
+      confirmed: true,
+    } as CoverageCommand;
   }
   if (
     value.action === "replace_mapping" && typeof value.questionSetId === "string" &&
@@ -51,12 +61,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, data });
   }
   if (command.action === "validate_standard") {
-    const { data, error } = await db.rpc("validate_bkt_standard_rollout", { p_standard_id: command.standardId, p_actor: guard.userId });
+    const { data, error } = await db.rpc("validate_bkt_standard_rollout", {
+      p_school_id: command.schoolId,
+      p_standard_id: command.standardId,
+      p_actor: guard.userId,
+    });
     if (error) return NextResponse.json({ error: error.message }, { status: 409 });
     return NextResponse.json(data);
   }
   if (command.action === "enable_standard" || command.action === "disable_standard") {
     const { data, error } = await db.rpc("set_bkt_standard_rollout", {
+      p_school_id: command.schoolId,
       p_standard_id: command.standardId,
       p_actor: guard.userId,
       p_enabled: command.action === "enable_standard",

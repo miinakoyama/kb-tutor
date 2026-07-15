@@ -38,9 +38,23 @@ export async function POST(request: Request) {
   if (!body) return NextResponse.json({ error: "A valid ordered standardIds list is required" }, { status: 400 });
   const admin = createSupabaseAdminClient();
 
+  // A student is only ever served from their own school's bank, so the rollout
+  // that governs them is the one for that school — a standard enabled elsewhere
+  // says nothing about whether this school has an item for every KC.
+  const { data: memberRows, error: memberError } = await admin
+    .from("school_members")
+    .select("school_id")
+    .eq("student_user_id", user.id);
+  if (memberError) return NextResponse.json({ error: "Unable to load adaptive rollout state" }, { status: 500 });
+  const schoolIds = [...new Set((memberRows ?? []).map((row) => String(row.school_id)))];
+  if (schoolIds.length === 0) {
+    return NextResponse.json({ status: "unavailable", reason: "scope_unavailable" });
+  }
+
   const { data: rolloutRows, error: rolloutError } = await admin
     .from("bkt_standard_rollouts")
     .select("standard_id,status")
+    .in("school_id", schoolIds)
     .in("standard_id", body.standardIds)
     .eq("status", "enabled");
   if (rolloutError) return NextResponse.json({ error: "Unable to load adaptive rollout state" }, { status: 500 });

@@ -20,6 +20,7 @@ import {
   removeBookmark,
 } from "@/lib/storage";
 import { useQuestions } from "@/hooks/useQuestions";
+import { usePageDwell } from "@/hooks/usePageDwell";
 import {
   StudentNotesList,
   useStudentNotes,
@@ -114,6 +115,10 @@ export default function BookmarksPage() {
 
 function BookmarksPageContent() {
   const searchParams = useSearchParams();
+  // Review-tab study time for the homepage Learning effort chart. The whole
+  // page counts — all three tabs (needs review / bookmarked / notes) are
+  // review activity.
+  usePageDwell("review_tab");
   const { visibleQuestions, isLoaded } = useQuestions();
   const {
     notes,
