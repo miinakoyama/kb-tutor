@@ -69,6 +69,13 @@ function isDocumentActiveForTiming(): boolean {
   return !document.hidden && document.hasFocus();
 }
 
+function createPracticeSelectionSeed(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 interface AdaptivePracticeModeProps {
   questions: Question[];
   topicName?: string;
@@ -161,6 +168,7 @@ export function AdaptivePracticeMode({
   // Latest session id, read at emit-time by effects whose dependencies must
   // exclude `sessionId` to avoid re-entry / duplicate emits.
   const sessionIdRef = useRef<string | null>(null);
+  const selectionSeedRef = useRef<string | null>(null);
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
@@ -177,6 +185,7 @@ export function AdaptivePracticeMode({
       setAdaptiveLoading(true);
       setAdaptiveStopReason(null);
       try {
+        selectionSeedRef.current ??= sessionIdRef.current ?? createPracticeSelectionSeed();
         const response = await fetch("/api/practice/next", {
           method: "POST",
           credentials: "include",
@@ -184,6 +193,7 @@ export function AdaptivePracticeMode({
           body: JSON.stringify({
             standardIds,
             sessionId: sessionIdRef.current,
+            selectionSeed: selectionSeedRef.current,
           }),
         });
         const payload = (await response.json()) as {
@@ -192,7 +202,9 @@ export function AdaptivePracticeMode({
           error?: string;
           question?: Question;
         };
-        if (!response.ok) throw new Error(payload.error ?? "Unable to select the next question");
+        if (!response.ok) {
+          throw new Error("Unable to load practice questions. Please try again.");
+        }
         if (payload.status === "unavailable" && payload.reason === "scope_unavailable") {
           setAdaptiveStopReason(null);
           return "scope_unavailable";
@@ -763,6 +775,7 @@ export function AdaptivePracticeMode({
       questionId: question.id,
       questionSetId: question.questionSetId,
       questionContentVersion: question.contentVersion,
+      questionCompleted: shouldFinalize,
       selectedOptionId: selectedOptionId,
       isCorrect: result.isCorrect,
       timestamp: Date.now(),
@@ -982,7 +995,7 @@ export function AdaptivePracticeMode({
       <div className="h-full flex items-center justify-center px-4">
         <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
-            No questions available for this selection yet.
+            {adaptiveStopReason ?? "No questions available for this selection yet."}
           </p>
           <Link
             href={backHref}
