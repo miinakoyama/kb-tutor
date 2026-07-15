@@ -10,6 +10,7 @@ import { useQuestions } from "@/hooks/useQuestions";
 import type {
   PracticeMode as PracticeModeType,
   Question,
+  QuestionTypeSelection,
 } from "@/types/question";
 import { getStandardById, type ModuleCode } from "@/lib/standards";
 import { emitAllAssignmentsCompletedEvent } from "@/lib/all-assignments-complete-modal";
@@ -44,6 +45,12 @@ interface PracticePageClientProps {
   questionsParam?: string;
   questionIdsParam?: string;
   assignmentIdParam?: string;
+  questionTypeParam?: string;
+}
+
+function parseQuestionTypeParam(value: string | undefined): QuestionTypeSelection | undefined {
+  if (value === "mcq" || value === "open-ended" || value === "mixed") return value;
+  return undefined;
 }
 
 function InvalidParamsMessage({ message }: { message: string }) {
@@ -69,6 +76,7 @@ export function PracticePageClient({
   questionsParam,
   questionIdsParam,
   assignmentIdParam,
+  questionTypeParam,
 }: PracticePageClientProps) {
   const normalizedModeParam =
     modeParam === "adaptive" ? "practice" : modeParam;
@@ -221,6 +229,24 @@ export function PracticePageClient({
     }
   }
 
+  // Question-type selection only applies to genuine topic-driven self-practice
+  // and exam runs — assignments and review-by-question-id already carry their
+  // own fixed question set.
+  const questionTypeSelection =
+    !hasAssignmentSnapshot && selectedQuestionIds.length === 0
+      ? parseQuestionTypeParam(questionTypeParam)
+      : undefined;
+
+  if (questionTypeSelection === "mcq") {
+    filteredQuestions = filteredQuestions.filter(
+      (question) => question.questionType !== "open-ended",
+    );
+  } else if (questionTypeSelection === "open-ended") {
+    filteredQuestions = filteredQuestions.filter(
+      (question) => question.questionType === "open-ended",
+    );
+  }
+
   if (questionsParam) {
     const parsed = parseInt(questionsParam, 10);
     if (!Number.isNaN(parsed) && parsed > 0) {
@@ -281,6 +307,7 @@ export function PracticePageClient({
           questions={filteredQuestions}
           topicName={topicName}
           questionCount={requestedQuestionCount}
+          questionTypeSelection={questionTypeSelection}
           assignmentId={assignmentIdParam}
           backHref={runBackHref}
           showBackLink
@@ -310,6 +337,7 @@ export function PracticePageClient({
           questions={filteredQuestions}
           topicName={topicName}
           requestedQuestionCount={requestedQuestionCount ?? 10}
+          questionTypeSelection={questionTypeSelection}
           assignmentId={assignmentIdParam}
           backHref={runBackHref}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}

@@ -2,8 +2,9 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Play } from "lucide-react";
-import type { PracticeMode } from "@/types/question";
+import { ChevronLeft, ChevronRight, Play, ListChecks, PenLine, Shuffle } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { PracticeMode, QuestionTypeSelection } from "@/types/question";
 import { ASSIGNMENT_MODE_META } from "@/components/assignments/assignment-design";
 import { STANDARD_DEFINITIONS, type ModuleCode } from "@/lib/standards";
 
@@ -104,7 +105,35 @@ const EXAM_QUESTION_COUNT_OPTIONS = [12, 24, 48] as const;
 const MIN_CUSTOM_EXAM_QUESTIONS = 1;
 const MAX_CUSTOM_EXAM_QUESTIONS = 200;
 
-type SelfPracticeStep = 1 | 2 | 3;
+type SelfPracticeStep = 1 | 2 | 3 | 4;
+
+interface QuestionTypeOption {
+  value: QuestionTypeSelection;
+  title: string;
+  description: string;
+  Icon: LucideIcon;
+}
+
+const QUESTION_TYPE_OPTIONS: QuestionTypeOption[] = [
+  {
+    value: "mcq",
+    title: "MCQ",
+    description: "Multiple-choice questions only.",
+    Icon: ListChecks,
+  },
+  {
+    value: "open-ended",
+    title: "SAQ",
+    description: "Short-answer questions only.",
+    Icon: PenLine,
+  },
+  {
+    value: "mixed",
+    title: "Mixed",
+    description: "3 MCQs, then 1 SAQ, repeating.",
+    Icon: Shuffle,
+  },
+];
 
 function FlowProgress({
   currentStep,
@@ -222,9 +251,58 @@ function ModeCard({
   );
 }
 
+function QuestionTypeCard({
+  active,
+  title,
+  description,
+  Icon,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  Icon: LucideIcon;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="mx-auto grid min-h-[200px] w-[95%] place-items-center rounded-2xl p-5 text-center transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:min-h-[220px] sm:p-6"
+      style={selectableCardStyle(active)}
+    >
+      <div className="mx-auto flex w-full flex-col items-center justify-center">
+        <div
+          className="flex h-14 w-14 items-center justify-center rounded-full"
+          style={{
+            color: "var(--assignment-selected-accent)",
+            background: "var(--assignment-row-cta-bg)",
+            border: "1.5px solid var(--assignment-row-cta-border)",
+            boxShadow: "var(--assignment-pill-highlight)",
+          }}
+        >
+          <Icon className="h-6 w-6" />
+        </div>
+        <p className="mt-3 font-bold text-slate-gray" style={SECTION_HEADING_STYLE}>
+          {title}
+        </p>
+        <p
+          className="mt-1.5 text-muted-foreground"
+          style={{ fontSize: 15, lineHeight: 1.5, letterSpacing: "-0.1px", fontFamily: GEIST_FONT }}
+        >
+          {description}
+        </p>
+      </div>
+    </button>
+  );
+}
+
 export function SelfPracticePlanner() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [selectedMode, setSelectedMode] = useState<PracticeMode | null>(null);
+  const [selectedQuestionType, setSelectedQuestionType] =
+    useState<QuestionTypeSelection | null>(null);
   const [currentStep, setCurrentStep] = useState<SelfPracticeStep>(1);
   const [examQuestionCount, setExamQuestionCount] = useState<number | null>(null);
   const [isCustomExamCount, setIsCustomExamCount] = useState(false);
@@ -235,15 +313,17 @@ export function SelfPracticePlanner() {
   const startHref = useMemo(() => {
     if (selectedTopics.length === 0) return null;
     if (!selectedMode) return null;
+    if (!selectedQuestionType) return null;
     const params = new URLSearchParams();
     params.set("mode", selectedMode);
     params.set("topics", selectedTopics.join(","));
+    params.set("questionType", selectedQuestionType);
     if (selectedMode === "exam") {
       if (examQuestionCount === null) return null;
       params.set("questions", String(examQuestionCount));
     }
     return `/practice?${params.toString()}`;
-  }, [selectedMode, selectedTopics, examQuestionCount]);
+  }, [selectedMode, selectedTopics, selectedQuestionType, examQuestionCount]);
 
   const toggleTopic = (key: string) => {
     setSelectedTopics((prev) =>
@@ -253,14 +333,15 @@ export function SelfPracticePlanner() {
 
   const hasSelectedTopics = selectedTopics.length > 0;
   const hasSelectedMode = selectedMode !== null;
+  const hasSelectedQuestionType = selectedQuestionType !== null;
   const isExamFlow = selectedMode === "exam";
   const flowStepLabels = isExamFlow
-    ? ["Select mode", "Choose topics", "Number of questions"]
-    : ["Select mode", "Choose topics"];
+    ? ["Select mode", "Choose topics", "Question type", "Number of questions"]
+    : ["Select mode", "Choose topics", "Question type"];
 
   useEffect(() => {
-    if (!isExamFlow && currentStep === 3) {
-      setCurrentStep(2);
+    if (!isExamFlow && currentStep === 4) {
+      setCurrentStep(3);
     }
   }, [isExamFlow, currentStep]);
 
@@ -406,13 +487,63 @@ export function SelfPracticePlanner() {
               <ChevronLeft className="h-4 w-4" />
               Back
             </button>
+            <button
+              type="button"
+              onClick={() => setCurrentStep(3)}
+              disabled={!hasSelectedTopics}
+              className={hasSelectedTopics ? PRIMARY_CTA_CLASS : DISABLED_CTA_CLASS}
+              style={hasSelectedTopics ? PRIMARY_CTA_STYLE : DISABLED_CTA_STYLE}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </section>
+      ) : currentStep === 3 ? (
+        <section>
+          <FlowProgress currentStep={currentStep} steps={flowStepLabels} />
+
+          <h2 className="mb-2 text-center font-bold text-slate-gray" style={SECTION_HEADING_STYLE}>
+            Choose Question Type
+          </h2>
+
+          <p
+            className="mb-7 text-center text-muted-foreground"
+            style={{ fontSize: 16, lineHeight: 1.5, letterSpacing: "-0.1px", fontFamily: GEIST_FONT }}
+          >
+            Which kind of questions would you like to practice?
+          </p>
+
+          <div className="grid gap-6 sm:grid-cols-3">
+            {QUESTION_TYPE_OPTIONS.map((option) => (
+              <QuestionTypeCard
+                key={option.value}
+                active={selectedQuestionType === option.value}
+                title={option.title}
+                description={option.description}
+                Icon={option.Icon}
+                onClick={() => setSelectedQuestionType(option.value)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-6 flex items-center justify-between gap-6">
+            <button
+              type="button"
+              onClick={() => setCurrentStep(2)}
+              className={SECONDARY_CTA_CLASS}
+              style={SECONDARY_CTA_STYLE}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
             {isExamFlow ? (
               <button
                 type="button"
-                onClick={() => setCurrentStep(3)}
-                disabled={!hasSelectedTopics}
-                className={hasSelectedTopics ? PRIMARY_CTA_CLASS : DISABLED_CTA_CLASS}
-                style={hasSelectedTopics ? PRIMARY_CTA_STYLE : DISABLED_CTA_STYLE}
+                onClick={() => setCurrentStep(4)}
+                disabled={!hasSelectedQuestionType}
+                className={hasSelectedQuestionType ? PRIMARY_CTA_CLASS : DISABLED_CTA_CLASS}
+                style={hasSelectedQuestionType ? PRIMARY_CTA_STYLE : DISABLED_CTA_STYLE}
               >
                 Next
                 <ChevronRight className="h-4 w-4" />
@@ -543,7 +674,7 @@ export function SelfPracticePlanner() {
           <div className="mt-6 flex items-center justify-between gap-6">
             <button
               type="button"
-              onClick={() => setCurrentStep(2)}
+              onClick={() => setCurrentStep(3)}
               className={SECONDARY_CTA_CLASS}
               style={SECONDARY_CTA_STYLE}
             >

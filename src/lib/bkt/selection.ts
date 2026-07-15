@@ -67,12 +67,27 @@ export function rankQuestionsForKc(
   targetKcCode: string,
   lastQuestion: { questionSetId: string | null; questionId: string } | null,
   sessionSeed: string,
+  /**
+   * Question-type filter chosen by the student ("mcq" / "saq" / mixed-pattern
+   * slot). When the required format has no eligible candidates for this KC,
+   * an "saq" requirement falls back to MCQ; an "mcq" requirement returns no
+   * candidates so the caller can try the next KC instead.
+   */
+  requiredFormat?: "mcq" | "saq",
 ): AdaptiveQuestionCandidate[] {
   let eligible = candidates.filter(
     (candidate) =>
       candidate.targetKcCode === targetKcCode ||
       (candidate.format === "saq" && candidate.partKcCodes.includes(targetKcCode)),
   );
+  if (requiredFormat) {
+    const constrained = eligible.filter((candidate) => candidate.format === requiredFormat);
+    eligible = constrained.length > 0
+      ? constrained
+      : requiredFormat === "saq"
+        ? eligible.filter((candidate) => candidate.format === "mcq")
+        : [];
+  }
   const isImmediate = (candidate: AdaptiveQuestionCandidate) =>
     candidate.questionId === lastQuestion?.questionId &&
     (!lastQuestion.questionSetId ||

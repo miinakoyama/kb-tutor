@@ -2,6 +2,9 @@ import type { ShortAnswerItem } from "@/types/short-answer";
 
 export type QuestionType = "mcq" | "open-ended";
 
+/** Question-type filter chosen by the student when starting a self-practice session. */
+export type QuestionTypeSelection = "mcq" | "open-ended" | "mixed";
+
 export type PracticeMode = "practice" | "exam" | "review";
 
 export type QuestionSource = "manual" | "imported" | "generated";

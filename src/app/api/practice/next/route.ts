@@ -10,11 +10,19 @@ interface NextQuestionBody {
   standardIds?: unknown;
   sessionId?: unknown;
   selectionSeed?: unknown;
+  requiredFormat?: unknown;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function parseBody(value: NextQuestionBody): { standardIds: string[]; sessionId: string | null; selectionSeed: string | null } | null {
+function parseBody(
+  value: NextQuestionBody,
+): {
+  standardIds: string[];
+  sessionId: string | null;
+  selectionSeed: string | null;
+  requiredFormat: "mcq" | "saq" | undefined;
+} | null {
   if (!Array.isArray(value.standardIds)) return null;
   const standardIds = [...new Set(value.standardIds.filter((item): item is string => typeof item === "string" && Boolean(getStandardById(item))))];
   if (!standardIds.length) return null;
@@ -22,7 +30,9 @@ function parseBody(value: NextQuestionBody): { standardIds: string[]; sessionId:
   const selectionSeed = typeof value.selectionSeed === "string" && value.selectionSeed.length <= 128
     ? value.selectionSeed
     : null;
-  return { standardIds, sessionId, selectionSeed };
+  const requiredFormat =
+    value.requiredFormat === "mcq" || value.requiredFormat === "saq" ? value.requiredFormat : undefined;
+  return { standardIds, sessionId, selectionSeed, requiredFormat };
 }
 
 async function loadAdaptiveCandidateRows(
@@ -224,6 +234,7 @@ export async function POST(request: Request) {
       kcCode,
       lastQuestionByStandard.get(target.standardId) ?? null,
       sessionSeed,
+      body.requiredFormat,
     );
     if (!ranked.length) {
       fallbackKcCodes.push(kcCode);
