@@ -18,7 +18,8 @@
     "bkt:publish": "node --experimental-strip-types scripts/bkt/publish-kc-run.ts publish",
     "bkt:rollback": "node --experimental-strip-types scripts/bkt/publish-kc-run.ts rollback",
     "bkt:coverage": "node --experimental-strip-types scripts/bkt/verify-kc-coverage.ts",
-    "bkt:benchmark": "node --experimental-strip-types scripts/bkt/benchmark.ts"
+    "bkt:benchmark": "node --experimental-strip-types scripts/bkt/benchmark.ts",
+    "saq:key-terms:backfill": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/short-answer/backfill-key-terms.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
