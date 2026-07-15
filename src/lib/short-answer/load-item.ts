@@ -32,6 +32,25 @@ function payloadId(payload: unknown): string | null {
   return typeof record.id === "string" && record.id.trim() ? record.id : null;
 }
 
+function payloadQuestionSetId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as { questionSetId?: unknown };
+  return typeof record.questionSetId === "string" && record.questionSetId.trim()
+    ? record.questionSetId
+    : null;
+}
+
+function matchesSnapshotIdentity(
+  payload: unknown,
+  questionId: string,
+  questionSetId: string | null | undefined,
+): boolean {
+  return (
+    payloadId(payload) === questionId &&
+    payloadQuestionSetId(payload) === (questionSetId ?? null)
+  );
+}
+
 export interface LoadedItem {
   item: ShortAnswerItem;
   part: ShortAnswerPart;
@@ -61,12 +80,15 @@ export async function loadShortAnswerPart(
   let payload: unknown = null;
 
   if (assignmentId) {
-    const { data, error } = await supabase
+    let snapshotQuery = supabase
       .from("assignment_question_snapshots")
       .select("payload")
       .eq("assignment_id", assignmentId)
-      .eq("question_id", questionId)
-      .maybeSingle();
+      .eq("question_id", questionId);
+    snapshotQuery = questionSetId
+      ? snapshotQuery.eq("payload->>questionSetId", questionSetId)
+      : snapshotQuery.is("payload->>questionSetId", null);
+    const { data, error } = await snapshotQuery.maybeSingle();
     if (error) {
       throw new ShortAnswerItemLoadError(error.message, error.code);
     }
@@ -84,7 +106,9 @@ export async function loadShortAnswerPart(
         );
       }
       payload =
-        (snapshots ?? []).find((row) => payloadId(row.payload) === questionId)
+        (snapshots ?? []).find((row) =>
+          matchesSnapshotIdentity(row.payload, questionId, questionSetId),
+        )
           ?.payload ?? null;
     }
   } else {

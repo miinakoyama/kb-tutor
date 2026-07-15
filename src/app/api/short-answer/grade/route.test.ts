@@ -129,6 +129,16 @@ vi.mock("@/lib/short-answer/assignment-run", () => ({
     assignmentId && assignmentRunAfter
       ? query.gt("answered_at", assignmentRunAfter)
       : query.is("assignment_run_after", null),
+  applyQuestionSetFilter: (
+    query: {
+      eq: (col: string, val: string) => unknown;
+      is: (col: string, val: null) => unknown;
+    },
+    questionSetId: string | null | undefined,
+  ) =>
+    questionSetId
+      ? query.eq("question_set_id", questionSetId)
+      : query.is("question_set_id", null),
 }));
 
 vi.mock("@/lib/short-answer/load-item", () => ({
@@ -487,6 +497,12 @@ describe("POST /api/short-answer/grade", () => {
       column: "session_id",
       value: "22222222-2222-4222-8222-222222222222",
     });
+    expect(serverQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "eq",
+      column: "question_set_id",
+      value: "set-1",
+    });
     expect(adminQueryCalls).toContainEqual({
       table: "short_answer_attempts",
       method: "insert",
@@ -565,5 +581,13 @@ describe("POST /api/short-answer/grade", () => {
         call.value === sessionId,
     );
     expect(sessionFilters.length).toBeGreaterThanOrEqual(2);
+    const questionSetFilters = serverQueryCalls.filter(
+      (call) =>
+        call.table === "short_answer_attempts" &&
+        call.method === "eq" &&
+        call.column === "question_set_id" &&
+        call.value === "set-1",
+    );
+    expect(questionSetFilters.length).toBeGreaterThanOrEqual(2);
   });
 });

@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   applyAssignmentRunFilter,
+  applyQuestionSetFilter,
   resolveAssignmentRunAfter,
 } from "@/lib/short-answer/assignment-run";
 import { evaluateShortAnswerQuestionCompletion } from "@/lib/short-answer/question-completion";
@@ -165,9 +166,7 @@ async function maybeRecordQuestionSummary(
     )
     .eq("user_id", params.userId)
     .eq("question_id", params.questionId);
-  query = params.questionSetId
-    ? query.eq("question_set_id", params.questionSetId)
-    : query.is("question_set_id", null);
+  query = applyQuestionSetFilter(query, params.questionSetId);
   if (params.assignmentId) {
     query = query.eq("assignment_id", params.assignmentId);
     query = applyAssignmentRunFilter(
@@ -195,9 +194,7 @@ async function maybeRecordQuestionSummary(
     .eq("user_id", params.userId)
     .eq("question_id", params.questionId)
     .eq("selected_option_id", "short-answer");
-  existingQuery = params.questionSetId
-    ? existingQuery.eq("question_set_id", params.questionSetId)
-    : existingQuery.is("question_set_id", null);
+  existingQuery = applyQuestionSetFilter(existingQuery, params.questionSetId);
   existingQuery = params.assignmentId
     ? existingQuery.eq("assignment_id", params.assignmentId)
     : existingQuery.is("assignment_id", null);
@@ -360,6 +357,7 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .eq("question_id", body.questionId)
     .eq("part_label", body.partLabel);
+  priorQuery = applyQuestionSetFilter(priorQuery, body.questionSetId);
   if (body.assignmentId) {
     priorQuery = priorQuery.eq("assignment_id", body.assignmentId);
     priorQuery = applyAssignmentRunFilter(
@@ -417,6 +415,10 @@ export async function POST(request: Request) {
         .eq("question_id", body.questionId)
         .eq("part_label", body.partLabel)
         .eq("attempt_number", 1);
+      attempt1Query = applyQuestionSetFilter(
+        attempt1Query,
+        body.questionSetId,
+      );
       attempt1Query = body.assignmentId
         ? attempt1Query.eq("assignment_id", body.assignmentId)
         : attempt1Query.is("assignment_id", null);
