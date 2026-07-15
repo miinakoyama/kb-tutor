@@ -203,6 +203,7 @@ interface BlueprintForItem {
   evidence_pattern: string;
   expected_response_elements: string[];
   common_incomplete_responses: string[];
+  selected_kcs: string[];
   task_sequence: Record<
     string,
     { kc_code: string; task_type: string; function: string } | undefined
@@ -310,6 +311,14 @@ export function buildItemPrompt(
           "Part C": { points_possible: 1, criteria: { "1": "Concrete Part C credit criterion", "0": "No credit criterion" } },
         };
 
+  const vocabTerms = Array.from(
+    new Set(
+      ctx.standardKCs
+        .filter((kc) => bp.selected_kcs.includes(kc.code))
+        .flatMap((kc) => kc.vocab),
+    ),
+  );
+
   const telerSystemInstruction =
     telerLevel <= 2
       ? "Use the KC statements, key concepts, and rubric anchors as the primary content constraints. Keep the prompt-level guidance intentionally light."
@@ -355,6 +364,11 @@ export function buildItemPrompt(
     "7. Do NOT reveal expected answers in the stem, stimulus asset, or part questions.",
     telerSystemInstruction,
     `8. Stimulus type is fixed by the blueprint: ${bp.stimulus_type}.`,
+    "9. Provide 3-6 key_terms: important vocabulary words that appear in this item (prefer words",
+    "   from the VOCABULARY list below, if provided). Each term needs its OWN concise, one-sentence",
+    "   definition written specifically for that term. Do NOT reuse the same definition text for",
+    "   more than one term, and do NOT copy a KC statement verbatim as a definition — write an",
+    "   actual definition of the word itself.",
     "",
     "OUTPUT: strict JSON only, no markdown wrapper, matching exactly:",
     JSON.stringify({
@@ -379,6 +393,9 @@ export function buildItemPrompt(
         { score: 2, response: "Two-point sample student response", annotation: "Why it earns 2 points" },
         { score: 1, response: "One-point sample student response", annotation: "Why it earns 1 point" },
         { score: 0, response: "Zero-point sample student response", annotation: "Why it earns 0 points" },
+      ],
+      key_terms: [
+        { term: "<vocabulary term used in this item>", definition: "<unique one-sentence definition for this term>" },
       ],
     }),
   ].join("\n");
@@ -417,6 +434,11 @@ export function buildItemPrompt(
     "",
     "=== EVIDENCE PATTERN ===",
     bp.evidence_pattern,
+    "",
+    "=== VOCABULARY (choose 3-6 for key_terms; each needs its own unique definition) ===",
+    vocabTerms.length > 0
+      ? vocabTerms.join(", ")
+      : "(none provided — choose the most important terms from the item context)",
     "",
     "=== FIXED STIMULUS TYPE ===",
     bp.stimulus_type,

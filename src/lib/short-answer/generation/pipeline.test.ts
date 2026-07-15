@@ -98,6 +98,11 @@ function itemJSON(stimulusType: StimulusType) {
       { score: 1, response: "DNA stores the instructions.", annotation: "Only Part A." },
       { score: 0, response: "The cell just makes it.", annotation: "No correct biology." },
     ],
+    key_terms: [
+      { term: "DNA", definition: "The molecule that stores an organism's genetic instructions." },
+      { term: "mRNA", definition: "A single-stranded copy of a gene that carries instructions to the ribosome." },
+      { term: "protein", definition: "A molecule built from amino acids in an order set by mRNA codons." },
+    ],
   });
 }
 
@@ -139,6 +144,14 @@ describe("generateShortAnswerItem", () => {
     expect(out.item.parts).toHaveLength(3);
     expect(out.item.parts[0].rubric.criteria["1"]).toContain("DNA");
     expect(out.item.scoringRubric).toBeUndefined();
+    expect(out.item.keyTerms).toEqual([
+      { term: "DNA", definition: "The molecule that stores an organism's genetic instructions." },
+      { term: "mRNA", definition: "A single-stranded copy of a gene that carries instructions to the ribosome." },
+      { term: "protein", definition: "A molecule built from amino acids in an order set by mRNA codons." },
+    ]);
+    expect(new Set(out.item.keyTerms.map((t) => t.definition)).size).toBe(
+      out.item.keyTerms.length,
+    );
     expect(out.metadata.method).toBe("method2_blueprint_rag_l2");
     expect(out.metadata.useStudyGuideRag).toBe(true);
     expect(out.metadata.telerLevel).toBe(2);
@@ -190,6 +203,30 @@ describe("generateShortAnswerItem", () => {
     });
     expect(chatComplete).toHaveBeenCalledTimes(3);
     expect(out.item.stem).toContain("proteins");
+  });
+
+  it("rejects duplicate key_terms definitions and retries until the model fixes it", async () => {
+    const duplicateItem = JSON.parse(itemJSON("scenario"));
+    duplicateItem.key_terms = [
+      { term: "DNA", definition: "The molecule that stores genetic information." },
+      { term: "mRNA", definition: "The molecule that stores genetic information." },
+    ];
+    chatComplete
+      .mockResolvedValueOnce({ content: blueprintJSON("scenario"), tokenCount: 100 })
+      .mockResolvedValueOnce({ content: JSON.stringify(duplicateItem), tokenCount: 200 })
+      .mockResolvedValueOnce({ content: itemJSON("scenario"), tokenCount: 200 });
+    const { generateShortAnswerItem } = await load();
+    const out = await generateShortAnswerItem({
+      standardCode: STANDARD,
+      fixedCoreKC: ANCHOR,
+      stimulusType: "scenario",
+      modelId: "gpt-5.4",
+      temperature: 1,
+    });
+    expect(chatComplete).toHaveBeenCalledTimes(3);
+    expect(new Set(out.item.keyTerms.map((t) => t.definition)).size).toBe(
+      out.item.keyTerms.length,
+    );
   });
 
   it("throws a retriable blueprint error after exhausting the retry budget", async () => {
