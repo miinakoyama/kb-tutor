@@ -65,29 +65,37 @@ export function orderTargetKcs(input: TargetSelectionInput): TargetSelectionResu
 export function rankQuestionsForKc(
   candidates: readonly AdaptiveQuestionCandidate[],
   targetKcCode: string,
-  unmasteredKcCodes: ReadonlySet<string>,
   lastQuestion: { questionSetId: string | null; questionId: string } | null,
+  sessionSeed: string,
 ): AdaptiveQuestionCandidate[] {
-  const eligible = candidates.filter(
+  let eligible = candidates.filter(
     (candidate) =>
       candidate.targetKcCode === targetKcCode ||
       (candidate.format === "saq" && candidate.partKcCodes.includes(targetKcCode)),
   );
-  return [...eligible].sort((a, b) => {
-    if (a.answered !== b.answered) return a.answered ? 1 : -1;
-    const isImmediate = (candidate: AdaptiveQuestionCandidate) =>
-      candidate.questionId === lastQuestion?.questionId &&
-      (!lastQuestion.questionSetId ||
-        candidate.questionSetId === lastQuestion.questionSetId);
-    const aImmediate = isImmediate(a);
-    const bImmediate = isImmediate(b);
-    if (aImmediate !== bImmediate) return aImmediate ? 1 : -1;
-    if (a.format === "saq" && b.format === "saq") {
-      const additional = (candidate: AdaptiveQuestionCandidate) =>
-        new Set(candidate.partKcCodes.filter((code) => code !== targetKcCode && unmasteredKcCodes.has(code))).size;
-      const coverageDifference = additional(b) - additional(a);
-      if (coverageDifference) return coverageDifference;
+  const isImmediate = (candidate: AdaptiveQuestionCandidate) =>
+    candidate.questionId === lastQuestion?.questionId &&
+    (!lastQuestion.questionSetId ||
+      candidate.questionSetId === lastQuestion.questionSetId);
+  if (eligible.length > 1) {
+    eligible = eligible.filter((candidate) => !isImmediate(candidate));
+  }
+
+  const stableHash = (candidate: AdaptiveQuestionCandidate): number => {
+    const value = `${sessionSeed}\0${candidate.questionSetId}\0${candidate.questionId}`;
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
     }
-    return time(a.lastAnsweredAt) - time(b.lastAnsweredAt) || a.questionId.localeCompare(b.questionId);
+    return hash >>> 0;
+  };
+
+  return [...eligible].sort((a, b) => {
+    return a.completedCount - b.completedCount ||
+      time(a.lastCompletedAt) - time(b.lastCompletedAt) ||
+      stableHash(a) - stableHash(b) ||
+      a.questionSetId.localeCompare(b.questionSetId) ||
+      a.questionId.localeCompare(b.questionId);
   });
 }

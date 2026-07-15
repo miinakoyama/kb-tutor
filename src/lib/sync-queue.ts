@@ -46,6 +46,7 @@ export type AttemptPayload = {
   questionSetId?: string | null;
   questionContentVersion?: string | null;
   isFinalized?: boolean;
+  questionCompleted?: boolean;
   selectedOptionId: string;
   isCorrect: boolean;
   mode: string;

@@ -283,12 +283,31 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}): {
       })),
     },
     from: vi.fn((tableName: string) => builderFor(tableName)),
-    rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+    rpc: vi.fn((name: string, args: Record<string, unknown>) => {
       const handler = config.rpcs?.[name];
-      if (!handler) {
-        return { data: null, error: { message: `RPC not mocked: ${name}` } };
-      }
-      return handler(args);
+      let range: { from: number; to: number } | null = null;
+      const execute = async () => {
+        if (!handler) {
+          return { data: null, error: { message: `RPC not mocked: ${name}` } };
+        }
+        const result = await handler(args);
+        if (!range || !Array.isArray(result.data)) return result;
+        return {
+          ...result,
+          data: result.data.slice(range.from, range.to + 1),
+        };
+      };
+      const builder = {
+        range: vi.fn((from: number, to: number) => {
+          range = { from, to };
+          return builder;
+        }),
+        then: <TResult1 = { data: unknown; error: MockError | null }, TResult2 = never>(
+          onfulfilled?: ((value: { data: unknown; error: MockError | null }) => TResult1 | PromiseLike<TResult1>) | null,
+          onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+        ) => execute().then(onfulfilled, onrejected),
+      };
+      return builder;
     }),
   } as unknown as SupabaseClient;
 
