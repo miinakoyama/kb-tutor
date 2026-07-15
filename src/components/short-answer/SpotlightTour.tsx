@@ -4,17 +4,30 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { markShortAnswerTourSeen } from "@/lib/short-answer/tour-settings";
 import { useDialogFocusTrap } from "./useDialogFocusTrap";
 
+export interface TourLegendItem {
+  /** Matches the real dot colors used elsewhere (PartCard attempt dots). */
+  color: "correct" | "incorrect";
+  label: string;
+}
+
 export interface TourStep {
   id: string;
   stepLabel: string;
   title: string;
   /** Lines rendered as separate paragraphs (bullets welcome). */
   lines: string[];
+  /** Color-coded dot legend, rendered below the lines (e.g. attempt-dot meanings). */
+  legend?: TourLegendItem[];
   /** Resolve the live DOM element to spotlight. */
   getTarget: () => HTMLElement | null;
   onEnter?: () => void;
   onLeave?: () => void;
 }
+
+const LEGEND_DOT_CLASS: Record<TourLegendItem["color"], string> = {
+  correct: "bg-emerald-500",
+  incorrect: "bg-rose-500",
+};
 
 interface SpotlightTourProps {
   steps: TourStep[];
@@ -167,6 +180,23 @@ export function SpotlightTour({ steps, onClose }: SpotlightTourProps) {
             </p>
           ))}
         </div>
+
+        {step.legend && (
+          <div className="flex items-center gap-4">
+            {step.legend.map((entry) => (
+              <span
+                key={entry.label}
+                className="flex items-center gap-1.5 text-[12.5px] text-[color:var(--foreground)]/70"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-2.5 w-2.5 rounded-full ${LEGEND_DOT_CLASS[entry.color]}`}
+                />
+                {entry.label}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="mt-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5" role="tablist" aria-label="Tour steps">

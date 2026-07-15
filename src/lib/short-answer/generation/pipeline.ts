@@ -35,7 +35,6 @@ import {
   retrieveStudyGuideForCoreKC,
   selectRelatedCards,
   selectRelevantRubrics,
-  type KC,
 } from "./data";
 import {
   buildBlueprintPrompt,
@@ -206,6 +205,7 @@ interface RawItem {
   parts: Record<string, { task_type?: string; question: string } | undefined>;
   part_rubrics: Record<string, { points_possible: number; criteria: Record<string, string> } | undefined>;
   annotated_responses: Array<{ score: number; response: string; annotation: string }>;
+  key_terms: Array<{ term: string; definition: string }>;
 }
 
 function validateRawStimulus(
@@ -281,6 +281,7 @@ function validateRawItem(parsed: unknown, blueprintStimulus: StimulusType): stri
     "parts",
     "part_rubrics",
     "annotated_responses",
+    "key_terms",
   ]) {
     if (!(key in item)) return `Missing key: ${key}`;
   }
@@ -354,6 +355,30 @@ function validateRawItem(parsed: unknown, blueprintStimulus: StimulusType): stri
   }
   if (required.size > 0) {
     return `annotated_responses must include scores: ${Array.from(required).join(", ")}`;
+  }
+
+  const keyTerms = item.key_terms;
+  if (!Array.isArray(keyTerms) || keyTerms.length === 0) {
+    return "key_terms must be a non-empty array";
+  }
+  const seenDefinitions = new Set<string>();
+  for (const kt of keyTerms) {
+    if (!kt || typeof kt !== "object") return "key_terms entries must be objects";
+    const rec = kt as Record<string, unknown>;
+    if (typeof rec.term !== "string" || !rec.term.trim()) {
+      return "key_terms.term must be a non-empty string";
+    }
+    if (typeof rec.definition !== "string" || !rec.definition.trim()) {
+      return "key_terms.definition must be a non-empty string";
+    }
+    if (containsPlaceholder(rec.term) || containsPlaceholder(rec.definition)) {
+      return "key_terms contains unresolved placeholder text";
+    }
+    const definitionKey = rec.definition.trim().toLowerCase();
+    if (seenDefinitions.has(definitionKey)) {
+      return `key_terms must have a unique definition per term — "${rec.term}" reuses another term's definition`;
+    }
+    seenDefinitions.add(definitionKey);
   }
 
   return null;
@@ -504,24 +529,16 @@ function partScoringGuidance(criteria: Record<string, string>): string {
 
 const MAX_KEY_TERMS = 8;
 
-/**
- * Key terms come from the selected KCs' vocabulary lists; the KC statement is
- * the closest grounded definition available (the reference pipeline produces
- * no glossary, and inventing definitions would violate the no-invention rule).
- */
-function keyTermsFromKCs(selectedKcs: string[], standardKCs: KC[]): KeyTerm[] {
+/** De-dupes by term text (case-insensitive) and caps at MAX_KEY_TERMS. */
+function mapKeyTerms(raw: RawItem["key_terms"]): KeyTerm[] {
   const terms: KeyTerm[] = [];
   const seen = new Set<string>();
-  for (const code of selectedKcs) {
-    const kc = standardKCs.find((k) => k.code === code);
-    if (!kc) continue;
-    for (const term of kc.vocab) {
-      const key = term.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      terms.push({ term, definition: kc.statement });
-      if (terms.length >= MAX_KEY_TERMS) return terms;
-    }
+  for (const kt of raw) {
+    const key = kt.term.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    terms.push({ term: kt.term.trim(), definition: kt.definition.trim() });
+    if (terms.length >= MAX_KEY_TERMS) break;
   }
   return terms;
 }
@@ -530,7 +547,6 @@ function mapItem(
   raw: RawItem,
   bp: RawBlueprint,
   camelBlueprint: ItemBlueprint,
-  standardKCs: KC[],
   generation: GenerationMetadata,
 ): ShortAnswerItem {
   const parts: ShortAnswerPart[] = [];
@@ -566,7 +582,7 @@ function mapItem(
     stem: raw.stem,
     stimulus: mapStimulus(raw.stimulus_asset),
     parts,
-    keyTerms: keyTermsFromKCs(camelBlueprint.selectedKcs, standardKCs),
+    keyTerms: mapKeyTerms(raw.key_terms),
     annotatedResponses: annotated,
     blueprint: camelBlueprint,
     generation,
@@ -666,7 +682,7 @@ export async function generateShortAnswerItem(
   };
 
   const camelBlueprint = mapBlueprint(rawBlueprint);
-  let item = mapItem(rawItem, rawBlueprint, camelBlueprint, standardKCs, metadata);
+  let item = mapItem(rawItem, rawBlueprint, camelBlueprint, metadata);
 
   // Defense-in-depth: the stored item must pass the same structural validator
   // used on load (item-schema), which also enforces standard/task-type checks.
