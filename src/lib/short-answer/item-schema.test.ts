@@ -58,6 +58,15 @@ describe("validateShortAnswerItem", () => {
     expect(validateShortAnswerItem(item)).toMatch(/score levels: 3/);
   });
 
+  it("rejects key terms that share the same definition", () => {
+    const item = clone();
+    item.keyTerms = [
+      { term: "mRNA", definition: "Carries the genetic code to the ribosome." },
+      { term: "codon", definition: "Carries the genetic code to the ribosome." },
+    ];
+    expect(validateShortAnswerItem(item)).toMatch(/unique definition per term/);
+  });
+
   it("rejects an unsafe diagram SVG", () => {
     const item = clone();
     item.stimulus = {
