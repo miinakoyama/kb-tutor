@@ -25,6 +25,7 @@ function question(shortAnswer: ShortAnswerItem): Question {
     module: 1,
     topic: "Cells",
     text: shortAnswer.parts[0].prompt,
+    imageUrl: null,
     options: [],
     correctOptionId: "",
     source: "generated",
