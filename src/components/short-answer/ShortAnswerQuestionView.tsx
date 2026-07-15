@@ -9,7 +9,10 @@ import {
   MAX_SHORT_ANSWER_ATTEMPTS,
   type StoredShortAnswerAttempt,
 } from "@/lib/short-answer/attempt-state";
-import { applyAssignmentRunFilter } from "@/lib/short-answer/assignment-run";
+import {
+  applyAssignmentRunFilter,
+  applyQuestionSetFilter,
+} from "@/lib/short-answer/assignment-run";
 import { StimulusPanel } from "./StimulusPanel";
 import { HighlightLayer } from "./HighlightLayer";
 import { PartCard, type PartStatus } from "./PartCard";
@@ -229,6 +232,8 @@ export function ShortAnswerQuestionView({
       .order("part_label")
       .order("attempt_number", { ascending: true });
 
+    query = applyQuestionSetFilter(query, questionSetId);
+
     query = assignmentId
       ? query.eq("assignment_id", assignmentId)
       : query.is("assignment_id", null);
@@ -255,7 +260,14 @@ export function ShortAnswerQuestionView({
     }
     setHydrationReady(true);
     return true;
-  }, [assignmentId, assignmentRunAfter, item.parts, questionId, sessionId]);
+  }, [
+    assignmentId,
+    assignmentRunAfter,
+    item.parts,
+    questionId,
+    questionSetId,
+    sessionId,
+  ]);
 
   useEffect(() => {
     setHydrationReady(false);
