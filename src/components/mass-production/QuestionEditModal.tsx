@@ -13,6 +13,8 @@ import type {
 import { getAllStandards } from "@/lib/standards";
 import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
 import { fetchActiveKcsForStandard, type KnowledgeComponent } from "@/lib/knowledge-components";
+import { validateShortAnswerItem } from "@/lib/short-answer/item-schema";
+import { resolveRuntimeShortAnswerItem } from "@/lib/short-answer/question-guards";
 
 const ALL_STANDARDS = getAllStandards();
 type GlossaryListKey = "inlineTerms" | "sidebarTerms";
@@ -121,12 +123,18 @@ interface QuestionEditModalProps {
   onClose: () => void;
 }
 
+function questionForEditing(question: Question): Question {
+  if (question.questionType !== "open-ended") return question;
+  const resolved = resolveRuntimeShortAnswerItem(question.shortAnswer);
+  return resolved.item ? { ...question, shortAnswer: resolved.item } : question;
+}
+
 export function QuestionEditModal({
   question,
   onSave,
   onClose,
 }: QuestionEditModalProps) {
-  const [edited, setEdited] = useState<Question>(question);
+  const [edited, setEdited] = useState<Question>(() => questionForEditing(question));
   const [chartDataDraft, setChartDataDraft] = useState(() => {
     const stimulus = question.shortAnswer?.stimulus;
     return stimulus?.type === "line_graph" || stimulus?.type === "bar_chart"
@@ -136,6 +144,7 @@ export function QuestionEditModal({
   const [chartDataError, setChartDataError] = useState<string | null>(null);
   const [availableKcs, setAvailableKcs] = useState<KnowledgeComponent[]>([]);
   const [kcsLoading, setKcsLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,7 +174,8 @@ export function QuestionEditModal({
   }, [onClose]);
 
   useEffect(() => {
-    setEdited(question);
+    setEdited(questionForEditing(question));
+    setSaveError(null);
     const stimulus = question.shortAnswer?.stimulus;
     setChartDataDraft(
       stimulus?.type === "line_graph" || stimulus?.type === "bar_chart"
@@ -400,6 +410,12 @@ export function QuestionEditModal({
   const handleSave = () => {
     if (edited.questionType === "open-ended" && edited.shortAnswer) {
       if (chartDataError) return;
+      const validationError = validateShortAnswerItem(edited.shortAnswer);
+      if (validationError) {
+        setSaveError(`Cannot save this short-answer item: ${validationError}`);
+        return;
+      }
+      setSaveError(null);
       onSave({
         ...edited,
         text: edited.shortAnswer.parts[0]?.prompt ?? edited.shortAnswer.stem,
@@ -1020,6 +1036,11 @@ export function QuestionEditModal({
         </div>
 
         <div className="flex items-center justify-end gap-3 p-4 border-t border-border-subtle bg-slate-gray/5">
+          {saveError && (
+            <p role="alert" className="mr-auto text-sm text-error">
+              {saveError}
+            </p>
+          )}
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg text-slate-gray hover:bg-foreground/10 transition-colors text-sm"

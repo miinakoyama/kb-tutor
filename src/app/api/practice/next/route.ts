@@ -3,6 +3,7 @@ import { orderTargetKcs, rankQuestionsForKc } from "@/lib/bkt/selection";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStandardById } from "@/lib/standards";
+import { filterRenderableQuestions } from "@/lib/short-answer/question-guards";
 import type { AdaptiveKcCandidate, AdaptiveQuestionCandidate } from "@/types/bkt";
 import type { Question } from "@/types/question";
 
@@ -71,7 +72,7 @@ function questionFromCandidateRow(row: Record<string, unknown>): Question | null
   const mappedStandard = typeof row.standard_id === "string"
     ? getStandardById(row.standard_id)
     : undefined;
-  return {
+  const question: Question = {
     ...payload,
     id: questionId,
     questionSetId,
@@ -84,6 +85,7 @@ function questionFromCandidateRow(row: Record<string, unknown>): Question | null
     hasImage: row.has_image === true,
     hasStimulusImage: row.has_stimulus_image === true,
   };
+  return filterRenderableQuestions([question])[0] ?? null;
 }
 
 export async function POST(request: Request) {

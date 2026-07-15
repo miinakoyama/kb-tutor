@@ -67,6 +67,33 @@ describe("loadShortAnswerPart", () => {
     expect(loaded).toEqual({ item, part: item.parts[0] });
   });
 
+  it("loads a legacy SAQ after removing reused key-term definitions", async () => {
+    const item = structuredClone(sampleItem) as ShortAnswerItem;
+    const reusedDefinition = "One old KC statement reused for every term.";
+    item.keyTerms = [
+      { term: "prokaryotic", definition: reusedDefinition },
+      { term: "eukaryotic", definition: reusedDefinition },
+    ];
+    const { client } = mockClient({
+      data: {
+        payload_lean: {
+          questionType: "open-ended",
+          shortAnswer: item,
+        },
+      },
+      error: null,
+    });
+
+    const loaded = await loadShortAnswerPart(client, {
+      questionId: "saq-legacy",
+      questionSetId: "set-legacy",
+      partLabel: "A",
+    });
+
+    expect(loaded?.item.keyTerms).toEqual([]);
+    expect(loaded?.part.label).toBe("A");
+  });
+
   it("surfaces database lookup errors instead of treating them as a missing item", async () => {
     const { client } = mockClient({
       data: null,
