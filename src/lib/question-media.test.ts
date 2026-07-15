@@ -131,6 +131,30 @@ describe("fetchQuestionMedia", () => {
     expect(rpc).toHaveBeenCalledWith("get_self_practice_question_media", {
       p_set_id: "set-1",
       p_question_id: "q1",
+      p_content_version: null,
+    });
+  });
+
+  it("pins the request and the cache to the loaded content version", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ image_url: "img", stimulus_image_b64: null }],
+      error: null,
+    });
+    const supabase = clientWithRpc(rpc);
+
+    await fetchQuestionMedia(supabase, "set-1", "q1", "cv-1");
+    await fetchQuestionMedia(supabase, "set-1", "q1", "cv-2");
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenNthCalledWith(1, "get_self_practice_question_media", {
+      p_set_id: "set-1",
+      p_question_id: "q1",
+      p_content_version: "cv-1",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "get_self_practice_question_media", {
+      p_set_id: "set-1",
+      p_question_id: "q1",
+      p_content_version: "cv-2",
     });
   });
 

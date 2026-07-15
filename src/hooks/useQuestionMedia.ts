@@ -33,7 +33,11 @@ export function useQuestionMedia(
 ): UseQuestionMediaResult {
   const setId = question?.questionSetId ?? null;
   const questionId = question?.id ?? null;
-  const key = setId && questionId ? `${setId}/${questionId}` : null;
+  const contentVersion = question?.contentVersion ?? null;
+  const key =
+    setId && questionId
+      ? `${setId}/${questionId}/${contentVersion ?? "current"}`
+      : null;
   const needsMedia = question ? questionNeedsMedia(question) : false;
   const [resolved, setResolved] = useState<{
     key: string;
@@ -43,15 +47,18 @@ export function useQuestionMedia(
   useEffect(() => {
     if (!key || !setId || !questionId || !needsMedia) return;
     let cancelled = false;
-    void fetchQuestionMedia(getSupabaseBrowserClient(), setId, questionId).then(
-      (media) => {
-        if (!cancelled) setResolved({ key, media });
-      },
-    );
+    void fetchQuestionMedia(
+      getSupabaseBrowserClient(),
+      setId,
+      questionId,
+      contentVersion,
+    ).then((media) => {
+      if (!cancelled) setResolved({ key, media });
+    });
     return () => {
       cancelled = true;
     };
-  }, [key, setId, questionId, needsMedia]);
+  }, [key, setId, questionId, contentVersion, needsMedia]);
 
   const loadedMedia =
     resolved && key && resolved.key === key ? resolved.media : null;

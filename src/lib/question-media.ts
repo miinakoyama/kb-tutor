@@ -35,13 +35,19 @@ export function questionNeedsMedia(question: Question): boolean {
   return false;
 }
 
-/** Fetch (and memoize) the stripped media for one question. Resolves to null on error. */
+/**
+ * Fetch (and memoize) the stripped media for one question. Resolves to null on
+ * error. `contentVersion` pins the lookup to the payload version the student
+ * loaded, so an edit landing between the list load and this request cannot
+ * splice a newer image into the old text.
+ */
 export function fetchQuestionMedia(
   supabase: SupabaseClient,
   setId: string,
   questionId: string,
+  contentVersion: string | null = null,
 ): Promise<QuestionMedia | null> {
-  const key = `${setId}/${questionId}`;
+  const key = `${setId}/${questionId}/${contentVersion ?? "current"}`;
   const cached = mediaCache.get(key);
   if (cached) return cached;
 
@@ -50,6 +56,7 @@ export function fetchQuestionMedia(
       .rpc("get_self_practice_question_media", {
         p_set_id: setId,
         p_question_id: questionId,
+        p_content_version: contentVersion,
       }),
   ).then(({ data, error }) => {
     const row: MediaRpcRow | undefined = Array.isArray(data)
