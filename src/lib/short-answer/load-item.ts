@@ -9,7 +9,10 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PartLabel, ShortAnswerItem, ShortAnswerPart } from "@/types/short-answer";
-import { isShortAnswerItem } from "@/lib/short-answer/item-schema";
+import {
+  resolveRuntimeShortAnswerItem,
+  type RuntimeShortAnswerResolution,
+} from "@/lib/short-answer/question-guards";
 
 interface StoredPayload {
   id?: string;
@@ -17,13 +20,25 @@ interface StoredPayload {
   shortAnswer?: unknown;
 }
 
-function extractShortAnswer(payload: unknown): ShortAnswerItem | null {
-  if (!payload || typeof payload !== "object") return null;
+function extractShortAnswer(payload: unknown): RuntimeShortAnswerResolution {
+  if (!payload || typeof payload !== "object") {
+    return {
+      item: null,
+      error: "stored question payload must be an object",
+      repairedLegacyKeyTerms: false,
+    };
+  }
   const record = payload as StoredPayload;
-  if (isShortAnswerItem(payload)) return payload;
-  if (record.questionType !== "open-ended") return null;
-  if (!isShortAnswerItem(record.shortAnswer)) return null;
-  return record.shortAnswer;
+  const direct = resolveRuntimeShortAnswerItem(payload);
+  if (direct.item) return direct;
+  if (record.questionType !== "open-ended") {
+    return {
+      item: null,
+      error: "stored question is not marked open-ended",
+      repairedLegacyKeyTerms: false,
+    };
+  }
+  return resolveRuntimeShortAnswerItem(record.shortAnswer);
 }
 
 function payloadId(payload: unknown): string | null {
@@ -130,8 +145,17 @@ export async function loadShortAnswerPart(
     payload = data?.payload_lean ?? null;
   }
 
-  const item = extractShortAnswer(payload);
-  if (!item) return null;
+  const resolved = extractShortAnswer(payload);
+  if (!resolved.item) {
+    console.error("[short-answer/load-item] invalid stored item", {
+      questionId,
+      questionSetId,
+      assignmentId,
+      validationError: resolved.error,
+    });
+    return null;
+  }
+  const item = resolved.item;
 
   const part = item.parts.find((p) => p.label === partLabel);
   if (!part) return null;
