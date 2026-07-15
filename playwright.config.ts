@@ -22,6 +22,7 @@ export default defineConfig({
           env: {
             ...process.env,
             E2E_AUTH_BYPASS: "1",
+            NEXT_PUBLIC_E2E_AUTH_BYPASS: "1",
             // Provide safe placeholders so server-side env guards do not crash
             // in CI where Supabase vars are intentionally absent for E2E.
             NEXT_PUBLIC_SUPABASE_URL:

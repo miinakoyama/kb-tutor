@@ -342,7 +342,7 @@ describe("POST /api/short-answer/grade", () => {
     });
   });
 
-  it("scopes short-answer summary lookup to the current assignment run", async () => {
+  it("scopes short-answer summaries to the assignment run and question set", async () => {
     resolveAssignmentRunAfter.mockResolvedValue("2026-04-10T10:00:00.000Z");
     adminTableState["short_answer_attempts"] = {
       select: item.parts.map((part) => ({
@@ -365,7 +365,11 @@ describe("POST /api/short-answer/grade", () => {
 
     const { POST } = await load();
     const res = await POST(
-      makeRequest({ ...validBody, assignmentId: "asg-1" }),
+      makeRequest({
+        ...validBody,
+        questionSetId: "set-a",
+        assignmentId: "asg-1",
+      }),
     );
 
     expect(res.status).toBe(200);
@@ -374,6 +378,27 @@ describe("POST /api/short-answer/grade", () => {
       method: "gt",
       column: "answered_at",
       value: "2026-04-10T10:00:00.000Z",
+    });
+    expect(adminQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "eq",
+      column: "question_set_id",
+      value: "set-a",
+    });
+    expect(adminQueryCalls).toContainEqual({
+      table: "attempts",
+      method: "eq",
+      column: "question_set_id",
+      value: "set-a",
+    });
+    expect(adminQueryCalls).toContainEqual({
+      table: "attempts",
+      method: "insert",
+      value: expect.objectContaining({
+        question_id: validBody.questionId,
+        question_set_id: "set-a",
+        selected_option_id: "short-answer",
+      }),
     });
   });
 
@@ -425,6 +450,47 @@ describe("POST /api/short-answer/grade", () => {
       value: expect.objectContaining({
         session_id: "22222222-2222-4222-8222-222222222222",
       }),
+    });
+  });
+
+  it("persists client-measured answering time on the attempt row", async () => {
+    gradePart.mockResolvedValue({
+      score: 1,
+      maxScore: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+    });
+
+    const { POST } = await load();
+    const res = await POST(makeRequest({ ...validBody, timeSpentSec: 95 }));
+
+    expect(res.status).toBe(200);
+    expect(adminQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "insert",
+      value: expect.objectContaining({ time_spent_sec: 95 }),
+    });
+  });
+
+  it("records nonsense answering times as null instead of clamping", async () => {
+    gradePart.mockResolvedValue({
+      score: 1,
+      maxScore: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+    });
+
+    const { POST } = await load();
+    // Above the 2-hour bound → unmeasured, not clamped.
+    const res = await POST(
+      makeRequest({ ...validBody, timeSpentSec: 3 * 60 * 60 }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(adminQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "insert",
+      value: expect.objectContaining({ time_spent_sec: null }),
     });
   });
 

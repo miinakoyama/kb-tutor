@@ -52,30 +52,21 @@ export function OptionButton({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showTooltip]);
 
-  const getBorderColor = () => {
-    if (showCorrect) return "var(--primary)";
-    if (showWrong) return "var(--error-color)";
-    if (isSelected && pendingSelection) return "var(--heading)";
-    if (isSelected) return "var(--primary)";
-    return "var(--border-default)";
-  };
-
-  const getBackgroundColor = () => {
-    if (showCorrect) return "var(--primary-light)";
-    if (showWrong) return "var(--error-light)";
-    if (isSelected) return "var(--primary-light)";
-    return "var(--surface)";
-  };
+  // State colors are class-driven (arbitrary-value utilities) so hover/focus
+  // styles can win — inline style would override them.
+  const stateClasses = showCorrect
+    ? "border-[var(--assignment-completed)] bg-[var(--mastery-mastered-bg)]"
+    : showWrong
+      ? "border-[var(--error-color)] bg-[var(--error-light)]"
+      : isSelected
+        ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)]"
+        : "border-[var(--border-default)] bg-surface";
 
   const getBadgeStyles = () => {
     if (showCorrect || showWrong || isSelected) {
-      let bgColor = "var(--primary)";
-      if (showWrong) bgColor = "var(--error-color)";
-      else if (isSelected && pendingSelection) bgColor = "var(--heading)";
-
       return {
-        backgroundColor: bgColor,
-        color: "white",
+        backgroundColor: showWrong ? "var(--error-color)" : "var(--assignment-completed)",
+        color: "var(--assignment-on-accent)",
       };
     }
     return {
@@ -93,17 +84,19 @@ export function OptionButton({
       <button
         onClick={() => onSelect(option.id)}
         disabled={isDisabled}
-        className={`group w-full text-left rounded-xl border-2 transition-all duration-200 break-words flex items-center ${
-          compact ? "px-3 py-2 min-h-[40px] gap-2.5" : "px-4 py-3 min-h-[48px] gap-3"
-        } ${
+        className={`group w-full text-left rounded-2xl transition-all duration-200 break-words flex items-center ${
+          compact
+            ? "border-[1.5px] px-3 py-2 min-h-[40px] gap-2.5"
+            : "border-2 px-5 py-4 min-h-[64px] gap-3.5"
+        } ${stateClasses} ${
           isDisabled
             ? "cursor-default"
-            : "cursor-pointer hover:border-[var(--primary-border)] hover:bg-primary-light focus-visible:border-[var(--primary-border)] focus-visible:bg-primary-light focus-visible:outline-none"
+            : `cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                isSelected
+                  ? ""
+                  : "hover:border-[var(--assignment-selectable-border)] hover:bg-[var(--assignment-calendar-nav-bg)]"
+              }`
         }`}
-        style={{
-          borderColor: getBorderColor(),
-          backgroundColor: getBackgroundColor(),
-        }}
       >
         <span
           className={`${compact ? "w-7 h-7 text-xs" : "w-8 h-8 text-sm"} rounded-full flex items-center justify-center font-semibold flex-shrink-0`}
@@ -111,7 +104,7 @@ export function OptionButton({
         >
           {option.id}
         </span>
-        <span className={`flex-1 text-slate-gray ${compact ? "text-sm" : ""}`}>{option.text}</span>
+        <span className={`flex-1 text-slate-gray ${compact ? "text-sm" : "text-[15px]"}`}>{option.text}</span>
 
         {shouldShowIcon && (
           <span
@@ -146,9 +139,16 @@ export function OptionButton({
       {shouldShowIcon && showTooltip && (
         <div
           ref={tooltipRef}
-          className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-xl border border-border-default bg-surface shadow-lg"
+          className="absolute right-0 top-full mt-1 z-20 w-64 max-w-[90vw] p-3 rounded-lg border"
+          style={{
+            background: "var(--assignment-popover-bg)",
+            borderColor: "var(--assignment-popover-border)",
+            boxShadow: "var(--assignment-popover-shadow)",
+            backdropFilter: "blur(14px) saturate(115%)",
+            WebkitBackdropFilter: "blur(14px) saturate(115%)",
+          }}
         >
-          <p className="text-xs font-semibold text-muted-foreground mb-1">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground mb-1">
             {tooltipHeading}
           </p>
           <p className="text-sm text-slate-gray leading-relaxed">

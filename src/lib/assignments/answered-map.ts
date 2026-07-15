@@ -3,8 +3,9 @@ import type { Question } from "@/types/question";
 /**
  * Per-question resume state sent to the student-facing practice client.
  *
- * Keyed by `question.id` because the client may reorder questions (via
- * deterministic shuffle) — a map by id is reorder-stable.
+ * New rows are keyed by question set + question id so assignments can contain
+ * different generated questions that reuse the same id. Legacy rows without
+ * a set id retain the question-id key for backward compatibility.
  */
 export type AnsweredEntry = {
   selectedOptionId: string | null;
@@ -16,10 +17,31 @@ export type AnsweredMap = Record<string, AnsweredEntry>;
 
 export type AttemptRow = {
   question_id: unknown;
+  question_set_id?: unknown;
   selected_option_id: unknown;
   is_correct: unknown;
   answered_at: unknown;
 };
+
+const SCOPED_ANSWER_PREFIX = "set-question:";
+
+export function answeredQuestionKey(
+  questionSetId: unknown,
+  questionId: string,
+): string {
+  return typeof questionSetId === "string" && questionSetId
+    ? `${SCOPED_ANSWER_PREFIX}${questionSetId}\0${questionId}`
+    : questionId;
+}
+
+export function answeredEntryForQuestion(
+  answered: AnsweredMap,
+  question: Pick<Question, "id" | "questionSetId">,
+): AnsweredEntry | undefined {
+  return answered[
+    answeredQuestionKey(question.questionSetId, question.id)
+  ] ?? answered[question.id];
+}
 
 /**
  * Build the resume map for a single assignment run.
@@ -62,7 +84,7 @@ export function buildAnsweredMap(
     // Short-answer summary rows are derived from short_answer_attempts so a
     // single resolved part cannot mark the whole question complete.
     if (selectedOptionId === "short-answer") continue;
-    map[qid] = {
+    map[answeredQuestionKey(row.question_set_id, qid)] = {
       selectedOptionId,
       isCorrect: Boolean(row.is_correct),
       answeredAt,

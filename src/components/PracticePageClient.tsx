@@ -270,6 +270,10 @@ export function PracticePageClient({
     ? handleAllSchoolAssignmentsCompleted
     : undefined;
 
+  // Entry point decides where "Back" leads: assignment runs come from
+  // My Assignment, everything else from Self Practice.
+  const runBackHref = assignmentIdParam?.trim() ? "/assignments" : "/self-practice";
+
   switch (normalizedModeParam) {
     case "practice":
       return (
@@ -278,19 +282,36 @@ export function PracticePageClient({
           topicName={topicName}
           questionCount={requestedQuestionCount}
           assignmentId={assignmentIdParam}
+          backHref={runBackHref}
+          showBackLink
           preferReviewTopicsCta={!hasAssignmentSnapshot && Boolean(questionIdsParam)}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
           assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
+          adaptiveStandardIds={
+            hasAssignmentSnapshot || selectedQuestionIds.length > 0
+              ? undefined
+              : Array.from(
+                  new Set(
+                    filteredQuestions.flatMap((question) =>
+                      question.standardId ? [question.standardId] : [],
+                    ),
+                  ),
+                )
+          }
         />
       );
     case "exam": {
+      // Like the other shell-based modes, ExamMode owns its full-height
+      // layout regions (header bar, scrollable workspace, action bar), so it
+      // is rendered directly without an outer centered scroll container.
       return (
         <ExamMode
           questions={filteredQuestions}
           topicName={topicName}
           requestedQuestionCount={requestedQuestionCount ?? 10}
           assignmentId={assignmentIdParam}
+          backHref={runBackHref}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
           assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
@@ -303,6 +324,7 @@ export function PracticePageClient({
           questions={filteredQuestions}
           topicName={topicName}
           assignmentId={assignmentIdParam}
+          backHref={runBackHref}
           questionCount={requestedQuestionCount}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
         />

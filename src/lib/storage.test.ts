@@ -57,6 +57,16 @@ describe("answer history", () => {
     saveAnswer(makeAnswer({ questionId: "q1", clientAttemptId: "fixed-id" }));
     expect(getAnswerHistory()[0].clientAttemptId).toBe("fixed-id");
   });
+
+  it("excludes draft exam selections from incorrect-answer history", async () => {
+    saveAnswer(makeAnswer({
+      mode: "exam",
+      isCorrect: false,
+      isFinalized: false,
+    }));
+
+    await expect(fetchIncorrectQuestionCounts()).resolves.toEqual({});
+  });
 });
 
 describe("bookmarks", () => {
@@ -129,8 +139,31 @@ describe("fetchIncorrectQuestionCounts", () => {
     saveAnswer(makeAnswer({ questionId: "q2", isCorrect: false }));
 
     await expect(fetchIncorrectQuestionCounts()).resolves.toEqual({
-      q1: 2,
-      q2: 1,
+      "question:q1": 2,
+      "question:q2": 1,
+    });
+  });
+
+  it("keeps identical question ids in different sets separate", async () => {
+    saveAnswer(makeAnswer({
+      questionId: "q1",
+      questionSetId: "set-a",
+      isCorrect: false,
+    }));
+    saveAnswer(makeAnswer({
+      questionId: "q1",
+      questionSetId: "set-b",
+      isCorrect: false,
+    }));
+    saveAnswer(makeAnswer({
+      questionId: "q1",
+      questionSetId: "set-b",
+      isCorrect: false,
+    }));
+
+    await expect(fetchIncorrectQuestionCounts()).resolves.toEqual({
+      "set-question:set-a\0q1": 1,
+      "set-question:set-b\0q1": 2,
     });
   });
 });

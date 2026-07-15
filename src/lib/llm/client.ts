@@ -41,6 +41,8 @@ export type LLMMessage = {
 export interface LLMResult {
   content: string;
   tokenCount: number;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 export function stripJsonFences(text: string): string {
@@ -98,6 +100,8 @@ export async function chatComplete(params: {
       return {
         content: completion.choices[0].message.content ?? "",
         tokenCount: completion.usage?.total_tokens ?? 0,
+        inputTokens: completion.usage?.prompt_tokens ?? 0,
+        outputTokens: completion.usage?.completion_tokens ?? 0,
       };
     }
 
@@ -133,6 +137,8 @@ export async function chatComplete(params: {
       return {
         content: jsonMode ? stripJsonFences(raw) : raw,
         tokenCount: response.usage.input_tokens + response.usage.output_tokens,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
       };
     }
 
@@ -151,6 +157,8 @@ export async function chatComplete(params: {
     return {
       content: completion.choices[0].message.content ?? "",
       tokenCount: completion.usage?.total_tokens ?? 0,
+      inputTokens: completion.usage?.prompt_tokens ?? 0,
+      outputTokens: completion.usage?.completion_tokens ?? 0,
     };
   } finally {
     clearTimeout(timer);

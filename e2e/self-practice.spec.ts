@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { setRoleCookie } from "./helpers/auth";
 import { disableOnboardingTour, dismissTourIfVisible } from "./helpers/ui";
+import { mockStudentQuestionBank } from "./helpers/questions";
 
 test("student can start self practice session from planner @smoke", async ({
   page,
@@ -9,6 +10,7 @@ test("student can start self practice session from planner @smoke", async ({
 }) => {
   await disableOnboardingTour(context);
   await setRoleCookie(context, baseURL, "student");
+  await mockStudentQuestionBank(page);
 
   await page.goto("/self-practice");
   await dismissTourIfVisible(page);

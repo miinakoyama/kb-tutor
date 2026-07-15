@@ -4,10 +4,8 @@ import { useState, useMemo, useCallback, useEffect, useRef, type ReactNode } fro
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ChevronLeft,
   ChevronRight,
   RotateCcw,
-  Bookmark,
   Lightbulb,
   Send,
   RefreshCcw,
@@ -25,18 +23,26 @@ import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
 import { GlossaryPopover } from "@/components/shared/GlossaryPopover";
-import { PracticeHeader } from "@/components/shared/PracticeHeader";
+import { getBackLabel } from "@/components/shared/PracticeHeader";
+import {
+  QuestionSessionShell,
+  sessionPrimaryButtonClass,
+  sessionPrimaryButtonStyle,
+  sessionSecondaryButtonClass,
+  sessionSecondaryButtonStyle,
+} from "@/components/shared/QuestionSessionShell";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { QuestionNoteDrawer } from "@/components/notes/QuestionNoteDrawer";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
 import { getStandardForTopic } from "@/lib/standards";
-import { DEFAULT_STUDENT_ID, getStudentById } from "@/lib/mock-data";
 import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
 import { useAnalyticsSession } from "@/lib/analytics/session";
+import { processQueue } from "@/lib/sync-queue";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
+import { answeredEntryForQuestion } from "@/lib/assignments/answered-map";
 
 const MAX_ATTEMPTS = 2;
 const GLOSSARY_FALLBACK_LIMIT = 6;
@@ -55,6 +61,7 @@ const FEATURE_SPOTLIGHT_TARGET_IDS = {
 } as const;
 
 type FeatureSpotlightType = "read-aloud" | "sidebar-glossary" | "inline-glossary";
+type AdaptiveRequestResult = "selected" | "stopped" | "scope_unavailable";
 
 function isDocumentActiveForTiming(): boolean {
   if (typeof document === "undefined") return false;
@@ -85,6 +92,8 @@ interface AdaptivePracticeModeProps {
   assignmentRunAfter?: string | null;
   /** Fires when the completion API reports every school assignment is done. */
   onAllSchoolAssignmentsCompleted?: () => void;
+  /** Ordered adaptive scope. Omit for assignments and Review. */
+  adaptiveStandardIds?: string[];
 }
 
 interface AttemptRecord {
@@ -104,6 +113,7 @@ export function AdaptivePracticeMode({
   answered,
   assignmentRunAfter,
   onAllSchoolAssignmentsCompleted,
+  adaptiveStandardIds,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -130,6 +140,9 @@ export function AdaptivePracticeMode({
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
+  const [adaptiveLoading, setAdaptiveLoading] = useState(false);
+  const [adaptiveStopReason, setAdaptiveStopReason] = useState<string | null>(null);
+  const [adaptiveUnavailable, setAdaptiveUnavailable] = useState(false);
   const [activeFeatureSpotlight, setActiveFeatureSpotlight] =
     useState<FeatureSpotlightType | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -150,6 +163,64 @@ export function AdaptivePracticeMode({
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+
+  const adaptiveScopeKey = adaptiveStandardIds?.join(",") ?? "";
+  const adaptiveRequested =
+    !isAssignmentRun && mode === "practice" && Boolean(adaptiveScopeKey);
+  const adaptiveEnabled = adaptiveRequested && !adaptiveUnavailable;
+
+  const requestAdaptiveQuestion = useCallback(
+    async (append: boolean): Promise<AdaptiveRequestResult> => {
+      const standardIds = adaptiveScopeKey.split(",").filter(Boolean);
+      if (!standardIds.length) return "stopped";
+      setAdaptiveLoading(true);
+      setAdaptiveStopReason(null);
+      try {
+        const response = await fetch("/api/practice/next", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            standardIds,
+            sessionId: sessionIdRef.current,
+          }),
+        });
+        const payload = (await response.json()) as {
+          status?: string;
+          reason?: string;
+          error?: string;
+          question?: Question;
+        };
+        if (!response.ok) throw new Error(payload.error ?? "Unable to select the next question");
+        if (payload.status === "unavailable" && payload.reason === "scope_unavailable") {
+          setAdaptiveStopReason(null);
+          return "scope_unavailable";
+        }
+        if (payload.status !== "selected" || !payload.question) {
+          setAdaptiveStopReason(
+            payload.status === "complete"
+              ? "All KCs in this practice scope are mastered."
+              : "Practice paused because no mapped question is available for the next KC.",
+          );
+          return "stopped";
+        }
+        setSessionQuestions((previous) => append ? [...previous, payload.question!] : [payload.question!]);
+        const bookmarkIds = await fetchBookmarkIds();
+        if (bookmarkIds.includes(payload.question.id)) {
+          setBookmarkedQuestions((previous) => new Set(previous).add(payload.question!.id));
+        }
+        return "selected";
+      } catch (adaptiveError) {
+        setAdaptiveStopReason(
+          adaptiveError instanceof Error ? adaptiveError.message : "Unable to select the next question",
+        );
+        return "stopped";
+      } finally {
+        setAdaptiveLoading(false);
+      }
+    },
+    [adaptiveScopeKey],
+  );
 
   // When mode === "review", emit the mode-level entry/exit events in addition
   // to the per-item `review_item_*` events that already fire below. Runs once
@@ -196,48 +267,67 @@ export function AdaptivePracticeMode({
     // For assignments we trust the server's deterministic ordering so resume
     // always lands on the same question. Self-practice keeps the legacy
     // random-shuffle-and-cap behavior.
-    const count = questionCount ?? questions.length;
-    const selected = isAssignmentRun
-      ? questions.slice(0, count)
-      : shuffleArray(questions).slice(0, count);
-    setSessionQuestions(selected);
-    // Seed bookmark state from Supabase so it stays correct across devices.
-    // toggleBookmark updates the localStorage cache synchronously after this
-    // point, so the UI stays responsive without more DB round-trips.
-    void fetchBookmarkIds().then((ids) => {
-      const bookmarked = new Set(ids);
-      setBookmarkedQuestions(
-        new Set(selected.map((q) => q.id).filter((id) => bookmarked.has(id))),
-      );
-    });
-
-    if (isAssignmentRun && answered) {
-      const prefilledFinals: Record<number, AnswerRecord> = {};
-      const prefilledAttempts: Record<number, AttemptRecord[]> = {};
-      selected.forEach((q, index) => {
-        const prior = answered[q.id];
-        if (!prior) return;
-        prefilledFinals[index] = {
-          selectedOptionId: prior.selectedOptionId ?? "",
-          isCorrect: prior.isCorrect,
-        };
-        if (prior.selectedOptionId) {
-          prefilledAttempts[index] = [
-            {
-              selectedOptionId: prior.selectedOptionId,
-              isCorrect: prior.isCorrect,
-            },
-          ];
-        }
+    const initializeFixedPractice = () => {
+      const count = questionCount ?? questions.length;
+      const selected = isAssignmentRun
+        ? questions.slice(0, count)
+        : shuffleArray(questions).slice(0, count);
+      setSessionQuestions(selected);
+      // Seed bookmark state from Supabase so it stays correct across devices.
+      // toggleBookmark updates the localStorage cache synchronously after this
+      // point, so the UI stays responsive without more DB round-trips.
+      void fetchBookmarkIds().then((ids) => {
+        const bookmarked = new Set(ids);
+        setBookmarkedQuestions(
+          new Set(selected.map((q) => q.id).filter((id) => bookmarked.has(id))),
+        );
       });
-      setFinalAnswers(prefilledFinals);
-      setAttemptsByIndex(prefilledAttempts);
-      const firstUnanswered = selected.findIndex((q) => !answered[q.id]);
-      setCurrentIndex(firstUnanswered === -1 ? selected.length - 1 : firstUnanswered);
-    }
 
+      if (isAssignmentRun && answered) {
+        const prefilledFinals: Record<number, AnswerRecord> = {};
+        const prefilledAttempts: Record<number, AttemptRecord[]> = {};
+        selected.forEach((q, index) => {
+          const prior = answeredEntryForQuestion(answered, q);
+          if (!prior) return;
+          prefilledFinals[index] = {
+            selectedOptionId: prior.selectedOptionId ?? "",
+            isCorrect: prior.isCorrect,
+          };
+          if (prior.selectedOptionId) {
+            prefilledAttempts[index] = [
+              {
+                selectedOptionId: prior.selectedOptionId,
+                isCorrect: prior.isCorrect,
+              },
+            ];
+          }
+        });
+        setFinalAnswers(prefilledFinals);
+        setAttemptsByIndex(prefilledAttempts);
+        const firstUnanswered = selected.findIndex(
+          (q) => !answeredEntryForQuestion(answered, q),
+        );
+        setCurrentIndex(firstUnanswered === -1 ? selected.length - 1 : firstUnanswered);
+      }
+    };
+
+    if (adaptiveRequested) {
+      setAdaptiveUnavailable(false);
+      setSessionQuestions([]);
+      setCurrentIndex(0);
+      setIsInitialized(false);
+      void requestAdaptiveQuestion(false).then((result) => {
+        if (result === "scope_unavailable") {
+          setAdaptiveUnavailable(true);
+          initializeFixedPractice();
+        }
+      }).finally(() => setIsInitialized(true));
+      return;
+    }
+    setAdaptiveUnavailable(false);
+    initializeFixedPractice();
     setIsInitialized(true);
-  }, [questions, questionCount, isAssignmentRun, answered]);
+  }, [questions, questionCount, isAssignmentRun, answered, adaptiveRequested, requestAdaptiveQuestion]);
 
   useEffect(() => {
     setSelectedOptionId(null);
@@ -297,19 +387,23 @@ export function AdaptivePracticeMode({
   const assignmentPrimaryButtonStyle = {
     color: "var(--assignment-cta-text)",
     background: "var(--assignment-cta-bg-strong)",
-    border: "1.5px solid var(--assignment-cta-border-hover)",
+    border: "1.5px solid var(--assignment-glass-border)",
     boxShadow: "var(--assignment-cta-elevated-shadow)",
+    letterSpacing: "0.3px",
+    wordSpacing: "1px",
   };
+  // Background stays in the class (bg-[...]) so hover/active bg utilities can win.
   const assignmentSecondaryButtonStyle = {
     color: "var(--assignment-row-cta-text)",
-    background: "var(--assignment-row-cta-bg)",
     border: "1.5px solid var(--assignment-row-cta-border)",
     boxShadow: "var(--assignment-row-cta-shadow)",
+    letterSpacing: "0.3px",
+    wordSpacing: "1px",
   };
   const assignmentPrimaryButtonClass =
-    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-cta-bg-hover)] active:bg-[var(--assignment-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
+    "inline-flex items-center justify-center gap-1.5 px-5 h-[46px] rounded-full font-bold text-[16px] transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed";
   const assignmentSecondaryButtonClass =
-    "inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full font-semibold text-[13px] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
+    "inline-flex items-center justify-center gap-1.5 px-5 h-[46px] rounded-full font-bold text-[16px] bg-[var(--assignment-row-cta-bg)] transition duration-200 hover:-translate-y-px active:translate-y-0 hover:bg-[var(--assignment-row-cta-bg-hover)] active:bg-[var(--assignment-row-cta-bg-active)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0";
 
   useEffect(() => {
     if (!question || showSummary) {
@@ -658,9 +752,10 @@ export function AdaptivePracticeMode({
     const resolvedStandard = question.standardId
       ? { id: question.standardId, label: question.standardLabel }
       : getStandardForTopic(question.topic);
-    const student = getStudentById(DEFAULT_STUDENT_ID);
     saveAnswer({
       questionId: question.id,
+      questionSetId: question.questionSetId,
+      questionContentVersion: question.contentVersion,
       selectedOptionId: selectedOptionId,
       isCorrect: result.isCorrect,
       timestamp: Date.now(),
@@ -671,9 +766,6 @@ export function AdaptivePracticeMode({
       standardLabel: resolvedStandard.label,
       timeSpentSec: elapsedSec,
       assignmentId,
-      studentId: student?.id,
-      classId: student?.classId,
-      teacherId: student?.teacherId,
     });
 
     trackAnalyticsEvent({
@@ -807,7 +899,7 @@ export function AdaptivePracticeMode({
     setShowSummary(true);
   }, [assignmentId, markStageCompleted, mode]);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
     if (!isCompleted) return;
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex((prev) => prev + 1);
@@ -819,6 +911,21 @@ export function AdaptivePracticeMode({
     if (allCompleted) {
       if (isAssignmentRun) {
         finishSession();
+      } else if (adaptiveEnabled) {
+        if (questionCount && completedCount >= questionCount) {
+          finishSession();
+          return;
+        }
+        await processQueue();
+        const result = await requestAdaptiveQuestion(true);
+        if (result === "selected") {
+          setCurrentIndex((prev) => prev + 1);
+          requestAnimationFrame(() => {
+            scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        } else {
+          finishSession();
+        }
       } else {
         // Self-practice: cycle by appending another shuffled batch
         setSessionQuestions((prev) => [...prev, ...shuffleArray(questions)]);
@@ -830,11 +937,15 @@ export function AdaptivePracticeMode({
     }
   }, [
     allCompleted,
+    adaptiveEnabled,
+    completedCount,
     currentIndex,
     finishSession,
     isAssignmentRun,
     isCompleted,
     questions,
+    questionCount,
+    requestAdaptiveQuestion,
     totalQuestions,
   ]);
 
@@ -861,16 +972,24 @@ export function AdaptivePracticeMode({
 
   if (sessionQuestions.length === 0 || !question) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
+      <div className="h-full flex items-center justify-center px-4">
+        <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-8 text-center max-w-md">
           <p className="text-slate-gray mb-4">
             No questions available for this selection yet.
           </p>
           <Link
-            href="/self-practice"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover"
+            href={backHref}
+            className="inline-flex items-center justify-center gap-2 px-5 h-[46px] rounded-full font-bold text-[16px] transition duration-200 hover:brightness-110 active:brightness-95"
+            style={{
+              color: "var(--assignment-cta-text)",
+              background: "var(--assignment-cta-bg-strong)",
+              border: "1.5px solid var(--assignment-glass-border)",
+              boxShadow: "var(--assignment-cta-elevated-shadow)",
+              letterSpacing: "0.3px",
+              wordSpacing: "1px",
+            }}
           >
-            Back to Self Practice
+            {getBackLabel(backHref)}
           </Link>
         </div>
       </div>
@@ -902,17 +1021,18 @@ export function AdaptivePracticeMode({
         isCorrect: false,
       };
       return (
+        <div className="h-full overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full"
+            className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 pb-8"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <button
                 onClick={() => setSummaryReviewIndex(null)}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
               >
-                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--assignment-calendar-nav-bg)]">
                   <ArrowLeft className="w-4 h-4 text-heading" />
                 </span>
                 Back to results
@@ -934,7 +1054,7 @@ export function AdaptivePracticeMode({
                 </button>
               ) : null}
             </div>
-            <div className="rounded-xl border border-primary/30 bg-surface p-4 sm:p-6 shadow-sm">
+            <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-4 sm:p-6">
               <p className="text-sm text-muted-foreground mb-3">
                 Question {summaryReviewIndex + 1}
               </p>
@@ -956,7 +1076,7 @@ export function AdaptivePracticeMode({
                       key={opt.id}
                       className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
                         isCorrect
-                          ? "border-primary/40 bg-primary/5"
+                          ? "border-[var(--assignment-selected-accent)] bg-[var(--assignment-calendar-nav-bg)]"
                           : wrongSelection
                             ? "border-error-border bg-error-light"
                             : "border-border-default bg-surface"
@@ -991,6 +1111,7 @@ export function AdaptivePracticeMode({
               />
             </div>
           </motion.div>
+        </div>
         );
     }
 
@@ -1001,12 +1122,13 @@ export function AdaptivePracticeMode({
     const correctCount = answeredEntries.filter(({ answer }) => answer.isCorrect).length;
     const scorePercent = answeredTotal > 0 ? Math.round((correctCount / answeredTotal) * 100) : 0;
     return (
+      <div className="h-full overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full space-y-4 pb-8"
+        className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 space-y-4 pb-8"
       >
-        <div className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-6 text-center">
           {topicName && <p className="text-sm text-muted-foreground mb-2">{topicName}</p>}
           <h2 className="text-2xl font-bold text-slate-gray mb-2">
             {mode === "review" ? "Review Complete" : "Session Complete"}
@@ -1015,9 +1137,12 @@ export function AdaptivePracticeMode({
           <p className="text-sm text-muted-foreground">
             {correctCount} of {answeredTotal} final answers correct
           </p>
+          {adaptiveStopReason ? (
+            <p className="mt-3 text-sm text-muted-foreground">{adaptiveStopReason}</p>
+          ) : null}
         </div>
 
-        <div className="rounded-xl border border-primary/30 bg-surface p-4 shadow-sm">
+        <div className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-4">
           <h3 className="text-base font-semibold text-slate-gray mb-3">
             Review Questions
           </h3>
@@ -1029,7 +1154,7 @@ export function AdaptivePracticeMode({
                   key={`${q.id}-${index}`}
                   onClick={() => setSummaryReviewIndex(index)}
                   className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-foreground/5 ${
-                    isCorrect ? "border-primary/20" : "border-error-border"
+                    isCorrect ? "border-[var(--assignment-completed-muted)]" : "border-error-border"
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -1088,6 +1213,7 @@ export function AdaptivePracticeMode({
           </div>
         </div>
       </motion.div>
+      </div>
     );
   }
 
@@ -1100,45 +1226,83 @@ export function AdaptivePracticeMode({
         }
       : undefined;
 
+  const isLastAssignmentQuestion =
+    isAssignmentRun && currentIndex === totalQuestions - 1;
+  const nextLabel = isLastAssignmentQuestion ? "View Results" : "Next";
+  const showTopicName = Boolean(topicName) && topicName !== "Self Practice";
+  const contextLabel =
+    [
+      mode === "review" ? "Review Mode" : undefined,
+      showTopicName ? topicName : undefined,
+    ]
+      .filter(Boolean)
+      .join(" · ") || undefined;
+
+  // The bottom bar's right slot: the single primary filled action (Next /
+  // Submit), or the secondary Try Again while a retry is pending. Handlers
+  // and state transitions are identical to the previous inline button row.
+  const primaryAction =
+    (isShortAnswerQuestion && question.shortAnswer) || isCompleted ? (
+      <button
+        type="button"
+        onClick={handleNext}
+        disabled={!isCompleted || adaptiveLoading}
+        className={sessionPrimaryButtonClass}
+        style={sessionPrimaryButtonStyle}
+      >
+        {nextLabel}
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    ) : canTryAgain ? (
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedOptionId(null);
+          setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: true }));
+          requestAnimationFrame(() => {
+            scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        }}
+        className={sessionSecondaryButtonClass}
+        style={sessionSecondaryButtonStyle}
+      >
+        <RefreshCcw className="w-4 h-4" />
+        Try Again
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={submitAttempt}
+        disabled={!selectedOptionId}
+        className={sessionPrimaryButtonClass}
+        style={sessionPrimaryButtonStyle}
+      >
+        <Send className="w-4 h-4" />
+        Submit
+      </button>
+    );
+
   return (
-    <div className="flex flex-col h-full">
-      <PracticeHeader
-        topicName={topicName}
-        mode={mode}
+    <>
+      <QuestionSessionShell
         backHref={backHref}
         showBackLink={showBackLink}
-        inlineProgress={isAssignmentRun}
-        compactSpacing
-        currentQuestion={isAssignmentRun ? currentIndex + 1 : undefined}
-        totalQuestions={isAssignmentRun ? totalQuestions : undefined}
-        answeredCount={isAssignmentRun ? completedCount : undefined}
-        rightSlot={
-          !isAssignmentRun ? (
-            <>
-              <span className="text-sm text-muted-foreground">
-                {completedCount} answered
-              </span>
-              <button
-                onClick={finishSession}
-                className={assignmentPrimaryButtonClass}
-                style={assignmentPrimaryButtonStyle}
-              >
-                Finish Session
-              </button>
-            </>
-          ) : undefined
+        currentQuestion={currentIndex + 1}
+        totalQuestions={totalQuestions}
+        contextLabel={contextLabel}
+        onFinishSession={!isAssignmentRun ? finishSession : undefined}
+        variant={
+          isShortAnswerQuestion && question.shortAnswer ? "split" : "mcq"
         }
-      />
-
-      <div className="flex flex-col gap-3 flex-1 min-h-0">
-        <div className="flex-1 flex flex-col min-h-0">
-          <div
-            ref={scrollContainerRef}
-            className={`flex-1 overflow-y-auto min-h-0 ${
-              isShortAnswerQuestion && question.shortAnswer ? "pb-24" : "pb-2"
-            }`}
-          >
-            {isShortAnswerQuestion && question.shortAnswer ? (
+        mediaHeavy={Boolean(question.imageUrl || question.diagram)}
+        scrollRef={scrollContainerRef}
+        onPrevious={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+        previousDisabled={currentIndex === 0}
+        isBookmarked={bookmarkedQuestions.has(question.id)}
+        onToggleBookmark={handleBookmarkToggle}
+        primaryAction={primaryAction}
+      >
+        {isShortAnswerQuestion && question.shortAnswer ? (
               <ShortAnswerQuestionView
                 key={question.id}
                 item={question.shortAnswer}
@@ -1188,7 +1352,13 @@ export function AdaptivePracticeMode({
                   >
                     <button
                       onClick={handleGlossaryModalOpen}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary/30 text-forest bg-surface hover:bg-primary/5 transition-colors text-xs font-medium"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-slate-gray bg-[var(--assignment-calendar-nav-bg)] hover:bg-[var(--assignment-calendar-nav-bg-hover)] transition-colors text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      style={{
+                        border: "1px solid var(--assignment-glass-border)",
+                        boxShadow: "var(--assignment-nav-shadow)",
+                        backdropFilter: "blur(10px) saturate(130%)",
+                        WebkitBackdropFilter: "blur(10px) saturate(130%)",
+                      }}
                     >
                       <BookOpen className="w-3.5 h-3.5" />
                       Glossary
@@ -1200,7 +1370,6 @@ export function AdaptivePracticeMode({
               selectedOptionId={selectedOptionId}
               pendingSelection={!isCompleted && isRetryReady && selectedOptionId !== null}
               revealCorrectAnswer={isCompleted}
-              compactLayout
               onOptionClick={(optionId) => {
                 if (isCompleted || !isRetryReady) return;
                 setSelectedOptionId(optionId);
@@ -1212,7 +1381,7 @@ export function AdaptivePracticeMode({
               choicesReadAloudTourId={FEATURE_SPOTLIGHT_TARGET_IDS.READ_ALOUD_CHOICES}
               feedbackSlot={
                 attempts.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     {isCompleted ? (
                       <>
                         <FeedbackPanel
@@ -1223,6 +1392,7 @@ export function AdaptivePracticeMode({
                           showFocusHint={showScaffold}
                           feedbackReadText={feedbackReadText}
                           onReadAloud={handleReadAloud}
+                          variant="neutral"
                         />
                         <ConfidenceCheck
                           value={finalAnswer?.confidenceLevel}
@@ -1242,6 +1412,7 @@ export function AdaptivePracticeMode({
                           showFocusHint={showScaffold}
                           feedbackReadText={feedbackReadText}
                           onReadAloud={handleReadAloud}
+                          variant="neutral"
                         />
                       </>
                     ) : null}
@@ -1249,127 +1420,23 @@ export function AdaptivePracticeMode({
                 ) : undefined
               }
               belowOptionsSlot={
-                <>
-                  {showScaffold && question.focusHint && !isCompleted && attempts.length === 0 ? (
-                    <div className="mt-4 rounded-xl border border-primary/25 bg-primary-light p-3">
-                      <div className="flex items-start gap-2.5">
-                        <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-forest mb-0.5">
-                            Focus Hint
-                          </p>
-                          <p className="text-sm text-slate-gray leading-relaxed">{question.focusHint}</p>
-                        </div>
+                showScaffold && question.focusHint && !isCompleted && attempts.length === 0 ? (
+                  <div className="mt-4 rounded-2xl border border-[var(--assignment-completed-muted)] bg-[var(--mastery-mastered-bg)] p-3">
+                    <div className="flex items-start gap-2.5">
+                      <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--mastery-mastered)] mb-0.5">
+                          Focus Hint
+                        </p>
+                        <p className="text-sm text-slate-gray leading-relaxed">{question.focusHint}</p>
                       </div>
                     </div>
-                  ) : null}
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <button
-                      onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                      disabled={currentIndex === 0}
-                      className={assignmentSecondaryButtonClass}
-                      style={assignmentSecondaryButtonStyle}
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      Previous
-                    </button>
-
-                    <button
-                      onClick={handleBookmarkToggle}
-                      className={assignmentSecondaryButtonClass}
-                      style={assignmentSecondaryButtonStyle}
-                    >
-                      <Bookmark
-                        className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(question.id) ? "fill-current" : ""}`}
-                      />
-                      {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
-                    </button>
-
-                    {!isCompleted ? (
-                      canTryAgain ? (
-                        <button
-                          onClick={() => {
-                            setSelectedOptionId(null);
-                            setRetryReadyByIndex((prev) => ({ ...prev, [currentIndex]: true }));
-                            requestAnimationFrame(() => {
-                              scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-                            });
-                          }}
-                          className={assignmentSecondaryButtonClass}
-                          style={assignmentSecondaryButtonStyle}
-                        >
-                          <RefreshCcw className="w-3.5 h-3.5" />
-                          Try Again
-                        </button>
-                      ) : (
-                        <button
-                          onClick={submitAttempt}
-                          disabled={!selectedOptionId}
-                          className={assignmentPrimaryButtonClass}
-                          style={assignmentPrimaryButtonStyle}
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          Submit
-                        </button>
-                      )
-                    ) : (
-                      <button
-                        onClick={handleNext}
-                        className={assignmentPrimaryButtonClass}
-                        style={assignmentPrimaryButtonStyle}
-                      >
-                        {isAssignmentRun && currentIndex === totalQuestions - 1 ? "View Results" : "Next"}
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                   </div>
-                </>
+                ) : undefined
               }
             />
             )}
-          </div>
-          {isShortAnswerQuestion && question.shortAnswer ? (
-            <div className="sticky bottom-0 z-10 -mx-1 border-t border-[color:var(--assignment-glass-border)] bg-[color:var(--background)]/95 px-1 py-3 backdrop-blur-md">
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                  disabled={currentIndex === 0}
-                  className={assignmentSecondaryButtonClass}
-                  style={assignmentSecondaryButtonStyle}
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBookmarkToggle}
-                  className={assignmentSecondaryButtonClass}
-                  style={assignmentSecondaryButtonStyle}
-                >
-                  <Bookmark
-                    className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(question.id) ? "fill-current" : ""}`}
-                  />
-                  {bookmarkedQuestions.has(question.id) ? "Bookmarked" : "Bookmark"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  disabled={!isCompleted}
-                  className={assignmentPrimaryButtonClass}
-                  style={assignmentPrimaryButtonStyle}
-                >
-                  {isAssignmentRun && currentIndex === totalQuestions - 1
-                    ? "View Results"
-                    : "Next"}
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
+      </QuestionSessionShell>
 
       {question ? <QuestionNoteDrawer questionId={question.id} /> : null}
 
@@ -1411,7 +1478,7 @@ export function AdaptivePracticeMode({
         >
           <div className="mx-auto max-w-2xl h-full flex items-center justify-center">
             <div
-              className="w-full max-h-[85vh] overflow-hidden rounded-xl bg-surface shadow-xl border border-primary/20"
+              className="w-full max-h-[85vh] overflow-hidden rounded-2xl bg-surface shadow-[var(--assignment-popover-shadow)] border border-[var(--assignment-popover-border)]"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
@@ -1448,6 +1515,6 @@ export function AdaptivePracticeMode({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

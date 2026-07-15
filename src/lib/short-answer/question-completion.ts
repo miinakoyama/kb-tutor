@@ -1,4 +1,7 @@
-import type { AnsweredEntry } from "@/lib/assignments/answered-map";
+import {
+  answeredQuestionKey,
+  type AnsweredEntry,
+} from "@/lib/assignments/answered-map";
 import type { Question } from "@/types/question";
 import type { GradedFeedback, PartLabel, ShortAnswerPart } from "@/types/short-answer";
 import { isShortAnswerQuestion } from "@/lib/short-answer/question-guards";
@@ -12,6 +15,7 @@ const PART_LABELS = new Set<PartLabel>(["A", "B", "C"]);
 export type ShortAnswerAttemptDbRow = {
   id?: unknown;
   question_id: unknown;
+  question_set_id?: unknown;
   part_label: unknown;
   attempt_number: unknown;
   response_text: unknown;
@@ -111,27 +115,29 @@ export function mergeShortAnswerIntoAnsweredMap(
     if (!answeredAt || !isAfterRunBoundary(answeredAt, options.lastCompletedAt)) {
       continue;
     }
-    const bucket = rowsByQuestion.get(questionId) ?? [];
+    const key = answeredQuestionKey(row.question_set_id, questionId);
+    const bucket = rowsByQuestion.get(key) ?? [];
     bucket.push(row);
-    rowsByQuestion.set(questionId, bucket);
+    rowsByQuestion.set(key, bucket);
   }
 
   for (const question of questions) {
     if (!isShortAnswerQuestion(question) || !question.shortAnswer) continue;
-    const rows = rowsByQuestion.get(question.id) ?? [];
+    const key = answeredQuestionKey(question.questionSetId, question.id);
+    const rows = rowsByQuestion.get(key) ?? rowsByQuestion.get(question.id) ?? [];
     const completion = evaluateShortAnswerQuestionCompletion(
       question.shortAnswer.parts,
       rows,
       { maxAttemptsPerPart: options.maxAttemptsPerPart },
     );
     if (completion.allResolved && completion.latestAnsweredAt) {
-      result[question.id] = {
+      result[key] = {
         selectedOptionId: "short-answer",
         isCorrect: completion.allCorrect,
         answeredAt: completion.latestAnsweredAt,
       };
     } else {
-      delete result[question.id];
+      delete result[key];
     }
   }
 

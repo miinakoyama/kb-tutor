@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { clearRoleCookie, setRoleCookie } from "./helpers/auth";
 import { disableOnboardingTour, dismissTourIfVisible } from "./helpers/ui";
+import { mockStudentQuestionBank } from "./helpers/questions";
 
 test.describe("Login and role access", () => {
   test("student login dropdown only renders schools returned by public API", async ({
@@ -34,6 +35,7 @@ test.describe("Login and role access", () => {
   }) => {
     await disableOnboardingTour(context);
     await clearRoleCookie(context, baseURL);
+    await mockStudentQuestionBank(page);
 
     await page.route("**/api/public/schools", async (route) => {
       await route.fulfill({

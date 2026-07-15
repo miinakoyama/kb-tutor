@@ -229,31 +229,45 @@ function StimulusBody({ stimulus }: { stimulus: StimulusAsset }): ReactNode {
 interface StimulusPanelProps {
   stem: string;
   stimulus: StimulusAsset;
+  /**
+   * When false, renders without its own card chrome so the panel can sit
+   * inside a shared split-workspace surface that provides border/background.
+   */
+  framed?: boolean;
 }
 
-export function StimulusPanel({ stem, stimulus }: StimulusPanelProps) {
+export function StimulusPanel({
+  stem,
+  stimulus,
+  framed = true,
+}: StimulusPanelProps) {
   return (
     <section
       {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
-      className="flex flex-col gap-4 rounded-2xl border border-[color:var(--assignment-glass-border)] bg-[color:var(--assignment-glass-bg)] p-5 backdrop-blur-md"
-      style={{ boxShadow: "var(--assignment-card-shadow)" }}
+      className={`flex flex-col gap-4 ${
+        framed
+          ? "rounded-2xl border border-[color:var(--assignment-glass-border)] bg-[color:var(--assignment-glass-bg)] p-5 backdrop-blur-md"
+          : ""
+      }`}
+      style={framed ? { boxShadow: "var(--assignment-card-shadow)" } : undefined}
     >
-      <header className="flex items-center justify-between gap-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/55">
-          Scenario
-        </h2>
-      </header>
-
-      <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[color:var(--foreground)]">
+      <p className="whitespace-pre-wrap text-[17px] font-medium leading-relaxed text-[color:var(--foreground)]">
         {stem}
       </p>
 
-      <figure className="flex flex-col gap-2 rounded-xl border border-[color:var(--assignment-panel-border)] bg-[color:var(--assignment-glass-bg-strong)] p-4">
-        <figcaption className="text-sm font-semibold text-[color:var(--foreground)]">
-          {stimulus.title}
-        </figcaption>
+      {/* Graph/table/etc. reads as part of the same document as the
+          scenario text — a divider instead of a nested rounded card. */}
+      <div
+        className="flex flex-col gap-2 border-t pt-4"
+        style={{ borderColor: "var(--border-subtle)" }}
+      >
+        {stimulus.title && (
+          <p className="text-sm font-semibold text-[color:var(--foreground)]">
+            {stimulus.title}
+          </p>
+        )}
         <StimulusBody stimulus={stimulus} />
-      </figure>
+      </div>
     </section>
   );
 }
