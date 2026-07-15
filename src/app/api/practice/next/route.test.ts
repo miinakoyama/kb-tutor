@@ -101,16 +101,16 @@ describe("POST /api/practice/next", () => {
     };
     state.server = createMockSupabaseClient({
       user,
-      tables: {
-        school_question_sets: { rows: [{ set_id: "set-b" }] },
-        generated_question_sets: {
-          rows: [{ id: "set-b", name: "Set B", generated_at: "2026-01-01" }],
-        },
-        generated_questions: {
-          rows: ["q1", "q2"].map((id) => ({
+      rpcs: {
+        get_self_practice_questions: async () => ({
+          data: ["q1", "q2"].map((id) => ({
             id,
             set_id: "set-b",
-            include_in_self_practice: true,
+            content_version: null,
+            set_name: "Set B",
+            set_generated_at: "2026-01-01",
+            generation_model_id: null,
+            generation_model_label: null,
             payload: {
               id,
               module: 1,
@@ -124,7 +124,8 @@ describe("POST /api/practice/next", () => {
               questionType: "open-ended",
             },
           })),
-        },
+          error: null,
+        }),
       },
     }).client;
     state.admin = createMockSupabaseClient({
