@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDashboardResponse,
+  resolveAttemptStandardId,
   type AttemptRecord,
 } from "./teacher-dashboard-server";
 
@@ -465,5 +466,22 @@ describe("buildDashboardResponse", () => {
     const row = result.byStandard.find((item) => item.standardId === "BIO.1.3");
     expect(row?.status).toBe("below_basic");
     expect(row?.accuracy).toBe(40);
+  });
+});
+
+describe("resolveAttemptStandardId", () => {
+  it("preserves an explicitly stored standard", () => {
+    expect(resolveAttemptStandardId("3.1.9-12.A", "Genetics")).toBe(
+      "3.1.9-12.A",
+    );
+  });
+
+  it("resolves a legacy topic that maps to exactly one standard", () => {
+    expect(resolveAttemptStandardId(null, " Genetics ")).toBe("3.1.9-12.P");
+  });
+
+  it("does not infer a standard from an ambiguous or unknown topic", () => {
+    expect(resolveAttemptStandardId(null, "Structure and Function")).toBeNull();
+    expect(resolveAttemptStandardId(null, "Some Unknown Topic")).toBeNull();
   });
 });

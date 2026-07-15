@@ -116,6 +116,20 @@ export function roundPercent(value: number): number {
   return Math.round(Math.max(0, Math.min(100, value)));
 }
 
+/**
+ * Resolve the canonical standard used by teacher analytics. Legacy attempts
+ * may predate `standard_id`; only infer one when the stored topic maps to
+ * exactly one standard so dashboard and detail views use the same rule.
+ */
+export function resolveAttemptStandardId(
+  standardId: string | null,
+  topic: string | null,
+): string | null {
+  if (standardId) return standardId;
+  const topicStandards = getStandardsForTopicName((topic ?? "").trim());
+  return topicStandards.length === 1 ? topicStandards[0].id : null;
+}
+
 interface BuildArgs {
   attempts: AttemptRecord[];
   topic?: string;
@@ -278,12 +292,10 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     // standardId. When their legacy topic maps to exactly one canonical
     // standard, aggregate them into that standard instead of showing both an
     // attempted BIO.OTHER row and a seeded canonical "Not Started" row.
-    const topicStandards = row.standardId
-      ? []
-      : getStandardsForTopicName(topicSlug);
-    const resolvedStandardId =
-      row.standardId ||
-      (topicStandards.length === 1 ? topicStandards[0].id : null);
+    const resolvedStandardId = resolveAttemptStandardId(
+      row.standardId,
+      topicSlug,
+    );
     let aggKey: string;
     let fallbackLabel: string;
     if (resolvedStandardId) {
