@@ -116,12 +116,15 @@ export default function BookmarksPage() {
 
 /** Renders the short-answer stimulus with lazily loaded media (hooks are not allowed inside the bookmark list map). */
 function BookmarkStimulus({ question: questionProp }: { question: Question }) {
-  const question = useQuestionMedia(questionProp) ?? questionProp;
+  const { question: hydratedQuestion, isMediaPending } =
+    useQuestionMedia(questionProp);
+  const question = hydratedQuestion ?? questionProp;
   if (!question.shortAnswer) return null;
   return (
     <StimulusPanel
       stem={question.shortAnswer.stem}
       stimulus={question.shortAnswer.stimulus}
+      imageLoading={isMediaPending}
     />
   );
 }

@@ -131,6 +131,8 @@ interface ShortAnswerQuestionViewProps {
   showCompletionContinue?: boolean;
   /** Fires once when every part has resolved (for progress bookkeeping). */
   onAllPartsResolved?: (summary: { correctParts: number; totalParts: number }) => void;
+  /** True while a stripped stimulus image is still being fetched (see useQuestionMedia). */
+  stimulusImageLoading?: boolean;
 }
 
 export function ShortAnswerQuestionView({
@@ -145,6 +147,7 @@ export function ShortAnswerQuestionView({
   onContinue,
   showCompletionContinue = true,
   onAllPartsResolved,
+  stimulusImageLoading = false,
 }: ShortAnswerQuestionViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const howToUseRef = useRef<HTMLButtonElement | null>(null);
@@ -692,6 +695,7 @@ export function ShortAnswerQuestionView({
               stem={item.stem}
               stimulus={item.stimulus}
               framed={false}
+              imageLoading={stimulusImageLoading}
             />
           </div>
         </div>

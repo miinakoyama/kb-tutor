@@ -366,7 +366,9 @@ export function AdaptivePracticeMode({
   ]);
 
   const rawQuestion = sessionQuestions[currentIndex];
-  const question = useQuestionMedia(rawQuestion) ?? rawQuestion;
+  const { question: hydratedQuestion, isMediaPending } =
+    useQuestionMedia(rawQuestion);
+  const question = hydratedQuestion ?? rawQuestion;
   const isShortAnswerQuestion =
     question?.questionType === "open-ended" && Boolean(question?.shortAnswer);
   const attempts = useMemo(
@@ -1321,6 +1323,7 @@ export function AdaptivePracticeMode({
                 }
                 onContinue={handleNext}
                 showCompletionContinue={false}
+                stimulusImageLoading={isMediaPending}
                 onAllPartsResolved={({ correctParts, totalParts }) => {
                   setFinalAnswers((prev) => ({
                     ...prev,

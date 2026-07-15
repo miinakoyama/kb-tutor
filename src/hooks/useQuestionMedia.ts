@@ -10,6 +10,19 @@ import {
   type QuestionMedia,
 } from "@/lib/question-media";
 
+export interface UseQuestionMediaResult {
+  /** The input question, with stripped media merged in once it has loaded. */
+  question: Question | null | undefined;
+  /**
+   * True while stripped media for this question is still being fetched.
+   * Callers should hold answer input until this clears so students never
+   * answer an image-dependent question before its illustration is visible.
+   * Cleared on fetch failure too (the question then renders without media
+   * rather than deadlocking; a remount retries the fetch).
+   */
+  isMediaPending: boolean;
+}
+
 /**
  * Fill in media stripped from Self Practice list payloads. Returns the
  * question as-is when nothing is missing; otherwise fetches the media for
@@ -17,32 +30,39 @@ import {
  */
 export function useQuestionMedia(
   question: Question | null | undefined,
-): Question | null | undefined {
+): UseQuestionMediaResult {
   const setId = question?.questionSetId ?? null;
   const questionId = question?.id ?? null;
+  const key = setId && questionId ? `${setId}/${questionId}` : null;
   const needsMedia = question ? questionNeedsMedia(question) : false;
-  const [loaded, setLoaded] = useState<{
+  const [resolved, setResolved] = useState<{
     key: string;
-    media: QuestionMedia;
+    media: QuestionMedia | null;
   } | null>(null);
 
   useEffect(() => {
-    if (!setId || !questionId || !needsMedia) return;
-    const key = `${setId}/${questionId}`;
+    if (!key || !setId || !questionId || !needsMedia) return;
     let cancelled = false;
     void fetchQuestionMedia(getSupabaseBrowserClient(), setId, questionId).then(
       (media) => {
-        if (!cancelled && media) setLoaded({ key, media });
+        if (!cancelled) setResolved({ key, media });
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [setId, questionId, needsMedia]);
+  }, [key, setId, questionId, needsMedia]);
 
-  return useMemo(() => {
-    if (!question || !needsMedia) return question;
-    if (!loaded || loaded.key !== `${setId}/${questionId}`) return question;
-    return mergeQuestionMedia(question, loaded.media);
-  }, [question, needsMedia, loaded, setId, questionId]);
+  const loadedMedia =
+    resolved && key && resolved.key === key ? resolved.media : null;
+
+  const merged = useMemo(() => {
+    if (!question || !needsMedia || !loadedMedia) return question;
+    return mergeQuestionMedia(question, loadedMedia);
+  }, [question, needsMedia, loadedMedia]);
+
+  const isMediaPending =
+    needsMedia && (!resolved || !key || resolved.key !== key);
+
+  return { question: merged, isMediaPending };
 }

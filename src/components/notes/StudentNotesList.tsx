@@ -190,7 +190,9 @@ function SelectedNoteDetail({
   question: Question | undefined;
 }) {
   const sections = useMemo(() => parseNoteSections(note.noteText), [note.noteText]);
-  const question = useQuestionMedia(questionProp) ?? questionProp;
+  const { question: hydratedQuestion, isMediaPending } =
+    useQuestionMedia(questionProp);
+  const question = hydratedQuestion ?? questionProp;
 
   const shortAnswer =
     question?.questionType === "open-ended" ? question.shortAnswer : undefined;
@@ -202,6 +204,7 @@ function SelectedNoteDetail({
           <StimulusPanel
             stem={shortAnswer.stem}
             stimulus={shortAnswer.stimulus}
+            imageLoading={isMediaPending}
           />
           <div className="space-y-2">
             {shortAnswer.parts.map((part) => (

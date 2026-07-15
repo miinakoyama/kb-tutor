@@ -946,12 +946,12 @@ export function ExamMode({
     onAllSchoolAssignmentsCompleted,
   ]);
 
-  const hydratedCurrentQuestion = useQuestionMedia(
-    sessionQuestions[currentIndex] ?? null,
-  );
-  const hydratedReviewQuestion = useQuestionMedia(
-    reviewIndex !== null ? (sessionQuestions[reviewIndex] ?? null) : null,
-  );
+  const { question: hydratedCurrentQuestion, isMediaPending } =
+    useQuestionMedia(sessionQuestions[currentIndex] ?? null);
+  const { question: hydratedReviewQuestion, isMediaPending: isReviewMediaPending } =
+    useQuestionMedia(
+      reviewIndex !== null ? (sessionQuestions[reviewIndex] ?? null) : null,
+    );
 
   if (phase === "config") {
     return (
@@ -1025,6 +1025,7 @@ export function ExamMode({
                 <StimulusPanel
                   stem={q.shortAnswer.stem}
                   stimulus={q.shortAnswer.stimulus}
+                  imageLoading={isReviewMediaPending}
                 />
               </div>
               <div className="flex flex-col gap-4">
@@ -1375,6 +1376,7 @@ export function ExamMode({
           <ExamShortAnswerCard
             key={question.id}
             questionNumber={currentIndex + 1}
+            stimulusImageLoading={isMediaPending}
             item={question.shortAnswer}
             responses={saqResponses[currentIndex] ?? {}}
             onChange={(label, value) =>
@@ -1553,11 +1555,14 @@ function ExamShortAnswerCard({
   item,
   responses,
   onChange,
+  stimulusImageLoading = false,
 }: {
   questionNumber: number;
   item: ShortAnswerItem;
   responses: Partial<Record<PartLabel, string>>;
   onChange: (label: PartLabel, value: string) => void;
+  /** True while a stripped stimulus image is still being fetched (see useQuestionMedia). */
+  stimulusImageLoading?: boolean;
 }) {
   const isFilled = (label: PartLabel) =>
     (responses[label] ?? "").trim().length > 0;
@@ -1628,7 +1633,12 @@ function ExamShortAnswerCard({
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,44fr)_1px_minmax(0,52fr)]">
         <div className="p-5 sm:p-8 lg:p-10">
           <div className="lg:sticky lg:top-6">
-            <StimulusPanel stem={item.stem} stimulus={item.stimulus} framed={false} />
+            <StimulusPanel
+              stem={item.stem}
+              stimulus={item.stimulus}
+              framed={false}
+              imageLoading={stimulusImageLoading}
+            />
           </div>
         </div>
 

@@ -53,7 +53,15 @@ export function QuestionDisplay({
   questionReadAloudTourId,
   choicesReadAloudTourId,
 }: QuestionDisplayProps) {
-  const question = useQuestionMedia(questionProp) ?? questionProp;
+  const { question: hydratedQuestion, isMediaPending } =
+    useQuestionMedia(questionProp);
+  const question = hydratedQuestion ?? questionProp;
+  // Hold answers while a stripped image is loading: image-dependent questions
+  // must not be answerable before the illustration is visible.
+  const handleOptionClick = (optionId: string) => {
+    if (isMediaPending) return;
+    onOptionClick(optionId);
+  };
   const isAnswered = currentAnswer !== undefined;
   const choicesReadText = buildChoicesReadText(question);
   const questionAndChoicesReadText = `${question.text} ${choicesReadText}`.trim();
@@ -157,6 +165,18 @@ export function QuestionDisplay({
           </div>
         )}
 
+        {!question.imageUrl && question.hasImage && isMediaPending && (
+          <div
+            role="status"
+            aria-label="Loading question image"
+            className={`rounded-lg bg-[var(--diagram-canvas)] p-3 ${compactLayout ? "my-3" : "my-7"}`}
+          >
+            <div
+              className={`w-full animate-pulse rounded-md bg-slate-gray/10 ${compactLayout ? "h-[180px]" : "h-[240px]"}`}
+            />
+          </div>
+        )}
+
         {question.diagram && (
           <AdaptiveDiagramViewport
             className={compactLayout ? "my-3" : "my-7"}
@@ -189,7 +209,7 @@ export function QuestionDisplay({
                   showCorrect={showCorrect}
                   showWrong={showWrong}
                   isAnswered={isAnswered}
-                  onSelect={onOptionClick}
+                  onSelect={handleOptionClick}
                   showFeedbackIcon={showOptionFeedbackIcons}
                   pendingSelection={pendingSelection}
                   compact={compactLayout}
