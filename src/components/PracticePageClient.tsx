@@ -46,17 +46,25 @@ interface PracticePageClientProps {
   assignmentIdParam?: string;
 }
 
-function InvalidParamsMessage({ message }: { message: string }) {
+function InvalidParamsMessage({
+  message,
+  backHref = "/self-practice",
+  backLabel = "Back to Self Practice",
+}: {
+  message: string;
+  backHref?: string;
+  backLabel?: string;
+}) {
   return (
     <div className="h-full flex items-center justify-center">
       <div className="rounded-xl border border-primary/30 bg-surface p-8 text-center max-w-md">
         <p className="text-slate-gray mb-4">{message}</p>
         <Link
-          href="/self-practice"
+          href={backHref}
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-lg text-white font-medium transition-colors bg-primary hover:bg-primary-hover focus-visible:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <Home className="w-4 h-4" />
-          Back to Self Practice
+          {backLabel}
         </Link>
       </div>
     </div>
@@ -79,6 +87,7 @@ export function PracticePageClient({
   const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
   const [assignmentRunAfter, setAssignmentRunAfter] = useState<string | null>(null);
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+  const [assignmentLoadError, setAssignmentLoadError] = useState<string | null>(null);
 
   const handleAllSchoolAssignmentsCompleted = useCallback(() => {
     emitAllAssignmentsCompletedEvent();
@@ -90,33 +99,46 @@ export function PracticePageClient({
       setSnapshotQuestions(null);
       setAnsweredMap({});
       setAssignmentRunAfter(null);
+      setAssignmentLoadError(null);
       setIsSnapshotLoading(false);
       return;
     }
 
     const loadSnapshot = async () => {
       setIsSnapshotLoading(true);
+      setAssignmentLoadError(null);
       try {
         const response = await fetch(
           `/api/assignments/${encodeURIComponent(assignmentId)}/questions`,
           { cache: "no-store" }
         );
-        if (!response.ok) {
-          setSnapshotQuestions(null);
-          setAnsweredMap({});
-          setAssignmentRunAfter(null);
-          setIsSnapshotLoading(false);
-          return;
-        }
         const payload = (await response.json()) as {
+          error?: string;
           questions?: Question[];
           answered?: AnsweredMap;
           last_completed_at?: string | null;
         };
-        const questions = Array.isArray(payload.questions)
-          ? payload.questions
-          : [];
-        setSnapshotQuestions(questions.length > 0 ? questions : null);
+        if (!response.ok) {
+          setSnapshotQuestions([]);
+          setAnsweredMap({});
+          setAssignmentRunAfter(null);
+          setAssignmentLoadError(
+            typeof payload.error === "string"
+              ? payload.error
+              : "This assignment could not be loaded. Ask your teacher to check the assignment setup.",
+          );
+          return;
+        }
+        if (!Array.isArray(payload.questions)) {
+          setSnapshotQuestions([]);
+          setAnsweredMap({});
+          setAssignmentRunAfter(null);
+          setAssignmentLoadError(
+            "This assignment could not be loaded. Ask your teacher to check the assignment setup.",
+          );
+          return;
+        }
+        setSnapshotQuestions(payload.questions);
         setAnsweredMap(
           payload.answered && typeof payload.answered === "object"
             ? payload.answered
@@ -128,9 +150,12 @@ export function PracticePageClient({
             : null,
         );
       } catch {
-        setSnapshotQuestions(null);
+        setSnapshotQuestions([]);
         setAnsweredMap({});
         setAssignmentRunAfter(null);
+        setAssignmentLoadError(
+          "This assignment could not be loaded. Check your connection and try again.",
+        );
       } finally {
         setIsSnapshotLoading(false);
       }
@@ -143,6 +168,16 @@ export function PracticePageClient({
       <div className="h-full flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
+    );
+  }
+
+  if (assignmentLoadError) {
+    return (
+      <InvalidParamsMessage
+        message={assignmentLoadError}
+        backHref="/assignments"
+        backLabel="Back to Assignments"
+      />
     );
   }
 
