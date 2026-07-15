@@ -273,19 +273,31 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
   // bucket (which would mislabel them with whichever row was seen first).
   const UNKNOWN_STANDARD_PREFIX = "BIO.OTHER";
   for (const row of scopedAttempts) {
+    const topicSlug = (row.topic ?? "").trim();
+    // Attempts created before standards were introduced may not have a
+    // standardId. When their legacy topic maps to exactly one canonical
+    // standard, aggregate them into that standard instead of showing both an
+    // attempted BIO.OTHER row and a seeded canonical "Not Started" row.
+    const topicStandards = row.standardId
+      ? []
+      : getStandardsForTopicName(topicSlug);
+    const resolvedStandardId =
+      row.standardId ||
+      (topicStandards.length === 1 ? topicStandards[0].id : null);
     let aggKey: string;
     let fallbackLabel: string;
-    if (row.standardId) {
-      aggKey = row.standardId;
+    if (resolvedStandardId) {
+      aggKey = resolvedStandardId;
       fallbackLabel = row.standardLabel || row.topic || "Other";
     } else {
-      const topicSlug = (row.topic ?? "").trim();
       aggKey = topicSlug
         ? `${UNKNOWN_STANDARD_PREFIX}::${topicSlug}`
         : UNKNOWN_STANDARD_PREFIX;
       fallbackLabel = row.standardLabel || topicSlug || "Other";
     }
-    const canonical = row.standardId ? getStandardById(row.standardId) : undefined;
+    const canonical = resolvedStandardId
+      ? getStandardById(resolvedStandardId)
+      : undefined;
     const standardLabel = canonical?.label || fallbackLabel;
     const existing =
       standardAgg.get(aggKey) ??

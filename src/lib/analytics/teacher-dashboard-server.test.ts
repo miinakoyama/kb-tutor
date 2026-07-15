@@ -169,7 +169,7 @@ describe("buildDashboardResponse", () => {
     const attempts: AttemptRecord[] = [
       attempt("s1", "", true, 60, "Cell Division", { standardId: null }),
       attempt("s1", "", false, 60, "Cell Division", { standardId: null }),
-      attempt("s2", "", true, 60, "Genetics", { standardId: null }),
+      attempt("s2", "", true, 60, "Some Unknown Topic", { standardId: null }),
     ];
 
     const result = buildDashboardResponse({
@@ -184,7 +184,32 @@ describe("buildDashboardResponse", () => {
     );
     expect(otherRows).toHaveLength(2);
     const labels = otherRows.map((row) => row.standardLabel).sort();
-    expect(labels).toEqual(["Cell Division", "Genetics"]);
+    expect(labels).toEqual(["Cell Division", "Some Unknown Topic"]);
+  });
+
+  it("reconciles a legacy null-standard attempt to its one-to-one topic standard", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "", true, 60, "Genetics", { standardId: null }),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    const geneticsRows = result.byStandard.filter(
+      (row) =>
+        row.standardId === "3.1.9-12.P" ||
+        row.standardId === "BIO.OTHER::Genetics",
+    );
+    expect(geneticsRows).toHaveLength(1);
+    expect(geneticsRows[0]).toMatchObject({
+      standardId: "3.1.9-12.P",
+      attempted: 1,
+      correct: 1,
+      status: "advanced",
+    });
   });
 
   it("uses the canonical label from standards.ts, ignoring stale attempt labels", () => {
