@@ -16,6 +16,7 @@ import {
   resolveAssignmentRunAfter,
 } from "@/lib/short-answer/assignment-run";
 import { mergeShortAnswerIntoAnsweredMap } from "@/lib/short-answer/question-completion";
+import { filterRenderableQuestions } from "@/lib/short-answer/question-guards";
 import type { Question } from "@/types/question";
 
 async function getRequester() {
@@ -227,7 +228,7 @@ export async function GET(
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
-    questions = result.questions;
+    questions = filterRenderableQuestions(result.questions);
   } else {
     const { data: snapshotRows, error: snapshotError } = await admin
       .from("assignment_question_snapshots")
@@ -240,6 +241,7 @@ export async function GET(
     questions = (snapshotRows ?? [])
       .map((row) => row.payload as Question)
       .filter((payload): payload is Question => Boolean(payload && payload.id));
+    questions = filterRenderableQuestions(questions);
 
     if (randomizeOrder) {
       questions = deterministicShuffle(
