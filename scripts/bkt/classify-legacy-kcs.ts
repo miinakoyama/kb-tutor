@@ -1,15 +1,22 @@
+import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { getGeminiKey, getOpenAIKey } from "../../src/lib/llm/env.ts";
+import {
+  getAnthropicKey,
+  getGeminiKey,
+  getOpenAIKey,
+} from "../../src/lib/llm/env.ts";
 import {
   getSupabaseServiceRoleKey,
   getSupabaseUrl,
 } from "../../src/lib/supabase/env.ts";
 
-const MODEL_A = process.env.BKT_CLASSIFIER_MODEL_A ?? "gpt-5.4-mini";
-const MODEL_B = process.env.BKT_CLASSIFIER_MODEL_B ?? "gemini-3.1-flash-lite-preview";
+const MODEL_A = process.env.BKT_CLASSIFIER_MODEL_A ?? "gpt-5.4";
+const MODEL_B = process.env.BKT_CLASSIFIER_MODEL_B ?? "claude-opus-4-8";
 const PROMPT_VERSION = "legacy-kc-v1";
 const BATCH_SIZE = 10;
+const SYSTEM_PROMPT =
+  "You classify biology MCQs into a constrained KC catalog. Return JSON only.";
 
 export interface ClassifierOutput {
   questionSetId: string;
@@ -154,29 +161,104 @@ function promptFor(questions: readonly FrozenQuestion[], catalog: Map<string, Ca
   });
 }
 
+// Claude models enforce the decision shape with a JSON schema rather than the
+// looser json_object mode the OpenAI-compatible providers use.
+const DECISION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["decisions"],
+  properties: {
+    decisions: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["questionSetId", "questionId", "outcome", "kcCode", "rationale"],
+        properties: {
+          questionSetId: { type: "string" },
+          questionId: { type: "string" },
+          outcome: { type: "string", enum: ["assigned", "ambiguous", "invalid"] },
+          kcCode: { anyOf: [{ type: "string" }, { type: "null" }] },
+          rationale: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
+interface BatchResult {
+  raw: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+interface Classifier {
+  model: string;
+  send: (prompt: string) => Promise<BatchResult>;
+}
+
+function openAiClassifier(client: OpenAI, model: string): Classifier {
+  return {
+    model,
+    send: async (prompt) => {
+      const response = await client.chat.completions.create({
+        model,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+      });
+      return {
+        raw: response.choices[0]?.message.content ?? "",
+        inputTokens: response.usage?.prompt_tokens ?? 0,
+        outputTokens: response.usage?.completion_tokens ?? 0,
+      };
+    },
+  };
+}
+
+function anthropicClassifier(client: Anthropic, model: string): Classifier {
+  return {
+    model,
+    send: async (prompt) => {
+      const response = await client.messages.create({
+        model,
+        max_tokens: 8000,
+        system: SYSTEM_PROMPT,
+        output_config: {
+          format: { type: "json_schema", schema: DECISION_SCHEMA },
+        },
+        messages: [{ role: "user", content: prompt }],
+      });
+      if (response.stop_reason === "refusal") {
+        throw new Error("Classifier refused the batch");
+      }
+      const text = response.content.find((block) => block.type === "text");
+      return {
+        raw: text?.text ?? "",
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      };
+    },
+  };
+}
+
 async function classifyBatch(
-  client: OpenAI,
-  model: string,
+  classifier: Classifier,
   questions: readonly FrozenQuestion[],
   catalog: Map<string, CatalogKc[]>,
 ) {
   const started = Date.now();
-  const response = await client.chat.completions.create({
-    model,
-    temperature: 0,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: "You classify biology MCQs into a constrained KC catalog. Return JSON only." },
-      { role: "user", content: promptFor(questions, catalog) },
-    ],
-  });
+  const result = await classifier.send(promptFor(questions, catalog));
   const allowed = new Map(
     Array.from(catalog, ([standard, kcs]) => [standard, new Set(kcs.map((kc) => kc.code))]),
   );
   return {
-    decisions: parseClassifierBatch(response.choices[0]?.message.content ?? "", questions, allowed),
-    inputTokens: response.usage?.prompt_tokens ?? 0,
-    outputTokens: response.usage?.completion_tokens ?? 0,
+    decisions: parseClassifierBatch(result.raw, questions, allowed),
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
     latencyMs: Date.now() - started,
   };
 }
@@ -231,32 +313,79 @@ export function freezeSelectedQuestions(
   });
 }
 
+// PostgREST sends `in` filters in the query string, so a single fetch for every
+// question id exceeds the server URL limit once a run covers the full corpus.
+const FETCH_CHUNK_SIZE = 100;
+
+// PostgREST caps an unbounded select at its configured max rows, so a full-corpus
+// run silently reads back only part of its own decisions unless we page.
+const PAGE_SIZE = 500;
+
+interface PageResult<T> {
+  data: T[] | null;
+  error: { message: string } | null;
+}
+
+async function selectAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<PageResult<T>>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const chunk = data ?? [];
+    rows.push(...chunk);
+    if (chunk.length < PAGE_SIZE) return rows;
+  }
+}
+
+async function fetchQuestionRows(
+  db: SupabaseClient,
+  setIds: readonly string[],
+  questionIds: readonly string[],
+): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  for (let offset = 0; offset < questionIds.length; offset += FETCH_CHUNK_SIZE) {
+    const chunk = questionIds.slice(offset, offset + FETCH_CHUNK_SIZE);
+    const { data, error } = await db
+      .from("generated_questions")
+      .select("id,set_id,payload")
+      .in("set_id", setIds)
+      .in("id", chunk);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as Record<string, unknown>[]));
+  }
+  return rows;
+}
+
+interface CoverageRow {
+  question_set_id: string;
+  question_id: string;
+  current_content_hash: string;
+}
+
 async function loadQuestions(db: SupabaseClient, options: CliOptions): Promise<FrozenQuestion[]> {
-  let coverageQuery = db
-    .from("bkt_question_coverage")
-    .select("question_set_id,question_id,current_content_hash")
-    .eq("format", "mcq")
-    .neq("coverage_state", "valid");
-  if (options.selfPractice) coverageQuery = coverageQuery.eq("include_in_self_practice", true);
-  if (options.standards.length) coverageQuery = coverageQuery.in("standard_id", options.standards);
-  if (options.sets.length) coverageQuery = coverageQuery.in("question_set_id", options.sets);
-  if (options.questions.length) coverageQuery = coverageQuery.in("question_id", options.questions);
-  const { data: coverage, error: coverageError } = await coverageQuery;
-  if (coverageError) throw new Error(coverageError.message);
-  const selected = (coverage ?? [])
+  const coverage = await selectAllPages<CoverageRow>((from, to) => {
+    let query = db
+      .from("bkt_question_coverage")
+      .select("question_set_id,question_id,current_content_hash")
+      .eq("format", "mcq")
+      .neq("coverage_state", "valid");
+    if (options.selfPractice) query = query.eq("include_in_self_practice", true);
+    if (options.standards.length) query = query.in("standard_id", options.standards);
+    if (options.sets.length) query = query.in("question_set_id", options.sets);
+    if (options.questions.length) query = query.in("question_id", options.questions);
+    return query.range(from, to);
+  });
+  const selected = coverage
     .sort((a, b) => `${a.question_set_id}/${a.question_id}`.localeCompare(`${b.question_set_id}/${b.question_id}`))
     .slice(0, options.sample ?? undefined);
   if (!selected.length) return [];
   const ids = selected.map((row) => String(row.question_id));
   const setIds = [...new Set(selected.map((row) => String(row.question_set_id)))];
-  const { data: rows, error } = await db
-    .from("generated_questions")
-    .select("id,set_id,payload")
-    .in("set_id", setIds)
-    .in("id", ids);
-  if (error) throw new Error(error.message);
+  const rows = await fetchQuestionRows(db, setIds, ids);
   return freezeSelectedQuestions(
-    (rows ?? []) as Record<string, unknown>[],
+    rows,
     selected.map((row) => ({
       questionSetId: String(row.question_set_id),
       questionId: String(row.question_id),
@@ -284,14 +413,13 @@ async function loadFrozenQuestions(db: SupabaseClient, runId: string): Promise<F
       )
     : [];
   if (!frozen.length) throw new Error("Classification run has no frozen question scope");
-  const { data: rows, error } = await db
-    .from("generated_questions")
-    .select("id,set_id,payload")
-    .in("set_id", [...new Set(frozen.map((item) => item.setId))])
-    .in("id", [...new Set(frozen.map((item) => item.questionId))]);
-  if (error) throw new Error(error.message);
+  const rows = await fetchQuestionRows(
+    db,
+    [...new Set(frozen.map((item) => item.setId))],
+    [...new Set(frozen.map((item) => item.questionId))],
+  );
   return freezeSelectedQuestions(
-    (rows ?? []) as Record<string, unknown>[],
+    rows,
     frozen.map((item) => ({
       questionSetId: item.setId,
       questionId: item.questionId,
@@ -353,37 +481,63 @@ async function run() {
     runId = String(data.id);
   }
 
-  const openai = new OpenAI({ apiKey: getOpenAIKey() });
-  const gemini = new OpenAI({
-    apiKey: getGeminiKey(),
-    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-  });
-  let inputTokens = 0;
-  let outputTokens = 0;
+  const classifierFor = (model: string): Classifier => {
+    if (model.startsWith("claude")) {
+      return anthropicClassifier(new Anthropic({ apiKey: getAnthropicKey() }), model);
+    }
+    if (model.startsWith("gemini")) {
+      return openAiClassifier(
+        new OpenAI({
+          apiKey: getGeminiKey(),
+          baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        }),
+        model,
+      );
+    }
+    return openAiClassifier(new OpenAI({ apiKey: getOpenAIKey() }), model);
+  };
+  const classifierA = classifierFor(MODEL_A);
+  const classifierB = classifierFor(MODEL_B);
+  // A resumed run keeps accumulating onto the usage its earlier attempts already
+  // paid for, so the published run retains the true total cost.
+  const { data: priorUsage } = await db
+    .from("kc_classification_runs")
+    .select("input_tokens,output_tokens")
+    .eq("id", runId)
+    .maybeSingle();
+  let inputTokens = Number(priorUsage?.input_tokens ?? 0);
+  let outputTokens = Number(priorUsage?.output_tokens ?? 0);
   let errors = 0;
-  const { data: priorDecisions, error: priorError } = await db
-    .from("kc_classification_decisions")
-    .select("question_set_id,question_id,pass,outcome")
-    .eq("run_id", runId);
-  if (priorError) throw new Error(priorError.message);
+  const priorDecisions = await selectAllPages<{
+    question_set_id: string;
+    question_id: string;
+    pass: number;
+    outcome: string;
+  }>((from, to) =>
+    db
+      .from("kc_classification_decisions")
+      .select("question_set_id,question_id,pass,outcome")
+      .eq("run_id", runId)
+      .range(from, to),
+  );
   const completedPasses = new Set(
-    (priorDecisions ?? [])
+    priorDecisions
       .filter((decision) => decision.outcome !== "error")
       .map((decision) => `${decision.question_set_id}/${decision.question_id}/${decision.pass}`),
   );
   for (let offset = 0; offset < questions.length; offset += BATCH_SIZE) {
     const batch = questions.slice(offset, offset + BATCH_SIZE);
-    const clientFor = (model: string) => (model.startsWith("gemini") ? gemini : openai);
-    for (const [pass, model, client] of [
-      [1, MODEL_A, clientFor(MODEL_A)],
-      [2, MODEL_B, clientFor(MODEL_B)],
+    for (const [pass, classifier] of [
+      [1, classifierA],
+      [2, classifierB],
     ] as const) {
+      const model = classifier.model;
       const passBatch = batch.filter(
         (question) => !completedPasses.has(`${question.questionSetId}/${question.questionId}/${pass}`),
       );
       if (!passBatch.length) continue;
       try {
-        const result = await classifyBatch(client, model, passBatch, catalog);
+        const result = await classifyBatch(classifier, passBatch, catalog);
         inputTokens += result.inputTokens;
         outputTokens += result.outputTokens;
         const byKey = new Map(
@@ -442,12 +596,21 @@ async function run() {
       }
     }
   }
-  const { data: decisions } = await db
-    .from("kc_classification_decisions")
-    .select("question_set_id,question_id,pass,outcome,kc_code")
-    .eq("run_id", runId);
+  const decisions = await selectAllPages<{
+    question_set_id: string;
+    question_id: string;
+    pass: number;
+    outcome: string;
+    kc_code: string | null;
+  }>((from, to) =>
+    db
+      .from("kc_classification_decisions")
+      .select("question_set_id,question_id,pass,outcome,kc_code")
+      .eq("run_id", runId)
+      .range(from, to),
+  );
   const grouped = new Map<string, Array<{ pass: number; outcome: string; kc_code: string | null }>>();
-  for (const decision of decisions ?? []) {
+  for (const decision of decisions) {
     const key = `${decision.question_set_id}/${decision.question_id}`;
     const list = grouped.get(key) ?? [];
     list.push(decision);

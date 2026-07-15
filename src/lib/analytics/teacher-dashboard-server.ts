@@ -1,7 +1,7 @@
 import {
   getAllStandards,
   getStandardById,
-  getStandardsForTopic,
+  getStandardsForTopicName,
   type ModuleCode,
 } from "@/lib/standards";
 import {
@@ -121,6 +121,20 @@ export function classifyPerformance(
 export function roundPercent(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(Math.max(0, Math.min(100, value)));
+}
+
+/**
+ * Resolve the canonical standard used by teacher analytics. Legacy attempts
+ * may predate `standard_id`; only infer one when the stored topic maps to
+ * exactly one standard so dashboard and detail views use the same rule.
+ */
+export function resolveAttemptStandardId(
+  standardId: string | null,
+  topic: string | null,
+): string | null {
+  if (standardId) return standardId;
+  const topicStandards = getStandardsForTopicName((topic ?? "").trim());
+  return topicStandards.length === 1 ? topicStandards[0].id : null;
 }
 
 interface BuildArgs {
@@ -273,10 +287,11 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     });
   }
 
-  // Pre-seed every known standard (scoped to the topic filter, if any) so
-  // standards with zero attempts still show up as "not started" instead of
-  // being hidden from the grouped view.
-  const standardsToSeed = topic ? getStandardsForTopic(topic) : getAllStandards();
+  // Pre-seed known standards so they appear as "Not Started" even with zero
+  // attempts. When a topic filter is active, scope the seed to that topic's
+  // standards only — otherwise unrelated standards (e.g. Ecology while
+  // viewing Genetics) would show up as not-started for the current filter.
+  const standardsToSeed = topic ? getStandardsForTopicName(topic) : getAllStandards();
   for (const standard of standardsToSeed) {
     seedStandardAgg(standard.id, standard.label);
   }
@@ -288,19 +303,29 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
   for (const row of scopedAttempts) {
     // Per-standard rows are MCQ-only; SAQ has its own breakdown on the standard detail page.
     if (row.isShortAnswer) continue;
+    const topicSlug = (row.topic ?? "").trim();
+    // Attempts created before standards were introduced may not have a
+    // standardId. When their legacy topic maps to exactly one canonical
+    // standard, aggregate them into that standard instead of showing both an
+    // attempted BIO.OTHER row and a seeded canonical "Not Started" row.
+    const resolvedStandardId = resolveAttemptStandardId(
+      row.standardId,
+      topicSlug,
+    );
     let aggKey: string;
     let fallbackLabel: string;
-    if (row.standardId) {
-      aggKey = row.standardId;
+    if (resolvedStandardId) {
+      aggKey = resolvedStandardId;
       fallbackLabel = row.standardLabel || row.topic || "Other";
     } else {
-      const topicSlug = (row.topic ?? "").trim();
       aggKey = topicSlug
         ? `${UNKNOWN_STANDARD_PREFIX}::${topicSlug}`
         : UNKNOWN_STANDARD_PREFIX;
       fallbackLabel = row.standardLabel || topicSlug || "Other";
     }
-    const canonical = row.standardId ? getStandardById(row.standardId) : undefined;
+    const canonical = resolvedStandardId
+      ? getStandardById(resolvedStandardId)
+      : undefined;
     const standardLabel = canonical?.label || fallbackLabel;
     seedStandardAgg(aggKey, standardLabel);
     const existing = standardAgg.get(aggKey)!;

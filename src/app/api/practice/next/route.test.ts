@@ -45,8 +45,9 @@ describe("POST /api/practice/next", () => {
     }).client;
     state.admin = createMockSupabaseClient({
       tables: {
+        school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
         bkt_standard_rollouts: {
-          rows: [{ standard_id: "3.1.9-12.A", status: "enabled" }],
+          rows: [{ school_id: "school-a", standard_id: "3.1.9-12.A", status: "enabled" }],
         },
       },
     }).client;
@@ -63,7 +64,34 @@ describe("POST /api/practice/next", () => {
     });
   });
 
-  it("does not treat an unscoped SAQ summary from another set as answer history", async () => {
+  it("does not serve a standard enabled only for a school the student is not in", async () => {
+    state.server = createMockSupabaseClient({
+      user: { id: "student", app_metadata: {}, user_metadata: {}, aud: "authenticated", created_at: "2026-01-01" },
+    }).client;
+    state.admin = createMockSupabaseClient({
+      tables: {
+        school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
+        // Enabled for school-b only — school-a has never been validated, so its
+        // bank may have no question for some KC in this standard.
+        bkt_standard_rollouts: {
+          rows: [{ school_id: "school-b", standard_id: "3.1.9-12.A", status: "enabled" }],
+        },
+      },
+    }).client;
+
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({ standardIds: ["3.1.9-12.A"] }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      status: "unavailable",
+      reason: "scope_unavailable",
+    });
+  });
+
+  it("loads target-KC candidates through the bounded RPC", async () => {
     const user = {
       id: "student",
       app_metadata: {},
@@ -71,38 +99,39 @@ describe("POST /api/practice/next", () => {
       aud: "authenticated",
       created_at: "2026-01-01",
     };
-    state.server = createMockSupabaseClient({
-      user,
-      tables: {
-        school_question_sets: { rows: [{ set_id: "set-b" }] },
-        generated_question_sets: {
-          rows: [{ id: "set-b", name: "Set B", generated_at: "2026-01-01" }],
+    state.server = createMockSupabaseClient({ user }).client;
+    const candidateRpc = vi.fn(async () => ({
+      data: ["q1", "q2"].map((id) => ({
+        question_set_id: "set-b",
+        question_id: id,
+        content_version: null,
+        has_image: false,
+        has_stimulus_image: false,
+        format: "saq",
+        standard_id: "3.1.9-12.A",
+        part_kc_codes: ["3.1.9-12.A1"],
+        completed_count: id === "q1" ? 0 : 1,
+        last_completed_at: id === "q1" ? null : "2026-01-02T00:00:00Z",
+        payload: {
+          id,
+          module: 1,
+          topic: "Genetics",
+          standardId: "3.1.9-12.A",
+          text: id,
+          imageUrl: null,
+          options: [],
+          correctOptionId: "",
+          source: "generated",
+          questionType: "open-ended",
         },
-        generated_questions: {
-          rows: ["q1", "q2"].map((id) => ({
-            id,
-            set_id: "set-b",
-            include_in_self_practice: true,
-            payload: {
-              id,
-              module: 1,
-              topic: "Genetics",
-              standardId: "3.1.9-12.A",
-              text: id,
-              imageUrl: null,
-              options: [],
-              correctOptionId: "",
-              source: "generated",
-              questionType: "open-ended",
-            },
-          })),
-        },
-      },
-    }).client;
+      })),
+      error: null,
+    }));
     state.admin = createMockSupabaseClient({
       tables: {
+        school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
         bkt_standard_rollouts: {
-          rows: [{ standard_id: "3.1.9-12.A", status: "enabled" }],
+          rows: [{ school_id: "school-a", standard_id: "3.1.9-12.A", status: "enabled" }],
         },
         knowledge_components: {
           rows: [{ code: "3.1.9-12.A1", standard_id: "3.1.9-12.A", catalog_order: 1, active: true }],
@@ -110,37 +139,9 @@ describe("POST /api/practice/next", () => {
         student_kc_mastery: { rows: [] },
         adaptive_rotation_states: { rows: [] },
         adaptive_selection_events: { rows: [] },
-        question_kc_assignments: {
-          rows: ["q1", "q2"].map((questionId) => ({
-            question_set_id: "set-b",
-            question_id: questionId,
-            part_label: "A",
-            format: "saq",
-            standard_id: "3.1.9-12.A",
-            kc_code: "3.1.9-12.A1",
-            status: "confirmed",
-            valid_to: null,
-          })),
-        },
-        attempts: {
-          rows: [{
-            user_id: "student",
-            question_set_id: null,
-            question_id: "q1",
-            selected_option_id: "short-answer",
-            answered_at: "2026-01-02T00:00:00Z",
-          }],
-        },
-        short_answer_attempts: {
-          rows: [{
-            user_id: "student",
-            question_set_id: "set-a",
-            question_id: "q1",
-            answered_at: "2026-01-02T00:00:00Z",
-          }],
-        },
       },
       rpcs: {
+        get_adaptive_practice_candidates: candidateRpc,
         record_adaptive_selection: async () => ({ data: true, error: null }),
       },
     }).client;
@@ -154,6 +155,11 @@ describe("POST /api/practice/next", () => {
     await expect(response.json()).resolves.toMatchObject({
       status: "selected",
       question: { id: "q1", questionSetId: "set-b" },
+    });
+    expect(candidateRpc).toHaveBeenCalledWith({
+      p_user_id: "student",
+      p_standard_id: "3.1.9-12.A",
+      p_target_kc_code: "3.1.9-12.A1",
     });
   });
 });

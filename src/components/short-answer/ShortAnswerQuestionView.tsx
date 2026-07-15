@@ -24,12 +24,6 @@ import {
 } from "@/lib/short-answer/tour-settings";
 
 const MAX_ATTEMPTS = MAX_SHORT_ANSWER_ATTEMPTS;
-const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
-
-function isDocumentActiveForTiming(): boolean {
-  if (typeof document === "undefined") return false;
-  return !document.hidden && document.hasFocus();
-}
 
 interface PartRuntime {
   status: PartStatus;
@@ -137,6 +131,8 @@ interface ShortAnswerQuestionViewProps {
   showCompletionContinue?: boolean;
   /** Fires once when every part has resolved (for progress bookkeeping). */
   onAllPartsResolved?: (summary: { correctParts: number; totalParts: number }) => void;
+  /** True while a stripped stimulus image is still being fetched (see useQuestionMedia). */
+  stimulusImageLoading?: boolean;
 }
 
 export function ShortAnswerQuestionView({
@@ -151,6 +147,7 @@ export function ShortAnswerQuestionView({
   onContinue,
   showCompletionContinue = true,
   onAllPartsResolved,
+  stimulusImageLoading = false,
 }: ShortAnswerQuestionViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const howToUseRef = useRef<HTMLButtonElement | null>(null);
@@ -160,6 +157,14 @@ export function ShortAnswerQuestionView({
   const [runtimes, setRuntimes] = useState<PartRuntime[]>(
     item.parts.map((_, i) => initialRuntime(i)),
   );
+  /**
+   * Answering-time measurement per part (→ time_spent_sec on the attempt,
+   * same semantics as MCQ attempts): stamped when a part becomes answerable
+   * (mount, unlock, server hydration), re-stamped after each recorded
+   * attempt so a retry times only the retry. A failed submission keeps the
+   * stamp — the attempt wasn't consumed, so the clock keeps running.
+   */
+  const partActiveSinceRef = useRef<Partial<Record<PartLabel, number>>>({});
   const [showCompletion, setShowCompletion] = useState(false);
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [historyModal, setHistoryModal] = useState<{
@@ -174,8 +179,7 @@ export function ShortAnswerQuestionView({
   const [glossary, setGlossary] = useState<{
     term: string;
     definition: string;
-    x: number;
-    y: number;
+    anchorRect: { left: number; bottom: number; width: number };
   } | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   // Off by default (FR-010): the shared HighlightLayer only wraps
@@ -184,33 +188,6 @@ export function ShortAnswerQuestionView({
   const [hydrationReady, setHydrationReady] = useState(false);
   const completionRef = useRef<HTMLDivElement | null>(null);
   const allResolvedFiredRef = useRef(false);
-  // Total dwell time since this question was first shown, across all part
-  // submissions/retries — mirrors AdaptivePracticeMode's visibility-aware
-  // dwell tracking. Only the call that finalizes the last unresolved part
-  // actually persists this value (see maybeRecordQuestionSummary).
-  const dwellMsRef = useRef(0);
-  const visitStartRef = useRef<number | null>(null);
-  const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearBlurFlushTimer = useCallback(() => {
-    if (blurFlushTimerRef.current === null) return;
-    clearTimeout(blurFlushTimerRef.current);
-    blurFlushTimerRef.current = null;
-  }, []);
-
-  const flushVisit = useCallback(() => {
-    const startMs = visitStartRef.current;
-    if (startMs === null) return;
-    dwellMsRef.current += Math.max(0, Date.now() - startMs);
-    visitStartRef.current = null;
-  }, []);
-
-  const resetDwell = useCallback(() => {
-    clearBlurFlushTimer();
-    flushVisit();
-    dwellMsRef.current = 0;
-    visitStartRef.current = null;
-  }, [clearBlurFlushTimer, flushVisit]);
 
   // Auto-open the tour on first exposure to a short-answer question.
   useEffect(() => {
@@ -284,8 +261,8 @@ export function ShortAnswerQuestionView({
     setHydrationReady(false);
     setShowCompletion(false);
     allResolvedFiredRef.current = false;
+    partActiveSinceRef.current = {};
     setRuntimes(item.parts.map((_, i) => initialRuntime(i)));
-    resetDwell();
     void hydrateFromServer();
   }, [
     hydrateFromServer,
@@ -294,64 +271,19 @@ export function ShortAnswerQuestionView({
     assignmentId,
     assignmentRunAfter,
     sessionId,
-    resetDwell,
   ]);
 
-  // Start/stop the dwell clock: running whenever the question is hydrated
-  // and not yet fully resolved, paused while the tab is hidden/unfocused.
+  // Stamp the answering-time start for any part that just became active and
+  // isn't being timed yet — covers initial mount, unlockNext, and hydration.
   useEffect(() => {
-    if (!hydrationReady || showCompletion) {
-      clearBlurFlushTimer();
-      flushVisit();
-      return;
-    }
-    if (isDocumentActiveForTiming()) {
-      visitStartRef.current = Date.now();
-    }
-    return () => {
-      clearBlurFlushTimer();
-      flushVisit();
-    };
-  }, [hydrationReady, showCompletion, clearBlurFlushTimer, flushVisit]);
-
-  useEffect(() => {
-    if (!hydrationReady || showCompletion) return;
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearBlurFlushTimer();
-        flushVisit();
-        return;
+    runtimes.forEach((runtime, i) => {
+      const label = item.parts[i]?.label;
+      if (!label) return;
+      if (runtime.status === "active" && partActiveSinceRef.current[label] === undefined) {
+        partActiveSinceRef.current[label] = Date.now();
       }
-      if (!document.hasFocus()) return;
-      clearBlurFlushTimer();
-      if (visitStartRef.current === null) {
-        visitStartRef.current = Date.now();
-      }
-    };
-    const handleWindowBlur = () => {
-      clearBlurFlushTimer();
-      blurFlushTimerRef.current = setTimeout(() => {
-        blurFlushTimerRef.current = null;
-        flushVisit();
-      }, FOCUS_LOSS_FLUSH_GRACE_MS);
-    };
-    const handleWindowFocus = () => {
-      clearBlurFlushTimer();
-      if (!isDocumentActiveForTiming()) return;
-      if (visitStartRef.current === null) {
-        visitStartRef.current = Date.now();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleWindowBlur);
-    window.addEventListener("focus", handleWindowFocus);
-    return () => {
-      clearBlurFlushTimer();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleWindowBlur);
-      window.removeEventListener("focus", handleWindowFocus);
-    };
-  }, [hydrationReady, showCompletion, clearBlurFlushTimer, flushVisit]);
+    });
+  }, [runtimes, item.parts]);
 
   const tourSteps: TourStep[] = [
     {
@@ -400,9 +332,11 @@ export function ShortAnswerQuestionView({
       stepLabel: "Attempt dots",
       title: "Track your attempts",
       lines: [
-        "After answering, dots light up:",
-        "• Yellow = wrong  • Green = correct",
-        "Tap one to see what you wrote and the feedback.",
+        "After answering, dots light up. Tap one to see what you wrote and the feedback.",
+      ],
+      legend: [
+        { color: "incorrect", label: "Wrong" },
+        { color: "correct", label: "Correct" },
       ],
       getTarget: () => partSelector(firstLabel, "dots"),
     },
@@ -440,6 +374,11 @@ export function ShortAnswerQuestionView({
 
   const handleCheck = useCallback(
     async (index: number, response: string) => {
+      if (stimulusImageLoading) {
+        setErrorToast("Loading the question illustration. Please wait before checking your answer.");
+        return;
+      }
+
       if (!assignmentId && !sessionId) {
         setErrorToast("Preparing your practice session. Please try again in a moment.");
         return;
@@ -455,11 +394,11 @@ export function ShortAnswerQuestionView({
         prev.map((r, i) => (i === index ? { ...r, status: "submitting" } : r)),
       );
 
-      flushVisit();
-      const timeSpentSec = Math.max(5, Math.round(dwellMsRef.current / 1000));
-      if (isDocumentActiveForTiming()) {
-        visitStartRef.current = Date.now();
-      }
+      const activeSince = partActiveSinceRef.current[part.label];
+      const timeSpentSec =
+        activeSince !== undefined
+          ? Math.max(1, Math.round((Date.now() - activeSince) / 1000))
+          : null;
 
       try {
         const res = await fetch("/api/short-answer/grade", {
@@ -508,6 +447,8 @@ export function ShortAnswerQuestionView({
         }
 
         const data = (await res.json()) as GradeResponse;
+        // This attempt is recorded — a later retry times only the retry.
+        partActiveSinceRef.current[part.label] = Date.now();
         const entry: AttemptHistoryEntry = {
           attemptNumber,
           correct: data.correct,
@@ -541,7 +482,6 @@ export function ShortAnswerQuestionView({
     },
     [
       assignmentId,
-      flushVisit,
       hydrateFromServer,
       item.parts,
       mode,
@@ -549,6 +489,7 @@ export function ShortAnswerQuestionView({
       questionSetId,
       runtimes,
       sessionId,
+      stimulusImageLoading,
     ],
   );
 
@@ -569,11 +510,11 @@ export function ShortAnswerQuestionView({
       const keyTerm = item.keyTerms.find(
         (kt) => kt.term.toLowerCase() === term.toLowerCase(),
       );
+      const rect = event.currentTarget.getBoundingClientRect();
       setGlossary({
         term,
         definition: keyTerm?.definition ?? "Definition not available.",
-        x: event.clientX,
-        y: event.clientY,
+        anchorRect: { left: rect.left, bottom: rect.bottom, width: rect.width },
       });
     },
     [item.keyTerms],
@@ -581,6 +522,7 @@ export function ShortAnswerQuestionView({
 
   const activeIndex = runtimes.findIndex((r) => r.status !== "resolved");
   const waitingForPracticeSession = !assignmentId && !sessionId;
+  const checkDisabled = waitingForPracticeSession || stimulusImageLoading;
 
   // The toolbar's Report button always targets whichever part the student is
   // currently engaging with: the active part, or — during the brief unlock
@@ -760,6 +702,7 @@ export function ShortAnswerQuestionView({
               stem={item.stem}
               stimulus={item.stimulus}
               framed={false}
+              imageLoading={stimulusImageLoading}
             />
           </div>
         </div>
@@ -789,7 +732,7 @@ export function ShortAnswerQuestionView({
                 initialValue={
                   runtime.attempts[runtime.attempts.length - 1]?.responseText ?? ""
                 }
-                checkDisabled={waitingForPracticeSession}
+                checkDisabled={checkDisabled}
                 previousLabel={i > 0 ? item.parts[i - 1].label : undefined}
                 unlock={
                   runtime.countdownActive
@@ -851,8 +794,7 @@ export function ShortAnswerQuestionView({
         <GlossaryPopup
           term={glossary.term}
           definition={glossary.definition}
-          x={glossary.x}
-          y={glossary.y}
+          anchorRect={glossary.anchorRect}
           onDismiss={() => setGlossary(null)}
         />
       )}

@@ -7,7 +7,10 @@ import {
   TeacherRosterLookupError,
 } from "@/lib/analytics/teacher-roster";
 import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
-import { roundPercent } from "@/lib/analytics/teacher-dashboard-server";
+import {
+  resolveAttemptStandardId,
+  roundPercent,
+} from "@/lib/analytics/teacher-dashboard-server";
 import {
   addConfidenceSubmission,
   emptyConfidenceQuadrantCounts,
@@ -23,6 +26,8 @@ import type { GradedFeedback, PartLabel } from "@/types/short-answer";
 interface AttemptQueryRow {
   user_id: string;
   question_id: string;
+  standard_id: string | null;
+  topic: string | null;
   mode: string | null;
   selected_option_id: string;
   is_correct: boolean;
@@ -277,10 +282,14 @@ export async function GET(
 
   let attemptsQuery = admin
     .from("attempts")
-    .select("user_id,question_id,mode,selected_option_id,is_correct,time_spent_sec,assignment_id,answered_at")
+    .select("user_id,question_id,standard_id,topic,mode,selected_option_id,is_correct,time_spent_sec,assignment_id,answered_at")
     .in("user_id", studentIds)
-    .eq("standard_id", standardId)
     .eq("question_id", questionId);
+  attemptsQuery = standardInfo
+    ? attemptsQuery.or(
+        `standard_id.eq.${standardInfo.id},standard_id.is.null`,
+      )
+    : attemptsQuery.eq("standard_id", standardId);
   if (range !== "all") {
     const days = range === "7d" ? 7 : 30;
     const from = new Date();
@@ -302,7 +311,12 @@ export async function GET(
     return NextResponse.json({ error: "Failed to load attempts data" }, { status: 500 });
   }
 
-  const attempts = dedupeAssignmentExamAttempts((attemptsData ?? []) as AttemptQueryRow[]);
+  const attempts = dedupeAssignmentExamAttempts(
+    (attemptsData ?? []) as AttemptQueryRow[],
+  ).filter(
+    (row) =>
+      resolveAttemptStandardId(row.standard_id, row.topic) === standardId,
+  );
   const { data: previewByQuestionId, error: previewError } = await fetchQuestionPreviews(admin, [questionId]);
   if (previewError) {
     return NextResponse.json({ error: previewError }, { status: 500 });

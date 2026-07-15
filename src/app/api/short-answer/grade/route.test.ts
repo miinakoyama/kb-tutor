@@ -515,6 +515,47 @@ describe("POST /api/short-answer/grade", () => {
     });
   });
 
+  it("persists client-measured answering time on the attempt row", async () => {
+    gradePart.mockResolvedValue({
+      score: 1,
+      maxScore: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+    });
+
+    const { POST } = await load();
+    const res = await POST(makeRequest({ ...validBody, timeSpentSec: 95 }));
+
+    expect(res.status).toBe(200);
+    expect(adminQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "insert",
+      value: expect.objectContaining({ time_spent_sec: 95 }),
+    });
+  });
+
+  it("records nonsense answering times as null instead of clamping", async () => {
+    gradePart.mockResolvedValue({
+      score: 1,
+      maxScore: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+    });
+
+    const { POST } = await load();
+    // Above the 2-hour bound → unmeasured, not clamped.
+    const res = await POST(
+      makeRequest({ ...validBody, timeSpentSec: 3 * 60 * 60 }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(adminQueryCalls).toContainEqual({
+      table: "short_answer_attempts",
+      method: "insert",
+      value: expect.objectContaining({ time_spent_sec: null }),
+    });
+  });
+
   it("scopes non-assignment attempt 2 context to the current session", async () => {
     gradePart.mockResolvedValue({
       score: 0,

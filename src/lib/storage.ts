@@ -22,6 +22,8 @@ export interface StoredAnswer {
   questionSetId?: string;
   questionContentVersion?: string;
   isFinalized?: boolean;
+  /** Whether this response completes one presentation of the whole question. */
+  questionCompleted?: boolean;
   selectedOptionId: string;
   isCorrect: boolean;
   confidenceLevel?: ConfidenceLevel;
@@ -110,6 +112,7 @@ function toAttemptPayload(answer: StoredAnswer): AttemptPayload {
     questionSetId: answer.questionSetId ?? null,
     questionContentVersion: answer.questionContentVersion ?? null,
     isFinalized: answer.isFinalized ?? true,
+    questionCompleted: answer.questionCompleted ?? true,
     selectedOptionId: answer.selectedOptionId,
     isCorrect: answer.isCorrect,
     mode: answer.mode,
@@ -302,6 +305,7 @@ function toDbAttempt(answer: StoredAnswer) {
     question_set_id: answer.questionSetId ?? null,
     question_content_version: answer.questionContentVersion ?? null,
     is_finalized: answer.isFinalized ?? true,
+    question_completed: answer.questionCompleted ?? true,
     selected_option_id: answer.selectedOptionId,
     is_correct: answer.isCorrect,
     mode: answer.mode,
@@ -339,7 +343,7 @@ export async function syncAnswerHistoryFromDb(): Promise<StoredAnswer[]> {
     const { data, error } = await supabase
       .from("attempts")
       .select(
-        "question_id,question_set_id,question_content_version,selected_option_id,is_correct,is_finalized,mode,module,topic,standard_id,standard_label,time_spent_sec,assignment_id,answered_at,client_attempt_id",
+        "question_id,question_set_id,question_content_version,selected_option_id,is_correct,is_finalized,question_completed,mode,module,topic,standard_id,standard_label,time_spent_sec,assignment_id,answered_at,client_attempt_id",
       )
       .order("answered_at", { ascending: true });
     if (error || !data) return getAnswerHistory();
@@ -353,6 +357,7 @@ export async function syncAnswerHistoryFromDb(): Promise<StoredAnswer[]> {
       selectedOptionId: String(row.selected_option_id),
       isCorrect: Boolean(row.is_correct),
       isFinalized: row.is_finalized !== false,
+      questionCompleted: row.question_completed !== false,
       mode: String(row.mode),
       module: row.module ? Number(row.module) : undefined,
       topic: row.topic ? String(row.topic) : undefined,

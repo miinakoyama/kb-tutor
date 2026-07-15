@@ -14,14 +14,17 @@ const ACTIVE_PAGE_SIZE = 4;
 interface StudentAssignmentsListProps {
   assignments: StudentAssignmentListItem[];
   loadError: string | null;
+  /** Pre-fills the search box (e.g. arriving from the homepage search). */
+  initialQuery?: string;
 }
 
 export function StudentAssignmentsList({
   assignments,
   loadError,
+  initialQuery = "",
 }: StudentAssignmentsListProps) {
   const [activeExpanded, setActiveExpanded] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
 
   const q = query.trim().toLowerCase();
 
