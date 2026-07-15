@@ -229,7 +229,7 @@ describe("POST /api/practice/next", () => {
         payload: {
           id: "q-saq", module: 1, topic: "Genetics", standardId: "3.1.9-12.A",
           text: "q-saq", imageUrl: null, options: [], correctOptionId: "",
-          source: "generated", questionType: "open-ended",
+          source: "generated", questionType: "open-ended", shortAnswer: sampleItem,
         },
       },
     ]);
