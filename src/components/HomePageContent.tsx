@@ -5,6 +5,7 @@ import type { KeystoneExamInfo } from "@/lib/keystone-exam";
 import type { LearningEffort } from "@/lib/homepage/learning-effort";
 import type { MasteryDatum } from "@/lib/progress/mastery";
 import type { StudentProfileSummary } from "@/lib/homepage/profile-summary";
+import type { StudentBadgeView } from "@/types/badges";
 import { ExamCountdownCard } from "@/components/home/ExamCountdownCard";
 import { LearningEffortCard } from "@/components/home/LearningEffortCard";
 import { AssignedWorkList } from "@/components/home/AssignedWorkList";
@@ -22,6 +23,7 @@ interface HomePageContentProps {
   learningEffort: LearningEffort | null;
   masterySummary: MasteryDatum[];
   profileSummary: StudentProfileSummary;
+  badges: StudentBadgeView[];
 }
 
 /**
@@ -35,6 +37,7 @@ export function HomePageContent({
   learningEffort,
   masterySummary,
   profileSummary,
+  badges,
 }: HomePageContentProps) {
   return (
     <main
@@ -101,7 +104,7 @@ export function HomePageContent({
           </div>
 
           <div className="min-w-0">
-            <ProfileCard profile={profileSummary} mastery={masterySummary} />
+            <ProfileCard profile={profileSummary} mastery={masterySummary} badges={badges} />
           </div>
         </div>
       </div>
