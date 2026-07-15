@@ -33,6 +33,7 @@ import {
 } from "@/components/shared/QuestionSessionShell";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
 import { QuestionNoteDrawer } from "@/components/notes/QuestionNoteDrawer";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
@@ -364,7 +365,8 @@ export function AdaptivePracticeMode({
     onAllSchoolAssignmentsCompleted,
   ]);
 
-  const question = sessionQuestions[currentIndex];
+  const rawQuestion = sessionQuestions[currentIndex];
+  const question = useQuestionMedia(rawQuestion) ?? rawQuestion;
   const isShortAnswerQuestion =
     question?.questionType === "open-ended" && Boolean(question?.shortAnswer);
   const attempts = useMemo(

@@ -45,6 +45,7 @@ import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
@@ -945,6 +946,13 @@ export function ExamMode({
     onAllSchoolAssignmentsCompleted,
   ]);
 
+  const hydratedCurrentQuestion = useQuestionMedia(
+    sessionQuestions[currentIndex] ?? null,
+  );
+  const hydratedReviewQuestion = useQuestionMedia(
+    reviewIndex !== null ? (sessionQuestions[reviewIndex] ?? null) : null,
+  );
+
   if (phase === "config") {
     return (
       <div className="h-full overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -994,7 +1002,7 @@ export function ExamMode({
   }
 
   if (phase === "review" && reviewIndex !== null) {
-    const q = sessionQuestions[reviewIndex];
+    const q = hydratedReviewQuestion ?? sessionQuestions[reviewIndex];
     const a = answers[reviewIndex];
     if (isSaqQuestion(q)) {
       return (
@@ -1244,7 +1252,7 @@ export function ExamMode({
     );
   }
 
-  const question = sessionQuestions[currentIndex];
+  const question = hydratedCurrentQuestion ?? sessionQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
 
   if (!question) {

@@ -8,6 +8,7 @@ import { OptionButton } from "./OptionButton";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech, type ReadSection } from "@/hooks/useTextToSpeech";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { buildChoicesReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "./ReadAloudButton";
 
@@ -33,7 +34,7 @@ interface QuestionDisplayProps {
 }
 
 export function QuestionDisplay({
-  question,
+  question: questionProp,
   questionNumber,
   questionMetaText,
   showHeader = true,
@@ -52,6 +53,7 @@ export function QuestionDisplay({
   questionReadAloudTourId,
   choicesReadAloudTourId,
 }: QuestionDisplayProps) {
+  const question = useQuestionMedia(questionProp) ?? questionProp;
   const isAnswered = currentAnswer !== undefined;
   const choicesReadText = buildChoicesReadText(question);
   const questionAndChoicesReadText = `${question.text} ${choicesReadText}`.trim();

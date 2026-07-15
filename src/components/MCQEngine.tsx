@@ -14,6 +14,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import type { Question } from "@/types/question";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { shuffleArray } from "@/lib/array-utils";
 
 const PRIMARY_COLOR = "#16a34a";
@@ -596,7 +597,8 @@ export function MCQEngine({
     }
   }, [questions, questionsKey]);
 
-  const question = sessionQuestions[currentIndex];
+  const rawQuestion = sessionQuestions[currentIndex];
+  const question = useQuestionMedia(rawQuestion) ?? rawQuestion;
   const currentAnswer = answers[currentIndex];
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.keys(answers).length;

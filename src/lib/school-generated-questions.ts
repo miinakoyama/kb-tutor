@@ -26,6 +26,8 @@ type SelfPracticeQuestionRow = {
   set_id: string;
   payload: unknown;
   content_version: string | null;
+  has_image: boolean;
+  has_stimulus_image: boolean;
   set_name: string;
   set_generated_at: string;
   generation_model_id: string | null;
@@ -39,6 +41,10 @@ type SelfPracticeQuestionRow = {
  * direct select: per-row RLS on `generated_questions` evaluates nested
  * EXISTS/helper-function checks for every row and hits the statement timeout
  * on production data volumes.
+ *
+ * Payloads arrive with embedded base64 images stripped (they made the bank
+ * ~100 MB); `hasImage` / `hasStimulusImage` mark rows whose media must be
+ * loaded lazily via `useQuestionMedia` when displayed.
  */
 export async function fetchStudentSelfPracticeQuestions(
   supabase: SupabaseClient,
@@ -66,6 +72,9 @@ export async function fetchStudentSelfPracticeQuestions(
           : undefined,
       isVisible: true,
       includeInSelfPractice: true,
+      imageUrl: payload.imageUrl ?? null,
+      hasImage: row.has_image === true,
+      hasStimulusImage: row.has_stimulus_image === true,
     };
 
     let set = setById.get(setId);

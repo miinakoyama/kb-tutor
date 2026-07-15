@@ -5,6 +5,7 @@ import { StickyNote } from "lucide-react";
 import type { Question } from "@/types/question";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 
 export interface StudentNoteEntry {
   questionId: string;
@@ -183,12 +184,13 @@ function NoteRow({
 
 function SelectedNoteDetail({
   note,
-  question,
+  question: questionProp,
 }: {
   note: StudentNoteEntry;
   question: Question | undefined;
 }) {
   const sections = useMemo(() => parseNoteSections(note.noteText), [note.noteText]);
+  const question = useQuestionMedia(questionProp) ?? questionProp;
 
   const shortAnswer =
     question?.questionType === "open-ended" ? question.shortAnswer : undefined;
