@@ -252,6 +252,25 @@ export function getStandardForTopic(topic: string): StandardInfo {
   return getDefaultStandardForTopic(topic);
 }
 
+/**
+ * All standards that belong to a given topic/category string, including
+ * legacy topic names from the static question bank (which map to a single
+ * standard rather than a category). Returns [] when the topic doesn't match
+ * anything known, so callers don't accidentally seed unrelated standards.
+ */
+export function getStandardsForTopicName(topic: string): StandardInfo[] {
+  const trimmed = topic.trim();
+  if (!trimmed) return [];
+  const mapped = getStandardsForTopic(trimmed);
+  if (mapped.length > 0) return mapped;
+  const legacyId = LEGACY_TOPIC_STANDARD_ID[trimmed];
+  if (legacyId) {
+    const legacy = STANDARD_MAP.get(legacyId);
+    if (legacy) return [legacy];
+  }
+  return [];
+}
+
 export function getModuleNumberForStandard(standardId: string): number {
   const standard = STANDARD_MAP.get(standardId);
   if (!standard) return 1;
