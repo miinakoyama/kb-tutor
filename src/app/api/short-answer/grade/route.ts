@@ -8,6 +8,7 @@ import {
 } from "@/lib/short-answer/assignment-run";
 import { evaluateShortAnswerQuestionCompletion } from "@/lib/short-answer/question-completion";
 import { loadShortAnswerPart } from "@/lib/short-answer/load-item";
+import type { LoadedItem } from "@/lib/short-answer/load-item";
 import { resolveFeedbackConfig } from "@/lib/short-answer/settings";
 import { gradePart } from "@/lib/short-answer/grading";
 import { emptySubmissionFeedback, feedbackToPlainText } from "@/lib/short-answer/grading/common";
@@ -54,6 +55,21 @@ interface AssignmentMetadata {
   mode: PracticeMode;
 }
 
+type LoadedQuestionContext =
+  | { forbidden: true }
+  | {
+      forbidden: false;
+      item: LoadedItem | null;
+      assignmentRunAfter: string | null;
+      assignmentSchoolId: string | null;
+      effectiveMode: PracticeMode;
+    };
+
+function errorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object" || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
 function toPracticeMode(value: unknown): PracticeMode {
   return value === "practice" || value === "exam" || value === "review"
     ? value
@@ -91,6 +107,17 @@ function parseBody(raw: unknown): GradeRequestBody | null {
   if (b.sessionId != null && (typeof b.sessionId !== "string" || !UUID_RE.test(b.sessionId))) {
     return null;
   }
+  const questionSetId =
+    typeof b.questionSetId === "string" && b.questionSetId.trim()
+      ? b.questionSetId
+      : null;
+  const assignmentId =
+    typeof b.assignmentId === "string" && b.assignmentId.trim()
+      ? b.assignmentId
+      : null;
+  // Non-assignment questions live under a composite (set_id, id) key. Never
+  // fall back to an unbounded id-only lookup through the production RLS policy.
+  if (!assignmentId && !questionSetId) return null;
   const practiceRunAfter =
     typeof b.practiceRunAfter === "string" &&
     Number.isFinite(Date.parse(b.practiceRunAfter))
@@ -102,8 +129,8 @@ function parseBody(raw: unknown): GradeRequestBody | null {
       : undefined;
   return {
     questionId: b.questionId,
-    questionSetId: typeof b.questionSetId === "string" ? b.questionSetId : null,
-    assignmentId: typeof b.assignmentId === "string" ? b.assignmentId : null,
+    questionSetId,
+    assignmentId,
     sessionId: typeof b.sessionId === "string" ? b.sessionId : null,
     practiceRunAfter,
     partLabel: b.partLabel as PartLabel,
@@ -215,55 +242,70 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request body" }, { status: 400 });
   }
 
-  const loaded = await (async () => {
-    if (body.assignmentId) {
-      const admin = createSupabaseAdminClient();
-      const allowed = await canStudentAccessAssignment(
-        admin,
-        user.id,
-        body.assignmentId,
-      );
-      if (!allowed) {
-        return { forbidden: true as const, admin: null, assignmentRunAfter: null };
+  let loaded: LoadedQuestionContext;
+  try {
+    loaded = await (async () => {
+      if (body.assignmentId) {
+        const admin = createSupabaseAdminClient();
+        const allowed = await canStudentAccessAssignment(
+          admin,
+          user.id,
+          body.assignmentId,
+        );
+        if (!allowed) {
+          return { forbidden: true as const };
+        }
+        const assignmentMetadata = await resolveAssignmentMetadata(
+          admin,
+          body.assignmentId,
+        );
+        const item = await loadShortAnswerPart(admin, {
+          questionId: body.questionId,
+          questionSetId: body.questionSetId,
+          partLabel: body.partLabel,
+          assignmentId: body.assignmentId,
+        });
+        const assignmentRunAfter = await resolveAssignmentRunAfter(
+          admin,
+          body.assignmentId,
+          user.id,
+        );
+        return {
+          forbidden: false as const,
+          item,
+          assignmentRunAfter,
+          assignmentSchoolId: assignmentMetadata.schoolId,
+          effectiveMode: assignmentMetadata.mode,
+        };
       }
-      const assignmentMetadata = await resolveAssignmentMetadata(
-        admin,
-        body.assignmentId,
-      );
-      const item = await loadShortAnswerPart(admin, {
+
+      const item = await loadShortAnswerPart(supabase, {
         questionId: body.questionId,
+        questionSetId: body.questionSetId,
         partLabel: body.partLabel,
         assignmentId: body.assignmentId,
       });
-      const assignmentRunAfter = await resolveAssignmentRunAfter(
-        admin,
-        body.assignmentId,
-        user.id,
-      );
       return {
         forbidden: false as const,
         item,
-        admin,
-        assignmentRunAfter,
-        assignmentSchoolId: assignmentMetadata.schoolId,
-        effectiveMode: assignmentMetadata.mode,
+        assignmentRunAfter: null as string | null,
+        assignmentSchoolId: null as string | null,
+        effectiveMode: body.mode,
       };
-    }
-
-    const item = await loadShortAnswerPart(supabase, {
+    })();
+  } catch (error) {
+    console.error("[short-answer/grade] question load failed", {
+      code: errorCode(error),
+      message: error instanceof Error ? error.message : String(error),
       questionId: body.questionId,
-      partLabel: body.partLabel,
+      questionSetId: body.questionSetId,
       assignmentId: body.assignmentId,
     });
-    return {
-      forbidden: false as const,
-      item,
-      admin: null,
-      assignmentRunAfter: null as string | null,
-      assignmentSchoolId: null as string | null,
-      effectiveMode: body.mode,
-    };
-  })();
+    return NextResponse.json(
+      { error: "question_load_unavailable", retriable: true },
+      { status: 503 },
+    );
+  }
 
   if (loaded.forbidden) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

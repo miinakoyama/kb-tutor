@@ -150,7 +150,7 @@ function makeRequest(body: unknown): Request {
 
 const validBody = {
   questionId: "sa-sample-0001",
-  questionSetId: null,
+  questionSetId: "set-1",
   assignmentId: null,
   partLabel: "A",
   studentResponse: "mRNA carries the code to the ribosome",
@@ -204,11 +204,47 @@ describe("POST /api/short-answer/grade", () => {
     expect(res.status).toBe(400);
   });
 
+  it("requires the question set identity outside assignments", async () => {
+    const { POST } = await load();
+    const res = await POST(
+      makeRequest({ ...validBody, questionSetId: null, assignmentId: null }),
+    );
+    expect(res.status).toBe(400);
+    expect(loadPart).not.toHaveBeenCalled();
+  });
+
   it("returns 404 when the question is not a short-answer item", async () => {
     loadPart.mockResolvedValue(null);
     const { POST } = await load();
     const res = await POST(makeRequest(validBody));
     expect(res.status).toBe(404);
+  });
+
+  it("returns a retriable service error when the question lookup fails", async () => {
+    loadPart.mockRejectedValue(
+      Object.assign(new Error("canceling statement due to statement timeout"), {
+        code: "57014",
+      }),
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await load();
+
+    const res = await POST(makeRequest(validBody));
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: "question_load_unavailable",
+      retriable: true,
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "[short-answer/grade] question load failed",
+      expect.objectContaining({
+        code: "57014",
+        questionId: validBody.questionId,
+        questionSetId: validBody.questionSetId,
+      }),
+    );
+    consoleError.mockRestore();
   });
 
   it("grades a correct answer and does not reveal a model answer", async () => {
@@ -223,6 +259,13 @@ describe("POST /api/short-answer/grade", () => {
     const { POST } = await load();
     const res = await POST(makeRequest(validBody));
     expect(res.status).toBe(200);
+    expect(loadPart).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        questionId: validBody.questionId,
+        questionSetId: validBody.questionSetId,
+      }),
+    );
     const json = await res.json();
     expect(json.correct).toBe(true);
     expect(json.resolved).toBe(true);
