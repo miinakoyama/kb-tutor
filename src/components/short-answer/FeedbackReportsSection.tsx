@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { GradedFeedback } from "@/types/short-answer";
 import { verdictDisplay } from "@/components/short-answer/verdict-display";
+import { Button } from "@/components/ui/Button";
 
 type StatusTab = "unreviewed" | "reviewed" | "all";
 
@@ -119,10 +120,10 @@ export function FeedbackReportsSection() {
   };
 
   return (
-    <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mb-6">
-      <div className="border-b border-slate-100 px-5 py-4">
+    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm mb-6">
+      <div className="border-b border-border-subtle px-5 py-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-gray">
-          <Flag className="h-5 w-5 text-[#16a34a]" />
+          <Flag className="h-5 w-5 text-primary" />
           Short-answer feedback reports
         </h2>
         <p className="mt-1 text-sm text-slate-gray/60">
@@ -136,7 +137,7 @@ export function FeedbackReportsSection() {
         <div
           role="tablist"
           aria-label="Report status filter"
-          className="inline-flex rounded-lg border border-slate-200 p-0.5"
+          className="inline-flex rounded-lg border border-border-default p-0.5"
         >
           {TABS.map((t) => (
             <button
@@ -150,8 +151,8 @@ export function FeedbackReportsSection() {
               }}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 tab === t.id
-                  ? "bg-[#16a34a] text-white"
-                  : "text-slate-gray hover:bg-slate-50"
+                  ? "bg-primary text-white"
+                  : "text-slate-gray hover:bg-surface-muted"
               }`}
             >
               {t.label}
@@ -185,7 +186,7 @@ export function FeedbackReportsSection() {
               return (
                 <li
                   key={report.id}
-                  className="rounded-xl border border-slate-200"
+                  className="rounded-xl border border-border-default"
                 >
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                     <div className="min-w-0 flex-1">
@@ -193,14 +194,14 @@ export function FeedbackReportsSection() {
                         <span className="text-sm font-semibold text-slate-gray">
                           {report.student.displayName ?? "Unknown student"}
                         </span>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-gray/70">
+                        <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-gray/70">
                           Part {report.partLabel}
                         </span>
                         <span className="text-xs text-slate-gray/50">
                           {formatTimestamp(report.createdAt)}
                         </span>
                         {report.reviewedAt && (
-                          <span className="rounded-full bg-[#16a34a]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#166534]">
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                             Reviewed
                           </span>
                         )}
@@ -217,13 +218,12 @@ export function FeedbackReportsSection() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <Button
+                        variant="outline"
                         onClick={() =>
                           setExpandedId(isExpanded ? null : report.id)
                         }
                         aria-expanded={isExpanded}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-gray hover:bg-slate-50 transition-colors"
                       >
                         {isExpanded ? (
                           <ChevronUp className="h-3.5 w-3.5" />
@@ -231,16 +231,11 @@ export function FeedbackReportsSection() {
                           <ChevronDown className="h-3.5 w-3.5" />
                         )}
                         {isExpanded ? "Hide context" : "View context"}
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
+                        variant={report.reviewedAt ? "outline" : "primary"}
                         disabled={pendingId === report.id}
                         onClick={() => void toggleReviewed(report)}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                          report.reviewedAt
-                            ? "border border-slate-200 text-slate-gray hover:bg-slate-50"
-                            : "bg-[#16a34a] text-white hover:bg-[#15803d]"
-                        }`}
                       >
                         {pendingId === report.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -250,19 +245,19 @@ export function FeedbackReportsSection() {
                           <Check className="h-3.5 w-3.5" />
                         )}
                         {report.reviewedAt ? "Mark unreviewed" : "Mark reviewed"}
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="space-y-3 border-t border-slate-100 px-4 py-3">
+                    <div className="space-y-3 border-t border-border-subtle px-4 py-3">
                       {report.attempt ? (
                         <>
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
                               Submitted answer
                             </p>
-                            <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-gray">
+                            <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-muted px-3 py-2 text-sm text-slate-gray">
                               {report.attempt.responseText || "(empty)"}
                             </p>
                           </div>
@@ -274,7 +269,7 @@ export function FeedbackReportsSection() {
                               <div
                                 className={`mt-1 rounded-lg border px-3 py-2 ${
                                   verdict?.tone === "correct"
-                                    ? "border-[#16a34a]/30 bg-[#16a34a]/5"
+                                    ? "border-primary/30 bg-primary/5"
                                     : "border-rose-200 bg-rose-50/60"
                                 }`}
                               >
