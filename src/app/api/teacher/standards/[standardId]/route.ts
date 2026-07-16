@@ -25,12 +25,19 @@ import {
   type ConfidenceQuadrantCounts,
   type ConfidenceQuadrantPercents,
 } from "@/lib/analytics/confidence";
-import { fetchQuestionPreviews, type QuestionPreview } from "@/lib/analytics/question-preview";
+import {
+  fetchQuestionPreviewsByIdentity,
+  questionPreviewIdentityKey,
+  resolveQuestionTypeFromAttempts,
+  type QuestionPreview,
+  type QuestionType,
+} from "@/lib/analytics/question-preview";
 import { getStandardById } from "@/lib/standards";
 
 interface AttemptQueryRow {
   user_id: string;
   question_id: string;
+  question_set_id: string | null;
   standard_id: string | null;
   topic: string | null;
   mode: string | null;
@@ -102,6 +109,8 @@ function parseEnum<T extends string>(
 
 export interface StandardDetailQuestion {
   questionId: string;
+  setId: string | null;
+  questionType: QuestionType;
   preview: QuestionPreview | null;
   attempted: number;
   correct: number;
@@ -238,7 +247,7 @@ export async function GET(
   let attemptsQuery = admin
     .from("attempts")
     .select(
-      "user_id,question_id,standard_id,topic,mode,is_correct,time_spent_sec,assignment_id,answered_at,selected_option_id",
+      "user_id,question_id,question_set_id,standard_id,topic,mode,is_correct,time_spent_sec,assignment_id,answered_at,selected_option_id",
     )
     .in("user_id", studentIds);
   attemptsQuery = standardInfo
@@ -315,46 +324,79 @@ export async function GET(
 
   // --- Per-question aggregation (both MCQ and SAQ questions; split downstream by preview type) ---
   interface QuestionAgg {
+    questionId: string;
+    questionSetId: string | null;
+    isShortAnswer: boolean;
     attempted: number;
     correct: number;
     timeTotal: number;
     timeCount: number;
   }
   const questionAgg = new Map<string, QuestionAgg>();
-  const firstPracticeByUserQuestion = new Map<string, { isCorrect: boolean; answeredAt: string }>();
+  const firstPracticeByUserQuestion = new Map<
+    string,
+    { identityKey: string; isCorrect: boolean; answeredAt: string }
+  >();
 
   for (const row of attempts) {
     const attemptMode = coerceAttemptMode(row.mode);
+    const identity = {
+      questionId: row.question_id,
+      questionSetId: row.question_set_id,
+    };
+    const identityKey = questionPreviewIdentityKey(identity);
 
-    const qAgg = questionAgg.get(row.question_id) ?? { attempted: 0, correct: 0, timeTotal: 0, timeCount: 0 };
+    const qAgg = questionAgg.get(identityKey) ?? {
+      ...identity,
+      isShortAnswer: false,
+      attempted: 0,
+      correct: 0,
+      timeTotal: 0,
+      timeCount: 0,
+    };
+    if (resolveQuestionTypeFromAttempts([row], null) === "open-ended") {
+      qAgg.isShortAnswer = true;
+    }
     qAgg.attempted += 1;
     if (row.is_correct) qAgg.correct += 1;
     if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
       qAgg.timeTotal += row.time_spent_sec;
       qAgg.timeCount += 1;
     }
-    questionAgg.set(row.question_id, qAgg);
+    questionAgg.set(identityKey, qAgg);
 
     if (attemptMode === "practice") {
-      const key = `${row.user_id}::${row.question_id}`;
+      const key = JSON.stringify([
+        row.user_id,
+        row.question_set_id,
+        row.question_id,
+      ]);
       const first = firstPracticeByUserQuestion.get(key);
       if (!first || row.answered_at < first.answeredAt) {
-        firstPracticeByUserQuestion.set(key, { isCorrect: row.is_correct, answeredAt: row.answered_at });
+        firstPracticeByUserQuestion.set(key, {
+          identityKey,
+          isCorrect: row.is_correct,
+          answeredAt: row.answered_at,
+        });
       }
     }
   }
 
   const firstPracticeByQuestion = new Map<string, { n: number; correct: number }>();
-  for (const [key, value] of firstPracticeByUserQuestion) {
-    const questionId = key.split("::")[1] ?? "";
-    const bucket = firstPracticeByQuestion.get(questionId) ?? { n: 0, correct: 0 };
+  for (const value of firstPracticeByUserQuestion.values()) {
+    const bucket = firstPracticeByQuestion.get(value.identityKey) ?? {
+      n: 0,
+      correct: 0,
+    };
     bucket.n += 1;
     if (value.isCorrect) bucket.correct += 1;
-    firstPracticeByQuestion.set(questionId, bucket);
+    firstPracticeByQuestion.set(value.identityKey, bucket);
   }
 
   // --- Confidence quadrants (overall + per question) ---
-  const questionIds = Array.from(questionAgg.keys());
+  const questionIds = Array.from(
+    new Set(Array.from(questionAgg.values()).map((agg) => agg.questionId)),
+  );
   const { data: confidenceRows, error: confidenceError } = await fetchConfidenceEvents(
     admin,
     studentIds,
@@ -379,19 +421,29 @@ export async function GET(
     addConfidenceSubmission(confidenceByQuestion.get(questionId)!, level, isCorrect);
   }
 
-  const { data: previewByQuestionId, error: previewError } = await fetchQuestionPreviews(admin, questionIds);
+  const questionIdentities = Array.from(questionAgg.values()).map((agg) => ({
+    questionId: agg.questionId,
+    questionSetId: agg.questionSetId,
+  }));
+  const { data: previewByIdentity, error: previewError } =
+    await fetchQuestionPreviewsByIdentity(admin, questionIdentities);
   if (previewError) {
     return NextResponse.json({ error: previewError }, { status: 500 });
   }
 
   const questions: StandardDetailQuestion[] = Array.from(questionAgg.entries())
-    .map(([questionId, agg]) => {
+    .map(([identityKey, agg]) => {
       const accuracy = agg.attempted > 0 ? roundPercent((agg.correct / agg.attempted) * 100) : 0;
       const averageTimeSec = agg.timeCount > 0 ? Math.round(agg.timeTotal / agg.timeCount) : 0;
-      const firstAttempt = firstPracticeByQuestion.get(questionId);
+      const firstAttempt = firstPracticeByQuestion.get(identityKey);
+      const questionType: QuestionType = agg.isShortAnswer
+        ? "open-ended"
+        : "mcq";
       return {
-        questionId,
-        preview: previewByQuestionId.get(questionId) ?? null,
+        questionId: agg.questionId,
+        setId: agg.questionSetId,
+        questionType,
+        preview: previewByIdentity.get(identityKey) ?? null,
         attempted: agg.attempted,
         correct: agg.correct,
         accuracy,
@@ -404,14 +456,16 @@ export async function GET(
             }
           : null,
         confidence: toConfidenceQuadrantPercents(
-          confidenceByQuestion.get(questionId) ?? emptyConfidenceQuadrantCounts(),
+          confidenceByQuestion.get(agg.questionId) ?? emptyConfidenceQuadrantCounts(),
         ),
       };
     })
     .sort((a, b) => b.attempted - a.attempted);
 
-  const mcqQuestions = questions.filter((q) => q.preview?.questionType !== "open-ended");
-  const shortAnswerQuestions = questions.filter((q) => q.preview?.questionType === "open-ended");
+  const mcqQuestions = questions.filter((q) => q.questionType === "mcq");
+  const shortAnswerQuestions = questions.filter(
+    (q) => q.questionType === "open-ended",
+  );
 
   const response: StandardDetailResponse = {
     standard: standardInfo

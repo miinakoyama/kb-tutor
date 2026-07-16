@@ -6,7 +6,10 @@ import { useParams, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronRight, Pencil, Search, Timer } from "lucide-react";
 import { LatexText } from "@/components/shared/LatexText";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
-import type { QuestionPreview } from "@/lib/analytics/question-preview";
+import type {
+  QuestionPreview,
+  QuestionType,
+} from "@/lib/analytics/question-preview";
 import type { ConfidenceQuadrantPercents } from "@/lib/analytics/confidence";
 import type { GradedFeedback, PartLabel } from "@/types/short-answer";
 import { formatShortAnswerAttemptTimestamp } from "@/lib/analytics/short-answer-attempt-order";
@@ -40,6 +43,7 @@ interface QuestionDetailResponse {
   question: {
     questionId: string;
     setId: string | null;
+    questionType: QuestionType | null;
     preview: QuestionPreview | null;
   };
   summary: {
@@ -64,7 +68,7 @@ const EMPTY_CONFIDENCE: ConfidenceQuadrantPercents = {
 
 const EMPTY_DATA: QuestionDetailResponse = {
   standard: null,
-  question: { questionId: "", setId: null, preview: null },
+  question: { questionId: "", setId: null, questionType: null, preview: null },
   summary: { attempted: 0, correct: 0, accuracy: 0, averageTimeSec: 0 },
   choices: [],
   shortAnswerResponses: [],
@@ -79,6 +83,7 @@ export default function QuestionDetailPage() {
   const searchParams = useSearchParams();
   const standardId = decodeURIComponent(params.standardId);
   const questionId = decodeURIComponent(params.questionId);
+  const setId = searchParams.get("setId");
 
   const [data, setData] = useState<QuestionDetailResponse>(EMPTY_DATA);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,8 +103,10 @@ export default function QuestionDetailPage() {
     const load = async () => {
       setIsLoading(true);
       try {
+        const apiQuery = new URLSearchParams(forwardedQuery);
+        if (setId) apiQuery.set("setId", setId);
         const response = await fetch(
-          `/api/teacher/standards/${encodeURIComponent(standardId)}/questions/${encodeURIComponent(questionId)}?${forwardedQuery.toString()}`,
+          `/api/teacher/standards/${encodeURIComponent(standardId)}/questions/${encodeURIComponent(questionId)}?${apiQuery.toString()}`,
           { cache: "no-store", signal: controller.signal },
         );
         if (response.ok) {
@@ -132,7 +139,7 @@ export default function QuestionDetailPage() {
 
   const preview = data.question.preview;
   const text = preview?.text ?? "Question text unavailable.";
-  const isShortAnswer = preview?.questionType === "open-ended";
+  const isShortAnswer = data.question.questionType === "open-ended";
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">

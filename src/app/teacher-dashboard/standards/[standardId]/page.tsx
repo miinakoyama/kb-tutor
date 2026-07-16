@@ -20,7 +20,10 @@ import type {
   StandardStatus,
 } from "@/lib/analytics/teacher-dashboard-server";
 import type { ConfidenceQuadrantPercents } from "@/lib/analytics/confidence";
-import type { QuestionPreview } from "@/lib/analytics/question-preview";
+import type {
+  QuestionPreview,
+  QuestionType,
+} from "@/lib/analytics/question-preview";
 import {
   badgeAmber,
   badgeEmerald,
@@ -30,6 +33,8 @@ import {
 
 interface StandardDetailQuestion {
   questionId: string;
+  setId: string | null;
+  questionType: QuestionType;
   preview: QuestionPreview | null;
   attempted: number;
   correct: number;
@@ -189,7 +194,7 @@ export default function StandardDetailPage() {
               <div className="mt-4 space-y-3">
                 {data.mcqQuestions.map((question, index) => (
                   <QuestionCard
-                    key={question.questionId}
+                    key={`${question.setId ?? "legacy"}:${question.questionId}`}
                     index={index}
                     total={data.mcqQuestions.length}
                     question={question}
@@ -236,7 +241,7 @@ export default function StandardDetailPage() {
               <div className="mt-4 space-y-3">
                 {data.shortAnswerQuestions.map((question, index) => (
                   <QuestionCard
-                    key={question.questionId}
+                    key={`${question.setId ?? "legacy"}:${question.questionId}`}
                     index={index}
                     total={data.shortAnswerQuestions.length}
                     question={question}
@@ -416,7 +421,7 @@ function QuestionCard({
           </span>
         </div>
         <Link
-          href={`/teacher-dashboard/standards/${encodeURIComponent(standardId)}/questions/${encodeURIComponent(question.questionId)}?${withQuestionPosition(forwardedQuery, index, total).toString()}`}
+          href={`/teacher-dashboard/standards/${encodeURIComponent(standardId)}/questions/${encodeURIComponent(question.questionId)}?${withQuestionPosition(forwardedQuery, index, total, question.setId).toString()}`}
           className="inline-flex items-center gap-1 text-xs font-semibold text-forest hover:text-heading hover:underline"
         >
           View data &amp; edit
@@ -431,10 +436,16 @@ function withQuestionPosition(
   query: URLSearchParams,
   index: number,
   total: number,
+  setId: string | null,
 ): URLSearchParams {
   const next = new URLSearchParams(query);
   next.set("qIndex", String(index + 1));
   next.set("qTotal", String(total));
+  if (setId) {
+    next.set("setId", setId);
+  } else {
+    next.delete("setId");
+  }
   return next;
 }
 

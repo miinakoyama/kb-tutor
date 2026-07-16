@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseQuestionPreview } from "./question-preview";
+import type { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  fetchQuestionPreviewsByIdentity,
+  parseQuestionPreview,
+  questionPreviewIdentityKey,
+  resolveQuestionTypeFromAttempts,
+} from "./question-preview";
 
 describe("parseQuestionPreview", () => {
   it("returns null for non-object input", () => {
@@ -75,5 +81,98 @@ describe("parseQuestionPreview", () => {
         },
       }),
     ).toBeNull();
+  });
+});
+
+describe("questionPreviewIdentityKey", () => {
+  it("keeps reused question ids distinct across generated sets", () => {
+    expect(
+      questionPreviewIdentityKey({
+        questionId: "shared-question",
+        questionSetId: "set-a",
+      }),
+    ).not.toBe(
+      questionPreviewIdentityKey({
+        questionId: "shared-question",
+        questionSetId: "set-b",
+      }),
+    );
+  });
+
+  it("loads distinct previews when generated sets reuse a question id", async () => {
+    const rows = [
+      {
+        id: "shared-question",
+        set_id: "set-a",
+        payload: {
+          questionType: "open-ended",
+          shortAnswer: {
+            stem: "Set A stem",
+            parts: [{ label: "A", prompt: "Set A prompt", maxScore: 1 }],
+          },
+        },
+        updated_at: "2026-07-16T10:00:00.000Z",
+      },
+      {
+        id: "shared-question",
+        set_id: "set-b",
+        payload: {
+          questionType: "open-ended",
+          shortAnswer: {
+            stem: "Set B stem",
+            parts: [{ label: "A", prompt: "Set B prompt", maxScore: 1 }],
+          },
+        },
+        updated_at: "2026-07-16T11:00:00.000Z",
+      },
+    ];
+    const builder: Record<string, unknown> = {};
+    const chain = () => builder;
+    builder.select = chain;
+    builder.in = chain;
+    builder.order = chain;
+    builder.range = async () => ({ data: rows, error: null });
+    const admin = {
+      from: () => builder,
+    } as unknown as ReturnType<typeof createSupabaseAdminClient>;
+    const identities = [
+      { questionId: "shared-question", questionSetId: "set-a" },
+      { questionId: "shared-question", questionSetId: "set-b" },
+    ];
+
+    const result = await fetchQuestionPreviewsByIdentity(admin, identities);
+
+    expect(
+      result.data.get(questionPreviewIdentityKey(identities[0]))?.text,
+    ).toBe("Set A stem");
+    expect(
+      result.data.get(questionPreviewIdentityKey(identities[1]))?.text,
+    ).toBe("Set B stem");
+  });
+});
+
+describe("resolveQuestionTypeFromAttempts", () => {
+  it("preserves a stored SAQ when its preview is unavailable", () => {
+    expect(
+      resolveQuestionTypeFromAttempts(
+        [{ selected_option_id: "short-answer" }],
+        null,
+      ),
+    ).toBe("open-ended");
+  });
+
+  it("prefers the durable attempt type over a conflicting preview", () => {
+    const mcqPreview = parseQuestionPreview({
+      text: "A reused question id",
+      options: [{ id: "A", text: "Option A" }],
+      correctOptionId: "A",
+    });
+
+    expect(
+      resolveQuestionTypeFromAttempts(
+        [{ selected_option_id: "short-answer" }],
+        mcqPreview,
+      ),
+    ).toBe("open-ended");
   });
 });

@@ -19,7 +19,13 @@ import {
   toConfidenceQuadrantPercents,
   type ConfidenceQuadrantPercents,
 } from "@/lib/analytics/confidence";
-import { fetchQuestionPreviews, type QuestionPreview } from "@/lib/analytics/question-preview";
+import {
+  fetchQuestionPreviewsByIdentity,
+  questionPreviewIdentityKey,
+  resolveQuestionTypeFromAttempts,
+  type QuestionPreview,
+  type QuestionType,
+} from "@/lib/analytics/question-preview";
 import { compareShortAnswerAttempts } from "@/lib/analytics/short-answer-attempt-order";
 import { getStandardById } from "@/lib/standards";
 import type { GradedFeedback, PartLabel } from "@/types/short-answer";
@@ -76,6 +82,7 @@ export interface QuestionDetailResponse {
   question: {
     questionId: string;
     setId: string | null;
+    questionType: QuestionType | null;
     preview: QuestionPreview | null;
   };
   summary: {
@@ -123,10 +130,11 @@ function parseGradedFeedback(raw: unknown): GradedFeedback | null {
   return record as unknown as GradedFeedback;
 }
 
-async function fetchShortAnswerResponseDetails(
+export async function fetchShortAnswerResponseDetails(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   params: {
     questionId: string;
+    questionSetId: string | null;
     studentIds: string[];
     studentLabelById: Map<string, string>;
     range: RangeKey;
@@ -141,6 +149,9 @@ async function fetchShortAnswerResponseDetails(
     )
     .in("user_id", params.studentIds)
     .eq("question_id", params.questionId);
+  query = params.questionSetId
+    ? query.eq("question_set_id", params.questionSetId)
+    : query.is("question_set_id", null);
   if (params.range !== "all") {
     const days = params.range === "7d" ? 7 : 30;
     const from = new Date();
@@ -188,6 +199,7 @@ export async function GET(
   const questionId = decodeURIComponent(rawQuestionId);
 
   const url = new URL(request.url);
+  const requestedSetId = url.searchParams.get("setId")?.trim() || null;
   const studentId = url.searchParams.get("studentId") || undefined;
   const classId = url.searchParams.get("classId") || undefined;
   const range = parseEnum<RangeKey>(url.searchParams.get("range"), ["7d", "30d", "all"] as const, "30d");
@@ -231,16 +243,19 @@ export async function GET(
     studentId: studentId ?? null,
   };
 
-  const { data: questionRow } = await admin
+  let questionQuery = admin
     .from("generated_questions")
     .select("set_id")
-    .eq("id", questionId)
-    .maybeSingle();
-  const setId = questionRow?.set_id ? String(questionRow.set_id) : null;
+    .eq("id", questionId);
+  if (requestedSetId) {
+    questionQuery = questionQuery.eq("set_id", requestedSetId);
+  }
+  const { data: questionRow } = await questionQuery.maybeSingle();
+  const setId = requestedSetId ?? (questionRow?.set_id ? String(questionRow.set_id) : null);
 
   const emptyResponse: QuestionDetailResponse = {
     standard: standardInfo ? { id: standardInfo.id, label: standardInfo.label } : null,
-    question: { questionId, setId, preview: null },
+    question: { questionId, setId, questionType: null, preview: null },
     summary: { attempted: 0, correct: 0, accuracy: 0, averageTimeSec: 0 },
     choices: [],
     shortAnswerResponses: [],
@@ -284,6 +299,9 @@ export async function GET(
     .select("user_id,question_id,standard_id,topic,mode,selected_option_id,is_correct,time_spent_sec,assignment_id,answered_at")
     .in("user_id", studentIds)
     .eq("question_id", questionId);
+  attemptsQuery = setId
+    ? attemptsQuery.eq("question_set_id", setId)
+    : attemptsQuery.is("question_set_id", null);
   attemptsQuery = standardInfo
     ? attemptsQuery.or(
         `standard_id.eq.${standardInfo.id},standard_id.is.null`,
@@ -316,17 +334,29 @@ export async function GET(
     (row) =>
       resolveAttemptStandardId(row.standard_id, row.topic) === standardId,
   );
-  const { data: previewByQuestionId, error: previewError } = await fetchQuestionPreviews(admin, [questionId]);
+  const questionIdentity = { questionId, questionSetId: setId };
+  const { data: previewByIdentity, error: previewError } =
+    await fetchQuestionPreviewsByIdentity(admin, [questionIdentity]);
   if (previewError) {
     return NextResponse.json({ error: previewError }, { status: 500 });
   }
-  const preview = previewByQuestionId.get(questionId) ?? null;
+  const preview =
+    previewByIdentity.get(questionPreviewIdentityKey(questionIdentity)) ?? null;
+  const questionType = resolveQuestionTypeFromAttempts(attempts, preview);
 
   let shortAnswerResponses: ShortAnswerResponseDetail[] = [];
-  if (preview?.questionType === "open-ended") {
+  if (questionType === "open-ended") {
     const { data: saqDetails, error: saqError } = await fetchShortAnswerResponseDetails(
       admin,
-      { questionId, studentIds, studentLabelById, range, mode, source },
+      {
+        questionId,
+        questionSetId: setId,
+        studentIds,
+        studentLabelById,
+        range,
+        mode,
+        source,
+      },
     );
     if (saqError) {
       return NextResponse.json({ error: saqError }, { status: 500 });
@@ -337,7 +367,7 @@ export async function GET(
   if (attempts.length === 0) {
     return NextResponse.json({
       ...emptyResponse,
-      question: { questionId, setId, preview },
+      question: { questionId, setId, questionType, preview },
       shortAnswerResponses,
     });
   }
@@ -370,7 +400,7 @@ export async function GET(
     choiceCounts.set(row.selected_option_id, (choiceCounts.get(row.selected_option_id) ?? 0) + 1);
   }
   const choices: QuestionDetailChoice[] =
-    preview?.questionType === "mcq"
+    questionType === "mcq" && preview?.questionType === "mcq"
       ? preview.options.map((option) => {
           const count = choiceCounts.get(option.id) ?? 0;
           return {
@@ -385,7 +415,7 @@ export async function GET(
 
   // --- Confidence quadrants (MCQ only — SAQ has no confidence self-assessment step) ---
   const confidenceCounts = emptyConfidenceQuadrantCounts();
-  if (preview?.questionType === "mcq") {
+  if (questionType === "mcq") {
     const { data: confidenceRows, error: confidenceError } = await fetchConfidenceEvents(
       admin,
       studentIds,
@@ -404,7 +434,7 @@ export async function GET(
 
   const response: QuestionDetailResponse = {
     standard: standardInfo ? { id: standardInfo.id, label: standardInfo.label } : null,
-    question: { questionId, setId, preview },
+    question: { questionId, setId, questionType, preview },
     summary: {
       attempted: attempts.length,
       correct,
