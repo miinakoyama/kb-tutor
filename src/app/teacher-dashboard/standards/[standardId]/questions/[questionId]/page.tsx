@@ -83,6 +83,7 @@ export default function QuestionDetailPage() {
   const searchParams = useSearchParams();
   const standardId = decodeURIComponent(params.standardId);
   const questionId = decodeURIComponent(params.questionId);
+  const hasSetId = searchParams.has("setId");
   const setId = searchParams.get("setId");
 
   const [data, setData] = useState<QuestionDetailResponse>(EMPTY_DATA);
@@ -104,7 +105,7 @@ export default function QuestionDetailPage() {
       setIsLoading(true);
       try {
         const apiQuery = new URLSearchParams(forwardedQuery);
-        if (setId) apiQuery.set("setId", setId);
+        if (hasSetId) apiQuery.set("setId", setId ?? "");
         const response = await fetch(
           `/api/teacher/standards/${encodeURIComponent(standardId)}/questions/${encodeURIComponent(questionId)}?${apiQuery.toString()}`,
           { cache: "no-store", signal: controller.signal },

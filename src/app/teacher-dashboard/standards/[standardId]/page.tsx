@@ -444,7 +444,9 @@ function withQuestionPosition(
   if (setId) {
     next.set("setId", setId);
   } else {
-    next.delete("setId");
+    // Preserve the legacy (null set) identity instead of allowing the detail
+    // route to auto-resolve a same-id generated question.
+    next.set("setId", "");
   }
   return next;
 }

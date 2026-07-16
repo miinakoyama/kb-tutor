@@ -57,6 +57,7 @@ interface StudentDetailStandardRow {
 
 interface StudentDetailQuestionRow {
   questionId: string;
+  setId: string | null;
   standardId: string | null;
   preview: QuestionPreview | null;
   attempted: number;
@@ -564,11 +565,18 @@ function QuestionsTab({
               data.byQuestion.map((row) => {
                 const text = row.preview?.text ?? "Question text unavailable.";
                 const truncated = text.length > 120 ? `${text.slice(0, 120)}…` : text;
+                const questionDetailQuery = new URLSearchParams(standardDetailQuery);
+                // An explicit empty value identifies legacy attempts and keeps
+                // the detail route from auto-resolving them to a generated set.
+                questionDetailQuery.set("setId", row.setId ?? "");
                 const href = row.standardId
-                  ? `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}/questions/${encodeURIComponent(row.questionId)}?${standardDetailQuery.toString()}`
+                  ? `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}/questions/${encodeURIComponent(row.questionId)}?${questionDetailQuery.toString()}`
                   : null;
                 return (
-                  <tr key={row.questionId} className="border-t border-border-subtle hover:bg-primary/5">
+                  <tr
+                    key={`${row.setId ?? "legacy"}:${row.questionId}`}
+                    className="border-t border-border-subtle hover:bg-primary/5"
+                  >
                     <td className="px-5 py-3 text-slate-gray">
                       {href ? (
                         <Link href={href} className="hover:text-forest hover:underline">

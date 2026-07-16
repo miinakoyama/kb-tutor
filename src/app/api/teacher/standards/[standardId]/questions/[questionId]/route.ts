@@ -199,6 +199,7 @@ export async function GET(
   const questionId = decodeURIComponent(rawQuestionId);
 
   const url = new URL(request.url);
+  const hasRequestedSetId = url.searchParams.has("setId");
   const requestedSetId = url.searchParams.get("setId")?.trim() || null;
   const studentId = url.searchParams.get("studentId") || undefined;
   const classId = url.searchParams.get("classId") || undefined;
@@ -243,15 +244,15 @@ export async function GET(
     studentId: studentId ?? null,
   };
 
-  let questionQuery = admin
-    .from("generated_questions")
-    .select("set_id")
-    .eq("id", questionId);
-  if (requestedSetId) {
-    questionQuery = questionQuery.eq("set_id", requestedSetId);
+  let setId = requestedSetId;
+  if (!hasRequestedSetId) {
+    const { data: questionRow } = await admin
+      .from("generated_questions")
+      .select("set_id")
+      .eq("id", questionId)
+      .maybeSingle();
+    setId = questionRow?.set_id ? String(questionRow.set_id) : null;
   }
-  const { data: questionRow } = await questionQuery.maybeSingle();
-  const setId = requestedSetId ?? (questionRow?.set_id ? String(questionRow.set_id) : null);
 
   const emptyResponse: QuestionDetailResponse = {
     standard: standardInfo ? { id: standardInfo.id, label: standardInfo.label } : null,
