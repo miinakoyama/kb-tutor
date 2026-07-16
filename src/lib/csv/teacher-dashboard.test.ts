@@ -72,6 +72,8 @@ describe("downloadStandardMetricsCsv", () => {
       {
         standardId: "3.1.9-12.A",
         standardLabel: "Label A",
+        module: "A",
+        category: "Structure and Function",
         attempted: 10,
         correct: 7,
         accuracy: 70,
@@ -96,6 +98,8 @@ describe("downloadStandardMetricsCsv", () => {
       {
         standardId: "S1",
         standardLabel: 'Label, with "quotes"',
+        module: null,
+        category: null,
         attempted: 1,
         correct: 1,
         accuracy: 100,
@@ -114,6 +118,8 @@ describe("downloadStandardMetricsCsv", () => {
       {
         standardId: "S1",
         standardLabel: "Label A",
+        module: null,
+        category: null,
         attempted: 8,
         correct: 5,
         accuracy: 63,

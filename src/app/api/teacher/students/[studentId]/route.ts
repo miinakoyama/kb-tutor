@@ -23,12 +23,17 @@ import {
   LOW_AND_FAST_MIN_ATTEMPTS,
   type PerformanceThresholds,
 } from "@/lib/analytics/constants";
-import { fetchQuestionPreviews, type QuestionPreview } from "@/lib/analytics/question-preview";
+import {
+  fetchQuestionPreviewsByIdentity,
+  questionPreviewIdentityKey,
+  type QuestionPreview,
+} from "@/lib/analytics/question-preview";
 import { getStandardById } from "@/lib/standards";
 
 interface AttemptQueryRow {
   user_id: string;
   question_id: string;
+  question_set_id: string | null;
   standard_id: string | null;
   standard_label: string | null;
   mode: string | null;
@@ -78,6 +83,7 @@ export interface StudentDetailStandardRow {
 
 export interface StudentDetailQuestionRow {
   questionId: string;
+  setId: string | null;
   standardId: string | null;
   preview: QuestionPreview | null;
   attempted: number;
@@ -113,6 +119,59 @@ export interface StudentDetailResponse {
 }
 
 const ACCURACY_OVER_TIME_MAX_POINTS = 12;
+
+interface QuestionAgg {
+  questionId: string;
+  questionSetId: string | null;
+  standardId: string | null;
+  attempted: number;
+  correct: number;
+  timeTotal: number;
+  timeCount: number;
+  lastAttemptedAt: string;
+}
+
+export function buildStudentQuestionAggregates(
+  attempts: AttemptQueryRow[],
+): Map<string, QuestionAgg> {
+  const questionAgg = new Map<string, QuestionAgg>();
+
+  for (const row of attempts) {
+    const identity = {
+      questionId: row.question_id,
+      questionSetId: row.question_set_id,
+    };
+    const identityKey = questionPreviewIdentityKey(identity);
+    const aggregate =
+      questionAgg.get(identityKey) ??
+      ({
+        ...identity,
+        standardId: row.standard_id,
+        attempted: 0,
+        correct: 0,
+        timeTotal: 0,
+        timeCount: 0,
+        lastAttemptedAt: row.answered_at,
+      } satisfies QuestionAgg);
+
+    aggregate.attempted += 1;
+    if (row.is_correct) aggregate.correct += 1;
+    if (
+      typeof row.time_spent_sec === "number" &&
+      Number.isFinite(row.time_spent_sec)
+    ) {
+      aggregate.timeTotal += row.time_spent_sec;
+      aggregate.timeCount += 1;
+    }
+    if (row.answered_at > aggregate.lastAttemptedAt) {
+      aggregate.lastAttemptedAt = row.answered_at;
+      aggregate.standardId = row.standard_id;
+    }
+    questionAgg.set(identityKey, aggregate);
+  }
+
+  return questionAgg;
+}
 
 function buildAccuracyOverTime(
   attempts: { isCorrect: boolean; answeredAt: string }[],
@@ -241,7 +300,7 @@ export async function GET(
 
   let attemptsQuery = admin
     .from("attempts")
-    .select("user_id,question_id,standard_id,standard_label,mode,is_correct,time_spent_sec,assignment_id,answered_at")
+    .select("user_id,question_id,question_set_id,standard_id,standard_label,mode,is_correct,time_spent_sec,assignment_id,answered_at")
     .eq("user_id", studentId);
   if (range !== "all") {
     const days = range === "7d" ? 7 : 30;
@@ -293,16 +352,6 @@ export async function GET(
   }
   const standardAgg = new Map<string, StandardAgg>();
 
-  interface QuestionAgg {
-    standardId: string | null;
-    attempted: number;
-    correct: number;
-    timeTotal: number;
-    timeCount: number;
-    lastAttemptedAt: string;
-  }
-  const questionAgg = new Map<string, QuestionAgg>();
-
   const accuracyOverTimeInput: { isCorrect: boolean; answeredAt: string }[] = [];
 
   for (const row of attempts) {
@@ -345,24 +394,6 @@ export async function GET(
       standardAgg.set(row.standard_id, sAgg);
     }
 
-    const qAgg =
-      questionAgg.get(row.question_id) ??
-      ({
-        standardId: row.standard_id,
-        attempted: 0,
-        correct: 0,
-        timeTotal: 0,
-        timeCount: 0,
-        lastAttemptedAt: row.answered_at,
-      } satisfies QuestionAgg);
-    qAgg.attempted += 1;
-    if (row.is_correct) qAgg.correct += 1;
-    if (hasTime) {
-      qAgg.timeTotal += row.time_spent_sec as number;
-      qAgg.timeCount += 1;
-    }
-    if (row.answered_at > qAgg.lastAttemptedAt) qAgg.lastAttemptedAt = row.answered_at;
-    questionAgg.set(row.question_id, qAgg);
   }
 
   for (const m of ATTEMPT_MODES) {
@@ -399,20 +430,26 @@ export async function GET(
     })
     .sort((a, b) => a.standardId.localeCompare(b.standardId));
 
-  const questionIds = Array.from(questionAgg.keys());
-  const { data: previewByQuestionId, error: previewError } = await fetchQuestionPreviews(admin, questionIds);
+  const questionAgg = buildStudentQuestionAggregates(attempts);
+  const questionIdentities = Array.from(questionAgg.values()).map((agg) => ({
+    questionId: agg.questionId,
+    questionSetId: agg.questionSetId,
+  }));
+  const { data: previewByIdentity, error: previewError } =
+    await fetchQuestionPreviewsByIdentity(admin, questionIdentities);
   if (previewError) {
     return NextResponse.json({ error: previewError }, { status: 500 });
   }
 
   const byQuestion: StudentDetailQuestionRow[] = Array.from(questionAgg.entries())
-    .map(([questionId, agg]) => {
+    .map(([identityKey, agg]) => {
       const accuracy = agg.attempted > 0 ? roundPercent((agg.correct / agg.attempted) * 100) : 0;
       const averageTimeSec = agg.timeCount > 0 ? Math.round(agg.timeTotal / agg.timeCount) : 0;
       return {
-        questionId,
+        questionId: agg.questionId,
+        setId: agg.questionSetId,
         standardId: agg.standardId,
-        preview: previewByQuestionId.get(questionId) ?? null,
+        preview: previewByIdentity.get(identityKey) ?? null,
         attempted: agg.attempted,
         correct: agg.correct,
         accuracy,

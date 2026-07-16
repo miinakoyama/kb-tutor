@@ -38,6 +38,7 @@ interface AttemptQueryRow {
   time_spent_sec: number | null;
   assignment_id: string | null;
   answered_at: string;
+  selected_option_id: string | null;
 }
 
 const ATTEMPT_MODES = ["practice", "exam", "review"] as const satisfies readonly AttemptMode[];
@@ -183,7 +184,7 @@ export async function GET(request: Request) {
   let attemptsQuery = admin
     .from("attempts")
     .select(
-      "user_id,question_id,standard_id,standard_label,topic,mode,is_correct,time_spent_sec,assignment_id,answered_at",
+      "user_id,question_id,standard_id,standard_label,topic,mode,is_correct,time_spent_sec,assignment_id,answered_at,selected_option_id",
     )
     .in("user_id", filteredEffectiveStudentIds);
   if (range !== "all") {
@@ -225,6 +226,7 @@ export async function GET(request: Request) {
           ? row.time_spent_sec
           : null,
       assignmentId: row.assignment_id,
+      isShortAnswer: row.selected_option_id === "short-answer",
     }),
   );
 
