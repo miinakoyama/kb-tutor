@@ -50,6 +50,7 @@ describe("POST /api/badges/sync", () => {
               mode: "practice",
               assignment_id: null,
               is_finalized: true,
+              question_completed: true,
               answered_at: "2020-01-01T10:00:00.000Z",
             },
           ],
@@ -90,6 +91,7 @@ describe("POST /api/badges/sync", () => {
               mode: "practice",
               assignment_id: null,
               is_finalized: true,
+              question_completed: true,
               answered_at: "2020-01-01T10:00:00.000Z",
             },
           ],
@@ -122,6 +124,7 @@ describe("POST /api/badges/sync", () => {
               mode: "exam",
               assignment_id: "assignment-1",
               is_finalized: false,
+              question_completed: false,
               answered_at: "2026-07-16T10:00:00.000Z",
             },
           ],
@@ -145,17 +148,19 @@ describe("POST /api/badges/sync", () => {
     expect(mockServer.tables.student_badges.rows).toEqual([]);
   });
 
-  it("awards activity badges for short-answer-only sessions", async () => {
+  it("awards activity badges from a completed short-answer summary", async () => {
     const mockServer = createMockSupabaseClient({
       user: USER,
       tables: {
-        attempts: { rows: [] },
-        short_answer_attempts: {
+        attempts: {
           rows: [
             {
               user_id: "student-1",
               mode: "review",
               assignment_id: null,
+              selected_option_id: "short-answer",
+              is_finalized: true,
+              question_completed: true,
               answered_at: "2026-07-16T10:00:00.000Z",
             },
           ],
@@ -183,5 +188,83 @@ describe("POST /api/badges/sync", () => {
     expect(mockAdmin.tables.student_badges.rows).toContainEqual(
       expect.objectContaining({ user_id: "student-1", badge_id: "first_review" }),
     );
+  });
+
+  it("does not award activity badges for unresolved short-answer parts", async () => {
+    const mockServer = createMockSupabaseClient({
+      user: USER,
+      tables: {
+        attempts: { rows: [] },
+        short_answer_attempts: {
+          rows: [
+            {
+              user_id: "student-1",
+              mode: "practice",
+              assignment_id: null,
+              part_label: "A",
+              attempt_number: 1,
+              is_correct: false,
+              answered_at: "2026-07-16T10:00:00.000Z",
+            },
+          ],
+        },
+        student_badges: { rows: [] },
+      },
+    });
+    const mockAdmin = createMockSupabaseClient({
+      tables: {
+        student_kc_mastery: { rows: [] },
+        student_badges: { rows: [] },
+      },
+    });
+    state.server = mockServer.client;
+    state.admin = mockAdmin.client;
+
+    const response = await POST();
+    const body = (await response.json()) as {
+      newlyEarned: Array<{ id: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.newlyEarned).toEqual([]);
+    expect(mockAdmin.tables.student_badges.rows).toEqual([]);
+  });
+
+  it("does not award activity badges for incomplete multiple-choice work", async () => {
+    const mockServer = createMockSupabaseClient({
+      user: USER,
+      tables: {
+        attempts: {
+          rows: [
+            {
+              user_id: "student-1",
+              mode: "practice",
+              assignment_id: null,
+              is_finalized: true,
+              question_completed: false,
+              answered_at: "2026-07-16T10:00:00.000Z",
+            },
+          ],
+        },
+        student_badges: { rows: [] },
+      },
+    });
+    const mockAdmin = createMockSupabaseClient({
+      tables: {
+        student_kc_mastery: { rows: [] },
+        student_badges: { rows: [] },
+      },
+    });
+    state.server = mockServer.client;
+    state.admin = mockAdmin.client;
+
+    const response = await POST();
+    const body = (await response.json()) as {
+      newlyEarned: Array<{ id: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.newlyEarned).toEqual([]);
+    expect(mockAdmin.tables.student_badges.rows).toEqual([]);
   });
 });
