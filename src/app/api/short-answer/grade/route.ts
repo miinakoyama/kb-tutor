@@ -4,10 +4,12 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   applyAssignmentRunFilter,
+  applyQuestionSetFilter,
   resolveAssignmentRunAfter,
 } from "@/lib/short-answer/assignment-run";
 import { evaluateShortAnswerQuestionCompletion } from "@/lib/short-answer/question-completion";
 import { loadShortAnswerPart } from "@/lib/short-answer/load-item";
+import type { LoadedItem } from "@/lib/short-answer/load-item";
 import { resolveFeedbackConfig } from "@/lib/short-answer/settings";
 import { gradePart } from "@/lib/short-answer/grading";
 import { emptySubmissionFeedback, feedbackToPlainText } from "@/lib/short-answer/grading/common";
@@ -54,6 +56,21 @@ interface AssignmentMetadata {
   mode: PracticeMode;
 }
 
+type LoadedQuestionContext =
+  | { forbidden: true }
+  | {
+      forbidden: false;
+      item: LoadedItem | null;
+      assignmentRunAfter: string | null;
+      assignmentSchoolId: string | null;
+      effectiveMode: PracticeMode;
+    };
+
+function errorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object" || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
 function toPracticeMode(value: unknown): PracticeMode {
   return value === "practice" || value === "exam" || value === "review"
     ? value
@@ -91,6 +108,17 @@ function parseBody(raw: unknown): GradeRequestBody | null {
   if (b.sessionId != null && (typeof b.sessionId !== "string" || !UUID_RE.test(b.sessionId))) {
     return null;
   }
+  const questionSetId =
+    typeof b.questionSetId === "string" && b.questionSetId.trim()
+      ? b.questionSetId
+      : null;
+  const assignmentId =
+    typeof b.assignmentId === "string" && b.assignmentId.trim()
+      ? b.assignmentId
+      : null;
+  // Non-assignment questions live under a composite (set_id, id) key. Never
+  // fall back to an unbounded id-only lookup through the production RLS policy.
+  if (!assignmentId && !questionSetId) return null;
   const practiceRunAfter =
     typeof b.practiceRunAfter === "string" &&
     Number.isFinite(Date.parse(b.practiceRunAfter))
@@ -102,8 +130,8 @@ function parseBody(raw: unknown): GradeRequestBody | null {
       : undefined;
   return {
     questionId: b.questionId,
-    questionSetId: typeof b.questionSetId === "string" ? b.questionSetId : null,
-    assignmentId: typeof b.assignmentId === "string" ? b.assignmentId : null,
+    questionSetId,
+    assignmentId,
     sessionId: typeof b.sessionId === "string" ? b.sessionId : null,
     practiceRunAfter,
     partLabel: b.partLabel as PartLabel,
@@ -139,9 +167,7 @@ async function maybeRecordQuestionSummary(
     )
     .eq("user_id", params.userId)
     .eq("question_id", params.questionId);
-  query = params.questionSetId
-    ? query.eq("question_set_id", params.questionSetId)
-    : query.is("question_set_id", null);
+  query = applyQuestionSetFilter(query, params.questionSetId);
   if (params.assignmentId) {
     query = query.eq("assignment_id", params.assignmentId);
     query = applyAssignmentRunFilter(
@@ -169,9 +195,7 @@ async function maybeRecordQuestionSummary(
     .eq("user_id", params.userId)
     .eq("question_id", params.questionId)
     .eq("selected_option_id", "short-answer");
-  existingQuery = params.questionSetId
-    ? existingQuery.eq("question_set_id", params.questionSetId)
-    : existingQuery.is("question_set_id", null);
+  existingQuery = applyQuestionSetFilter(existingQuery, params.questionSetId);
   existingQuery = params.assignmentId
     ? existingQuery.eq("assignment_id", params.assignmentId)
     : existingQuery.is("assignment_id", null);
@@ -217,55 +241,70 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request body" }, { status: 400 });
   }
 
-  const loaded = await (async () => {
-    if (body.assignmentId) {
-      const admin = createSupabaseAdminClient();
-      const allowed = await canStudentAccessAssignment(
-        admin,
-        user.id,
-        body.assignmentId,
-      );
-      if (!allowed) {
-        return { forbidden: true as const, admin: null, assignmentRunAfter: null };
+  let loaded: LoadedQuestionContext;
+  try {
+    loaded = await (async () => {
+      if (body.assignmentId) {
+        const admin = createSupabaseAdminClient();
+        const allowed = await canStudentAccessAssignment(
+          admin,
+          user.id,
+          body.assignmentId,
+        );
+        if (!allowed) {
+          return { forbidden: true as const };
+        }
+        const assignmentMetadata = await resolveAssignmentMetadata(
+          admin,
+          body.assignmentId,
+        );
+        const item = await loadShortAnswerPart(admin, {
+          questionId: body.questionId,
+          questionSetId: body.questionSetId,
+          partLabel: body.partLabel,
+          assignmentId: body.assignmentId,
+        });
+        const assignmentRunAfter = await resolveAssignmentRunAfter(
+          admin,
+          body.assignmentId,
+          user.id,
+        );
+        return {
+          forbidden: false as const,
+          item,
+          assignmentRunAfter,
+          assignmentSchoolId: assignmentMetadata.schoolId,
+          effectiveMode: assignmentMetadata.mode,
+        };
       }
-      const assignmentMetadata = await resolveAssignmentMetadata(
-        admin,
-        body.assignmentId,
-      );
-      const item = await loadShortAnswerPart(admin, {
+
+      const item = await loadShortAnswerPart(supabase, {
         questionId: body.questionId,
+        questionSetId: body.questionSetId,
         partLabel: body.partLabel,
         assignmentId: body.assignmentId,
       });
-      const assignmentRunAfter = await resolveAssignmentRunAfter(
-        admin,
-        body.assignmentId,
-        user.id,
-      );
       return {
         forbidden: false as const,
         item,
-        admin,
-        assignmentRunAfter,
-        assignmentSchoolId: assignmentMetadata.schoolId,
-        effectiveMode: assignmentMetadata.mode,
+        assignmentRunAfter: null as string | null,
+        assignmentSchoolId: null as string | null,
+        effectiveMode: body.mode,
       };
-    }
-
-    const item = await loadShortAnswerPart(supabase, {
+    })();
+  } catch (error) {
+    console.error("[short-answer/grade] question load failed", {
+      code: errorCode(error),
+      message: error instanceof Error ? error.message : String(error),
       questionId: body.questionId,
-      partLabel: body.partLabel,
+      questionSetId: body.questionSetId,
       assignmentId: body.assignmentId,
     });
-    return {
-      forbidden: false as const,
-      item,
-      admin: null,
-      assignmentRunAfter: null as string | null,
-      assignmentSchoolId: null as string | null,
-      effectiveMode: body.mode,
-    };
-  })();
+    return NextResponse.json(
+      { error: "question_load_unavailable", retriable: true },
+      { status: 503 },
+    );
+  }
 
   if (loaded.forbidden) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -320,6 +359,7 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .eq("question_id", body.questionId)
     .eq("part_label", body.partLabel);
+  priorQuery = applyQuestionSetFilter(priorQuery, body.questionSetId);
   if (body.assignmentId) {
     priorQuery = priorQuery.eq("assignment_id", body.assignmentId);
     priorQuery = applyAssignmentRunFilter(
@@ -377,6 +417,10 @@ export async function POST(request: Request) {
         .eq("question_id", body.questionId)
         .eq("part_label", body.partLabel)
         .eq("attempt_number", 1);
+      attempt1Query = applyQuestionSetFilter(
+        attempt1Query,
+        body.questionSetId,
+      );
       attempt1Query = body.assignmentId
         ? attempt1Query.eq("assignment_id", body.assignmentId)
         : attempt1Query.is("assignment_id", null);

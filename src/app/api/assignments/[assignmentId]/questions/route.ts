@@ -16,7 +16,19 @@ import {
   resolveAssignmentRunAfter,
 } from "@/lib/short-answer/assignment-run";
 import { mergeShortAnswerIntoAnsweredMap } from "@/lib/short-answer/question-completion";
+import { filterRenderableQuestions } from "@/lib/short-answer/question-guards";
 import type { Question } from "@/types/question";
+
+function assignmentQuestionsUnavailable() {
+  return NextResponse.json(
+    {
+      error:
+        "This assignment contains unavailable questions. Ask your teacher to check the assignment setup.",
+      code: "assignment_questions_unavailable",
+    },
+    { status: 422 },
+  );
+}
 
 async function getRequester() {
   const supabase = await createSupabaseServerClient();
@@ -227,7 +239,10 @@ export async function GET(
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
-    questions = result.questions;
+    questions = filterRenderableQuestions(result.questions);
+    if (questions.length !== result.questions.length) {
+      return assignmentQuestionsUnavailable();
+    }
   } else {
     const { data: snapshotRows, error: snapshotError } = await admin
       .from("assignment_question_snapshots")
@@ -237,9 +252,19 @@ export async function GET(
     if (snapshotError) {
       return NextResponse.json({ error: snapshotError.message }, { status: 400 });
     }
-    questions = (snapshotRows ?? [])
+    const storedQuestions = (snapshotRows ?? [])
       .map((row) => row.payload as Question)
       .filter((payload): payload is Question => Boolean(payload && payload.id));
+    if (
+      storedQuestions.length === 0 ||
+      storedQuestions.length !== (snapshotRows ?? []).length
+    ) {
+      return assignmentQuestionsUnavailable();
+    }
+    questions = filterRenderableQuestions(storedQuestions);
+    if (questions.length !== storedQuestions.length) {
+      return assignmentQuestionsUnavailable();
+    }
 
     if (randomizeOrder) {
       questions = deterministicShuffle(

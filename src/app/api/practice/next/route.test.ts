@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createMockSupabaseClient } from "@/test-utils/supabase-mock";
+import sampleItem from "@/data/short-answer/sample-item.json";
 
 const state = vi.hoisted(() => ({
   server: null as SupabaseClient | null,
@@ -100,6 +101,13 @@ describe("POST /api/practice/next", () => {
       created_at: "2026-01-01",
     };
     state.server = createMockSupabaseClient({ user }).client;
+    const legacyShortAnswer = {
+      ...sampleItem,
+      keyTerms: [
+        { term: "prokaryotic", definition: "One KC statement reused for every term." },
+        { term: "eukaryotic", definition: "One KC statement reused for every term." },
+      ],
+    };
     const candidateRpc = vi.fn(async () => ({
       data: ["q1", "q2"].map((id) => ({
         question_set_id: "set-b",
@@ -123,6 +131,7 @@ describe("POST /api/practice/next", () => {
           correctOptionId: "",
           source: "generated",
           questionType: "open-ended",
+          shortAnswer: legacyShortAnswer,
         },
       })),
       error: null,
@@ -154,7 +163,11 @@ describe("POST /api/practice/next", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       status: "selected",
-      question: { id: "q1", questionSetId: "set-b" },
+      question: {
+        id: "q1",
+        questionSetId: "set-b",
+        shortAnswer: { keyTerms: [] },
+      },
     });
     expect(candidateRpc).toHaveBeenCalledWith({
       p_user_id: "student",
