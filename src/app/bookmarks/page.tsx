@@ -569,7 +569,7 @@ function BookmarksPageContent() {
 
   if (!isLoaded) {
     return (
-      <main className="h-[calc(100vh-4rem)] overflow-hidden lg:h-screen">
+      <main className="h-[calc(100dvh-4rem)] overflow-hidden lg:h-dvh">
         <div
           className="mx-auto flex h-full w-full items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10 xl:px-12"
           style={{ maxWidth: 1500 }}
@@ -581,7 +581,7 @@ function BookmarksPageContent() {
   }
 
   return (
-    <main className="h-[calc(100vh-4rem)] overflow-hidden lg:h-screen">
+    <main className="h-[calc(100dvh-4rem)] overflow-hidden lg:h-dvh">
       <div
         className="mx-auto flex h-full w-full flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10 xl:px-12"
         style={{ maxWidth: 1500 }}

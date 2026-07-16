@@ -3,6 +3,14 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Height-adaptive variants for the question session screens. Keep the
+ * `short` breakpoint in sync with SHORT_VIEWPORT_QUERY in
+ * src/hooks/useShortViewport.ts.
+ */
+@custom-variant short (@media (max-height: 864px));
+@custom-variant xshort (@media (max-height: 700px));
+
 :root {
   --background: #f8f8f8;
   --foreground: #1f2d1f;

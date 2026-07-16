@@ -294,7 +294,7 @@ export function PartCard({
                   type="button"
                   onClick={() => onCheck(value)}
                   disabled={value.trim().length === 0 || submitting || !canType || checkDisabled}
-                  className="rounded-full bg-[color:var(--assignment-cta-bg-strong)] px-5 py-1.5 text-sm font-semibold text-[color:var(--assignment-cta-text)] transition hover:bg-[color:var(--assignment-cta-bg-hover)] disabled:opacity-50"
+                  className="min-h-[44px] rounded-full bg-[color:var(--assignment-cta-bg-strong)] px-5 py-1.5 text-sm font-semibold text-[color:var(--assignment-cta-text)] transition hover:bg-[color:var(--assignment-cta-bg-hover)] disabled:opacity-50"
                 >
                   {submitting ? "Checking…" : checkDisabled ? "Preparing…" : "Check"}
                 </button>

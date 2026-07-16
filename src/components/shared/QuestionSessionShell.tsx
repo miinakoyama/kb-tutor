@@ -173,7 +173,7 @@ export function QuestionSessionShell({
     <div className="flex h-full flex-col">
       {/* Session header */}
       <header
-        className="flex-shrink-0 h-[114px] grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 sm:px-6 lg:px-8 border-b bg-surface"
+        className="flex-shrink-0 h-[114px] short:h-[72px] xshort:h-[60px] grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 sm:px-6 lg:px-8 border-b bg-surface"
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <div className="flex items-center justify-start min-w-0">
@@ -226,14 +226,14 @@ export function QuestionSessionShell({
 
       {/* Question workspace */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
-        <div className={`mx-auto py-6 sm:py-8 ${workspaceWidthClass}`}>
+        <div className={`mx-auto py-[clamp(0.75rem,2.5vh,2rem)] ${workspaceWidthClass}`}>
           {children}
         </div>
       </div>
 
       {/* Persistent bottom action bar */}
       <footer
-        className="flex-shrink-0 h-[84px] flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 border-t bg-surface"
+        className="flex-shrink-0 h-[84px] short:h-[68px] xshort:h-[60px] flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 border-t bg-surface"
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <button

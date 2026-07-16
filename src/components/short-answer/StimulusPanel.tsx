@@ -106,7 +106,7 @@ function ChartStimulusView({
 }) {
   const { rows, seriesNames } = useMemo(() => toChartRows(chart), [chart]);
   return (
-    <div className="h-64 w-full">
+    <div className="h-[clamp(10rem,30vh,16rem)] w-full">
       <ResponsiveContainer width="100%" height="100%">
         {kind === "line" ? (
           <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
@@ -170,7 +170,7 @@ function DiagramStimulusView({ svg, title }: { svg: string; title: string }) {
   }
   const src = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={title} className="max-h-80 w-full object-contain" />;
+  return <img src={src} alt={title} className="max-h-[min(20rem,36vh)] w-full object-contain" />;
 }
 
 function IllustrationStimulusView({
@@ -190,7 +190,7 @@ function IllustrationStimulusView({
       <img
         src={`data:image/png;base64,${imageB64}`}
         alt={title}
-        className="max-h-96 w-full object-contain"
+        className="max-h-[min(24rem,38vh)] w-full object-contain"
       />
     );
   }
@@ -199,7 +199,7 @@ function IllustrationStimulusView({
       <div
         role="status"
         aria-label="Loading illustration"
-        className="h-48 w-full animate-pulse rounded-xl bg-[color:var(--foreground)]/10"
+        className="h-[min(12rem,28vh)] w-full animate-pulse rounded-xl bg-[color:var(--foreground)]/10"
       />
     );
   }
