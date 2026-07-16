@@ -619,6 +619,7 @@ export function ExamMode({
       }));
     }
     
+    badgeCelebrationCheckedRef.current = false;
     resetExamDwellTracking();
     examRunStartedAtRef.current = new Date().toISOString();
     setSessionQuestions(selectedQuestions);
@@ -999,6 +1000,7 @@ export function ExamMode({
               setPhase("review");
             }}
             onRetry={() => {
+              badgeCelebrationCheckedRef.current = false;
               resetExamDwellTracking();
               setElapsedMs(0);
               setAnswers({});

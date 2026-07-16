@@ -1213,6 +1213,7 @@ export function AdaptivePracticeMode({
           <div className="flex flex-wrap gap-3 justify-center">
             <button
               onClick={() => {
+                badgeCelebrationCheckedRef.current = false;
                 setCurrentIndex(0);
                 setAttemptsByIndex({});
                 setRetryReadyByIndex({});
