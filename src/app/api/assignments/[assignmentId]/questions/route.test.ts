@@ -345,6 +345,62 @@ describe("GET /api/assignments/[assignmentId]/questions", () => {
     );
   });
 
+  it("returns 422 instead of an empty assignment when its only question is invalid", async () => {
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser(),
+      tables: { profiles: { rows: [{ id: "student-1", role: "student" }] } },
+    });
+    const invalidSaq = {
+      id: "invalid-saq",
+      questionType: "open-ended",
+      text: "Broken short-answer question",
+    } as Question;
+    const { client: adminClient } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [
+            {
+              id: "as_1",
+              school_id: "school-1",
+              mode: "practice",
+              randomize_order: false,
+            },
+          ],
+        },
+        assignment_targets: {
+          rows: [
+            {
+              assignment_id: "as_1",
+              student_user_id: "student-1",
+              last_completed_at: null,
+            },
+          ],
+        },
+        assignment_question_snapshots: {
+          rows: [
+            {
+              assignment_id: "as_1",
+              order_index: 1,
+              payload: invalidSaq,
+            },
+          ],
+        },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+    mockState.role = "student";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const response = await GET(requestMock(), contextFor("as_1"));
+    const body = (await response.json()) as { error: string; code: string };
+
+    warn.mockRestore();
+    expect(response.status).toBe(422);
+    expect(body.code).toBe("assignment_questions_unavailable");
+    expect(body.error).toContain("Ask your teacher to check the assignment setup");
+  });
+
   it("allows teacher access through school_teachers mapping", async () => {
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser("teacher-1"),

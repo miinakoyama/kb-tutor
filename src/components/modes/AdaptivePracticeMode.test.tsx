@@ -44,6 +44,7 @@ vi.mock("@/components/shared/PracticeHeader", () => ({
   PracticeHeader: ({ rightSlot }: { rightSlot?: ReactNode }) => (
     <header>{rightSlot}</header>
   ),
+  getBackLabel: () => "Back",
 }));
 
 vi.mock("@/components/shared/QuestionDisplay", () => ({
@@ -190,6 +191,33 @@ describe("AdaptivePracticeMode session completion", () => {
       "/api/practice/next",
       expect.objectContaining({ method: "POST" }),
     );
+    const request = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      selectionSeed: "session-1",
+    });
+  });
+
+  it("shows a retryable loading error instead of an empty-bank message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: "Unable to load mapped question candidates" }),
+      }),
+    );
+
+    render(
+      <AdaptivePracticeMode
+        questions={[]}
+        mode="practice"
+        adaptiveStandardIds={["3.1.9-12.A"]}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Unable to load practice questions. Please try again."),
+    ).toBeTruthy();
+    expect(screen.queryByText("No questions available for this selection yet.")).toBeNull();
   });
 
   it("falls back to fixed practice when the adaptive scope is unavailable", async () => {

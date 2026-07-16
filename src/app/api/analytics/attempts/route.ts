@@ -9,6 +9,7 @@ interface AttemptBody {
   questionSetId?: string | null;
   questionContentVersion?: string | null;
   isFinalized?: boolean;
+  questionCompleted?: boolean;
   selectedOptionId?: string;
   isCorrect?: boolean;
   mode?: string;
@@ -355,6 +356,7 @@ export async function POST(request: Request) {
     question_set_id: authoritativeQuestion.questionSetId,
     question_content_version: authoritativeQuestion.questionContentVersion,
     is_finalized: isFinalized,
+    question_completed: body.questionCompleted !== false,
     selected_option_id: body.selectedOptionId,
     is_correct: isCorrect,
     mode: body.mode,

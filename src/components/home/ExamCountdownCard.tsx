@@ -68,7 +68,7 @@ export function ExamCountdownCard({ exam }: { exam: KeystoneExamInfo }) {
   return (
     <section
       aria-label="Keystone exam countdown"
-      className="relative flex h-full flex-col overflow-hidden rounded-[24px] p-5 sm:p-6"
+      className="relative flex h-full flex-col overflow-hidden rounded-[24px] p-4 sm:p-5"
       style={{
         border: "1px solid var(--assignment-glass-border)",
         boxShadow: "var(--assignment-card-shadow)",
@@ -77,15 +77,11 @@ export function ExamCountdownCard({ exam }: { exam: KeystoneExamInfo }) {
         backgroundPosition: "center",
       }}
     >
-      {/* Frosted-glass wash over the illustration — it blurs the card's own
-          background image, letting the artwork show through softly. */}
+      {/* Light white wash for text legibility — no blur, so the
+          illustration stays sharp. */}
       <div
         className="pointer-events-none absolute inset-0"
-        style={{
-          background: "rgba(255, 255, 255, 0.2)",
-          backdropFilter: "blur(1px) saturate(120%)",
-          WebkitBackdropFilter: "blur(1px) saturate(120%)",
-        }}
+        style={{ background: "rgba(255, 255, 255, 0.12)" }}
         aria-hidden="true"
       />
       <div className="relative flex items-start justify-between gap-3">
@@ -112,20 +108,20 @@ export function ExamCountdownCard({ exam }: { exam: KeystoneExamInfo }) {
         </button>
       </div>
 
-      <div className="relative flex flex-1 flex-col justify-center py-6">
+      <div className="relative flex flex-1 flex-col justify-center py-4">
         {days === 0 ? (
-          <p className="font-heading text-3xl font-extrabold" style={{ color: INK }}>
+          <p className="font-heading text-2xl font-extrabold" style={{ color: INK }}>
             Exam day
           </p>
         ) : (
           <>
             <p
               className="font-heading font-extrabold leading-none"
-              style={{ fontSize: 56, letterSpacing: -1, color: INK }}
+              style={{ fontSize: 44, letterSpacing: -0.8, color: INK }}
             >
               {days}
             </p>
-            <p className="mt-1 font-heading text-xl font-bold" style={{ color: INK }}>
+            <p className="mt-1 font-heading text-base font-bold" style={{ color: INK }}>
               {days === 1 ? "day to go" : "days to go"}
             </p>
           </>

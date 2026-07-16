@@ -11,9 +11,11 @@ const EXAM_ONBOARDING_DISMISSED_KEY = "kb-tutor-exam-onboarding-dismissed-v1";
 const {
   trackAnalyticsEventMock,
   useAnalyticsSessionMock,
+  useQuestionMediaMock,
 } = vi.hoisted(() => ({
   trackAnalyticsEventMock: vi.fn(),
   useAnalyticsSessionMock: vi.fn(),
+  useQuestionMediaMock: vi.fn(),
 }));
 
 vi.mock("@/lib/analytics/client", () => ({
@@ -22,6 +24,10 @@ vi.mock("@/lib/analytics/client", () => ({
 
 vi.mock("@/lib/analytics/session", () => ({
   useAnalyticsSession: useAnalyticsSessionMock,
+}));
+
+vi.mock("@/hooks/useQuestionMedia", () => ({
+  useQuestionMedia: useQuestionMediaMock,
 }));
 
 vi.mock("@/hooks/useTextToSpeech", () => ({
@@ -91,6 +97,10 @@ describe("ExamMode onboarding timing + analytics gating", () => {
       sessionId: null,
       markStageCompleted: vi.fn(),
     });
+    useQuestionMediaMock.mockImplementation((question: Question | null | undefined) => ({
+      question,
+      isMediaPending: false,
+    }));
 
     Object.defineProperty(window, "matchMedia", {
       writable: true,
@@ -276,6 +286,36 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     fireEvent.click(screen.getByText(shortAnswerItem.stem).closest("button")!);
     await screen.findByText("Sample answer");
     expect(screen.getByText(/mRNA carries the genetic code/i)).toBeTruthy();
+  });
+
+  it("disables short-answer entry and submission while stimulus media is loading", async () => {
+    localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+    useQuestionMediaMock.mockImplementation((question: Question | null | undefined) => ({
+      question,
+      isMediaPending: question?.id === "saq-media-pending",
+    }));
+    const question: Question = {
+      ...baseQuestion,
+      id: "saq-media-pending",
+      text: shortAnswerItem.stem,
+      questionType: "open-ended",
+      options: [],
+      correctOptionId: "",
+      shortAnswer: {
+        ...shortAnswerItem,
+        parts: [shortAnswerItem.parts[0]],
+      },
+    };
+
+    render(<ExamMode questions={[question]} requestedQuestionCount={1} />);
+
+    const answer = await screen.findByLabelText("Answer for Part A");
+    const submit = screen.getByRole("button", { name: "Submit" });
+    expect((answer as HTMLTextAreaElement).disabled).toBe(true);
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(submit);
+    expect(screen.queryByText("Submit Exam?")).toBeNull();
   });
 
   it("clears short-answer responses when retrying an exam", async () => {

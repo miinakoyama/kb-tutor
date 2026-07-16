@@ -20,11 +20,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * as `calculateStreak`.
  */
 
+/** How a chunk of study time is categorized for the breakdown pie. */
+export type EffortCategory = "practice" | "exam" | "review";
+
+/** Fixed slice order for the breakdown pie. */
+export const EFFORT_CATEGORY_ORDER: EffortCategory[] = [
+  "practice",
+  "exam",
+  "review",
+];
+
 /** One timed unit of work: an answered question/part or a dwell heartbeat. */
 export type EffortItem = {
   /** ISO timestamp the work is attributed to. */
   at: string;
   seconds: number | null;
+  category: EffortCategory;
 };
 
 export type EffortBar = {
@@ -32,6 +43,11 @@ export type EffortBar = {
   seconds: number;
   /** True for the bucket containing "today" in the student's timezone. */
   isCurrent: boolean;
+};
+
+export type EffortSlice = {
+  category: EffortCategory;
+  seconds: number;
 };
 
 export type EffortSeries = {
@@ -44,6 +60,11 @@ export type EffortSeries = {
    * undefined, and the UI hides the comparison line instead of inventing one.
    */
   deltaPercent: number | null;
+  /**
+   * This period's time split by category, in EFFORT_CATEGORY_ORDER, with
+   * zero-time categories omitted. Empty when the period has no recorded time.
+   */
+  breakdown: EffortSlice[];
 };
 
 export type LearningEffort = {
@@ -147,7 +168,34 @@ function withDelta(bars: EffortBar[], previousTotalSeconds: number): EffortSerie
     previousTotalSeconds > 0
       ? Math.round(((totalSeconds - previousTotalSeconds) / previousTotalSeconds) * 100)
       : null;
-  return { bars, totalSeconds, previousTotalSeconds, deltaPercent };
+  // buildLearningEffort fills breakdown; a series built in isolation has none.
+  return { bars, totalSeconds, previousTotalSeconds, deltaPercent, breakdown: [] };
+}
+
+/**
+ * Time split by category for items falling in [fromKey, toKeyExclusive),
+ * in EFFORT_CATEGORY_ORDER with zero-time categories omitted.
+ */
+export function breakdownInRange(
+  items: EffortItem[],
+  timeZone: string,
+  fromKey: string,
+  toKeyExclusive: string,
+): EffortSlice[] {
+  const byCategory = new Map<EffortCategory, number>();
+  for (const item of items) {
+    const seconds = itemSeconds(item);
+    if (seconds === 0) continue;
+    const at = new Date(item.at);
+    if (Number.isNaN(at.getTime())) continue;
+    const key = dateKeyInZone(at, timeZone);
+    if (key < fromKey || key >= toKeyExclusive) continue;
+    byCategory.set(item.category, (byCategory.get(item.category) ?? 0) + seconds);
+  }
+  return EFFORT_CATEGORY_ORDER.flatMap((category) => {
+    const seconds = byCategory.get(category) ?? 0;
+    return seconds > 0 ? [{ category, seconds }] : [];
+  });
 }
 
 /**
@@ -211,23 +259,42 @@ export function buildLearningEffort(
 ): LearningEffort {
   const byDay = bucketByDay(items, timeZone);
   const todayKey = dateKeyInZone(now, timeZone);
+
+  const weekStart = weekStartKey(todayKey, 0);
+  const weekEnd = addDaysToKey(weekStart, 7);
+  const monthStart = monthStartKey(todayKey, 0);
+  const monthEnd = monthStartKey(todayKey, 1);
+
   return {
-    weekly: buildWeeklySeries(byDay, todayKey),
-    monthly: buildMonthlySeries(byDay, todayKey),
+    weekly: {
+      ...buildWeeklySeries(byDay, todayKey),
+      breakdown: breakdownInRange(items, timeZone, weekStart, weekEnd),
+    },
+    monthly: {
+      ...buildMonthlySeries(byDay, todayKey),
+      breakdown: breakdownInRange(items, timeZone, monthStart, monthEnd),
+    },
   };
 }
 
 type TimedRow = Record<string, unknown>;
 
+/** Maps a stored mode string to a breakdown category; defaults to practice. */
+function toCategory(value: unknown): EffortCategory {
+  return value === "exam" || value === "review" ? value : "practice";
+}
+
 function rowsToItems(
   rows: TimedRow[],
   atColumn: string,
   secondsColumn: string,
+  category: EffortCategory | ((row: TimedRow) => EffortCategory),
 ): EffortItem[] {
   return rows.map((row) => ({
     at: String(row[atColumn] ?? ""),
     seconds:
       typeof row[secondsColumn] === "number" ? (row[secondsColumn] as number) : null,
+    category: typeof category === "function" ? category(row) : category,
   }));
 }
 
@@ -255,14 +322,14 @@ export async function getLearningEffort(
   const [mcq, saq, dwell] = await Promise.all([
     supabase
       .from("attempts")
-      .select("time_spent_sec,answered_at")
+      .select("time_spent_sec,answered_at,mode")
       .eq("user_id", studentUserId)
       .gte("answered_at", since)
       .order("answered_at", { ascending: false })
       .limit(FETCH_LIMIT),
     supabase
       .from("short_answer_attempts")
-      .select("time_spent_sec,answered_at")
+      .select("time_spent_sec,answered_at,mode")
       .eq("user_id", studentUserId)
       .gte("answered_at", since)
       .order("answered_at", { ascending: false })
@@ -280,10 +347,12 @@ export async function getLearningEffort(
     return null;
   }
 
+  const byMode = (row: TimedRow) => toCategory(row.mode);
   const items: EffortItem[] = [
-    ...rowsToItems(mcq.data, "answered_at", "time_spent_sec"),
-    ...rowsToItems(saq.data, "answered_at", "time_spent_sec"),
-    ...rowsToItems(dwell.data, "occurred_at", "seconds"),
+    ...rowsToItems(mcq.data, "answered_at", "time_spent_sec", byMode),
+    ...rowsToItems(saq.data, "answered_at", "time_spent_sec", byMode),
+    // Review-tab dwell is review time by definition.
+    ...rowsToItems(dwell.data, "occurred_at", "seconds", "review"),
   ];
 
   return buildLearningEffort(items, timeZone, now);

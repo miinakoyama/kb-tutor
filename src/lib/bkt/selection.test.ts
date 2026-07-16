@@ -70,24 +70,41 @@ describe("adaptive target selection", () => {
 describe("adaptive question ranking", () => {
   const question = (overrides: Partial<AdaptiveQuestionCandidate>): AdaptiveQuestionCandidate => ({
     questionId: "q1", questionSetId: "set", format: "mcq", standardId: "S", targetKcCode: "S1",
-    partKcCodes: ["S1"], answered: false, lastAnsweredAt: null, lastServedAt: null, ...overrides,
+    partKcCodes: ["S1"], completedCount: 0, lastCompletedAt: null, ...overrides,
   });
-  it("prefers unseen questions and avoids an immediate repeat", () => {
-    const ranked = rankQuestionsForKc([question({ questionId: "q1" }), question({ questionId: "q2" })], "S1", new Set(["S1"]), { questionSetId: "set", questionId: "q1" });
+  it("prefers fewer completed presentations", () => {
+    const ranked = rankQuestionsForKc([
+      question({ questionId: "frequent", completedCount: 3 }),
+      question({ questionId: "rare", completedCount: 1 }),
+    ], "S1", null, "session-a");
+    expect(ranked[0].questionId).toBe("rare");
+  });
+  it("prefers the oldest completion when counts match", () => {
+    const ranked = rankQuestionsForKc([
+      question({ questionId: "recent", completedCount: 1, lastCompletedAt: "2026-07-15T00:00:00Z" }),
+      question({ questionId: "old", completedCount: 1, lastCompletedAt: "2026-07-01T00:00:00Z" }),
+    ], "S1", null, "session-a");
+    expect(ranked[0].questionId).toBe("old");
+  });
+  it("avoids an immediate repeat when another eligible question exists", () => {
+    const ranked = rankQuestionsForKc([question({ questionId: "q1" }), question({ questionId: "q2" })], "S1", { questionSetId: "set", questionId: "q1" }, "session-a");
     expect(ranked[0].questionId).toBe("q2");
   });
   it("does not treat the same question id in another set as an immediate repeat", () => {
     const ranked = rankQuestionsForKc([
       question({ questionId: "q1", questionSetId: "set-a" }),
       question({ questionId: "q1", questionSetId: "set-b" }),
-    ], "S1", new Set(["S1"]), { questionSetId: "set-a", questionId: "q1" });
+    ], "S1", { questionSetId: "set-a", questionId: "q1" }, "session-a");
     expect(ranked[0].questionSetId).toBe("set-b");
   });
-  it("ranks SAQs by distinct additional unmastered KCs, not repeated target parts", () => {
-    const ranked = rankQuestionsForKc([
-      question({ questionId: "repeat", format: "saq", partKcCodes: ["S1", "S1"] }),
-      question({ questionId: "broad", format: "saq", partKcCodes: ["S1", "S2"] }),
-    ], "S1", new Set(["S1", "S2"]), null);
-    expect(ranked[0].questionId).toBe("broad");
+  it("uses a deterministic session-seeded tie break", () => {
+    const candidates = Array.from({ length: 8 }, (_, index) =>
+      question({ questionId: `q${index}` }),
+    );
+    const first = rankQuestionsForKc(candidates, "S1", null, "session-a").map((item) => item.questionId);
+    const repeated = rankQuestionsForKc(candidates, "S1", null, "session-a").map((item) => item.questionId);
+    const anotherSession = rankQuestionsForKc(candidates, "S1", null, "session-b").map((item) => item.questionId);
+    expect(repeated).toEqual(first);
+    expect(anotherSession).not.toEqual(first);
   });
 });

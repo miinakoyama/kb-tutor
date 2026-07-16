@@ -1,4 +1,8 @@
-import { getStandardById } from "@/lib/standards";
+import {
+  getAllStandards,
+  getStandardById,
+  getStandardsForTopicName,
+} from "@/lib/standards";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
   LOW_AND_FAST_MAX_ACCURACY,
@@ -110,6 +114,20 @@ export function classifyPerformance(
 export function roundPercent(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(Math.max(0, Math.min(100, value)));
+}
+
+/**
+ * Resolve the canonical standard used by teacher analytics. Legacy attempts
+ * may predate `standard_id`; only infer one when the stored topic maps to
+ * exactly one standard so dashboard and detail views use the same rule.
+ */
+export function resolveAttemptStandardId(
+  standardId: string | null,
+  topic: string | null,
+): string | null {
+  if (standardId) return standardId;
+  const topicStandards = getStandardsForTopicName((topic ?? "").trim());
+  return topicStandards.length === 1 ? topicStandards[0].id : null;
 }
 
 interface BuildArgs {
@@ -241,24 +259,57 @@ export function buildDashboardResponse(args: BuildArgs): DashboardResponseBody {
     byModeStudentIds: Record<AttemptMode, Set<string>>;
   }
   const standardAgg = new Map<string, StandardAgg>();
+  // Pre-seed known standards so they appear as "Not Started" even with zero
+  // attempts. When a topic filter is active, scope the seed to that topic's
+  // standards only — otherwise unrelated standards (e.g. Ecology while
+  // viewing Genetics) would show up as not-started for the current filter.
+  const standardsToSeed = topic ? getStandardsForTopicName(topic) : getAllStandards();
+  for (const std of standardsToSeed) {
+    standardAgg.set(std.id, {
+      label: std.label,
+      attempted: 0,
+      correct: 0,
+      totalTime: 0,
+      measuredTimeCount: 0,
+      studentIds: new Set<string>(),
+      byMode: emptyModeBreakdown(),
+      byModeTotalTime: { practice: 0, exam: 0, review: 0 },
+      byModeMeasuredCount: { practice: 0, exam: 0, review: 0 },
+      byModeStudentIds: {
+        practice: new Set<string>(),
+        exam: new Set<string>(),
+        review: new Set<string>(),
+      },
+    });
+  }
   // Stable id used when DB row has no standardId. We namespace by topic so
   // attempts from unrelated topics don't get merged under a single catch-all
   // bucket (which would mislabel them with whichever row was seen first).
   const UNKNOWN_STANDARD_PREFIX = "BIO.OTHER";
   for (const row of scopedAttempts) {
+    const topicSlug = (row.topic ?? "").trim();
+    // Attempts created before standards were introduced may not have a
+    // standardId. When their legacy topic maps to exactly one canonical
+    // standard, aggregate them into that standard instead of showing both an
+    // attempted BIO.OTHER row and a seeded canonical "Not Started" row.
+    const resolvedStandardId = resolveAttemptStandardId(
+      row.standardId,
+      topicSlug,
+    );
     let aggKey: string;
     let fallbackLabel: string;
-    if (row.standardId) {
-      aggKey = row.standardId;
+    if (resolvedStandardId) {
+      aggKey = resolvedStandardId;
       fallbackLabel = row.standardLabel || row.topic || "Other";
     } else {
-      const topicSlug = (row.topic ?? "").trim();
       aggKey = topicSlug
         ? `${UNKNOWN_STANDARD_PREFIX}::${topicSlug}`
         : UNKNOWN_STANDARD_PREFIX;
       fallbackLabel = row.standardLabel || topicSlug || "Other";
     }
-    const canonical = row.standardId ? getStandardById(row.standardId) : undefined;
+    const canonical = resolvedStandardId
+      ? getStandardById(resolvedStandardId)
+      : undefined;
     const standardLabel = canonical?.label || fallbackLabel;
     const existing =
       standardAgg.get(aggKey) ??

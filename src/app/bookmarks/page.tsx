@@ -20,6 +20,7 @@ import {
   removeBookmark,
 } from "@/lib/storage";
 import { useQuestions } from "@/hooks/useQuestions";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { usePageDwell } from "@/hooks/usePageDwell";
 import {
   StudentNotesList,
@@ -120,6 +121,21 @@ export default function BookmarksPage() {
     <Suspense>
       <BookmarksPageContent />
     </Suspense>
+  );
+}
+
+/** Renders the short-answer stimulus with lazily loaded media (hooks are not allowed inside the bookmark list map). */
+function BookmarkStimulus({ question: questionProp }: { question: Question }) {
+  const { question: hydratedQuestion, isMediaPending } =
+    useQuestionMedia(questionProp);
+  const question = hydratedQuestion ?? questionProp;
+  if (!question.shortAnswer) return null;
+  return (
+    <StimulusPanel
+      stem={question.shortAnswer.stem}
+      stimulus={question.shortAnswer.stimulus}
+      imageLoading={isMediaPending}
+    />
   );
 }
 
@@ -486,10 +502,7 @@ function BookmarksPageContent() {
                                 <div className="space-y-3 border-t border-border-subtle px-3 py-3">
                                   {isShortAnswer && question.shortAnswer ? (
                                     <>
-                                      <StimulusPanel
-                                        stem={question.shortAnswer.stem}
-                                        stimulus={question.shortAnswer.stimulus}
-                                      />
+                                      <BookmarkStimulus question={question} />
                                       <div className="space-y-2">
                                         {question.shortAnswer.parts.map((part) => (
                                           <div

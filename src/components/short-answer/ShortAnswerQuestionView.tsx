@@ -9,7 +9,10 @@ import {
   MAX_SHORT_ANSWER_ATTEMPTS,
   type StoredShortAnswerAttempt,
 } from "@/lib/short-answer/attempt-state";
-import { applyAssignmentRunFilter } from "@/lib/short-answer/assignment-run";
+import {
+  applyAssignmentRunFilter,
+  applyQuestionSetFilter,
+} from "@/lib/short-answer/assignment-run";
 import { StimulusPanel } from "./StimulusPanel";
 import { HighlightLayer } from "./HighlightLayer";
 import { PartCard, type PartStatus } from "./PartCard";
@@ -131,6 +134,8 @@ interface ShortAnswerQuestionViewProps {
   showCompletionContinue?: boolean;
   /** Fires once when every part has resolved (for progress bookkeeping). */
   onAllPartsResolved?: (summary: { correctParts: number; totalParts: number }) => void;
+  /** True while a stripped stimulus image is still being fetched (see useQuestionMedia). */
+  stimulusImageLoading?: boolean;
 }
 
 export function ShortAnswerQuestionView({
@@ -145,6 +150,7 @@ export function ShortAnswerQuestionView({
   onContinue,
   showCompletionContinue = true,
   onAllPartsResolved,
+  stimulusImageLoading = false,
 }: ShortAnswerQuestionViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const howToUseRef = useRef<HTMLButtonElement | null>(null);
@@ -226,6 +232,8 @@ export function ShortAnswerQuestionView({
       .order("part_label")
       .order("attempt_number", { ascending: true });
 
+    query = applyQuestionSetFilter(query, questionSetId);
+
     query = assignmentId
       ? query.eq("assignment_id", assignmentId)
       : query.is("assignment_id", null);
@@ -252,7 +260,14 @@ export function ShortAnswerQuestionView({
     }
     setHydrationReady(true);
     return true;
-  }, [assignmentId, assignmentRunAfter, item.parts, questionId, sessionId]);
+  }, [
+    assignmentId,
+    assignmentRunAfter,
+    item.parts,
+    questionId,
+    questionSetId,
+    sessionId,
+  ]);
 
   useEffect(() => {
     setHydrationReady(false);
@@ -371,6 +386,11 @@ export function ShortAnswerQuestionView({
 
   const handleCheck = useCallback(
     async (index: number, response: string) => {
+      if (stimulusImageLoading) {
+        setErrorToast("Loading the question illustration. Please wait before checking your answer.");
+        return;
+      }
+
       if (!assignmentId && !sessionId) {
         setErrorToast("Preparing your practice session. Please try again in a moment.");
         return;
@@ -481,6 +501,7 @@ export function ShortAnswerQuestionView({
       questionSetId,
       runtimes,
       sessionId,
+      stimulusImageLoading,
     ],
   );
 
@@ -513,6 +534,7 @@ export function ShortAnswerQuestionView({
 
   const activeIndex = runtimes.findIndex((r) => r.status !== "resolved");
   const waitingForPracticeSession = !assignmentId && !sessionId;
+  const checkDisabled = waitingForPracticeSession || stimulusImageLoading;
 
   // The toolbar's Report button always targets whichever part the student is
   // currently engaging with: the active part, or — during the brief unlock
@@ -692,6 +714,7 @@ export function ShortAnswerQuestionView({
               stem={item.stem}
               stimulus={item.stimulus}
               framed={false}
+              imageLoading={stimulusImageLoading}
             />
           </div>
         </div>
@@ -721,7 +744,7 @@ export function ShortAnswerQuestionView({
                 initialValue={
                   runtime.attempts[runtime.attempts.length - 1]?.responseText ?? ""
                 }
-                checkDisabled={waitingForPracticeSession}
+                checkDisabled={checkDisabled}
                 previousLabel={i > 0 ? item.parts[i - 1].label : undefined}
                 unlock={
                   runtime.countdownActive

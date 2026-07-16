@@ -310,11 +310,15 @@ describe("POST /api/analytics/attempts", () => {
     mockState.serverClient = serverClient;
     mockState.adminClient = adminClient;
 
-    const response = await POST(attemptRequest("", { isFinalized: false }));
+    const response = await POST(attemptRequest("", {
+      isFinalized: false,
+      questionCompleted: false,
+    }));
 
     expect(response.status).toBe(200);
     expect(tables.attempts.rows[0].is_correct).toBe(false);
     expect(tables.attempts.rows[0].is_finalized).toBe(true);
+    expect(tables.attempts.rows[0].question_completed).toBe(false);
     await expect(response.json()).resolves.toMatchObject({ isCorrect: false });
   });
 
