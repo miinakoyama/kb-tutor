@@ -455,6 +455,70 @@ describe("POST /api/short-answer/grade", () => {
     });
   });
 
+  it("aggregates every measured part dwell time on the completion summary row", async () => {
+    adminTableState["short_answer_attempts"] = {
+      select: item.parts.map((part, index) => ({
+        id: `attempt-${part.label}`,
+        question_id: validBody.questionId,
+        part_label: part.label,
+        attempt_number: 1,
+        response_text: "answer",
+        feedback: { verdict: "correct", segments: [] },
+        is_correct: true,
+        answered_at: "2026-04-11T10:00:00.000Z",
+        time_spent_sec: [12, 23, 42][index],
+      })),
+    };
+    gradePart.mockResolvedValue({
+      score: 1,
+      maxScore: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+    });
+
+    const { POST } = await load();
+    const res = await POST(makeRequest({ ...validBody, timeSpentSec: 42 }));
+
+    expect(res.status).toBe(200);
+    expect(adminQueryCalls).toContainEqual({
+      table: "attempts",
+      method: "insert",
+      value: expect.objectContaining({ time_spent_sec: 77 }),
+    });
+  });
+
+  it("stores a null summary time when any part dwell time is unmeasured", async () => {
+    adminTableState["short_answer_attempts"] = {
+      select: item.parts.map((part, index) => ({
+        id: `attempt-${part.label}`,
+        question_id: validBody.questionId,
+        part_label: part.label,
+        attempt_number: 1,
+        response_text: "answer",
+        feedback: { verdict: "correct", segments: [] },
+        is_correct: true,
+        answered_at: "2026-04-11T10:00:00.000Z",
+        time_spent_sec: index === 1 ? null : 20,
+      })),
+    };
+    gradePart.mockResolvedValue({
+      score: 1,
+      maxScore: 1,
+      correct: true,
+      feedback: { verdict: "correct", segments: [] },
+    });
+
+    const { POST } = await load();
+    const res = await POST(makeRequest({ ...validBody, timeSpentSec: -5 }));
+
+    expect(res.status).toBe(200);
+    expect(adminQueryCalls).toContainEqual({
+      table: "attempts",
+      method: "insert",
+      value: expect.objectContaining({ time_spent_sec: null }),
+    });
+  });
+
   it("uses the server-side assignment mode for the attempt cap", async () => {
     adminTableState["assignments"] = {
       select: { school_id: "school-1", mode: "exam" },

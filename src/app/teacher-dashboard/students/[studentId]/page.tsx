@@ -36,6 +36,8 @@ import type {
   StudentStatus,
 } from "@/lib/analytics/teacher-dashboard-server";
 import type { QuestionPreview } from "@/lib/analytics/question-preview";
+import { badgeRose } from "@/lib/ui/status-badge-styles";
+import { UnderlineTabs } from "@/components/shared/UnderlineTabs";
 
 interface AccuracyOverTimePoint {
   date: string;
@@ -55,6 +57,7 @@ interface StudentDetailStandardRow {
 
 interface StudentDetailQuestionRow {
   questionId: string;
+  setId: string | null;
   standardId: string | null;
   preview: QuestionPreview | null;
   attempted: number;
@@ -224,19 +227,21 @@ function StudentHero({
   const tone = BAND_TONES[data.summary.status];
 
   return (
-    <section className="rounded-2xl border border-[#16a34a]/25 bg-white p-5 sm:p-6 shadow-sm mb-6">
+    <section className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm mb-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <StudentAvatar label={label} />
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#14532d]">{label}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">{label}</h1>
             <span
               className={`mt-1 inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone.badge}`}
             >
               {band.label}
             </span>
             {data.summary.isLowAndFast && (
-              <span className="ml-2 mt-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+              <span
+                className={`ml-2 mt-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${badgeRose}`}
+              >
                 <AlertTriangle className="h-3 w-3" />
                 Clicking without engaging
               </span>
@@ -269,40 +274,21 @@ function HeroStat({
   valueClass?: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5 text-center">
+    <div className="rounded-xl border border-border-subtle bg-surface-muted/60 px-3 py-2.5 text-center">
       <p className={`text-lg font-bold ${valueClass ?? "text-slate-gray"}`}>{value}</p>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-gray/60">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-gray/60">{label}</p>
     </div>
   );
 }
 
+const STUDENT_DETAIL_TABS: { value: TabKey; label: string }[] = [
+  { value: "overview", label: "Overview" },
+  { value: "standards", label: "By Standard" },
+  { value: "questions", label: "By Question" },
+];
+
 function TabBar({ tab, onChange }: { tab: TabKey; onChange: (tab: TabKey) => void }) {
-  const tabs: { value: TabKey; label: string }[] = [
-    { value: "overview", label: "Overview" },
-    { value: "standards", label: "By Standard" },
-    { value: "questions", label: "By Question" },
-  ];
-  return (
-    <div className="mb-6 flex items-center gap-4 border-b border-slate-200">
-      {tabs.map((item) => {
-        const active = item.value === tab;
-        return (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => onChange(item.value)}
-            className={`-mb-px border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
-              active
-                ? "border-[#16a34a] text-[#14532d]"
-                : "border-transparent text-slate-gray/60 hover:text-slate-gray"
-            }`}
-          >
-            {item.label}
-          </button>
-        );
-      })}
-    </div>
-  );
+  return <UnderlineTabs tabs={STUDENT_DETAIL_TABS} value={tab} onChange={onChange} />;
 }
 
 function OverviewTab({
@@ -314,7 +300,7 @@ function OverviewTab({
 }) {
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm p-5 sm:p-6">
+      <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-gray">Accuracy over time</h2>
           <span className="text-xs text-slate-gray/60">Performance trend across sessions</span>
@@ -329,19 +315,19 @@ function OverviewTab({
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data.accuracyOverTime} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatChartDate}
-                  tick={{ fontSize: 11, fill: "#64748b" }}
-                  axisLine={{ stroke: "#e2e8f0" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  axisLine={{ stroke: "var(--border-default)" }}
                   tickLine={false}
                 />
                 <YAxis
                   domain={[0, 100]}
                   tickFormatter={(value) => `${value}%`}
-                  tick={{ fontSize: 11, fill: "#64748b" }}
-                  axisLine={{ stroke: "#e2e8f0" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  axisLine={{ stroke: "var(--border-default)" }}
                   tickLine={false}
                   width={42}
                 />
@@ -352,13 +338,13 @@ function OverviewTab({
                 <Line
                   type="monotone"
                   dataKey="accuracy"
-                  stroke="#16a34a"
+                  stroke="var(--primary)"
                   strokeWidth={2}
-                  dot={{ r: 4, fill: "#16a34a" }}
+                  dot={{ r: 4, fill: "var(--primary)" }}
                   label={{
                     position: "top",
                     fontSize: 11,
-                    fill: "#166534",
+                    fill: "var(--primary)",
                     formatter: (value: unknown) => `${typeof value === "number" ? value : 0}%`,
                   }}
                 />
@@ -369,12 +355,12 @@ function OverviewTab({
       </section>
 
       <div className="grid gap-6 sm:grid-cols-2">
-        <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm p-5 sm:p-6">
+        <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-gray mb-4">Mode comparison</h2>
           <ModeComparison byMode={data.byMode} />
         </section>
 
-        <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm p-5 sm:p-6">
+        <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-gray mb-4">Engagement signal</h2>
           <EngagementSignal summary={data.summary} />
         </section>
@@ -398,7 +384,7 @@ function ModeComparison({ byMode }: { byMode: Record<AttemptMode, ModeMetrics> }
                 {hasAttempts ? `${metrics.accuracy}%` : "—"}
               </span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
               <div
                 className="h-full rounded-full"
                 style={{
@@ -408,7 +394,7 @@ function ModeComparison({ byMode }: { byMode: Record<AttemptMode, ModeMetrics> }
               />
             </div>
             {hasAttempts && (
-              <p className="mt-1 text-[11px] text-slate-gray/50">
+              <p className="mt-1 text-[10px] text-slate-gray/50">
                 {metrics.correct}/{metrics.attempted} answers
               </p>
             )}
@@ -422,7 +408,7 @@ function ModeComparison({ byMode }: { byMode: Record<AttemptMode, ModeMetrics> }
 function EngagementSignal({ summary }: { summary: StudentDetailResponse["summary"] }) {
   if (summary.attempted === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="rounded-xl border border-border-default bg-surface-muted p-3">
         <p className="text-sm font-semibold text-slate-gray">No data yet</p>
         <p className="mt-1 text-xs text-slate-gray/70">
           No attempts recorded for this student in the active filters.
@@ -433,12 +419,12 @@ function EngagementSignal({ summary }: { summary: StudentDetailResponse["summary
 
   if (summary.isLowAndFast) {
     return (
-      <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-700">
+      <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 dark:border-rose-800/35 dark:bg-rose-950/40">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-700 dark:text-rose-200/90">
           <AlertTriangle className="h-4 w-4" />
           Clicking without engaging
         </p>
-        <p className="mt-1 text-xs text-rose-700/80">
+        <p className="mt-1 text-xs text-rose-700/80 dark:text-rose-200/70">
           Time per question ({formatDuration(summary.averageTimeSec)}) and accuracy ({summary.accuracy}%) suggest
           this student may be clicking through without engaging with the material.
         </p>
@@ -447,12 +433,12 @@ function EngagementSignal({ summary }: { summary: StudentDetailResponse["summary
   }
 
   return (
-    <div className="rounded-xl border border-emerald-200 bg-[#e8f5ec] p-3">
-      <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800/35 dark:bg-emerald-950/40">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-200/90">
         <CheckCircle2 className="h-4 w-4" />
         Engagement looks genuine
       </p>
-      <p className="mt-1 text-xs text-emerald-700/80">
+      <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-200/70">
         Time per question ({formatDuration(summary.averageTimeSec)}) and accuracy ({summary.accuracy}%) are
         consistent with active engagement.
       </p>
@@ -470,11 +456,11 @@ function StandardsTab({
   standardDetailQuery: URLSearchParams;
 }) {
   return (
-    <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm">
+    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+            <tr className="bg-surface-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
               <th className="px-5 py-3">Standard</th>
               <th className="px-3 py-3 text-center">Attempted</th>
               <th className="px-3 py-3 text-center">Correct</th>
@@ -496,11 +482,11 @@ function StandardsTab({
                 const tone = BAND_TONES[row.status];
                 const band = findStudentBand(row.status, data.thresholds);
                 return (
-                  <tr key={row.standardId} className="border-t border-slate-100 hover:bg-[#16a34a]/5">
+                  <tr key={row.standardId} className="border-t border-border-subtle hover:bg-primary/5">
                     <td className="px-5 py-3">
                       <Link
                         href={`/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery.toString()}`}
-                        className="font-medium text-slate-gray hover:text-[#166534] hover:underline"
+                        className="font-medium text-slate-gray hover:text-forest hover:underline"
                       >
                         {row.standardId}
                       </Link>
@@ -510,7 +496,7 @@ function StandardsTab({
                     <td className="px-3 py-3 text-center text-slate-gray">{row.correct}</td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-2 min-w-[140px]">
-                        <div className="h-1.5 flex-1 rounded-full bg-slate-100">
+                        <div className="h-1.5 flex-1 rounded-full bg-surface-muted">
                           <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${row.accuracy}%` }} />
                         </div>
                         <span className={`text-sm font-semibold ${tone.text}`}>{row.accuracy}%</span>
@@ -553,11 +539,11 @@ function QuestionsTab({
   standardDetailQuery: URLSearchParams;
 }) {
   return (
-    <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm">
+    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+            <tr className="bg-surface-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
               <th className="px-5 py-3">Question</th>
               <th className="w-32 px-3 py-3">Standard</th>
               <th className="w-24 px-3 py-3 text-center">Attempted</th>
@@ -579,14 +565,21 @@ function QuestionsTab({
               data.byQuestion.map((row) => {
                 const text = row.preview?.text ?? "Question text unavailable.";
                 const truncated = text.length > 120 ? `${text.slice(0, 120)}…` : text;
+                const questionDetailQuery = new URLSearchParams(standardDetailQuery);
+                // An explicit empty value identifies legacy attempts and keeps
+                // the detail route from auto-resolving them to a generated set.
+                questionDetailQuery.set("setId", row.setId ?? "");
                 const href = row.standardId
-                  ? `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}/questions/${encodeURIComponent(row.questionId)}?${standardDetailQuery.toString()}`
+                  ? `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}/questions/${encodeURIComponent(row.questionId)}?${questionDetailQuery.toString()}`
                   : null;
                 return (
-                  <tr key={row.questionId} className="border-t border-slate-100 hover:bg-[#16a34a]/5">
+                  <tr
+                    key={`${row.setId ?? "legacy"}:${row.questionId}`}
+                    className="border-t border-border-subtle hover:bg-primary/5"
+                  >
                     <td className="px-5 py-3 text-slate-gray">
                       {href ? (
-                        <Link href={href} className="hover:text-[#166534] hover:underline">
+                        <Link href={href} className="hover:text-forest hover:underline">
                           <LatexText text={truncated} />
                         </Link>
                       ) : (
