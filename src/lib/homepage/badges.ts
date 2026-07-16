@@ -24,9 +24,10 @@ export async function syncStudentBadges(
   studentUserId: string,
   options: { timeZone: string },
 ): Promise<BadgeSyncResult> {
+  const admin = createSupabaseAdminClient();
   const [attemptRows, masteredKcCodes, previouslyEarned] = await Promise.all([
     fetchAttemptRows(supabase, studentUserId),
-    fetchMasteredKcCodes(studentUserId),
+    fetchMasteredKcCodes(admin, studentUserId),
     fetchEarnedBadgeRows(supabase, studentUserId),
   ]);
 
@@ -38,7 +39,10 @@ export async function syncStudentBadges(
 
   const newlyEarnedIds = Array.from(currentlyEarned).filter((id) => !previouslyEarned.has(id));
   if (newlyEarnedIds.length > 0) {
-    await supabase.from("student_badges").upsert(
+    // Badge issuance is server-authoritative. Browser sessions only receive
+    // SELECT access to student_badges; all awards are written with the
+    // service-role client after evaluation against persisted activity.
+    await admin.from("student_badges").upsert(
       newlyEarnedIds.map((badgeId) => ({ user_id: studentUserId, badge_id: badgeId })),
       { onConflict: "user_id,badge_id", ignoreDuplicates: true },
     );
@@ -107,10 +111,12 @@ async function fetchAttemptRows(
   }));
 }
 
-async function fetchMasteredKcCodes(studentUserId: string): Promise<Set<string>> {
+async function fetchMasteredKcCodes(
+  admin: SupabaseClient,
+  studentUserId: string,
+): Promise<Set<string>> {
   // student_kc_mastery is queried via the admin client with an explicit
   // user_id filter, matching src/app/api/practice/next/route.ts.
-  const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("student_kc_mastery")
     .select("kc_code,mastered")

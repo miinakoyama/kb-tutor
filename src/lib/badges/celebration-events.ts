@@ -1,4 +1,5 @@
 import type { EarnedBadgeSummary } from "@/types/badges";
+import { processQueue } from "@/lib/sync-queue";
 
 const BADGES_EARNED_EVENT = "kb-tutor:badges-earned";
 
@@ -28,6 +29,11 @@ export function subscribeToBadgesEarned(
  */
 export async function checkForNewlyEarnedBadges(): Promise<void> {
   try {
+    // Session-end answers are queued immediately before the results/summary
+    // screen appears. Wait for that shared queue to drain so badge evaluation
+    // observes the attempts and their BKT updates from the session that just
+    // finished. This also joins an already-running flush started by saveAnswer.
+    await processQueue();
     const response = await fetch("/api/badges/sync", { method: "POST" });
     if (!response.ok) return;
     const body = (await response.json()) as { newlyEarned?: EarnedBadgeSummary[] };

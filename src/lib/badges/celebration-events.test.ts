@@ -1,4 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { processQueueMock } = vi.hoisted(() => ({
+  processQueueMock: vi.fn(),
+}));
+
+vi.mock("@/lib/sync-queue", () => ({
+  processQueue: processQueueMock,
+}));
+
 import {
   checkForNewlyEarnedBadges,
   emitBadgesEarnedEvent,
@@ -44,8 +53,36 @@ describe("emitBadgesEarnedEvent / subscribeToBadgesEarned", () => {
 });
 
 describe("checkForNewlyEarnedBadges", () => {
+  beforeEach(() => {
+    processQueueMock.mockReset();
+    processQueueMock.mockResolvedValue(undefined);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("waits for queued attempts before calling the badge sync endpoint", async () => {
+    let finishQueue: (() => void) | undefined;
+    processQueueMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishQueue = resolve;
+      }),
+    );
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ newlyEarned: [] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const checkPromise = checkForNewlyEarnedBadges();
+
+    expect(processQueueMock).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    finishQueue?.();
+    await checkPromise;
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/badges/sync", { method: "POST" });
   });
 
   it("emits the badges returned by the sync endpoint", async () => {

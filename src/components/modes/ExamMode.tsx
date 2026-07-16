@@ -446,7 +446,8 @@ export function ExamMode({
 
   // Check for newly earned badges once the session reaches its results
   // screen — never mid-session, even though the underlying triggers (KC
-  // mastery, session counts, streaks) can be satisfied earlier.
+  // mastery, session counts, streaks) can be satisfied earlier. The shared
+  // checker waits for queued attempts to persist before syncing badges.
   const badgeCelebrationCheckedRef = useRef(false);
   useEffect(() => {
     if (phase !== "results" || badgeCelebrationCheckedRef.current) return;

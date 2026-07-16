@@ -57,10 +57,14 @@ describe("POST /api/badges/sync", () => {
         student_badges: { rows: [] },
       },
     });
+    const mockAdmin = createMockSupabaseClient({
+      tables: {
+        student_kc_mastery: { rows: [] },
+        student_badges: { rows: [] },
+      },
+    });
     state.server = mockServer.client;
-    state.admin = createMockSupabaseClient({
-      tables: { student_kc_mastery: { rows: [] } },
-    }).client;
+    state.admin = mockAdmin.client;
 
     const response = await POST();
 
@@ -69,7 +73,8 @@ describe("POST /api/badges/sync", () => {
       newlyEarned: Array<{ id: string; name: string; icon: string }>;
     };
     expect(body.newlyEarned.map((b) => b.id)).toContain("first_practice");
-    expect(mockServer.tables.student_badges.rows).toContainEqual(
+    expect(mockServer.tables.student_badges.rows).toEqual([]);
+    expect(mockAdmin.tables.student_badges.rows).toContainEqual(
       expect.objectContaining({ user_id: "student-1", badge_id: "first_practice" }),
     );
   });
@@ -158,10 +163,14 @@ describe("POST /api/badges/sync", () => {
         student_badges: { rows: [] },
       },
     });
+    const mockAdmin = createMockSupabaseClient({
+      tables: {
+        student_kc_mastery: { rows: [] },
+        student_badges: { rows: [] },
+      },
+    });
     state.server = mockServer.client;
-    state.admin = createMockSupabaseClient({
-      tables: { student_kc_mastery: { rows: [] } },
-    }).client;
+    state.admin = mockAdmin.client;
 
     const response = await POST();
     const body = (await response.json()) as {
@@ -170,7 +179,8 @@ describe("POST /api/badges/sync", () => {
 
     expect(response.status).toBe(200);
     expect(body.newlyEarned.map((badge) => badge.id)).toContain("first_review");
-    expect(mockServer.tables.student_badges.rows).toContainEqual(
+    expect(mockServer.tables.student_badges.rows).toEqual([]);
+    expect(mockAdmin.tables.student_badges.rows).toContainEqual(
       expect.objectContaining({ user_id: "student-1", badge_id: "first_review" }),
     );
   });
