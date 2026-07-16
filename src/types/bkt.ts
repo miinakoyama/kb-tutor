@@ -116,9 +116,8 @@ export interface AdaptiveQuestionCandidate {
   standardId: string;
   targetKcCode: string;
   partKcCodes: string[];
-  answered: boolean;
-  lastAnsweredAt: string | null;
-  lastServedAt: string | null;
+  completedCount: number;
+  lastCompletedAt: string | null;
 }
 
 export interface AdaptiveSelectionDecision {

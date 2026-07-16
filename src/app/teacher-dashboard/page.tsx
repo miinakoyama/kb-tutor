@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   BookOpen,
+  ChevronDown,
   ChevronRight,
   Download,
   Info,
@@ -29,6 +30,8 @@ import type {
   DashboardSummary,
   ModeMetrics,
 } from "@/lib/analytics/teacher-dashboard-server";
+import { getAllStandards } from "@/lib/standards";
+import type { ModuleCode } from "@/lib/standards";
 import {
   DEFAULT_PERFORMANCE_THRESHOLDS,
   LOW_AND_FAST_MAX_ACCURACY,
@@ -257,6 +260,68 @@ function TeacherDashboardContent() {
     return data.byStandard.filter((row) => row.status === standardFilter);
   }, [standardFilter, data.byStandard]);
 
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    new Set(),
+  );
+  const toggleGroup = (key: string) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  interface StandardGroup {
+    key: string;
+    category: string;
+    module: ModuleCode;
+    rows: StandardRow[];
+  }
+  const groupedStandards = useMemo<StandardGroup[]>(() => {
+    const allStds = getAllStandards();
+    // Build canonical group order from STANDARD_DEFINITIONS order
+    const groupOrder: { key: string; category: string; module: ModuleCode }[] =
+      [];
+    const seenKeys = new Set<string>();
+    for (const std of allStds) {
+      const key = `${std.module}::${std.category}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        groupOrder.push({ key, category: std.category, module: std.module });
+      }
+    }
+    // Map each standard id to its group key
+    const stdToGroup = new Map<string, string>();
+    for (const std of allStds) {
+      stdToGroup.set(std.id, `${std.module}::${std.category}`);
+    }
+    // Bucket filtered standards into groups
+    const groupMap = new Map<string, StandardRow[]>();
+    const unknownRows: StandardRow[] = [];
+    for (const row of filteredStandards) {
+      const gKey = stdToGroup.get(row.standardId);
+      if (gKey) {
+        const existing = groupMap.get(gKey) ?? [];
+        existing.push(row);
+        groupMap.set(gKey, existing);
+      } else {
+        unknownRows.push(row);
+      }
+    }
+    const groups = groupOrder
+      .filter((g) => groupMap.has(g.key))
+      .map((g) => ({ ...g, rows: groupMap.get(g.key)! }));
+    if (unknownRows.length > 0) {
+      groups.push({
+        key: "other",
+        category: "Other",
+        module: "A",
+        rows: unknownRows,
+      });
+    }
+    return groups;
+  }, [filteredStandards]);
+
   const filteredStudentRows = useMemo(() => {
     if (studentFilter === "all") return data.byStudent;
     if (studentFilter === "low_and_fast") {
@@ -457,89 +522,112 @@ function TeacherDashboardContent() {
                   </td>
                 </tr>
               ) : (
-                filteredStandards.map((row) => (
-                  <tr
-                    key={row.standardId}
-                    onClick={() =>
-                      router.push(
-                        `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`,
-                      )
-                    }
-                    className="cursor-pointer border-t border-slate-100 hover:bg-[#16a34a]/5"
-                  >
-                    <td className="px-5 py-3">
-                      <Link
-                        href={`/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`}
-                        onClick={(event) => event.stopPropagation()}
-                        className="font-medium text-slate-gray hover:text-[#166534] hover:underline"
-                      >
-                        {row.standardId}
-                      </Link>
-                      <p className="text-xs text-slate-gray/60 line-clamp-2 max-w-md">
-                        {row.standardLabel}
-                      </p>
-                    </td>
-                    {mode !== "compare" && (
-                      <>
-                        <td className="px-3 py-3 text-center text-slate-gray">
-                          {row.attempted}
-                        </td>
-                        <td className="px-3 py-3 text-center text-slate-gray">
-                          {row.correct}
-                        </td>
-                      </>
-                    )}
-                    {mode === "compare" ? (
-                      <>
-                        <td className="px-3 py-3">
-                          <ModeAccuracyCell
-                            metrics={row.byMode?.practice}
-                            thresholds={data.thresholds}
+                groupedStandards.map((group) => (
+                  <React.Fragment key={group.key}>
+                    <tr
+                      onClick={() => toggleGroup(group.key)}
+                      className="cursor-pointer select-none border-t border-slate-200 bg-slate-50 hover:bg-slate-100"
+                    >
+                      <td colSpan={7} className="px-5 py-2">
+                        <div className="flex items-center gap-2">
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150 ${collapsedGroups.has(group.key) ? "-rotate-90" : ""}`}
                           />
-                        </td>
-                        <td className="px-3 py-3">
-                          <ModeAccuracyCell
-                            metrics={row.byMode?.exam}
-                            thresholds={data.thresholds}
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <ModeAccuracyCell
-                            metrics={row.byMode?.review}
-                            thresholds={data.thresholds}
-                          />
-                        </td>
-                      </>
-                    ) : (
-                      <td className="px-3 py-3 text-center">
-                        <AccuracyValue
-                          value={row.accuracy}
-                          hasAttempts={row.attempted > 0}
-                          thresholds={data.thresholds}
-                        />
-                        <p className="mt-0.5 whitespace-nowrap text-[10px] text-slate-gray/50">
-                          {row.studentsAttempted === 0
-                            ? "no students"
-                            : `out of ${row.studentsAttempted} ${row.studentsAttempted === 1 ? "student" : "students"}`}
-                        </p>
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                            Module {group.module}
+                          </span>
+                          <span className="text-sm font-semibold text-slate-600">
+                            {group.category}
+                          </span>
+                        </div>
                       </td>
-                    )}
-                    <td className="px-3 py-3 text-center">
-                      <span className="inline-flex items-center justify-center gap-1.5 text-slate-gray/70">
-                        <Timer className="w-3.5 h-3.5 text-slate-gray/50" />
-                        {row.averageTimeSec}s
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <StandardStatusBadge
-                        status={row.status}
-                        thresholds={data.thresholds}
-                      />
-                    </td>
-                    <td className="px-3 py-3 text-right text-slate-gray/40">
-                      <ChevronRight className="ml-auto h-4 w-4" />
-                    </td>
-                  </tr>
+                    </tr>
+                    {!collapsedGroups.has(group.key) &&
+                      group.rows.map((row) => (
+                        <tr
+                          key={row.standardId}
+                          onClick={() =>
+                            router.push(
+                              `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`,
+                            )
+                          }
+                          className="cursor-pointer border-t border-slate-100 hover:bg-[#16a34a]/5"
+                        >
+                          <td className="px-5 py-3">
+                            <Link
+                              href={`/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`}
+                              onClick={(event) => event.stopPropagation()}
+                              className="font-medium text-slate-gray hover:text-[#166534] hover:underline"
+                            >
+                              {row.standardId}
+                            </Link>
+                            <p className="text-xs text-slate-gray/60 line-clamp-2 max-w-md">
+                              {row.standardLabel}
+                            </p>
+                          </td>
+                          {mode !== "compare" && (
+                            <>
+                              <td className="px-3 py-3 text-center text-slate-gray">
+                                {row.attempted}
+                              </td>
+                              <td className="px-3 py-3 text-center text-slate-gray">
+                                {row.correct}
+                              </td>
+                            </>
+                          )}
+                          {mode === "compare" ? (
+                            <>
+                              <td className="px-3 py-3">
+                                <ModeAccuracyCell
+                                  metrics={row.byMode?.practice}
+                                  thresholds={data.thresholds}
+                                />
+                              </td>
+                              <td className="px-3 py-3">
+                                <ModeAccuracyCell
+                                  metrics={row.byMode?.exam}
+                                  thresholds={data.thresholds}
+                                />
+                              </td>
+                              <td className="px-3 py-3">
+                                <ModeAccuracyCell
+                                  metrics={row.byMode?.review}
+                                  thresholds={data.thresholds}
+                                />
+                              </td>
+                            </>
+                          ) : (
+                            <td className="px-3 py-3 text-center">
+                              <AccuracyValue
+                                value={row.accuracy}
+                                hasAttempts={row.attempted > 0}
+                                thresholds={data.thresholds}
+                              />
+                              <p className="mt-0.5 whitespace-nowrap text-[10px] text-slate-gray/50">
+                                {row.studentsAttempted === 0
+                                  ? "no students"
+                                  : `out of ${row.studentsAttempted} ${row.studentsAttempted === 1 ? "student" : "students"}`}
+                              </p>
+                            </td>
+                          )}
+                          <td className="px-3 py-3 text-center">
+                            <span className="inline-flex items-center justify-center gap-1.5 text-slate-gray/70">
+                              <Timer className="w-3.5 h-3.5 text-slate-gray/50" />
+                              {row.averageTimeSec}s
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <StandardStatusBadge
+                              status={row.status}
+                              thresholds={data.thresholds}
+                            />
+                          </td>
+                          <td className="px-3 py-3 text-right text-slate-gray/40">
+                            <ChevronRight className="ml-auto h-4 w-4" />
+                          </td>
+                        </tr>
+                      ))}
+                  </React.Fragment>
                 ))
               )}
             </tbody>

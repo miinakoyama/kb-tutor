@@ -23,9 +23,9 @@ function BadgeIcon({ icon, earned }: { icon: string; earned: boolean }) {
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- badge art is a small, unoptimized fixed-size icon
+    // eslint-disable-next-line @next/next/no-img-element -- pre-sized static thumbnail avoids loading full badge art
     <img
-      src={`/badges/${icon}`}
+      src={`/badges/thumbnails/${icon}`}
       alt=""
       className="h-11 w-11 object-contain"
       style={{ opacity: earned ? 1 : 0.35, filter: earned ? undefined : "grayscale(1)" }}

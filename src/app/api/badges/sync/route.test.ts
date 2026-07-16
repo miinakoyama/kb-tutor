@@ -49,6 +49,7 @@ describe("POST /api/badges/sync", () => {
               user_id: "student-1",
               mode: "practice",
               assignment_id: null,
+              is_finalized: true,
               answered_at: "2020-01-01T10:00:00.000Z",
             },
           ],
@@ -83,6 +84,7 @@ describe("POST /api/badges/sync", () => {
               user_id: "student-1",
               mode: "practice",
               assignment_id: null,
+              is_finalized: true,
               answered_at: "2020-01-01T10:00:00.000Z",
             },
           ],
@@ -102,5 +104,74 @@ describe("POST /api/badges/sync", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { newlyEarned: unknown[] };
     expect(body.newlyEarned).toEqual([]);
+  });
+
+  it("does not award exam badges for draft multiple-choice attempts", async () => {
+    const mockServer = createMockSupabaseClient({
+      user: USER,
+      tables: {
+        attempts: {
+          rows: [
+            {
+              user_id: "student-1",
+              mode: "exam",
+              assignment_id: "assignment-1",
+              is_finalized: false,
+              answered_at: "2026-07-16T10:00:00.000Z",
+            },
+          ],
+        },
+        short_answer_attempts: { rows: [] },
+        student_badges: { rows: [] },
+      },
+    });
+    state.server = mockServer.client;
+    state.admin = createMockSupabaseClient({
+      tables: { student_kc_mastery: { rows: [] } },
+    }).client;
+
+    const response = await POST();
+    const body = (await response.json()) as {
+      newlyEarned: Array<{ id: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.newlyEarned.map((badge) => badge.id)).not.toContain("first_exam");
+    expect(mockServer.tables.student_badges.rows).toEqual([]);
+  });
+
+  it("awards activity badges for short-answer-only sessions", async () => {
+    const mockServer = createMockSupabaseClient({
+      user: USER,
+      tables: {
+        attempts: { rows: [] },
+        short_answer_attempts: {
+          rows: [
+            {
+              user_id: "student-1",
+              mode: "review",
+              assignment_id: null,
+              answered_at: "2026-07-16T10:00:00.000Z",
+            },
+          ],
+        },
+        student_badges: { rows: [] },
+      },
+    });
+    state.server = mockServer.client;
+    state.admin = createMockSupabaseClient({
+      tables: { student_kc_mastery: { rows: [] } },
+    }).client;
+
+    const response = await POST();
+    const body = (await response.json()) as {
+      newlyEarned: Array<{ id: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.newlyEarned.map((badge) => badge.id)).toContain("first_review");
+    expect(mockServer.tables.student_badges.rows).toContainEqual(
+      expect.objectContaining({ user_id: "student-1", badge_id: "first_review" }),
+    );
   });
 });

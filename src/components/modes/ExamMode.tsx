@@ -45,6 +45,7 @@ import { shuffleArray } from "@/lib/array-utils";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
@@ -218,6 +219,13 @@ export function ExamMode({
   const visitRef = useRef<{ index: number; startMs: number } | null>(null);
   const blurFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const examRunStartedAtRef = useRef(new Date().toISOString());
+
+  const { question: hydratedCurrentQuestion, isMediaPending } =
+    useQuestionMedia(sessionQuestions[currentIndex] ?? null);
+  const { question: hydratedReviewQuestion, isMediaPending: isReviewMediaPending } =
+    useQuestionMedia(
+      reviewIndex !== null ? (sessionQuestions[reviewIndex] ?? null) : null,
+    );
 
   const clearBlurFlushTimer = useCallback(() => {
     if (blurFlushTimerRef.current === null) return;
@@ -822,10 +830,12 @@ export function ExamMode({
   }, [currentIndex]);
 
   const handleSubmit = useCallback(() => {
+    if (isMediaPending) return;
     setPhase("confirm");
-  }, []);
+  }, [isMediaPending]);
 
   const confirmSubmit = useCallback(async () => {
+    if (isMediaPending) return;
     flushQuestionVisit();
 
     // Grade deferred short-answer parts before showing results. The grade
@@ -954,6 +964,7 @@ export function ExamMode({
     markStageCompleted,
     sessionId,
     onAllSchoolAssignmentsCompleted,
+    isMediaPending,
   ]);
 
   if (phase === "config") {
@@ -1005,7 +1016,7 @@ export function ExamMode({
   }
 
   if (phase === "review" && reviewIndex !== null) {
-    const q = sessionQuestions[reviewIndex];
+    const q = hydratedReviewQuestion ?? sessionQuestions[reviewIndex];
     const a = answers[reviewIndex];
     if (isSaqQuestion(q)) {
       return (
@@ -1028,6 +1039,7 @@ export function ExamMode({
                 <StimulusPanel
                   stem={q.shortAnswer.stem}
                   stimulus={q.shortAnswer.stimulus}
+                  imageLoading={isReviewMediaPending}
                 />
               </div>
               <div className="flex flex-col gap-4">
@@ -1255,7 +1267,7 @@ export function ExamMode({
     );
   }
 
-  const question = sessionQuestions[currentIndex];
+  const question = hydratedCurrentQuestion ?? sessionQuestions[currentIndex];
   const currentAnswer = answers[currentIndex];
 
   if (!question) {
@@ -1334,6 +1346,7 @@ export function ExamMode({
             />
             <button
               onClick={handleSubmit}
+              disabled={isMediaPending}
               className={assignmentPrimaryButtonClass}
               style={assignmentPrimaryButtonStyle}
             >
@@ -1378,6 +1391,7 @@ export function ExamMode({
           <ExamShortAnswerCard
             key={question.id}
             questionNumber={currentIndex + 1}
+            stimulusImageLoading={isMediaPending}
             item={question.shortAnswer}
             responses={saqResponses[currentIndex] ?? {}}
             onChange={(label, value) =>
@@ -1556,11 +1570,14 @@ function ExamShortAnswerCard({
   item,
   responses,
   onChange,
+  stimulusImageLoading = false,
 }: {
   questionNumber: number;
   item: ShortAnswerItem;
   responses: Partial<Record<PartLabel, string>>;
   onChange: (label: PartLabel, value: string) => void;
+  /** True while a stripped stimulus image is still being fetched (see useQuestionMedia). */
+  stimulusImageLoading?: boolean;
 }) {
   const isFilled = (label: PartLabel) =>
     (responses[label] ?? "").trim().length > 0;
@@ -1574,6 +1591,7 @@ function ExamShortAnswerCard({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
+      aria-busy={stimulusImageLoading}
       className="rounded-[24px] border"
       style={{
         background: "var(--assignment-glass-bg-strong)",
@@ -1631,7 +1649,12 @@ function ExamShortAnswerCard({
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,44fr)_1px_minmax(0,52fr)]">
         <div className="p-5 sm:p-8 lg:p-10">
           <div className="lg:sticky lg:top-6">
-            <StimulusPanel stem={item.stem} stimulus={item.stimulus} framed={false} />
+            <StimulusPanel
+              stem={item.stem}
+              stimulus={item.stimulus}
+              framed={false}
+              imageLoading={stimulusImageLoading}
+            />
           </div>
         </div>
 
@@ -1660,12 +1683,17 @@ function ExamShortAnswerCard({
                 <div className="mt-3">
                   <textarea
                     value={value}
-                    onChange={(e) => onChange(part.label, e.target.value)}
+                    onChange={(e) => {
+                      if (!stimulusImageLoading) {
+                        onChange(part.label, e.target.value);
+                      }
+                    }}
+                    disabled={stimulusImageLoading}
                     maxLength={part.maxLength}
                     rows={3}
                     placeholder="Type your answer…"
                     aria-label={`Answer for Part ${part.label}`}
-                    className="w-full resize-none rounded-xl border border-[color:var(--assignment-panel-border)] bg-white/70 px-3 py-2 text-[15px] text-[color:var(--foreground)] focus:border-[var(--assignment-completed)] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full resize-none rounded-xl border border-[color:var(--assignment-panel-border)] bg-white/70 px-3 py-2 text-[15px] text-[color:var(--foreground)] focus:border-[var(--assignment-completed)] focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <div className="mt-1 flex items-center justify-end">
                     <span className="text-[11px] text-[color:var(--foreground)]/40">

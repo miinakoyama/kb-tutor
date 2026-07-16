@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import type { StudentAssignmentListItem } from "@/lib/student-assignments";
 import type { KeystoneExamInfo } from "@/lib/keystone-exam";
 import type { LearningEffort } from "@/lib/homepage/learning-effort";
@@ -10,6 +9,7 @@ import type { StudentBadgeView } from "@/types/badges";
 import { ExamCountdownCard } from "@/components/home/ExamCountdownCard";
 import { LearningEffortCard } from "@/components/home/LearningEffortCard";
 import { AssignedWorkList } from "@/components/home/AssignedWorkList";
+import { HomeSearch } from "@/components/home/HomeSearch";
 import { ProfileCard } from "@/components/home/ProfileCard";
 import {
   ReviewQuickStartCard,
@@ -26,12 +26,10 @@ interface HomePageContentProps {
   badges: StudentBadgeView[];
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="font-heading text-xl font-bold text-heading">{children}</h2>
-  );
-}
-
+/**
+ * Bento-box layout: the page title is the only text outside a card — every
+ * section heading lives inside its own tile.
+ */
 export function HomePageContent({
   assignments,
   keystoneExam = null,
@@ -49,13 +47,25 @@ export function HomePageContent({
       {/* Matches the xl:w-[96%] inner inset StudentAssignmentsList uses on
           every section, on top of <main>'s own padding. */}
       <div className="mx-auto w-full xl:w-[96%]">
-        <section aria-labelledby="your-progress-heading">
-          <SectionHeading>
-            <span id="your-progress-heading">Your progress</span>
-          </SectionHeading>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1
+            className="font-bold text-slate-gray"
+            style={{
+              fontSize: 26,
+              lineHeight: 1.25,
+              letterSpacing: "-0.4px",
+              fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
+            }}
+          >
+            Dashboard
+          </h1>
+          <HomeSearch assignments={assignments} />
+        </div>
+
+        <section aria-label="Your progress" className="mt-6">
           <div
-            className={`mt-4 grid gap-4 ${
-              keystoneExam ? "lg:grid-cols-[minmax(240px,300px)_1fr]" : ""
+            className={`grid gap-4 ${
+              keystoneExam ? "lg:grid-cols-[minmax(192px,240px)_1fr]" : ""
             }`}
           >
             {keystoneExam && <ExamCountdownCard exam={keystoneExam} />}
@@ -63,40 +73,37 @@ export function HomePageContent({
           </div>
         </section>
 
-        <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start">
-          <div className="flex min-w-0 flex-1 flex-col gap-8">
-            <section aria-labelledby="assigned-work-heading">
-              <div className="flex items-center justify-between gap-3">
-                <SectionHeading>
-                  <span id="assigned-work-heading">Assigned work</span>
-                </SectionHeading>
-                <Link
-                  href="/assignments"
-                  className="text-sm font-semibold transition hover:brightness-110"
-                  style={{ color: "var(--assignment-completed)" }}
-                >
-                  View all
-                </Link>
-              </div>
-              <div className="mt-2">
-                <AssignedWorkList assignments={assignments} />
-              </div>
-            </section>
+        {/* 70/30 split spanning the full row, so the outer edges line up
+            with the countdown + Learning effort row above. */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:gap-x-12">
+          <div className="flex min-w-0 flex-col gap-6">
+            <AssignedWorkList assignments={assignments} />
 
-            <section aria-labelledby="practice-independently-heading">
-              <SectionHeading>
-                <span id="practice-independently-heading">
-                  Practice independently
-                </span>
-              </SectionHeading>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {/* One bento tile with two inner practice tiles; flex-1 keeps
+                the column's bottom level with the profile card. */}
+            <section
+              aria-labelledby="practice-independently-heading"
+              className="flex flex-1 flex-col rounded-[24px] p-5 sm:p-6"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--assignment-glass-border)",
+                boxShadow: "var(--assignment-card-shadow)",
+              }}
+            >
+              <h2
+                id="practice-independently-heading"
+                className="font-heading text-lg font-bold text-slate-gray"
+              >
+                Practice independently
+              </h2>
+              <div className="mt-4 grid flex-1 gap-4 sm:grid-cols-2">
                 <ReviewQuickStartCard />
                 <SelfPracticeQuickStartCard weeklySeconds={selfPracticeWeeklySeconds} />
               </div>
             </section>
           </div>
 
-          <div className="w-full lg:w-[340px] lg:flex-shrink-0">
+          <div className="min-w-0">
             <ProfileCard profile={profileSummary} mastery={masterySummary} badges={badges} />
           </div>
         </div>

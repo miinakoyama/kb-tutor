@@ -14,6 +14,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import type { Question } from "@/types/question";
+import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { shuffleArray } from "@/lib/array-utils";
 
 const PRIMARY_COLOR = "#16a34a";
@@ -175,6 +176,8 @@ interface QuestionDisplayProps {
   currentIndex: number;
   currentAnswer?: AnswerRecord;
   onOptionClick: (optionId: string) => void;
+  /** True while a stripped question image is still loading (answers are held upstream). */
+  mediaPending?: boolean;
 }
 
 function QuestionDisplay({
@@ -182,6 +185,7 @@ function QuestionDisplay({
   currentIndex,
   currentAnswer,
   onOptionClick,
+  mediaPending = false,
 }: QuestionDisplayProps) {
   const isAnswered = currentAnswer !== undefined;
   const selectedOption = currentAnswer
@@ -218,6 +222,16 @@ function QuestionDisplay({
                 height={400}
                 className="diagram-raster object-contain"
               />
+            </div>
+          )}
+
+          {!question.imageUrl && question.hasImage && mediaPending && (
+            <div
+              role="status"
+              aria-label="Loading question image"
+              className="my-4 rounded-lg bg-[var(--diagram-canvas)] p-3"
+            >
+              <div className="h-[220px] w-full animate-pulse rounded-md bg-slate-gray/10" />
             </div>
           )}
 
@@ -596,7 +610,10 @@ export function MCQEngine({
     }
   }, [questions, questionsKey]);
 
-  const question = sessionQuestions[currentIndex];
+  const rawQuestion = sessionQuestions[currentIndex];
+  const { question: hydratedQuestion, isMediaPending } =
+    useQuestionMedia(rawQuestion);
+  const question = hydratedQuestion ?? rawQuestion;
   const currentAnswer = answers[currentIndex];
   const totalQuestions = sessionQuestions.length;
   const answeredCount = Object.keys(answers).length;
@@ -606,6 +623,8 @@ export function MCQEngine({
     (optionId: string) => {
       if (currentAnswer !== undefined) return;
       if (!question) return;
+      // Hold answers until a stripped image has loaded.
+      if (isMediaPending) return;
 
       const isCorrect = optionId === question.correctOptionId;
       setAnswers((prev) => ({
@@ -616,7 +635,7 @@ export function MCQEngine({
         },
       }));
     },
-    [currentIndex, currentAnswer, question],
+    [currentIndex, currentAnswer, question, isMediaPending],
   );
 
   const handlePrevious = useCallback(() => {
@@ -709,6 +728,7 @@ export function MCQEngine({
         question={question}
         currentIndex={currentIndex}
         currentAnswer={currentAnswer}
+        mediaPending={isMediaPending}
         onOptionClick={handleOptionClick}
       />
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createMockSupabaseClient } from "@/test-utils/supabase-mock";
+import sampleItem from "@/data/short-answer/sample-item.json";
 
 const state = vi.hoisted(() => ({
   server: null as SupabaseClient | null,
@@ -91,7 +92,7 @@ describe("POST /api/practice/next", () => {
     });
   });
 
-  it("does not treat an unscoped SAQ summary from another set as answer history", async () => {
+  it("loads target-KC candidates through the bounded RPC", async () => {
     const user = {
       id: "student",
       app_metadata: {},
@@ -99,35 +100,42 @@ describe("POST /api/practice/next", () => {
       aud: "authenticated",
       created_at: "2026-01-01",
     };
-    state.server = createMockSupabaseClient({
-      user,
-      rpcs: {
-        get_self_practice_questions: async () => ({
-          data: ["q1", "q2"].map((id) => ({
-            id,
-            set_id: "set-b",
-            content_version: null,
-            set_name: "Set B",
-            set_generated_at: "2026-01-01",
-            generation_model_id: null,
-            generation_model_label: null,
-            payload: {
-              id,
-              module: 1,
-              topic: "Genetics",
-              standardId: "3.1.9-12.A",
-              text: id,
-              imageUrl: null,
-              options: [],
-              correctOptionId: "",
-              source: "generated",
-              questionType: "open-ended",
-            },
-          })),
-          error: null,
-        }),
-      },
-    }).client;
+    state.server = createMockSupabaseClient({ user }).client;
+    const legacyShortAnswer = {
+      ...sampleItem,
+      keyTerms: [
+        { term: "prokaryotic", definition: "One KC statement reused for every term." },
+        { term: "eukaryotic", definition: "One KC statement reused for every term." },
+      ],
+    };
+    const candidateRpc = vi.fn(async () => ({
+      data: ["q1", "q2"].map((id) => ({
+        question_set_id: "set-b",
+        question_id: id,
+        content_version: null,
+        has_image: false,
+        has_stimulus_image: false,
+        format: "saq",
+        standard_id: "3.1.9-12.A",
+        part_kc_codes: ["3.1.9-12.A1"],
+        completed_count: id === "q1" ? 0 : 1,
+        last_completed_at: id === "q1" ? null : "2026-01-02T00:00:00Z",
+        payload: {
+          id,
+          module: 1,
+          topic: "Genetics",
+          standardId: "3.1.9-12.A",
+          text: id,
+          imageUrl: null,
+          options: [],
+          correctOptionId: "",
+          source: "generated",
+          questionType: "open-ended",
+          shortAnswer: legacyShortAnswer,
+        },
+      })),
+      error: null,
+    }));
     state.admin = createMockSupabaseClient({
       tables: {
         school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
@@ -140,37 +148,9 @@ describe("POST /api/practice/next", () => {
         student_kc_mastery: { rows: [] },
         adaptive_rotation_states: { rows: [] },
         adaptive_selection_events: { rows: [] },
-        question_kc_assignments: {
-          rows: ["q1", "q2"].map((questionId) => ({
-            question_set_id: "set-b",
-            question_id: questionId,
-            part_label: "A",
-            format: "saq",
-            standard_id: "3.1.9-12.A",
-            kc_code: "3.1.9-12.A1",
-            status: "confirmed",
-            valid_to: null,
-          })),
-        },
-        attempts: {
-          rows: [{
-            user_id: "student",
-            question_set_id: null,
-            question_id: "q1",
-            selected_option_id: "short-answer",
-            answered_at: "2026-01-02T00:00:00Z",
-          }],
-        },
-        short_answer_attempts: {
-          rows: [{
-            user_id: "student",
-            question_set_id: "set-a",
-            question_id: "q1",
-            answered_at: "2026-01-02T00:00:00Z",
-          }],
-        },
       },
       rpcs: {
+        get_adaptive_practice_candidates: candidateRpc,
         record_adaptive_selection: async () => ({ data: true, error: null }),
       },
     }).client;
@@ -183,7 +163,16 @@ describe("POST /api/practice/next", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       status: "selected",
-      question: { id: "q1", questionSetId: "set-b" },
+      question: {
+        id: "q1",
+        questionSetId: "set-b",
+        shortAnswer: { keyTerms: [] },
+      },
+    });
+    expect(candidateRpc).toHaveBeenCalledWith({
+      p_user_id: "student",
+      p_standard_id: "3.1.9-12.A",
+      p_target_kc_code: "3.1.9-12.A1",
     });
   });
 });

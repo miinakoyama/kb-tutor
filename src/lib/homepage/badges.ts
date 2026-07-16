@@ -79,13 +79,27 @@ async function fetchAttemptRows(
   supabase: SupabaseClient,
   studentUserId: string,
 ): Promise<SessionCountAttemptRow[]> {
-  const { data, error } = await supabase
-    .from("attempts")
-    .select("mode,assignment_id,answered_at")
-    .eq("user_id", studentUserId);
-  if (error || !data) return [];
+  const [multipleChoiceResult, shortAnswerResult] = await Promise.all([
+    supabase
+      .from("attempts")
+      .select("mode,assignment_id,answered_at")
+      .eq("user_id", studentUserId)
+      .eq("is_finalized", true),
+    supabase
+      .from("short_answer_attempts")
+      .select("mode,assignment_id,answered_at")
+      .eq("user_id", studentUserId),
+  ]);
 
-  return data.map((row) => ({
+  // Badge persistence is irreversible, so fail closed if either activity
+  // source is unavailable rather than evaluating an incomplete timeline.
+  if (multipleChoiceResult.error || shortAnswerResult.error) return [];
+
+  const rows = [
+    ...(multipleChoiceResult.data ?? []),
+    ...(shortAnswerResult.data ?? []),
+  ];
+  return rows.map((row) => ({
     mode: String(row.mode),
     assignmentId:
       row.assignment_id === null || row.assignment_id === undefined ? null : String(row.assignment_id),

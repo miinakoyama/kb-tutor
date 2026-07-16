@@ -11,6 +11,8 @@ function rpcRow(overrides: Record<string, unknown> = {}) {
     id: "q1",
     set_id: "set-1",
     content_version: "cv-1",
+    has_image: false,
+    has_stimulus_image: false,
     set_name: "Set One",
     set_generated_at: "2026-07-01T00:00:00Z",
     generation_model_id: "model-1",
@@ -76,6 +78,21 @@ describe("fetchStudentSelfPracticeQuestions", () => {
       questionIds: ["q3"],
       generationModelId: undefined,
       generationModelLabel: undefined,
+    });
+  });
+
+  it("maps stripped-media flags onto questions", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [rpcRow({ has_image: true, has_stimulus_image: true })],
+      error: null,
+    });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    const { questions } = await fetchStudentSelfPracticeQuestions(supabase);
+    expect(questions[0]).toMatchObject({
+      hasImage: true,
+      hasStimulusImage: true,
+      imageUrl: null,
     });
   });
 

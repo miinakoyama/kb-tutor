@@ -57,18 +57,18 @@ export function ProfileCard({
         boxShadow: "var(--assignment-card-shadow)",
       }}
     >
-      <h3 className="font-heading text-lg font-bold text-heading">Profile</h3>
+      <h3 className="font-heading text-lg font-bold text-slate-gray">Profile</h3>
 
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex items-center gap-3">
         {/* No avatar image data exists — an initials placeholder derived from
             the real display name (or a neutral icon). */}
         <div
-          className="flex h-20 w-20 items-center justify-center rounded-full"
+          className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full"
           style={{ background: "var(--assignment-calendar-nav-bg)" }}
         >
           {initials ? (
             <span
-              className="text-2xl font-bold"
+              className="text-xl font-bold"
               style={{
                 color: "var(--assignment-completed)",
                 fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
@@ -78,17 +78,17 @@ export function ProfileCard({
             </span>
           ) : (
             <UserRound
-              className="h-9 w-9"
+              className="h-8 w-8"
               style={{ color: "var(--assignment-completed)" }}
               aria-hidden="true"
             />
           )}
         </div>
 
-        <div className="text-center">
+        <div className="min-w-0">
           {profile.name && (
             <p
-              className="font-bold text-heading"
+              className="truncate font-bold text-heading"
               style={{
                 fontSize: 18,
                 fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
@@ -98,7 +98,7 @@ export function ProfileCard({
             </p>
           )}
           {profile.schoolName && (
-            <p className="mt-0.5 text-sm text-muted-foreground">
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
               {profile.schoolName}
             </p>
           )}

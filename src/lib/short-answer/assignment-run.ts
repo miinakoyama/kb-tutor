@@ -26,6 +26,26 @@ type RunFilterQuery = {
   gt: (column: string, value: string) => RunFilterQuery;
 };
 
+type QuestionSetFilterQuery = {
+  eq: (column: string, value: string) => QuestionSetFilterQuery;
+  is: (column: string, value: null) => QuestionSetFilterQuery;
+};
+
+/**
+ * Keep attempt history tied to the same generated-question identity.
+ * `generated_questions.id` is only unique within a set, while manual and
+ * legacy questions intentionally use a NULL question_set_id.
+ */
+export function applyQuestionSetFilter<T>(
+  query: T,
+  questionSetId: string | null | undefined,
+): T {
+  const filterable = query as QuestionSetFilterQuery;
+  return questionSetId
+    ? (filterable.eq("question_set_id", questionSetId) as T)
+    : (filterable.is("question_set_id", null) as T);
+}
+
 /**
  * Limit short_answer_attempts queries to the current assignment run.
  * Retry runs use answered_at > last_completed_at so prior-run rows are excluded

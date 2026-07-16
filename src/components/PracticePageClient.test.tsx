@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Question } from "@/types/question";
 import { PracticePageClient } from "./PracticePageClient";
@@ -60,7 +60,10 @@ describe("PracticePageClient adaptive scope", () => {
     ];
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   it("preserves an explicit question-id scope as fixed practice", () => {
     render(
@@ -81,5 +84,61 @@ describe("PracticePageClient adaptive scope", () => {
     expect(
       screen.getByTestId("practice-mode").getAttribute("data-adaptive-standards"),
     ).toBe("3.1.9-12.A,3.1.9-12.B");
+  });
+
+  it("blocks an unavailable assignment instead of falling back to Self Practice", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error:
+              "This assignment contains unavailable questions. Ask your teacher to check the assignment setup.",
+            code: "assignment_questions_unavailable",
+          }),
+          { status: 422, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    render(
+      <PracticePageClient
+        modeParam="practice"
+        assignmentIdParam="assignment-1"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("practice-mode")).toBeNull();
+      expect(
+        screen.getByText(/This assignment contains unavailable questions/),
+      ).toBeTruthy();
+    });
+    expect(screen.getByText("Back to Assignments")).toBeTruthy();
+  });
+
+  it("keeps a successful empty assignment response isolated from Self Practice", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ questions: [], answered: {} }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    render(
+      <PracticePageClient
+        modeParam="practice"
+        assignmentIdParam="assignment-1"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("practice-mode").getAttribute("data-question-ids"),
+      ).toBe("");
+    });
   });
 });

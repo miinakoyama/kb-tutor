@@ -12,8 +12,8 @@ import type {
   ShortAnswerItem,
   StimulusAsset,
   StimulusType,
-} from "@/types/short-answer";
-import { STANDARD_DEFINITIONS } from "@/lib/standards";
+} from "../../types/short-answer.ts";
+import { STANDARD_DEFINITIONS } from "../standards.ts";
 
 export const STIMULUS_TYPES: StimulusType[] = [
   "table",
