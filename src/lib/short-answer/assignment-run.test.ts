@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyAssignmentRunFilter } from "./assignment-run";
+import {
+  applyAssignmentRunFilter,
+  applyQuestionSetFilter,
+} from "./assignment-run";
 
 describe("applyAssignmentRunFilter", () => {
   it("filters first-run assignment attempts with IS NULL", () => {
@@ -63,5 +66,33 @@ describe("applyAssignmentRunFilter", () => {
 
     applyAssignmentRunFilter(query, null, null);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("applyQuestionSetFilter", () => {
+  function queryWithCalls(calls: string[]) {
+    const query = {
+      eq: (col: string, val: string) => {
+        calls.push(`eq:${col}=${val}`);
+        return query;
+      },
+      is: (col: string, val: null) => {
+        calls.push(`is:${col}=${String(val)}`);
+        return query;
+      },
+    };
+    return query;
+  }
+
+  it("matches the exact generated question set", () => {
+    const calls: string[] = [];
+    applyQuestionSetFilter(queryWithCalls(calls), "set-b");
+    expect(calls).toEqual(["eq:question_set_id=set-b"]);
+  });
+
+  it("keeps manual and legacy attempts in the unscoped identity", () => {
+    const calls: string[] = [];
+    applyQuestionSetFilter(queryWithCalls(calls), null);
+    expect(calls).toEqual(["is:question_set_id=null"]);
   });
 });
