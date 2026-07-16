@@ -1,6 +1,7 @@
 type DedupeCandidateRow = {
   user_id: string;
   question_id: string;
+  question_set_id?: string | null;
   mode: string | null;
   assignment_id: string | null;
   answered_at: string;
@@ -45,7 +46,12 @@ export function dedupeAssignmentExamAttempts<T extends DedupeCandidateRow>(
       return;
     }
 
-    const key = `${row.user_id}::${row.assignment_id}::${row.question_id}`;
+    const key = JSON.stringify([
+      row.user_id,
+      row.assignment_id,
+      row.question_set_id ?? null,
+      row.question_id,
+    ]);
     const answeredAtMs = toEpochMs(row.answered_at);
     const existing = latestExamRowByKey.get(key);
     if (
