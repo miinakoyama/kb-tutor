@@ -395,7 +395,7 @@ export function StudentNotesList({
             </select>
           </div>
         </div>
-        <div className="flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredNotes.map((note) => (
             <NoteRow
               key={note.questionId}
