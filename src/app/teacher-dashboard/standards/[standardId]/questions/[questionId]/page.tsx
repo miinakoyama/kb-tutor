@@ -9,6 +9,7 @@ import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import type { QuestionPreview } from "@/lib/analytics/question-preview";
 import type { ConfidenceQuadrantPercents } from "@/lib/analytics/confidence";
 import type { GradedFeedback, PartLabel } from "@/types/short-answer";
+import { formatShortAnswerAttemptTimestamp } from "@/lib/analytics/short-answer-attempt-order";
 import { badgeAmber, badgeRose } from "@/lib/ui/status-badge-styles";
 import { buttonClassNames } from "@/components/ui/Button";
 
@@ -21,6 +22,7 @@ interface QuestionDetailChoice {
 }
 
 interface ShortAnswerResponseDetail {
+  attemptId: string;
   studentId: string;
   studentLabel: string;
   partLabel: PartLabel;
@@ -377,7 +379,7 @@ function StudentResponseRow({
   onToggle: () => void;
 }) {
   const [selectedAttemptByPart, setSelectedAttemptByPart] = useState<
-    Partial<Record<PartLabel, number>>
+    Partial<Record<PartLabel, string>>
   >({});
 
   const responsesByPart = new Map<PartLabel, ShortAnswerResponseDetail[]>();
@@ -427,8 +429,13 @@ function StudentResponseRow({
       {isExpanded && (
         <div className="space-y-3 border-t border-border-subtle p-3">
           {parts.map(([partLabel, attempts]) => {
-            const selectedIndex = selectedAttemptByPart[partLabel] ?? attempts.length - 1;
-            const response = attempts[selectedIndex] ?? attempts[attempts.length - 1];
+            const latest = attempts[attempts.length - 1];
+            const selectedAttemptId =
+              selectedAttemptByPart[partLabel] ?? latest.attemptId;
+            const response =
+              attempts.find(
+                (attempt) => attempt.attemptId === selectedAttemptId,
+              ) ?? latest;
             return (
               <div key={partLabel}>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -437,18 +444,19 @@ function StudentResponseRow({
                   </p>
                   {attempts.length > 1 && (
                     <select
-                      value={selectedIndex}
+                      value={response.attemptId}
                       onChange={(event) =>
                         setSelectedAttemptByPart((prev) => ({
                           ...prev,
-                          [partLabel]: Number(event.target.value),
+                          [partLabel]: event.target.value,
                         }))
                       }
                       className="h-7 rounded-lg border border-border-default bg-surface px-2 text-xs font-medium text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
-                      {attempts.map((attempt, index) => (
-                        <option key={attempt.attemptNumber} value={index}>
-                          Attempt {attempt.attemptNumber}
+                      {attempts.map((attempt) => (
+                        <option key={attempt.attemptId} value={attempt.attemptId}>
+                          Attempt {attempt.attemptNumber} ·{" "}
+                          {formatShortAnswerAttemptTimestamp(attempt.answeredAt)}
                         </option>
                       ))}
                     </select>
@@ -463,7 +471,8 @@ function StudentResponseRow({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-gray/60">
-                      Attempt {response.attemptNumber}
+                      Attempt {response.attemptNumber} ·{" "}
+                      {formatShortAnswerAttemptTimestamp(response.answeredAt)}
                     </span>
                     <span
                       className={`text-xs font-bold ${

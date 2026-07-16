@@ -20,6 +20,7 @@ import {
   type ConfidenceQuadrantPercents,
 } from "@/lib/analytics/confidence";
 import { fetchQuestionPreviews, type QuestionPreview } from "@/lib/analytics/question-preview";
+import { compareShortAnswerAttempts } from "@/lib/analytics/short-answer-attempt-order";
 import { getStandardById } from "@/lib/standards";
 import type { GradedFeedback, PartLabel } from "@/types/short-answer";
 
@@ -57,6 +58,7 @@ export interface QuestionDetailChoice {
 }
 
 export interface ShortAnswerResponseDetail {
+  attemptId: string;
   studentId: string;
   studentLabel: string;
   partLabel: PartLabel;
@@ -96,6 +98,7 @@ export interface QuestionDetailResponse {
 }
 
 interface ShortAnswerAttemptQueryRow {
+  id: string;
   user_id: string;
   part_label: string;
   attempt_number: number;
@@ -134,7 +137,7 @@ async function fetchShortAnswerResponseDetails(
   let query = admin
     .from("short_answer_attempts")
     .select(
-      "user_id,part_label,attempt_number,response_text,score,max_score,is_correct,feedback,answered_at",
+      "id,user_id,part_label,attempt_number,response_text,score,max_score,is_correct,feedback,answered_at",
     )
     .in("user_id", params.studentIds)
     .eq("question_id", params.questionId);
@@ -159,6 +162,7 @@ async function fetchShortAnswerResponseDetails(
   const details = ((data ?? []) as ShortAnswerAttemptQueryRow[])
     .filter((row) => isPartLabel(row.part_label))
     .map((row) => ({
+      attemptId: row.id,
       studentId: row.user_id,
       studentLabel: params.studentLabelById.get(row.user_id) ?? row.user_id,
       partLabel: row.part_label as PartLabel,
@@ -170,12 +174,7 @@ async function fetchShortAnswerResponseDetails(
       feedback: parseGradedFeedback(row.feedback),
       answeredAt: row.answered_at,
     }))
-    .sort(
-      (a, b) =>
-        a.studentLabel.localeCompare(b.studentLabel) ||
-        a.partLabel.localeCompare(b.partLabel) ||
-        a.attemptNumber - b.attemptNumber,
-    );
+    .sort(compareShortAnswerAttempts);
 
   return { data: details, error: null };
 }

@@ -47,6 +47,24 @@ function toTimeSpentSec(value: unknown): number | null {
   return rounded;
 }
 
+function aggregateMeasuredTimeSpentSec(
+  rows: Array<{ time_spent_sec?: unknown }>,
+): number | null {
+  if (rows.length === 0) return null;
+
+  let total = 0;
+  for (const row of rows) {
+    if (
+      typeof row.time_spent_sec !== "number" ||
+      !Number.isFinite(row.time_spent_sec)
+    ) {
+      return null;
+    }
+    total += row.time_spent_sec;
+  }
+  return total;
+}
+
 const PART_LABELS: PartLabel[] = ["A", "B", "C"];
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -152,18 +170,18 @@ async function maybeRecordQuestionSummary(
     questionSetId: string | null;
     assignmentId: string | null | undefined;
     assignmentRunAfter: string | null;
+    sessionId: string | null;
     practiceRunAfter?: string | null;
     mode: PracticeMode;
     standardId: string;
     parts: ShortAnswerPart[];
     maxAttemptsPerPart: number;
-    timeSpentSec: number | null;
   },
 ): Promise<void> {
   let query = supabase
     .from("short_answer_attempts")
     .select(
-      "id, question_id, part_label, attempt_number, response_text, feedback, is_correct, answered_at",
+      "id, question_id, part_label, attempt_number, response_text, feedback, is_correct, answered_at, time_spent_sec",
     )
     .eq("user_id", params.userId)
     .eq("question_id", params.questionId);
@@ -177,6 +195,9 @@ async function maybeRecordQuestionSummary(
     );
   } else {
     query = query.is("assignment_id", null);
+    query = params.sessionId
+      ? query.eq("session_id", params.sessionId)
+      : query.is("session_id", null);
     if (params.practiceRunAfter) {
       query = query.gt("answered_at", params.practiceRunAfter);
     }
@@ -217,7 +238,7 @@ async function maybeRecordQuestionSummary(
     mode: params.mode,
     standard_id: params.standardId,
     answered_at: completion.latestAnsweredAt,
-    time_spent_sec: params.timeSpentSec,
+    time_spent_sec: aggregateMeasuredTimeSpentSec(rows ?? []),
   });
 }
 
@@ -531,12 +552,12 @@ export async function POST(request: Request) {
       questionSetId: body.questionSetId ?? null,
       assignmentId: body.assignmentId,
       assignmentRunAfter,
+      sessionId: body.assignmentId ? null : (body.sessionId ?? null),
       practiceRunAfter: body.assignmentId ? null : body.practiceRunAfter,
       mode: effectiveMode,
       standardId: item.blueprint.targetStandard,
       parts: item.parts,
       maxAttemptsPerPart: maxAttempts,
-      timeSpentSec: body.timeSpentSec ?? null,
     });
   }
 
