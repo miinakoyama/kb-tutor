@@ -449,9 +449,16 @@ ${diagramInstructions}${customInstructions}
 5. Ensure exactly one best answer; make all distractors plausible.
 6. Keep option length/detail balanced; avoid a noticeably longer "correct" choice.
 7. Avoid logical clues (keyword copying, converging combinations, giveaway phrasing).
-8. Avoid absolute terms (e.g., always, never, all, only) and vague frequency words unless scientifically required.
-9. Avoid negatives (NOT/EXCEPT/incorrect) unless essential for the standard.
-10. Do not use "all of the above" or "none of the above".
+8. Avoid negatives (NOT/EXCEPT/incorrect) unless essential for the standard.
+9. Do not use "all of the above" or "none of the above".
+
+## Test-Wiseness Resistance (critical)
+A test-wise student must NOT be able to eliminate any option through wording alone, without content knowledge. Apply these rules to every option set:
+1. Qualifier symmetry: absolute wording (always, never, all, none, only, must, impossible, guarantees, completely) and hedged wording (may, can, often, usually, most likely, tends to) must NOT correlate with correctness. Never write distractors that state things absolutely while the correct answer is hedged, and never make the correct answer the only hedged option.
+2. If you cannot distribute qualifiers naturally across options, remove qualifiers from ALL options instead.
+3. Every option must match the correct answer in tone, confidence, specificity, and level of detail. A distractor must sound exactly as authoritative as the key.
+4. Distractors must be wrong because of the science (a real misconception or near-miss idea), never because of how they are phrased.
+5. Elimination self-check: before outputting each question, test every distractor with this question — "Could a student with zero biology knowledge rule this out using test-taking strategy alone (absolute wording, hedging, odd tone, mismatched grammar, implausible specificity)?" If yes for ANY option, rewrite the option set.
 
 ## Output Format
 Return ONLY a valid JSON array of question objects. Do not include any explanation or markdown formatting.
