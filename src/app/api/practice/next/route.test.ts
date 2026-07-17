@@ -299,7 +299,13 @@ describe("POST /api/practice/next", () => {
     });
   });
 
-  it("tries another selected standard before reporting a single-format coverage gap", async () => {
+  it.each([
+    { label: "single-format", selectionMode: "mcq", requiredFormat: undefined },
+    { label: "mixed required-format", selectionMode: "mixed", requiredFormat: "mcq" },
+  ] as const)("tries another selected standard during $label selection", async ({
+    selectionMode,
+    requiredFormat,
+  }) => {
     state.server = createMockSupabaseClient({ user: baseUser }).client;
     const candidateRpc = vi.fn(async (args: Record<string, unknown>) => {
       const isSecondStandard = args.p_standard_id === "3.1.9-12.B";
@@ -364,7 +370,8 @@ describe("POST /api/practice/next", () => {
       method: "POST",
       body: JSON.stringify({
         standardIds: ["3.1.9-12.A", "3.1.9-12.B"],
-        selectionMode: "mcq",
+        selectionMode,
+        ...(requiredFormat ? { requiredFormat } : {}),
       }),
     }));
 

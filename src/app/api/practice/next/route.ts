@@ -191,8 +191,7 @@ export async function POST(request: Request) {
     : body.selectionMode === "open-ended"
       ? "saq"
       : body.requiredFormat;
-  const canTryAnotherTarget =
-    body.selectionMode === "mcq" || body.selectionMode === "open-ended";
+  const shouldTryAllTargets = requiredFormat !== undefined;
   const targets: TargetSelectionResult[] = [];
   let remainingKcCandidates = kcCandidates;
   while (remainingKcCandidates.length > 0) {
@@ -202,7 +201,7 @@ export async function POST(request: Request) {
     });
     if (!nextTarget) break;
     targets.push(nextTarget);
-    if (!canTryAnotherTarget) break;
+    if (!shouldTryAllTargets) break;
     const targetKcCodes = new Set(nextTarget.orderedKcCodes);
     const nextRemaining = remainingKcCandidates.filter(
       (candidate) =>
@@ -241,13 +240,13 @@ export async function POST(request: Request) {
   const primaryTarget = targets[0];
   let primaryCoverageGapKcCodes = [...primaryTarget.orderedKcCodes];
 
-  for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
-    const target = targets[targetIndex];
-    const state = rotationByStandard.get(target.standardId);
-    let targetCoverageGapKcCodes = [...target.orderedKcCodes];
-
-    for (let formatPassIndex = 0; formatPassIndex < formatPasses.length; formatPassIndex += 1) {
-      const format = formatPasses[formatPassIndex];
+  // Preserve mixed cadence by exhausting the requested format across the
+  // selected scope before considering the opposite-format fallback.
+  for (let formatPassIndex = 0; formatPassIndex < formatPasses.length; formatPassIndex += 1) {
+    const format = formatPasses[formatPassIndex];
+    for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
+      const target = targets[targetIndex];
+      const state = rotationByStandard.get(target.standardId);
       const fallbackKcCodes: string[] = [];
       for (const kcCode of target.orderedKcCodes) {
         const targetKcKey = `${target.standardId}\0${kcCode}`;
@@ -351,10 +350,9 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ status: "selected", lane: target.lane, targetKcCode: kcCode, question: { ...question, questionSetId: selected.questionSetId } }, { headers: { "Cache-Control": "no-store" } });
       }
-      targetCoverageGapKcCodes = fallbackKcCodes;
-    }
-    if (targetIndex === 0) {
-      primaryCoverageGapKcCodes = targetCoverageGapKcCodes;
+      if (targetIndex === 0) {
+        primaryCoverageGapKcCodes = fallbackKcCodes;
+      }
     }
   }
   const primaryState = rotationByStandard.get(primaryTarget.standardId);

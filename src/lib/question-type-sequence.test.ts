@@ -135,6 +135,19 @@ describe("buildMixedQuestionSequence", () => {
       .toEqual([freshLegacyQuestion]);
   });
 
+  it("uses the full all-SAQ bank before repeating after a partial batch", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const saqs = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(`saq-${i}`, "open-ended"),
+    );
+    const firstBatch = buildMixedQuestionSequence(saqs, 5);
+
+    const secondBatch = buildMixedQuestionSequence(saqs, 10, firstBatch);
+
+    expect(secondBatch).toHaveLength(10);
+    expect(new Set(secondBatch.map((question) => question.id)).size).toBe(10);
+  });
+
   it("reuses an exhausted SAQ-only bank when no MCQ fallback exists", () => {
     const saqs = Array.from({ length: 2 }, (_, i) => makeQuestion(`saq-${i}`, "open-ended"));
     const firstBatch = buildMixedQuestionSequence(saqs, 2);

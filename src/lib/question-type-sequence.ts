@@ -46,13 +46,17 @@ export function buildMixedQuestionSequence(
   const freshSaqQuestions = allSaqQuestions.filter(
     (question) => !servedSaqKeys.has(questionIdentityKey(question)),
   );
-  // An all-SAQ bank has no MCQ fallback. Once every SAQ has appeared, allow
-  // the next batch to reuse the bank so the session can continue.
-  const saqPool = shuffleArray(
-    freshSaqQuestions.length > 0 || mcqPool.length > 0
-      ? freshSaqQuestions
-      : allSaqQuestions,
-  );
+  const freshSaqPool = shuffleArray(freshSaqQuestions);
+  // An all-SAQ bank has no MCQ fallback. Serve every fresh SAQ first, then
+  // rotate through the previously served remainder before reusing the bank.
+  const saqPool = mcqPool.length > 0
+    ? freshSaqPool
+    : [
+        ...freshSaqPool,
+        ...shuffleArray(allSaqQuestions.filter(
+          (question) => servedSaqKeys.has(questionIdentityKey(question)),
+        )),
+      ];
   const extendedMcq = extendPool(mcqPool, count);
 
   const result: Question[] = [];
