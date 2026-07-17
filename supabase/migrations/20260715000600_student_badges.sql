@@ -15,9 +15,6 @@ ALTER TABLE public.student_badges ENABLE ROW LEVEL SECURITY;
 CREATE POLICY student_badges_scoped_read ON public.student_badges FOR SELECT TO authenticated
   USING (user_id = auth.uid() OR public.is_admin() OR (public.is_teacher() AND public.teacher_can_read_student_profile(user_id)));
 
-CREATE POLICY student_badges_insert_self ON public.student_badges FOR INSERT TO authenticated
-  WITH CHECK (user_id = auth.uid());
-
 REVOKE ALL ON public.student_badges FROM anon, authenticated;
-GRANT SELECT, INSERT ON public.student_badges TO authenticated;
+GRANT SELECT ON public.student_badges TO authenticated;
 GRANT ALL ON public.student_badges TO service_role;

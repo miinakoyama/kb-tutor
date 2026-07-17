@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { MigrationBootstrap } from "@/components/MigrationBootstrap";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { AllAssignmentsCompleteModalManager } from "@/components/assignments/AllAssignmentsCompleteModalManager";
+import { BadgeCelebrationModalManager } from "@/components/badges/BadgeCelebrationModalManager";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -44,6 +45,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <AllAssignmentsCompleteModalManager />
+      <BadgeCelebrationModalManager />
     </>
   );
 }
