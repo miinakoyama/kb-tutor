@@ -18,19 +18,33 @@ function extendPool(pool: Question[], minLength: number): Question[] {
 }
 
 /**
- * Builds a session-ordered list following the 3 MCQ : 1 SAQ pattern, starting
- * at the provided global session slot.
+ * Builds the next session batch following the 3 MCQ : 1 SAQ pattern.
+ * Previously served questions preserve the global cadence and exclude SAQs
+ * that have already appeared in an earlier batch.
  * SAQ questions are never repeated; once the SAQ pool is exhausted, the
  * remaining SAQ slots fall back to MCQ (which may repeat via reshuffle).
  */
 export function buildMixedQuestionSequence(
   questions: Question[],
   count: number,
-  startSlot = 0,
+  previousQuestions: readonly Question[] = [],
 ): Question[] {
   if (count <= 0) return [];
   const mcqPool = questions.filter((question) => !isShortAnswer(question));
-  const saqPool = shuffleArray(questions.filter(isShortAnswer));
+  const servedSaqIds = new Set(
+    previousQuestions.filter(isShortAnswer).map((question) => question.id),
+  );
+  const allSaqQuestions = questions.filter(isShortAnswer);
+  const freshSaqQuestions = allSaqQuestions.filter(
+    (question) => !servedSaqIds.has(question.id),
+  );
+  // An all-SAQ bank has no MCQ fallback. Once every SAQ has appeared, allow
+  // the next batch to reuse the bank so the session can continue.
+  const saqPool = shuffleArray(
+    freshSaqQuestions.length > 0 || mcqPool.length > 0
+      ? freshSaqQuestions
+      : allSaqQuestions,
+  );
   const extendedMcq = extendPool(mcqPool, count);
 
   const result: Question[] = [];
@@ -38,7 +52,7 @@ export function buildMixedQuestionSequence(
   let saqIndex = 0;
   for (let slot = 0; slot < count; slot++) {
     const wantsSaq =
-      (startSlot + slot) % MIXED_PATTERN_LENGTH === MIXED_PATTERN_LENGTH - 1;
+      (previousQuestions.length + slot) % MIXED_PATTERN_LENGTH === MIXED_PATTERN_LENGTH - 1;
     if (wantsSaq && saqIndex < saqPool.length) {
       result.push(saqPool[saqIndex]);
       saqIndex++;

@@ -988,7 +988,7 @@ export function AdaptivePracticeMode({
         setSessionQuestions((prev) => [
           ...prev,
           ...(questionTypeSelection === "mixed"
-            ? buildMixedQuestionSequence(questions, questions.length, prev.length)
+            ? buildMixedQuestionSequence(questions, questions.length, prev)
             : shuffleArray(questions)),
         ]);
         setCurrentIndex((prev) => prev + 1);

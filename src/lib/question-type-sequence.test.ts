@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildMixedQuestionSequence, requiredFormatForSelection } from "./question-type-sequence";
 import type { Question } from "@/types/question";
 
@@ -24,6 +24,10 @@ function countByType(questions: Question[]) {
 }
 
 describe("buildMixedQuestionSequence", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("follows the 3 MCQ : 1 SAQ repeating pattern when both pools are plentiful", () => {
     const mcqs = Array.from({ length: 20 }, (_, i) => makeQuestion(`mcq-${i}`, "mcq"));
     const saqs = Array.from({ length: 20 }, (_, i) => makeQuestion(`saq-${i}`, "open-ended"));
@@ -65,11 +69,42 @@ describe("buildMixedQuestionSequence", () => {
     const mcqs = Array.from({ length: 20 }, (_, i) => makeQuestion(`mcq-${i}`, "mcq"));
     const saqs = Array.from({ length: 20 }, (_, i) => makeQuestion(`saq-${i}`, "open-ended"));
     const firstBatch = buildMixedQuestionSequence([...mcqs, ...saqs], 10);
-    const secondBatch = buildMixedQuestionSequence([...mcqs, ...saqs], 10, firstBatch.length);
+    const secondBatch = buildMixedQuestionSequence([...mcqs, ...saqs], 10, firstBatch);
 
     [...firstBatch, ...secondBatch].forEach((question, index) => {
       expect(question.questionType === "open-ended").toBe(index % 4 === 3);
     });
+  });
+
+  it("does not repeat SAQs when appending a mixed batch", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const mcqs = Array.from({ length: 10 }, (_, i) => makeQuestion(`mcq-${i}`, "mcq"));
+    const saqs = Array.from({ length: 10 }, (_, i) => makeQuestion(`saq-${i}`, "open-ended"));
+    const bank = [...mcqs, ...saqs];
+
+    const firstBatch = buildMixedQuestionSequence(bank, 20);
+    const secondBatch = buildMixedQuestionSequence(bank, 20, firstBatch);
+    const firstSaqIds = firstBatch
+      .filter((question) => question.questionType === "open-ended")
+      .map((question) => question.id);
+    const secondSaqIds = secondBatch
+      .filter((question) => question.questionType === "open-ended")
+      .map((question) => question.id);
+
+    expect(firstSaqIds).toHaveLength(5);
+    expect(secondSaqIds).toHaveLength(5);
+    expect(new Set([...firstSaqIds, ...secondSaqIds]).size).toBe(10);
+  });
+
+  it("reuses an exhausted SAQ-only bank when no MCQ fallback exists", () => {
+    const saqs = Array.from({ length: 2 }, (_, i) => makeQuestion(`saq-${i}`, "open-ended"));
+    const firstBatch = buildMixedQuestionSequence(saqs, 2);
+    const secondBatch = buildMixedQuestionSequence(saqs, 2, firstBatch);
+
+    expect(firstBatch).toHaveLength(2);
+    expect(secondBatch).toHaveLength(2);
+    expect(new Set(firstBatch.map((question) => question.id)).size).toBe(2);
+    expect(new Set(secondBatch.map((question) => question.id)).size).toBe(2);
   });
 
   it("returns an empty array for a non-positive count", () => {
