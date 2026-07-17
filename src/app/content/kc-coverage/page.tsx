@@ -223,7 +223,7 @@ export default function KcCoveragePage() {
   const tabs: View[] = ["coverage", "runs", "exceptions"];
 
   return (
-    <main className="mx-auto w-full px-4 pb-16 pt-6 sm:px-6 sm:pt-8 lg:px-10" style={{ maxWidth: 1180 }}>
+    <main className="mx-auto w-full px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12" style={{ maxWidth: 1500 }}>
       {/* Header */}
       <header className="mb-7">
         <Link
