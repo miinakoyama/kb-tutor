@@ -233,23 +233,18 @@ export function StudentAssignmentsList({
         </div>
 
         {/* Right rail */}
-        {assignments.length > 0 && (
-          <>
-            {/* Column divider */}
-            <div
-              className="hidden xl:block self-stretch"
-              style={{
-                background: "var(--border-subtle)",
-                transform: "translateX(-12px)",
-              }}
-              aria-hidden="true"
-            />
+        <div
+          className="hidden self-stretch xl:block"
+          style={{
+            background: "var(--border-subtle)",
+            transform: "translateX(-12px)",
+          }}
+          aria-hidden="true"
+        />
 
-            <div className="w-full max-w-full xl:sticky xl:top-8 xl:self-start">
-              <ThisWeekSidebar assignments={assignments} />
-            </div>
-          </>
-        )}
+        <div className="w-full max-w-full xl:sticky xl:top-8 xl:self-start">
+          <ThisWeekSidebar assignments={assignments} />
+        </div>
       </div>
     </main>
   );
