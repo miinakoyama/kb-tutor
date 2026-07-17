@@ -17,6 +17,8 @@ Returns one server-selected question for Self Practice. Exam, Review, and assign
 {
   "sessionId": "uuid-or-null",
   "standardIds": ["3.1.9-12.A", "3.1.9-12.C"],
+  "selectionMode": "mixed",
+  "requiredFormat": "mcq",
   "previousSelectionId": "uuid-or-null"
 }
 ```
@@ -25,6 +27,11 @@ Validation:
 
 - `standardIds`: 1..24 unique active standard IDs, preserving planner order.
 - `sessionId`: optional analytics session owned by the caller.
+- `selectionMode`: optional Self Practice format choice: `mcq`, `open-ended`, or `mixed`.
+- `requiredFormat`: current adaptive slot format (`mcq` or `saq`). It is a hard
+  constraint for single-format modes. Mixed mode tries it across the target KC
+  order first, then tries the opposite format before reporting a coverage gap;
+  it is required when `selectionMode` is `mixed`.
 - `previousSelectionId`: optional prior selection owned by caller; diagnostic continuity only, not authority.
 - Unknown fields ignored or rejected consistently with existing route style; malformed input returns `400`.
 
@@ -98,4 +105,3 @@ Reasons: `coverage_gap`, `no_enabled_standard`, or `no_accessible_question`. Mes
 - No per-KC/per-question N+1 query.
 - p95 target <=500ms.
 - Response is `Cache-Control: no-store`.
-

@@ -89,7 +89,7 @@ export function QuestionDisplay({
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.2 }}
         className={`border ${
-          compactLayout
+          compact
             ? "rounded-2xl p-4 sm:p-5"
             : "rounded-[24px] p-5 sm:p-8 lg:p-10"
         }`}

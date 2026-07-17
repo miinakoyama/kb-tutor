@@ -61,6 +61,17 @@ describe("buildMixedQuestionSequence", () => {
     expect(sequence[11].questionType).not.toBe("open-ended");
   });
 
+  it("continues the mixed cadence from a prior batch", () => {
+    const mcqs = Array.from({ length: 20 }, (_, i) => makeQuestion(`mcq-${i}`, "mcq"));
+    const saqs = Array.from({ length: 20 }, (_, i) => makeQuestion(`saq-${i}`, "open-ended"));
+    const firstBatch = buildMixedQuestionSequence([...mcqs, ...saqs], 10);
+    const secondBatch = buildMixedQuestionSequence([...mcqs, ...saqs], 10, firstBatch.length);
+
+    [...firstBatch, ...secondBatch].forEach((question, index) => {
+      expect(question.questionType === "open-ended").toBe(index % 4 === 3);
+    });
+  });
+
   it("returns an empty array for a non-positive count", () => {
     expect(buildMixedQuestionSequence([makeQuestion("a", "mcq")], 0)).toEqual([]);
   });
