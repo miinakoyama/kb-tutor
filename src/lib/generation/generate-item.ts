@@ -53,7 +53,61 @@ export function buildShortAnswerQuestion(
 
 export type GeneratedItemResult =
   | { ok: true; questions: Question[]; modelId?: string; modelLabel?: string }
-  | { ok: false; error: string };
+  /**
+   * `transient` marks failures worth retrying: dropped connections and
+   * gateway/auth-refresh hiccups (middleware timeouts surface as either),
+   * as opposed to the model itself rejecting the request.
+   */
+  | { ok: false; error: string; transient: boolean };
+
+// 401/403 appear when concurrent requests race a Supabase token refresh in
+// middleware; the session usually recovers on the next attempt.
+const TRANSIENT_HTTP_STATUSES = new Set([401, 403, 408, 425, 429, 500, 502, 503, 504]);
+
+function isTransientStatus(status: number): boolean {
+  return TRANSIENT_HTTP_STATUSES.has(status);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Retry a generation call while it fails transiently. Waits 2s then 6s
+ * (plus jitter) between attempts so a middleware timeout or token-refresh
+ * race has time to clear.
+ */
+export async function generateItemWithRetry(
+  run: () => Promise<GeneratedItemResult>,
+  attempts = 3,
+): Promise<GeneratedItemResult> {
+  let result = await run();
+  for (let attempt = 1; attempt < attempts && !result.ok && result.transient; attempt++) {
+    await sleep(2000 * (2 * attempt - 1) + Math.random() * 500);
+    result = await run();
+  }
+  return result;
+}
+
+/**
+ * Retry a throwing async operation (e.g. a Supabase write) with backoff.
+ * Only use for idempotent operations such as upserts.
+ */
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await sleep(2000 * (2 * attempt - 1) + Math.random() * 500);
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
 
 export interface GenerateMcqItemParams {
   standardId: string;
@@ -98,7 +152,11 @@ export async function generateMcqItem(
     });
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: data.error ?? String(response.status) };
+      return {
+        ok: false,
+        error: data.error ?? String(response.status),
+        transient: isTransientStatus(response.status),
+      };
     }
     const data = (await response.json()) as {
       questions: Question[];
@@ -112,7 +170,7 @@ export async function generateMcqItem(
       modelLabel: data.generationModelLabel,
     };
   } catch {
-    return { ok: false, error: "network error" };
+    return { ok: false, error: "network error", transient: true };
   }
 }
 
@@ -151,7 +209,7 @@ export async function generateSaqItem(
         data.stage != null
           ? `${data.error ?? response.status} (stage: ${data.stage})`
           : (data.error ?? String(response.status));
-      return { ok: false, error: detail };
+      return { ok: false, error: detail, transient: isTransientStatus(response.status) };
     }
     const { item } = (await response.json()) as { item: ShortAnswerItem };
     return {
@@ -159,7 +217,7 @@ export async function generateSaqItem(
       questions: [buildShortAnswerQuestion(item, params.standardId, params.questionId)],
     };
   } catch {
-    return { ok: false, error: "network error" };
+    return { ok: false, error: "network error", transient: true };
   }
 }
 

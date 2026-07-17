@@ -129,21 +129,25 @@ export async function addGeneratedQuestionSet(
     throw new Error(setErr.message);
   }
 
-  const { error: qErr } = await supabase.from("generated_questions").upsert(
-    questions.map((raw) => {
-      const q = withStandard(raw);
-      return {
-        id: q.id,
-        set_id: setId,
-        payload: persistedPayloadForQuestion(q),
-        is_visible: true,
-        include_in_self_practice: q.includeInSelfPractice === true,
-      };
-    }),
-  );
+  // An empty list is valid: callers that persist incrementally create the set
+  // shell (+ links) first and append questions as they are produced.
+  if (questions.length > 0) {
+    const { error: qErr } = await supabase.from("generated_questions").upsert(
+      questions.map((raw) => {
+        const q = withStandard(raw);
+        return {
+          id: q.id,
+          set_id: setId,
+          payload: persistedPayloadForQuestion(q),
+          is_visible: true,
+          include_in_self_practice: q.includeInSelfPractice === true,
+        };
+      }),
+    );
 
-  if (qErr) {
-    throw new Error(qErr.message);
+    if (qErr) {
+      throw new Error(qErr.message);
+    }
   }
 
   if (schoolLinks && schoolLinks.length > 0) {
@@ -158,6 +162,36 @@ export async function addGeneratedQuestionSet(
   }
 
   return setId;
+}
+
+/**
+ * Append questions to an existing generated set. Upsert keyed on id, so
+ * retrying a failed batch is safe.
+ */
+export async function appendQuestionsToGeneratedSet(
+  setId: string,
+  questions: Question[],
+): Promise<void> {
+  if (questions.length === 0) return;
+  if (!canUseRemoteDb()) {
+    throw new Error("Supabase is not configured; cannot save question sets.");
+  }
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("generated_questions").upsert(
+    questions.map((raw) => {
+      const q = withStandard(raw);
+      return {
+        id: q.id,
+        set_id: setId,
+        payload: persistedPayloadForQuestion(q),
+        is_visible: true,
+        include_in_self_practice: q.includeInSelfPractice === true,
+      };
+    }),
+  );
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function getAllGeneratedQuestionSets(): Promise<{
