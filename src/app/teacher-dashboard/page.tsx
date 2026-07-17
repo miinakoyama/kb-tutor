@@ -387,7 +387,7 @@ function TeacherDashboardContent() {
           label="Active Students"
           value={`${data.summary.completionRate}%`}
           helper={activeStudentsHelper(data.summary, mode)}
-          accentClass="text-primary"
+          accentClass="text-[var(--assignment-completed)]"
           info={
             <>
               Calculated as{" "}
@@ -445,7 +445,7 @@ function TeacherDashboardContent() {
         />
           </section>
 
-          <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm mb-6">
+          <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] mb-6">
         <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-gray">
@@ -543,7 +543,7 @@ function TeacherDashboardContent() {
                             {group.module && (
                               <span
                                 title={MODULE_TITLES[group.module]}
-                                className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                                className="rounded-full border border-[var(--assignment-glass-border)] bg-[var(--assignment-calendar-nav-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--assignment-completed)]"
                               >
                                 Module {group.module}
                               </span>
@@ -563,7 +563,7 @@ function TeacherDashboardContent() {
                                 `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`,
                               )
                             }
-                            className="cursor-pointer border-t border-border-subtle hover:bg-primary/5"
+                            className="cursor-pointer border-t border-border-subtle hover:bg-[var(--surface-muted)]"
                           >
                             <td className="px-5 py-3">
                               <Link
@@ -648,7 +648,7 @@ function TeacherDashboardContent() {
         </div>
           </section>
 
-          <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm">
+          <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)]">
         <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-gray">
@@ -753,7 +753,7 @@ function TeacherDashboardContent() {
                         `/teacher-dashboard/students/${encodeURIComponent(row.studentId)}?${standardDetailQuery}`,
                       )
                     }
-                    className="cursor-pointer border-t border-border-subtle hover:bg-primary/5"
+                    className="cursor-pointer border-t border-border-subtle hover:bg-[var(--surface-muted)]"
                   >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
@@ -862,7 +862,7 @@ function FiltersBar(props: {
   onSourceChange: (value: SourceKey) => void;
 }) {
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-4 sm:p-5 shadow-[var(--assignment-card-shadow)] mb-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <FilterSelect
           label="Topic"
@@ -949,7 +949,7 @@ function FilterSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 px-3 py-2 text-sm text-slate-gray"
       >
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map((option) => (
@@ -1059,7 +1059,7 @@ function StudentSearchFilter({
             }
           }}
           placeholder="Search students"
-          className="h-[38px] w-full rounded-lg border border-border-default bg-surface px-9 py-2 text-sm text-slate-gray placeholder:text-slate-gray/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="h-[38px] w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 px-9 py-2 text-sm text-slate-gray placeholder:text-slate-gray/40"
           role="combobox"
           aria-expanded={isOpen}
           aria-controls={listboxId}
@@ -1088,7 +1088,7 @@ function StudentSearchFilter({
             aria-selected={!value}
             onMouseDown={(event) => event.preventDefault()}
             onClick={clearStudent}
-            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-gray hover:bg-primary/5"
+            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-gray hover:bg-[var(--surface-muted)]"
           >
             <span>All students</span>
             {!value && (
@@ -1105,7 +1105,7 @@ function StudentSearchFilter({
               aria-selected={student.id === value}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectStudent(student)}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-gray hover:bg-primary/5"
+              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-gray hover:bg-[var(--surface-muted)]"
             >
               <span className="truncate">{student.label}</span>
               {student.id === value && (
@@ -1203,7 +1203,7 @@ function ModeTabs({
                   id="mode-guide-title"
                   className="flex items-center gap-2 text-base font-semibold text-slate-gray"
                 >
-                  <Info className="h-4 w-4 text-primary" />
+                  <Info className="h-4 w-4 text-[var(--assignment-completed)]" />
                   Mode guide
                 </h2>
               </div>
@@ -1216,14 +1216,14 @@ function ModeTabs({
               {LEARNING_MODE_TABS.map((tab) => (
                 <div
                   key={tab.value}
-                  className="border-l-2 border-primary py-3 pl-4 first:pt-0 last:pb-0 [&+&]:mt-3 [&+&]:border-t [&+&]:border-t-slate-100"
+                  className="border-l-2 border-[var(--assignment-completed)] py-3 pl-4 first:pt-0 last:pb-0 [&+&]:mt-3 [&+&]:border-t [&+&]:border-t-border-subtle"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-slate-gray">
                       {tab.label}
                     </p>
                     {tab.value === value && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      <span className="rounded-full bg-[var(--assignment-calendar-nav-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--assignment-completed)]">
                         Current
                       </span>
                     )}
@@ -1258,7 +1258,7 @@ function KpiCard({
   info?: ReactNode;
 }) {
   return (
-    <article className="rounded-2xl border border-primary/20 bg-surface p-4 sm:p-6 shadow-sm">
+    <article className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-4 sm:p-6 shadow-[var(--assignment-card-shadow)]">
       <div className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
         {label}
         {info && (
@@ -1284,7 +1284,7 @@ function ModeAccuracyCard({
   const toneClass = (accuracy: number, hasAttempts: boolean) =>
     hasAttempts ? accuracyToneClass(accuracy, thresholds) : "text-slate-gray/40";
   return (
-    <article className="rounded-2xl border border-primary/20 bg-surface p-4 sm:p-6 shadow-sm">
+    <article className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-4 sm:p-6 shadow-[var(--assignment-card-shadow)]">
       <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
         Accuracy by Mode
         <InfoPopover
@@ -1369,7 +1369,7 @@ function StudentBreakdownCard({
     },
   ];
   return (
-    <article className="rounded-2xl border border-primary/20 bg-surface p-4 sm:p-6 shadow-sm">
+    <article className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-4 sm:p-6 shadow-[var(--assignment-card-shadow)]">
       <div className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
         Student Breakdown
         <InfoPopover
@@ -1477,7 +1477,7 @@ function StatusFilterSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 min-w-44 rounded-lg border border-border-default bg-surface px-3 text-sm font-medium text-slate-gray shadow-sm transition-colors hover:border-primary/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        className="h-9 min-w-44 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 px-3 text-sm font-medium text-slate-gray transition-colors"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

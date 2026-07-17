@@ -161,7 +161,7 @@ export default function StandardDetailPage() {
 
       <StandardHero standardId={standardId} data={data} thresholds={thresholds} />
 
-      <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6 mb-6">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-5 sm:p-6 mb-6">
         <button
           type="button"
           onClick={() => setMcqExpanded((prev) => !prev)}
@@ -208,7 +208,7 @@ export default function StandardDetailPage() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-5 sm:p-6">
         <button
           type="button"
           onClick={() => setSaqExpanded((prev) => !prev)}
@@ -284,10 +284,10 @@ function StandardHero({
   const hasSaqActivity = data.shortAnswerQuestions.length > 0;
 
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm mb-6">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)] mb-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--assignment-completed)]">
             {data.standard?.category ?? "Standard"}
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">
@@ -379,9 +379,9 @@ function QuestionCard({
   const accuracyLabel = question.practiceFirstAttempt ? "1st attempt" : "Accuracy";
 
   return (
-    <article className="rounded-xl border border-border-subtle bg-surface p-4 transition-shadow hover:shadow-md">
+    <article className="rounded-xl border border-border-subtle bg-surface p-4 transition-shadow hover:shadow-[var(--assignment-elevated-shadow)]">
       <div className="mb-3 flex items-start gap-2.5">
-        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary/10 px-1.5 text-xs font-bold text-primary">
+        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--assignment-calendar-nav-bg)] px-1.5 text-xs font-bold text-[var(--assignment-completed)]">
           Q{index + 1}
         </span>
         <p className="flex-1 text-sm text-slate-gray">
@@ -398,9 +398,9 @@ function QuestionCard({
         <span className="w-16 flex-shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-gray/50">
           {accuracyLabel}
         </span>
-        <div className="h-2 flex-1 max-w-[220px] overflow-hidden rounded-full border border-border-subtle bg-primary-light">
+        <div className="h-2 flex-1 max-w-[220px] overflow-hidden rounded-full border border-border-subtle bg-[var(--surface-muted)]">
           <div
-            className="h-full rounded-full bg-primary"
+            className="h-full rounded-full bg-[var(--assignment-progress-fill)]"
             style={{ width: `${accuracyToShow.accuracy}%` }}
           />
         </div>

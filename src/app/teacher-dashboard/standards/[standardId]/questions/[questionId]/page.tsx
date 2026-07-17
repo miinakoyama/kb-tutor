@@ -152,12 +152,12 @@ export default function QuestionDetailPage() {
         ]}
       />
 
-      <section className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm mb-6">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)] mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">
           {qIndex && qTotal ? `Question ${qIndex} of ${qTotal}` : "Question detail"}
         </h1>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+          <span className="rounded-full bg-[var(--assignment-calendar-nav-bg)] px-2 py-0.5 text-[var(--assignment-completed)]">
             {isShortAnswer ? "Short answer" : "MCQ"}
           </span>
           <span className="text-slate-gray/60">{data.standard?.id ?? standardId}</span>
@@ -229,7 +229,7 @@ function ChoiceBreakdown({ data, isLoading }: { data: QuestionDetailResponse; is
   })();
 
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6 mb-6">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-5 sm:p-6 mb-6">
       <h2 className="text-lg font-semibold text-slate-gray mb-1">Answer choices</h2>
       <p className="text-xs text-slate-gray/60 mb-4">
         Based on each student&apos;s most recent attempt. {data.totalStudents} student
@@ -245,18 +245,18 @@ function ChoiceBreakdown({ data, isLoading }: { data: QuestionDetailResponse; is
             const isMostCommonWrong = choice.id === mostCommonWrongId;
             const label = String.fromCharCode(65 + index);
             const rowClass = choice.isCorrect
-              ? "border-primary/40 bg-primary-light"
+              ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)]"
               : isMostCommonWrong
                 ? "border-rose-100 bg-rose-50 dark:border-rose-800/35 dark:bg-rose-950/40"
                 : "border-border-subtle bg-surface";
             const barColor = choice.isCorrect
-              ? "bg-primary"
+              ? "bg-[var(--assignment-completed)]"
               : isMostCommonWrong
                 ? "bg-rose-500"
                 : "bg-slate-300";
             const badgeClass = choice.isCorrect
-              ? "bg-primary text-white"
-              : "border border-primary/30 bg-surface text-slate-gray";
+              ? "bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)]"
+              : "border border-[var(--assignment-glass-border)] bg-[var(--surface)] text-slate-gray";
             const percentClass = choice.isCorrect
               ? "text-forest"
               : isMostCommonWrong
@@ -331,7 +331,7 @@ function ShortAnswerResponses({
     : studentGroups;
 
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6 mb-6">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-5 sm:p-6 mb-6">
       <h2 className="text-lg font-semibold text-slate-gray mb-1">Student responses</h2>
       <p className="text-xs text-slate-gray/60 mb-4">
         Every attempt per part, with AI feedback. Click a student to expand.
@@ -344,7 +344,7 @@ function ShortAnswerResponses({
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search by student name or response text"
-            className="h-9 w-full rounded-lg border border-border-default bg-surface px-9 py-2 text-sm text-slate-gray placeholder:text-slate-gray/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-9 w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-9 py-2 text-sm text-slate-gray placeholder:text-slate-gray/40 focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>
       )}
@@ -459,7 +459,7 @@ function StudentResponseRow({
                           [partLabel]: event.target.value,
                         }))
                       }
-                      className="h-7 rounded-lg border border-border-default bg-surface px-2 text-xs font-medium text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="h-7 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-2 text-xs font-medium text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/40"
                     >
                       {attempts.map((attempt) => (
                         <option key={attempt.attemptId} value={attempt.attemptId}>
@@ -473,7 +473,7 @@ function StudentResponseRow({
                 <div
                   className={`rounded-lg border p-3 ${
                     response.isCorrect
-                      ? "border-primary/40 bg-primary-light"
+                      ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)]"
                       : "border-border-subtle bg-surface-muted/60"
                   }`}
                 >
@@ -517,7 +517,7 @@ function StudentResponseRow({
 
 function ConfidenceGrid({ confidence }: { confidence: ConfidenceQuadrantPercents }) {
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-5 sm:p-6">
       <h2 className="text-lg font-semibold text-slate-gray mb-1">
         Confidence check — student self-assessment
       </h2>
@@ -535,7 +535,7 @@ function ConfidenceGrid({ confidence }: { confidence: ConfidenceQuadrantPercents
             value={confidence.mastery}
             label="Genuine mastery"
             sublabel="High confidence + Correct"
-            className="bg-primary-light text-heading"
+            className="bg-[var(--assignment-calendar-nav-bg)] text-heading"
           />
           <ConfidenceCell
             value={confidence.misconception}
