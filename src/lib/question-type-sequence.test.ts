@@ -2,9 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildMixedQuestionSequence, requiredFormatForSelection } from "./question-type-sequence";
 import type { Question } from "@/types/question";
 
-function makeQuestion(id: string, questionType: "mcq" | "open-ended"): Question {
+function makeQuestion(
+  id: string,
+  questionType: "mcq" | "open-ended",
+  questionSetId?: string,
+): Question {
   return {
     id,
+    questionSetId,
     module: 1,
     topic: "Test",
     text: `Question ${id}`,
@@ -94,6 +99,40 @@ describe("buildMixedQuestionSequence", () => {
     expect(firstSaqIds).toHaveLength(5);
     expect(secondSaqIds).toHaveLength(5);
     expect(new Set([...firstSaqIds, ...secondSaqIds]).size).toBe(10);
+  });
+
+  it("treats matching SAQ ids from different question sets as distinct", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const mcqs = Array.from({ length: 4 }, (_, i) => makeQuestion(`mcq-${i}`, "mcq"));
+    const setAQuestion = makeQuestion("shared-saq", "open-ended", "set-a");
+    const setBQuestion = makeQuestion("shared-saq", "open-ended", "set-b");
+    const previousQuestions = [mcqs[0], mcqs[1], mcqs[2], setAQuestion];
+
+    const nextBatch = buildMixedQuestionSequence(
+      [...mcqs, setAQuestion, setBQuestion],
+      4,
+      previousQuestions,
+    );
+
+    expect(nextBatch.filter((question) => question.questionType === "open-ended"))
+      .toEqual([setBQuestion]);
+  });
+
+  it("continues to deduplicate legacy SAQs by id", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const mcqs = Array.from({ length: 4 }, (_, i) => makeQuestion(`mcq-${i}`, "mcq"));
+    const servedLegacyQuestion = makeQuestion("served-legacy-saq", "open-ended");
+    const freshLegacyQuestion = makeQuestion("fresh-legacy-saq", "open-ended");
+    const previousQuestions = [mcqs[0], mcqs[1], mcqs[2], servedLegacyQuestion];
+
+    const nextBatch = buildMixedQuestionSequence(
+      [...mcqs, servedLegacyQuestion, freshLegacyQuestion],
+      4,
+      previousQuestions,
+    );
+
+    expect(nextBatch.filter((question) => question.questionType === "open-ended"))
+      .toEqual([freshLegacyQuestion]);
   });
 
   it("reuses an exhausted SAQ-only bank when no MCQ fallback exists", () => {

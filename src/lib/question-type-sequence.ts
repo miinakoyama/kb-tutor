@@ -8,6 +8,14 @@ function isShortAnswer(question: Question): boolean {
   return question.questionType === "open-ended";
 }
 
+function questionIdentityKey(
+  question: Pick<Question, "id" | "questionSetId">,
+): string {
+  return question.questionSetId
+    ? `scoped:${JSON.stringify([question.questionSetId, question.id])}`
+    : `legacy:${question.id}`;
+}
+
 function extendPool(pool: Question[], minLength: number): Question[] {
   if (pool.length === 0) return [];
   let extended = shuffleArray(pool);
@@ -31,12 +39,12 @@ export function buildMixedQuestionSequence(
 ): Question[] {
   if (count <= 0) return [];
   const mcqPool = questions.filter((question) => !isShortAnswer(question));
-  const servedSaqIds = new Set(
-    previousQuestions.filter(isShortAnswer).map((question) => question.id),
+  const servedSaqKeys = new Set(
+    previousQuestions.filter(isShortAnswer).map(questionIdentityKey),
   );
   const allSaqQuestions = questions.filter(isShortAnswer);
   const freshSaqQuestions = allSaqQuestions.filter(
-    (question) => !servedSaqIds.has(question.id),
+    (question) => !servedSaqKeys.has(questionIdentityKey(question)),
   );
   // An all-SAQ bank has no MCQ fallback. Once every SAQ has appeared, allow
   // the next batch to reuse the bank so the session can continue.
