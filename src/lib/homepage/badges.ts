@@ -11,6 +11,8 @@ export interface BadgeSyncResult {
   newlyEarned: BadgeDefinition[];
 }
 
+const ATTEMPT_PAGE_SIZE = 1000;
+
 /**
  * Computes the student's currently-earned badges, persists any newly-earned
  * ones to `student_badges` (idempotent upsert), and returns the full catalog
@@ -86,23 +88,39 @@ async function fetchAttemptRows(
   // `attempts` contains both finalized MCQ responses and one SAQ summary row
   // written only after every part is resolved. Per-part short_answer_attempts
   // are intentionally excluded because they can represent abandoned work.
-  const result = await supabase
-    .from("attempts")
-    .select("mode,assignment_id,answered_at")
-    .eq("user_id", studentUserId)
-    .eq("is_finalized", true)
-    .eq("question_completed", true);
+  const rows: SessionCountAttemptRow[] = [];
 
-  // Badge persistence is irreversible, so fail closed if the authoritative
-  // completed-activity source is unavailable.
-  if (result.error) return [];
+  for (let from = 0; ; from += ATTEMPT_PAGE_SIZE) {
+    const result = await supabase
+      .from("attempts")
+      .select("id,mode,assignment_id,answered_at")
+      .eq("user_id", studentUserId)
+      .eq("is_finalized", true)
+      .eq("question_completed", true)
+      .order("answered_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + ATTEMPT_PAGE_SIZE - 1);
 
-  return (result.data ?? []).map((row) => ({
-    mode: String(row.mode),
-    assignmentId:
-      row.assignment_id === null || row.assignment_id === undefined ? null : String(row.assignment_id),
-    answeredAt: String(row.answered_at),
-  }));
+    // Badge persistence is irreversible, so fail closed instead of
+    // evaluating an incomplete history when any page cannot be loaded.
+    if (result.error) return [];
+
+    const page = result.data ?? [];
+    rows.push(
+      ...page.map((row) => ({
+        mode: String(row.mode),
+        assignmentId:
+          row.assignment_id === null || row.assignment_id === undefined
+            ? null
+            : String(row.assignment_id),
+        answeredAt: String(row.answered_at),
+      })),
+    );
+
+    if (page.length < ATTEMPT_PAGE_SIZE) break;
+  }
+
+  return rows;
 }
 
 async function fetchMasteredKcCodes(

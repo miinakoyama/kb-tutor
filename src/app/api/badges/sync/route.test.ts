@@ -148,6 +148,58 @@ describe("POST /api/badges/sync", () => {
     expect(mockServer.tables.student_badges.rows).toEqual([]);
   });
 
+  it("pages through the complete finalized attempt history", async () => {
+    const practiceAttempts = Array.from({ length: 1000 }, (_, index) => ({
+      id: `attempt-${String(index).padStart(4, "0")}`,
+      user_id: "student-1",
+      mode: "practice",
+      assignment_id: null,
+      is_finalized: true,
+      question_completed: true,
+      answered_at: "2026-01-01T10:00:00.000Z",
+    }));
+    const mockServer = createMockSupabaseClient({
+      user: USER,
+      tables: {
+        attempts: {
+          rows: [
+            ...practiceAttempts,
+            {
+              id: "attempt-1000",
+              user_id: "student-1",
+              mode: "exam",
+              assignment_id: "assignment-1",
+              is_finalized: true,
+              question_completed: true,
+              answered_at: "2026-01-02T10:00:00.000Z",
+            },
+          ],
+        },
+        student_badges: { rows: [] },
+      },
+    });
+    const mockAdmin = createMockSupabaseClient({
+      tables: {
+        student_kc_mastery: { rows: [] },
+        student_badges: { rows: [] },
+      },
+    });
+    state.server = mockServer.client;
+    state.admin = mockAdmin.client;
+
+    const response = await POST();
+    const body = (await response.json()) as {
+      newlyEarned: Array<{ id: string }>;
+    };
+    const attemptQueryCalls = vi
+      .mocked(mockServer.client.from)
+      .mock.calls.filter(([table]) => table === "attempts");
+
+    expect(response.status).toBe(200);
+    expect(attemptQueryCalls).toHaveLength(2);
+    expect(body.newlyEarned.map((badge) => badge.id)).toContain("first_exam");
+  });
+
   it("awards activity badges from a completed short-answer summary", async () => {
     const mockServer = createMockSupabaseClient({
       user: USER,

@@ -142,7 +142,6 @@ export function getTourTargetIdForHref(
 ): TourTargetId | undefined {
   if (href === "/") return TOUR_TARGET_IDS.HOME;
   if (href === "/self-practice") return TOUR_TARGET_IDS.SELF_PRACTICE;
-  if (href === "/progress") return TOUR_TARGET_IDS.PROGRESS;
   if (href === "/bookmarks") return TOUR_TARGET_IDS.REVIEW;
 
   if (href === "/assignments") return TOUR_TARGET_IDS.STUDENT_ASSIGNMENTS;
