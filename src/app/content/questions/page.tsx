@@ -5,18 +5,22 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ChevronRight,
+  Link2,
   Search,
   Trash2,
   Plus,
   Sparkles,
   FileText,
   Loader2,
+  X,
 } from "lucide-react";
 import type { QuestionSet, QuestionSource } from "@/types/question";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   deleteSchoolQuestionSetLink,
+  upsertSchoolQuestionSetLinks,
 } from "@/lib/school-generated-questions";
+import { assertSetNameUniqueForSchools } from "@/lib/generated-set-naming";
 import { deleteGeneratedQuestionSet } from "@/lib/question-storage";
 
 type SchoolOption = { id: string; name: string };
@@ -30,6 +34,13 @@ type QuestionManagerRow = {
   creatorUserId: string;
   creatorName: string;
   ownedByRequester: boolean;
+};
+
+type LinkCandidate = {
+  id: string;
+  name: string;
+  generatedAt: string;
+  generationModelLabel?: string;
 };
 
 function isManualQuestionSet(row: QuestionManagerRow): boolean {
@@ -47,6 +58,12 @@ export default function QuestionsPage() {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [onlyMySets, setOnlyMySets] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkCandidates, setLinkCandidates] = useState<LinkCandidate[] | null>(null);
+  const [linkSelected, setLinkSelected] = useState<Record<string, boolean>>({});
+  const [linkSearch, setLinkSearch] = useState("");
+  const [linking, setLinking] = useState(false);
+  const [linkErrors, setLinkErrors] = useState<string[]>([]);
 
   const loadSchools = useCallback(async () => {
     setLoadingSchools(true);
@@ -136,6 +153,90 @@ export default function QuestionsPage() {
     const q = searchQuery.toLowerCase();
     return base.filter((s) => s.name.toLowerCase().includes(q));
   }, [questionSetList, searchQuery, onlyMySets, rowBySetId]);
+
+  const openLinkModal = async () => {
+    setAddMenuOpen(false);
+    setLinkModalOpen(true);
+    setLinkCandidates(null);
+    setLinkSelected({});
+    setLinkSearch("");
+    setLinkErrors([]);
+    const supabase = getSupabaseBrowserClient();
+    const { data, error: fetchErr } = await supabase
+      .from("generated_question_sets")
+      .select("id,name,generated_at,generation_model_label")
+      .order("generated_at", { ascending: false });
+    if (fetchErr) {
+      setLinkErrors([fetchErr.message]);
+      setLinkCandidates([]);
+      return;
+    }
+    const linkedIds = new Set(rows.map((row) => row.setId));
+    setLinkCandidates(
+      (data ?? [])
+        .filter((set) => !linkedIds.has(String(set.id)))
+        .map((set) => ({
+          id: String(set.id),
+          name: String(set.name),
+          generatedAt: String(set.generated_at),
+          generationModelLabel: set.generation_model_label
+            ? String(set.generation_model_label)
+            : undefined,
+        })),
+    );
+  };
+
+  const handleLinkSelected = async () => {
+    if (!selectedSchoolId || linking) return;
+    const chosen = (linkCandidates ?? []).filter((set) => linkSelected[set.id]);
+    if (chosen.length === 0) return;
+    setLinking(true);
+    setLinkErrors([]);
+    const supabase = getSupabaseBrowserClient();
+    const failures: string[] = [];
+    let linkedCount = 0;
+    for (const set of chosen) {
+      const unique = await assertSetNameUniqueForSchools(
+        supabase,
+        set.name,
+        [selectedSchoolId],
+        set.id,
+      );
+      if (!unique.ok) {
+        failures.push(`"${set.name}": ${unique.message}`);
+        continue;
+      }
+      const { error: linkErr } = await upsertSchoolQuestionSetLinks(
+        supabase,
+        set.id,
+        [{ schoolId: selectedSchoolId }],
+      );
+      if (linkErr) {
+        failures.push(`"${set.name}": ${linkErr}`);
+        continue;
+      }
+      linkedCount += 1;
+    }
+    setLinking(false);
+    if (linkedCount > 0) {
+      await reloadSets();
+    }
+    if (failures.length > 0) {
+      setLinkErrors(failures);
+      // Keep only the failed sets checked so the admin can retry or bail out.
+      setLinkSelected(
+        Object.fromEntries(
+          chosen
+            .filter((set) => failures.some((message) => message.startsWith(`"${set.name}"`)))
+            .map((set) => [set.id, true]),
+        ),
+      );
+      const linkedIds = new Set(chosen.filter((set) => !failures.some((message) => message.startsWith(`"${set.name}"`))).map((set) => set.id));
+      setLinkCandidates((prev) => (prev ?? []).filter((set) => !linkedIds.has(set.id)));
+    } else {
+      setLinkModalOpen(false);
+    }
+  };
 
   const handleRemoveFromSchool = async (e: React.MouseEvent, setId: string) => {
     e.preventDefault();
@@ -278,6 +379,15 @@ export default function QuestionsPage() {
                   <FileText className="w-4 h-4 text-[var(--assignment-completed)]" />
                   Add manually
                 </Link>
+                <button
+                  type="button"
+                  disabled={!selectedSchoolId}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void openLinkModal()}
+                >
+                  <Link2 className="w-4 h-4 text-[var(--assignment-completed)]" />
+                  Link existing set
+                </button>
               </div>
             </>
           )}
@@ -418,6 +528,146 @@ export default function QuestionsPage() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {linkModalOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close dialog"
+            className="absolute inset-0 cursor-default bg-black/40"
+            onClick={() => !linking && setLinkModalOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Link existing question sets"
+            className="relative z-50 flex max-h-[80vh] w-full max-w-xl flex-col rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--surface)] p-6 shadow-[var(--assignment-popover-shadow)]"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-heading text-lg font-bold text-slate-gray">
+                  Link existing set
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Attach question sets from other schools to{" "}
+                  {schools.find((s) => s.id === selectedSchoolId)?.name ?? "this school"}.
+                  Their questions and KC coverage become available immediately.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLinkModalOpen(false)}
+                disabled={linking}
+                className="rounded-lg p-2 text-muted-foreground hover:bg-[var(--surface-muted)] hover:text-foreground"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {linkErrors.length > 0 && (
+              <div className="mb-3 rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error">
+                <ul className="list-disc pl-5">
+                  {linkErrors.map((message, index) => (
+                    <li key={index}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search sets..."
+                value={linkSearch}
+                onChange={(e) => setLinkSearch(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] pl-10 pr-4 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {linkCandidates === null ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-[var(--assignment-completed)] animate-spin" />
+                </div>
+              ) : linkCandidates.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No other question sets available to link.
+                </p>
+              ) : (
+                <ul className="space-y-1">
+                  {linkCandidates
+                    .filter(
+                      (set) =>
+                        !linkSearch.trim() ||
+                        set.name.toLowerCase().includes(linkSearch.toLowerCase()),
+                    )
+                    .map((set) => (
+                      <li key={set.id}>
+                        <label className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-[var(--surface-muted)]">
+                          <input
+                            type="checkbox"
+                            checked={linkSelected[set.id] ?? false}
+                            disabled={linking}
+                            onChange={() =>
+                              setLinkSelected((prev) => ({
+                                ...prev,
+                                [set.id]: !prev[set.id],
+                              }))
+                            }
+                            className="rounded border-border-default accent-[var(--assignment-completed)]"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-slate-gray">
+                              {set.name}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                              {new Date(set.generatedAt).toLocaleDateString()}
+                              {set.generationModelLabel
+                                ? ` · ${set.generationModelLabel}`
+                                : ""}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-end gap-3 border-t border-border-subtle pt-4">
+              <button
+                type="button"
+                onClick={() => setLinkModalOpen(false)}
+                disabled={linking}
+                className="rounded-full px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleLinkSelected()}
+                disabled={
+                  linking ||
+                  !selectedSchoolId ||
+                  !Object.values(linkSelected).some(Boolean)
+                }
+                className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] px-5 py-2 font-heading text-sm font-bold text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {linking ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Link2 className="w-4 h-4" />
+                )}
+                {linking
+                  ? "Linking..."
+                  : `Link ${Object.values(linkSelected).filter(Boolean).length} set(s)`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
