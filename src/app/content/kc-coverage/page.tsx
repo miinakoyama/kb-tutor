@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -15,9 +15,23 @@ import {
   RotateCcw,
   School as SchoolIcon,
   ShieldCheck,
+  Sparkles,
   Upload,
   X,
 } from "lucide-react";
+import type { Question } from "@/types/question";
+import { computeCoverageGaps } from "@/lib/bkt/gap-fill";
+import {
+  generateMcqItem,
+  generateSaqItem,
+  pickRandomStimulusType,
+  runWithConcurrency,
+} from "@/lib/generation/generate-item";
+import {
+  GENERATION_MODELS,
+  DEFAULT_GENERATION_MODEL_ID,
+  DEFAULT_GENERATION_TEMPERATURE,
+} from "@/lib/llm/models";
 
 type View = "coverage" | "runs" | "exceptions";
 type ApiRow = Record<string, unknown>;
@@ -172,6 +186,10 @@ export default function KcCoveragePage() {
   const [selectedKc, setSelectedKc] = useState<Record<string, string>>({});
   const [schools, setSchools] = useState<School[]>([]);
   const [schoolId, setSchoolId] = useState<string>(ALL_SCHOOLS);
+  const [selectedStandards, setSelectedStandards] = useState<Record<string, boolean>>({});
+  const [gapTarget, setGapTarget] = useState(2);
+  const [gapProgress, setGapProgress] = useState<string | null>(null);
+  const [gapWarnings, setGapWarnings] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -200,6 +218,110 @@ export default function KcCoveragePage() {
   }, [view, schoolId]);
 
   useEffect(() => void load(), [load]);
+
+  // Row selection only makes sense within one school's bank.
+  useEffect(() => setSelectedStandards({}), [schoolId]);
+
+  const coverageRows = useMemo(
+    () =>
+      view === "coverage"
+        ? rows.map((row) => ({ standardId: text(row.standardId), kcs: kcBreakdown(row.kcs) }))
+        : [],
+    [rows, view],
+  );
+  const selectedStandardIds = useMemo(
+    () => Object.keys(selectedStandards).filter((id) => selectedStandards[id]),
+    [selectedStandards],
+  );
+  const gapItems = useMemo(
+    () => computeCoverageGaps(coverageRows, selectedStandardIds, gapTarget),
+    [coverageRows, selectedStandardIds, gapTarget],
+  );
+  const standardIdsWithGaps = useMemo(
+    () =>
+      coverageRows
+        .filter((row) => computeCoverageGaps([row], [row.standardId], gapTarget).length > 0)
+        .map((row) => row.standardId),
+    [coverageRows, gapTarget],
+  );
+  const generating = gapProgress !== null;
+
+  const handleGapFill = async () => {
+    if (!schoolId || gapItems.length === 0 || generating) return;
+    const schoolName = schools.find((school) => school.id === schoolId)?.name ?? "this school";
+    if (
+      !window.confirm(
+        `Generate ${gapItems.length} missing question(s) for ${schoolName}? They will be saved as a new question set linked to this school.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setGapWarnings([]);
+    setGapProgress(`0 / ${gapItems.length} generated`);
+    const generatedAt = new Date().toISOString();
+    const setName = `KC Gap Fill - ${schoolName} - ${generatedAt.slice(0, 19).replace("T", " ")}`;
+    const tasks = gapItems.map((gap, index) => async () => {
+      const result =
+        gap.format === "mcq"
+          ? await generateMcqItem({
+              standardId: gap.standardId,
+              setName,
+              kcCode: gap.kcCode,
+              modelId: DEFAULT_GENERATION_MODEL_ID,
+              temperature: DEFAULT_GENERATION_TEMPERATURE,
+              stimulusType: pickRandomStimulusType(true),
+            })
+          : await generateSaqItem({
+              standardId: gap.standardId,
+              questionId: `sa-${generatedAt}-${index}`,
+              kcCode: gap.kcCode,
+              modelId: DEFAULT_GENERATION_MODEL_ID,
+              temperature: DEFAULT_GENERATION_TEMPERATURE,
+              stimulusType: pickRandomStimulusType(false),
+            });
+      return { gap, result };
+    });
+    try {
+      const settled = await runWithConcurrency(tasks, 4, (completed) =>
+        setGapProgress(`${completed} / ${gapItems.length} generated`),
+      );
+      const questions: Question[] = [];
+      const warnings: string[] = [];
+      let generationModel: { id?: string; label?: string } | undefined;
+      for (const { gap, result } of settled) {
+        if (result.ok) {
+          questions.push(...result.questions);
+          if (result.modelId) {
+            generationModel = { id: result.modelId, label: result.modelLabel };
+          }
+        } else {
+          warnings.push(
+            `${gap.format.toUpperCase()} for ${gap.kcCode} failed: ${result.error}`,
+          );
+        }
+      }
+      if (!generationModel && questions.length > 0) {
+        const model = GENERATION_MODELS.find((m) => m.id === DEFAULT_GENERATION_MODEL_ID);
+        generationModel = { id: model?.id, label: model?.label };
+      }
+      setGapWarnings(warnings);
+      if (questions.length === 0) {
+        throw new Error("No questions were generated. See the failures below and try again.");
+      }
+      setGapProgress("Saving question set…");
+      const { addGeneratedQuestionSet } = await import("@/lib/question-storage");
+      await addGeneratedQuestionSet(questions, setName, generatedAt, {
+        generationModel,
+        schoolLinks: [{ schoolId }],
+      });
+      await load();
+    } catch (gapError) {
+      setError(gapError instanceof Error ? gapError.message : "Gap fill failed");
+    } finally {
+      setGapProgress(null);
+    }
+  };
 
   const command = async (key: string, body: Record<string, unknown>, confirmation: string) => {
     if (!window.confirm(confirmation)) return;
@@ -332,6 +454,95 @@ export default function KcCoveragePage() {
         </div>
       )}
 
+      {/* Gap fill: generate exactly the missing MCQ/SAQ per KC for the checked
+          standards, so a new school can reach BKT eligibility in one run. */}
+      {view === "coverage" && schoolId && !loading && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl px-5 py-4" style={glassCard}>
+          <label
+            htmlFor="gap-target"
+            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
+          >
+            Target per KC per format
+          </label>
+          <input
+            id="gap-target"
+            type="number"
+            min={1}
+            max={5}
+            value={gapTarget}
+            disabled={generating}
+            onChange={(event) => {
+              const value = Number.parseInt(event.target.value, 10);
+              if (!Number.isNaN(value)) setGapTarget(Math.max(1, Math.min(5, value)));
+            }}
+            className="h-10 w-20 rounded-full px-4 text-center text-sm font-semibold"
+            style={{
+              fontFamily: geist,
+              color: "var(--assignment-row-cta-text)",
+              background: "var(--assignment-row-cta-bg)",
+              border: "1.5px solid var(--assignment-row-cta-border)",
+            }}
+          />
+          <ActionButton
+            dense
+            disabled={generating || standardIdsWithGaps.length === 0}
+            onClick={() =>
+              setSelectedStandards(
+                Object.fromEntries(standardIdsWithGaps.map((id) => [id, true])),
+              )
+            }
+            title="Select every standard that is below the target"
+          >
+            Select all with gaps
+          </ActionButton>
+          <ActionButton
+            dense
+            disabled={generating || selectedStandardIds.length === 0}
+            onClick={() => setSelectedStandards({})}
+            title="Clear standard selection"
+          >
+            Clear selection
+          </ActionButton>
+          <ActionButton
+            dense
+            variant="primary"
+            disabled={generating || gapItems.length === 0}
+            onClick={() => void handleGapFill()}
+            title={
+              selectedStandardIds.length === 0
+                ? "Check at least one standard first"
+                : gapItems.length === 0
+                  ? "The checked standards already meet the target"
+                  : "Generate only the missing questions for the checked standards"
+            }
+          >
+            {generating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {generating
+              ? "Generating…"
+              : `Generate ${gapItems.length} missing question${gapItems.length === 1 ? "" : "s"}`}
+          </ActionButton>
+          {gapProgress && <span className="text-sm text-muted-foreground">{gapProgress}</span>}
+        </div>
+      )}
+
+      {gapWarnings.length > 0 && (
+        <div
+          className="mb-5 rounded-2xl px-4 py-3 text-sm"
+          style={{ color: "var(--assignment-overdue)", background: "rgb(180 83 9 / 0.1)", border: "1px solid rgb(180 83 9 / 0.24)" }}
+        >
+          <p className="mb-1 font-medium">Some items could not be generated (re-run to fill what is still missing):</p>
+          <ul className="list-disc pl-5">
+            {gapWarnings.map((warning, index) => (
+              <li key={index}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {error && (
         <div
           role="alert"
@@ -357,6 +568,11 @@ export default function KcCoveragePage() {
           command={command}
           schoolId={schoolId}
           schoolName={schools.find((school) => school.id === schoolId)?.name ?? "this school"}
+          selectedStandards={selectedStandards}
+          onToggleStandard={(standardId) =>
+            setSelectedStandards((prev) => ({ ...prev, [standardId]: !prev[standardId] }))
+          }
+          selectionDisabled={generating}
         />
       ) : view === "runs" ? (
         <RunsList rows={rows} busyKey={busyKey} command={command} />
@@ -429,12 +645,18 @@ function CoverageList({
   command,
   schoolId,
   schoolName,
+  selectedStandards,
+  onToggleStandard,
+  selectionDisabled,
 }: {
   rows: ApiRow[];
   busyKey: string | null;
   command: (key: string, body: Record<string, unknown>, confirmation: string) => void;
   schoolId: string;
   schoolName: string;
+  selectedStandards: Record<string, boolean>;
+  onToggleStandard: (standardId: string) => void;
+  selectionDisabled: boolean;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   return (
@@ -458,6 +680,16 @@ function CoverageList({
           <div key={standardId} className="rounded-2xl px-5 py-4 sm:px-6" style={glassCard}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-shrink-0 items-center gap-2">
+                {scoped && (
+                  <input
+                    type="checkbox"
+                    aria-label={`Include ${standardId} in gap fill`}
+                    checked={selectedStandards[standardId] ?? false}
+                    disabled={selectionDisabled}
+                    onChange={() => onToggleStandard(standardId)}
+                    className="h-4 w-4 rounded border-border-default accent-[var(--assignment-completed)]"
+                  />
+                )}
                 <span
                   className="whitespace-nowrap text-slate-gray"
                   style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, fontFamily: geist }}

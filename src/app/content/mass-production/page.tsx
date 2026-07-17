@@ -17,13 +17,11 @@ import type { DOKLevel, Question } from "@/types/question";
 import type { ShortAnswerItem, StimulusType } from "@/types/short-answer";
 import {
   getAllStandards,
-  getStandardById,
   getStandardsByFilter,
   getStandardsForModule,
-  getModuleNumberForStandard,
-  getTopicForStandard,
   type ModuleCode,
 } from "@/lib/standards";
+import { buildShortAnswerQuestion } from "@/lib/generation/generate-item";
 import {
   GENERATION_MODELS,
   DEFAULT_GENERATION_MODEL_ID,
@@ -301,30 +299,6 @@ function createRandomStimulusTypes(
     { length: total },
     () => choices[Math.floor(Math.random() * choices.length)],
   );
-}
-
-function buildShortAnswerQuestion(
-  item: ShortAnswerItem,
-  standardId: string,
-  id: string,
-): Question {
-  const standard = getStandardById(standardId);
-  return {
-    id,
-    module: getModuleNumberForStandard(standardId),
-    topic: getTopicForStandard(standardId),
-    standardId,
-    standardLabel: standard?.label,
-    text: item.parts[0]?.prompt ?? item.stem,
-    imageUrl: null,
-    options: [],
-    correctOptionId: "",
-    questionType: "open-ended",
-    shortAnswer: item,
-    kcCode: item.blueprint.anchorKc,
-    source: "generated",
-    includeInSelfPractice: true,
-  };
 }
 
 const STORAGE_KEY = "massProductionSettings";
