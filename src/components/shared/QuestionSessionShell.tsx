@@ -180,7 +180,7 @@ export function QuestionSessionShell({
     <div className="flex h-full flex-col">
       {/* Session header */}
       <header
-        className="flex-shrink-0 h-[114px] short:h-[72px] xshort:h-[60px] grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 sm:px-6 lg:px-8 border-b bg-surface"
+        className="flex-shrink-0 h-[84px] short:h-[68px] xshort:h-[60px] grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 sm:px-6 lg:px-8 border-b bg-surface"
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <div className="flex items-center justify-start min-w-0">
