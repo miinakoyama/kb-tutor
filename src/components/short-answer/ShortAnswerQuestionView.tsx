@@ -25,6 +25,7 @@ import {
   isShortAnswerTourSeenLocally,
   syncShortAnswerTourSeen,
 } from "@/lib/short-answer/tour-settings";
+import { useShortViewport } from "@/hooks/useShortViewport";
 
 const MAX_ATTEMPTS = MAX_SHORT_ANSWER_ATTEMPTS;
 
@@ -153,6 +154,12 @@ export function ShortAnswerQuestionView({
   stimulusImageLoading = false,
 }: ShortAnswerQuestionViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Compact the workspace on short viewports so the whole question fits
+  // without scrolling.
+  const isShortViewport = useShortViewport();
+  const columnPaddingClass = isShortViewport
+    ? "p-4 sm:p-5 lg:p-6"
+    : "p-5 sm:p-8 lg:p-10";
   const howToUseRef = useRef<HTMLButtonElement | null>(null);
   const reportButtonRef = useRef<HTMLButtonElement | null>(null);
   const demoMarkRef = useRef<HTMLElement | null>(null);
@@ -599,7 +606,7 @@ export function ShortAnswerQuestionView({
             workspace level — locked rows and the active card header carry
             the rest. */}
         <div
-          className="flex h-[68px] items-center justify-between gap-3 border-b px-5 sm:px-8 lg:px-10"
+          className={`flex ${isShortViewport ? "h-[52px]" : "h-[68px]"} items-center justify-between gap-3 border-b px-5 sm:px-8 lg:px-10`}
           style={{ borderColor: "var(--border-subtle)" }}
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -708,8 +715,8 @@ export function ShortAnswerQuestionView({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,44fr)_1px_minmax(0,52fr)]">
-        <div className="p-5 sm:p-8 lg:p-10">
-          <div className="lg:sticky lg:top-6">
+        <div className={columnPaddingClass}>
+          <div className={`lg:sticky ${isShortViewport ? "lg:top-3" : "lg:top-6"}`}>
             <StimulusPanel
               stem={item.stem}
               stimulus={item.stimulus}
@@ -725,7 +732,7 @@ export function ShortAnswerQuestionView({
           style={{ background: "var(--border-subtle)" }}
         />
 
-        <div className="flex flex-col gap-3 p-5 sm:p-8 lg:p-10">
+        <div className={`flex flex-col gap-3 ${columnPaddingClass}`}>
           {item.parts.map((part, i) => {
             const runtime = runtimes[i];
             const isLast = i === item.parts.length - 1;

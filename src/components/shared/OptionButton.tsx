@@ -86,7 +86,7 @@ export function OptionButton({
         disabled={isDisabled}
         className={`group w-full text-left rounded-2xl transition-all duration-200 break-words flex items-center ${
           compact
-            ? "border-[1.5px] px-3 py-2 min-h-[40px] gap-2.5"
+            ? "border-[1.5px] px-3 py-2 min-h-[44px] gap-2.5"
             : "border-2 px-5 py-4 min-h-[64px] gap-3.5"
         } ${stateClasses} ${
           isDisabled

@@ -40,7 +40,7 @@ export default async function PracticePage({
   }>;
 }) {
   return (
-    <main className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden">
+    <main className="h-[calc(100dvh-4rem)] lg:h-dvh overflow-hidden">
       <Suspense
         fallback={
           <div className="h-full flex items-center justify-center text-slate-gray">

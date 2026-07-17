@@ -299,6 +299,100 @@ describe("POST /api/practice/next", () => {
     });
   });
 
+  it.each([
+    { label: "single-format", selectionMode: "mcq", requiredFormat: undefined },
+    { label: "mixed required-format", selectionMode: "mixed", requiredFormat: "mcq" },
+  ] as const)("tries another selected standard during $label selection", async ({
+    selectionMode,
+    requiredFormat,
+  }) => {
+    state.server = createMockSupabaseClient({ user: baseUser }).client;
+    const candidateRpc = vi.fn(async (args: Record<string, unknown>) => {
+      const isSecondStandard = args.p_standard_id === "3.1.9-12.B";
+      const standardId = isSecondStandard ? "3.1.9-12.B" : "3.1.9-12.A";
+      const kcCode = isSecondStandard ? "3.1.9-12.B1" : "3.1.9-12.A1";
+      const questionId = isSecondStandard ? "q-b-mcq" : "q-a-saq";
+      return {
+        data: [{
+          question_set_id: "set-c",
+          question_id: questionId,
+          content_version: null,
+          has_image: false,
+          has_stimulus_image: false,
+          format: isSecondStandard ? "mcq" : "saq",
+          standard_id: standardId,
+          part_kc_codes: [kcCode],
+          completed_count: 0,
+          last_completed_at: null,
+          payload: {
+            id: questionId,
+            module: 1,
+            topic: "Genetics",
+            standardId,
+            text: questionId,
+            imageUrl: null,
+            options: [],
+            correctOptionId: "",
+            source: "generated",
+            questionType: isSecondStandard ? "mcq" : "open-ended",
+            ...(isSecondStandard ? {} : { shortAnswer: sampleItem }),
+          },
+        }],
+        error: null,
+      };
+    });
+    state.admin = createMockSupabaseClient({
+      tables: {
+        school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
+        bkt_standard_rollouts: {
+          rows: [
+            { school_id: "school-a", standard_id: "3.1.9-12.A", status: "enabled" },
+            { school_id: "school-a", standard_id: "3.1.9-12.B", status: "enabled" },
+          ],
+        },
+        knowledge_components: {
+          rows: [
+            { code: "3.1.9-12.A1", standard_id: "3.1.9-12.A", catalog_order: 1, active: true },
+            { code: "3.1.9-12.B1", standard_id: "3.1.9-12.B", catalog_order: 1, active: true },
+          ],
+        },
+        student_kc_mastery: { rows: [] },
+        adaptive_rotation_states: { rows: [] },
+        adaptive_selection_events: { rows: [] },
+      },
+      rpcs: {
+        get_adaptive_practice_candidates: candidateRpc,
+        record_adaptive_selection: async () => ({ data: true, error: null }),
+      },
+    }).client;
+
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A", "3.1.9-12.B"],
+        selectionMode,
+        ...(requiredFormat ? { requiredFormat } : {}),
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "selected",
+      targetKcCode: "3.1.9-12.B1",
+      question: { id: "q-b-mcq" },
+    });
+    expect(candidateRpc).toHaveBeenNthCalledWith(1, {
+      p_user_id: "student",
+      p_standard_id: "3.1.9-12.A",
+      p_target_kc_code: "3.1.9-12.A1",
+    });
+    expect(candidateRpc).toHaveBeenNthCalledWith(2, {
+      p_user_id: "student",
+      p_standard_id: "3.1.9-12.B",
+      p_target_kc_code: "3.1.9-12.B1",
+    });
+  });
+
   it("falls back from a mixed SAQ slot to MCQ when the scope has no SAQ", async () => {
     state.server = createMockSupabaseClient({ user: baseUser }).client;
     state.admin = buildMixedFormatAdmin([
@@ -362,7 +456,6 @@ describe("POST /api/practice/next", () => {
       question: { id: "q-saq" },
     });
   });
-
   it("falls back to SAQ instead of immediately repeating the only MCQ", async () => {
     state.server = createMockSupabaseClient({ user: baseUser }).client;
     state.admin = buildMixedFormatAdmin(

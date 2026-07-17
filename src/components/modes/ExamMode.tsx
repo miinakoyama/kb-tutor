@@ -47,6 +47,7 @@ import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { useQuestionMedia } from "@/hooks/useQuestionMedia";
+import { useShortViewport } from "@/hooks/useShortViewport";
 import { buildChoicesReadText, buildFeedbackReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "@/components/shared/ReadAloudButton";
 import { FeatureSpotlight } from "@/components/shared/FeatureSpotlight";
@@ -1591,6 +1592,13 @@ function ExamShortAnswerCard({
   const isFilled = (label: PartLabel) =>
     (responses[label] ?? "").trim().length > 0;
 
+  // Compact the workspace on short viewports so the whole question fits
+  // without scrolling (mirrors ShortAnswerQuestionView).
+  const isShortViewport = useShortViewport();
+  const columnPaddingClass = isShortViewport
+    ? "p-4 sm:p-5 lg:p-6"
+    : "p-5 sm:p-8 lg:p-10";
+
   return (
     <motion.div
       // Opacity-only fade: an x/y transform on this ancestor would become the
@@ -1609,7 +1617,7 @@ function ExamShortAnswerCard({
       }}
     >
       <div
-        className="flex h-[68px] items-center justify-between gap-3 border-b px-5 sm:px-8 lg:px-10"
+        className={`flex ${isShortViewport ? "h-[52px]" : "h-[68px]"} items-center justify-between gap-3 border-b px-5 sm:px-8 lg:px-10`}
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
@@ -1656,8 +1664,8 @@ function ExamShortAnswerCard({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,44fr)_1px_minmax(0,52fr)]">
-        <div className="p-5 sm:p-8 lg:p-10">
-          <div className="lg:sticky lg:top-6">
+        <div className={columnPaddingClass}>
+          <div className={`lg:sticky ${isShortViewport ? "lg:top-3" : "lg:top-6"}`}>
             <StimulusPanel
               stem={item.stem}
               stimulus={item.stimulus}
@@ -1673,7 +1681,7 @@ function ExamShortAnswerCard({
           style={{ background: "var(--border-subtle)" }}
         />
 
-        <div className="flex flex-col gap-3 p-5 sm:p-8 lg:p-10">
+        <div className={`flex flex-col gap-3 ${columnPaddingClass}`}>
           {item.parts.map((part) => {
             const value = responses[part.label] ?? "";
             return (

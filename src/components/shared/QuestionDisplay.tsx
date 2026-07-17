@@ -9,6 +9,7 @@ import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech, type ReadSection } from "@/hooks/useTextToSpeech";
 import { useQuestionMedia } from "@/hooks/useQuestionMedia";
+import { useShortViewport } from "@/hooks/useShortViewport";
 import { buildChoicesReadText } from "@/lib/tts-utils";
 import { ReadAloudButton } from "./ReadAloudButton";
 
@@ -22,6 +23,10 @@ interface QuestionDisplayProps {
   selectedOptionId?: string | null;
   pendingSelection?: boolean;
   revealCorrectAnswer?: boolean;
+  /**
+   * Force the compact layout on or off. When omitted, the card compacts
+   * automatically on short viewports so the question fits without scrolling.
+   */
   compactLayout?: boolean;
   onOptionClick: (optionId: string) => void;
   renderQuestionText?: (text: string) => ReactNode;
@@ -43,7 +48,7 @@ export function QuestionDisplay({
   selectedOptionId,
   pendingSelection = false,
   revealCorrectAnswer = true,
-  compactLayout = false,
+  compactLayout,
   onOptionClick,
   renderQuestionText,
   feedbackSlot,
@@ -55,6 +60,8 @@ export function QuestionDisplay({
 }: QuestionDisplayProps) {
   const { question: hydratedQuestion, isMediaPending } =
     useQuestionMedia(questionProp);
+  const isShortViewport = useShortViewport();
+  const compact = compactLayout ?? isShortViewport;
   const question = hydratedQuestion ?? questionProp;
   // Hold answers while a stripped image is loading: image-dependent questions
   // must not be answerable before the illustration is visible.
@@ -82,7 +89,7 @@ export function QuestionDisplay({
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.2 }}
         className={`border ${
-          compactLayout
+          compact
             ? "rounded-2xl p-4 sm:p-5"
             : "rounded-[24px] p-5 sm:p-8 lg:p-10"
         }`}
@@ -93,7 +100,7 @@ export function QuestionDisplay({
         }}
       >
         {showHeader && (
-          <div className={`flex items-start justify-between gap-3 ${compactLayout ? "mb-2" : "mb-6"}`}>
+          <div className={`flex items-start justify-between gap-3 ${compact ? "mb-2" : "mb-6"}`}>
             <div className="flex items-center gap-3">
               <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
                 Question {questionNumber}
@@ -127,7 +134,7 @@ export function QuestionDisplay({
 
         <div
           className={`prose prose-sm max-w-none text-slate-gray ${
-            compactLayout ? "mb-4" : "mb-7"
+            compact ? "mb-4" : "mb-7"
           } rounded-lg transition-colors ${
             isQuestionAndChoicesReading ? "bg-primary/10 px-3 py-2" : ""
           }`}
@@ -135,7 +142,7 @@ export function QuestionDisplay({
           {renderQuestionText ? (
             <div
               className={`whitespace-pre-wrap font-medium leading-relaxed ${
-                compactLayout ? "text-[15px]" : "text-[17px]"
+                compact ? "text-[15px]" : "text-[17px]"
               }`}
             >
               {renderQuestionText(question.text)}
@@ -143,7 +150,7 @@ export function QuestionDisplay({
           ) : (
             <p
               className={`whitespace-pre-wrap font-medium leading-relaxed ${
-                compactLayout ? "text-[15px]" : "text-[17px]"
+                compact ? "text-[15px]" : "text-[17px]"
               }`}
             >
               {question.text}
@@ -153,14 +160,14 @@ export function QuestionDisplay({
 
         {question.imageUrl && (
           <div
-            className={`rounded-lg overflow-hidden bg-[var(--diagram-canvas)] p-3 ${compactLayout ? "my-3" : "my-7"}`}
+            className={`rounded-lg overflow-hidden bg-[var(--diagram-canvas)] p-3 ${compact ? "my-3" : "my-7"}`}
           >
             <Image
               src={question.imageUrl}
               alt="Question illustration"
               width={600}
               height={400}
-              className={`diagram-raster w-full object-contain ${compactLayout ? "max-h-[220px]" : "max-h-[300px]"}`}
+              className={`diagram-raster w-full object-contain ${compact ? "max-h-[min(220px,28vh)]" : "max-h-[min(300px,32vh)]"}`}
             />
           </div>
         )}
@@ -169,29 +176,29 @@ export function QuestionDisplay({
           <div
             role="status"
             aria-label="Loading question image"
-            className={`rounded-lg bg-[var(--diagram-canvas)] p-3 ${compactLayout ? "my-3" : "my-7"}`}
+            className={`rounded-lg bg-[var(--diagram-canvas)] p-3 ${compact ? "my-3" : "my-7"}`}
           >
             <div
-              className={`w-full animate-pulse rounded-md bg-slate-gray/10 ${compactLayout ? "h-[180px]" : "h-[240px]"}`}
+              className={`w-full animate-pulse rounded-md bg-slate-gray/10 ${compact ? "h-[min(180px,24vh)]" : "h-[min(240px,28vh)]"}`}
             />
           </div>
         )}
 
         {question.diagram && (
           <AdaptiveDiagramViewport
-            className={compactLayout ? "my-3" : "my-7"}
-            maxHeightClassName={compactLayout ? "max-h-[300px]" : "max-h-[380px]"}
+            className={compact ? "my-3" : "my-7"}
+            maxHeightClassName={compact ? "max-h-[min(300px,32vh)]" : "max-h-[min(380px,38vh)]"}
           >
             <DiagramRenderer diagram={question.diagram} />
           </AdaptiveDiagramViewport>
         )}
 
         <div
-          className={`rounded-lg transition-colors ${compactLayout ? "mb-3" : "mb-7"} ${
+          className={`rounded-lg transition-colors ${compact ? "mb-3" : "mb-7"} ${
             isQuestionAndChoicesReading ? "bg-primary/10 px-3 py-2" : ""
           }`}
         >
-          <div className={`${compactLayout ? "space-y-2 mt-1.5" : "space-y-3"}`}>
+          <div className={`${compact ? "space-y-2 mt-1.5" : "space-y-3"}`}>
             {question.options.map((opt) => {
               const isSelected = isAnswered
                 ? currentAnswer?.selectedOptionId === opt.id
@@ -212,7 +219,7 @@ export function QuestionDisplay({
                   onSelect={handleOptionClick}
                   showFeedbackIcon={showOptionFeedbackIcons}
                   pendingSelection={pendingSelection}
-                  compact={compactLayout}
+                  compact={compact}
                 />
               );
             })}

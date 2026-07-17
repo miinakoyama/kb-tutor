@@ -8,6 +8,14 @@ function isShortAnswer(question: Question): boolean {
   return question.questionType === "open-ended";
 }
 
+function questionIdentityKey(
+  question: Pick<Question, "id" | "questionSetId">,
+): string {
+  return question.questionSetId
+    ? `scoped:${JSON.stringify([question.questionSetId, question.id])}`
+    : `legacy:${question.id}`;
+}
+
 function extendPool(pool: Question[], minLength: number): Question[] {
   if (pool.length === 0) return [];
   let extended = shuffleArray(pool);
@@ -18,19 +26,37 @@ function extendPool(pool: Question[], minLength: number): Question[] {
 }
 
 /**
- * Builds a session-ordered list following the 3 MCQ : 1 SAQ pattern, starting
- * at the provided global session slot.
+ * Builds the next session batch following the 3 MCQ : 1 SAQ pattern.
+ * Previously served questions preserve the global cadence and exclude SAQs
+ * that have already appeared in an earlier batch.
  * SAQ questions are never repeated; once the SAQ pool is exhausted, the
  * remaining SAQ slots fall back to MCQ (which may repeat via reshuffle).
  */
 export function buildMixedQuestionSequence(
   questions: Question[],
   count: number,
-  startSlot = 0,
+  previousQuestions: readonly Question[] = [],
 ): Question[] {
   if (count <= 0) return [];
   const mcqPool = questions.filter((question) => !isShortAnswer(question));
-  const saqPool = shuffleArray(questions.filter(isShortAnswer));
+  const servedSaqKeys = new Set(
+    previousQuestions.filter(isShortAnswer).map(questionIdentityKey),
+  );
+  const allSaqQuestions = questions.filter(isShortAnswer);
+  const freshSaqQuestions = allSaqQuestions.filter(
+    (question) => !servedSaqKeys.has(questionIdentityKey(question)),
+  );
+  const freshSaqPool = shuffleArray(freshSaqQuestions);
+  // An all-SAQ bank has no MCQ fallback. Serve every fresh SAQ first, then
+  // rotate through the previously served remainder before reusing the bank.
+  const saqPool = mcqPool.length > 0
+    ? freshSaqPool
+    : [
+        ...freshSaqPool,
+        ...shuffleArray(allSaqQuestions.filter(
+          (question) => servedSaqKeys.has(questionIdentityKey(question)),
+        )),
+      ];
   const extendedMcq = extendPool(mcqPool, count);
 
   const result: Question[] = [];
@@ -38,7 +64,7 @@ export function buildMixedQuestionSequence(
   let saqIndex = 0;
   for (let slot = 0; slot < count; slot++) {
     const wantsSaq =
-      (startSlot + slot) % MIXED_PATTERN_LENGTH === MIXED_PATTERN_LENGTH - 1;
+      (previousQuestions.length + slot) % MIXED_PATTERN_LENGTH === MIXED_PATTERN_LENGTH - 1;
     if (wantsSaq && saqIndex < saqPool.length) {
       result.push(saqPool[saqIndex]);
       saqIndex++;
