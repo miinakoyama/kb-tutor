@@ -18,6 +18,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     pathname === "/self-practice" ||
     pathname === "/practice" ||
     pathname === "/exam" ||
+    pathname === "/bookmarks" ||
     (/^\/assignments\/[^/]+$/.test(pathname) && pathname !== "/assignments/manage");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 

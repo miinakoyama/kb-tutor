@@ -363,8 +363,8 @@ export function StudentNotesList({
     "w-full rounded-2xl border border-border-default bg-surface px-2 py-1.5 text-xs text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/40";
 
   return (
-    <div className="flex h-[600px] max-h-[70vh] overflow-hidden rounded-2xl border border-border-subtle">
-      <div className="flex w-[380px] flex-shrink-0 flex-col border-r border-border-subtle bg-surface">
+    <div className="flex h-full min-h-0 overflow-hidden rounded-2xl border border-border-subtle">
+      <div className="flex w-[380px] min-h-0 flex-shrink-0 flex-col border-r border-border-subtle bg-surface">
         <div className="flex-shrink-0 border-b border-border-subtle px-4 py-3">
           <div className="flex gap-2">
             <select
@@ -395,7 +395,7 @@ export function StudentNotesList({
             </select>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredNotes.map((note) => (
             <NoteRow
               key={note.questionId}
@@ -411,7 +411,7 @@ export function StudentNotesList({
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
         {selectedNote ? (
           <SelectedNoteDetail note={selectedNote} question={selectedQuestion} />
         ) : (

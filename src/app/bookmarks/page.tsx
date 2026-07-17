@@ -70,6 +70,16 @@ function buildReviewCategorySelections(): ReviewCategorySelection[] {
 
 const REVIEW_CATEGORY_SELECTIONS = buildReviewCategorySelections();
 
+// Module A's categories first (in curriculum order), then Module B's — first
+// occurrence wins for a category name shared across modules (e.g.
+// "Interdependent Relationships in Ecosystems" appears in both).
+const REVIEW_CATEGORY_ORDER = new Map<string, number>();
+REVIEW_CATEGORY_SELECTIONS.forEach((selection, index) => {
+  if (!REVIEW_CATEGORY_ORDER.has(selection.category)) {
+    REVIEW_CATEGORY_ORDER.set(selection.category, index);
+  }
+});
+
 function parseReviewTab(value: string | null): ReviewTab {
   if (value === "bookmarked" || value === "notes") return value;
   return "needs";
@@ -191,7 +201,12 @@ function BookmarksPageContent() {
 
       return Array.from(byTopic.entries())
         .map(([topic, questions]) => ({ topic, questions }))
-        .sort((a, b) => a.topic.localeCompare(b.topic));
+        .sort((a, b) => {
+          const orderA = REVIEW_CATEGORY_ORDER.get(a.topic) ?? Number.MAX_SAFE_INTEGER;
+          const orderB = REVIEW_CATEGORY_ORDER.get(b.topic) ?? Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.topic.localeCompare(b.topic);
+        });
     },
     [questionById],
   );
@@ -738,8 +753,14 @@ function BookmarksPageContent() {
             </div>
           </section>
         ) : (
-          <div className="flex-1 overflow-y-auto pb-4">
-            <div className="flex flex-wrap items-end gap-2">
+          <div
+            className={
+              activeReviewTab === "notes"
+                ? "flex min-h-0 flex-1 flex-col pb-4"
+                : "flex-1 overflow-y-auto pb-4"
+            }
+          >
+            <div className="flex flex-shrink-0 flex-wrap items-end gap-2">
               <button
                 type="button"
                 onClick={() => setActiveReviewTab("needs")}
@@ -796,7 +817,9 @@ function BookmarksPageContent() {
             </div>
 
             <section
-              className="relative mt-0 rounded-tl-none rounded-tr-[28px] rounded-br-[28px] rounded-bl-[28px] border border-[var(--assignment-glass-border)] border-t-0 bg-surface p-4 sm:p-5"
+              className={`relative mt-0 rounded-tl-none rounded-tr-[28px] rounded-br-[28px] rounded-bl-[28px] border border-[var(--assignment-glass-border)] border-t-0 bg-surface p-4 sm:p-5 ${
+                activeReviewTab === "notes" ? "flex min-h-0 flex-1 flex-col" : ""
+              }`}
               style={{ boxShadow: "var(--assignment-card-shadow)" }}
             >
               {activeReviewTab === "needs"
