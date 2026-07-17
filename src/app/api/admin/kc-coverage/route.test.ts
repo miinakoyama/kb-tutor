@@ -123,15 +123,44 @@ describe("KC coverage admin route", () => {
 
     const [row] = await loadCoverage("http://localhost/api/admin/kc-coverage");
     expect(row.kcs).toEqual([
-      { code: "S1.K1", statement: "one", questionCount: 2 },
-      { code: "S1.K2", statement: "two", questionCount: 1 },
-      { code: "S1.K3", statement: "three", questionCount: 0 },
+      { code: "S1.K1", statement: "one", mcqCount: 2, saqCount: 0 },
+      { code: "S1.K2", statement: "two", mcqCount: 1, saqCount: 0 },
+      { code: "S1.K3", statement: "three", mcqCount: 0, saqCount: 0 },
     ]);
     expect(row.coveredKcCount).toBe(2);
     expect(row.activeKcCount).toBe(3);
     // K3 has no item at all; K2 has one, so nothing to rotate to once answered.
     expect(row.emptyKcCount).toBe(1);
     expect(row.thinKcCount).toBe(1);
+    // All rows default to format "mcq", so K1 and K2 both have zero SAQ items.
+    expect(row.missingFormatKcCount).toBe(2);
+  });
+
+  it("flags a KC that has one format but not the other, distinct from an empty KC", async () => {
+    requireAdminRoute.mockResolvedValue({ ok: true, userId: "admin" });
+    mockDb({
+      bkt_question_coverage: [
+        coverageRow({ question_id: "q1", format: "mcq", confirmed_kc_codes: ["S1.K1"] }),
+        coverageRow({ question_id: "q2", format: "mcq", confirmed_kc_codes: ["S1.K1"] }),
+        coverageRow({ question_id: "q3", format: "saq", confirmed_kc_codes: ["S1.K2"] }),
+      ],
+      knowledge_components: [
+        { code: "S1.K1", standard_id: "S1", statement: "one", active: true },
+        { code: "S1.K2", standard_id: "S1", statement: "two", active: true },
+      ],
+      bkt_standard_rollouts: [],
+      schools: [],
+    });
+
+    const [row] = await loadCoverage("http://localhost/api/admin/kc-coverage");
+    expect(row.kcs).toEqual([
+      { code: "S1.K1", statement: "one", mcqCount: 2, saqCount: 0 },
+      { code: "S1.K2", statement: "two", mcqCount: 0, saqCount: 1 },
+    ]);
+    // Both KCs have questions, so neither is "empty" — but Mixed self-practice
+    // can still land on either one and have nothing for the slot it needs.
+    expect(row.emptyKcCount).toBe(0);
+    expect(row.missingFormatKcCount).toBe(2);
   });
 
   it("counts only questions adaptive Practice can actually serve", async () => {
@@ -148,7 +177,7 @@ describe("KC coverage admin route", () => {
     });
 
     const [row] = await loadCoverage("http://localhost/api/admin/kc-coverage");
-    expect(row.kcs).toEqual([{ code: "S1.K1", statement: "one", questionCount: 1 }]);
+    expect(row.kcs).toEqual([{ code: "S1.K1", statement: "one", mcqCount: 1, saqCount: 0 }]);
     expect(row.questionCount).toBe(3);
   });
 
@@ -178,8 +207,8 @@ describe("KC coverage admin route", () => {
     // School A only owns set-a, so K2 has no question it can ever be served.
     const [scoped] = await loadCoverage("http://localhost/api/admin/kc-coverage?schoolId=school-a");
     expect(scoped.kcs).toEqual([
-      { code: "S1.K1", statement: "one", questionCount: 1 },
-      { code: "S1.K2", statement: "two", questionCount: 0 },
+      { code: "S1.K1", statement: "one", mcqCount: 1, saqCount: 0 },
+      { code: "S1.K2", statement: "two", mcqCount: 0, saqCount: 0 },
     ]);
     expect(scoped.emptyKcCount).toBe(1);
   });
@@ -197,7 +226,7 @@ describe("KC coverage admin route", () => {
 
     const [row] = await loadCoverage("http://localhost/api/admin/kc-coverage");
     expect(row.questionCount).toBe(1200);
-    expect(row.kcs).toEqual([{ code: "S1.K1", statement: "one", questionCount: 1200 }]);
+    expect(row.kcs).toEqual([{ code: "S1.K1", statement: "one", mcqCount: 1200, saqCount: 0 }]);
   });
 
   it("keeps a standard visible when the selected school has no question for it", async () => {
