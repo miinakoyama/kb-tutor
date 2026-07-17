@@ -74,8 +74,10 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   }, [value.from, value.to]);
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="flex flex-wrap items-center gap-1">
+    <div className="flex flex-wrap items-center gap-3">
+      {/* Everything sits on one baseline: presets, From/To labels, and the
+          date inputs are all h-[38px] and vertically centered. */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {PRESETS.map((preset) => {
           const isActive = preset.key === activeKey;
           return (
@@ -83,10 +85,19 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
               key={preset.key}
               type="button"
               onClick={() => onChange(presetRange(preset.key))}
-              className={
+              className="inline-flex h-[38px] items-center rounded-full px-3.5 text-xs font-semibold transition-colors"
+              style={
                 isActive
-                  ? "rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white"
-                  : "rounded-md px-3 py-1.5 text-xs font-medium text-slate-gray border border-border-default hover:bg-surface-muted"
+                  ? {
+                      color: "var(--assignment-cta-text)",
+                      background: "var(--assignment-cta-bg-strong)",
+                      border: "1.5px solid var(--assignment-glass-border)",
+                    }
+                  : {
+                      color: "var(--assignment-row-cta-text)",
+                      background: "var(--assignment-row-cta-bg)",
+                      border: "1px solid var(--assignment-row-cta-border)",
+                    }
               }
             >
               {preset.label}
@@ -94,23 +105,23 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
           );
         })}
       </div>
-      <div className="flex flex-wrap items-end gap-3 sm:ml-auto">
-        <label className="text-xs text-slate-gray">
-          <span className="block mb-1 font-medium">From</span>
+      <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
+        <label className="inline-flex items-center gap-2 text-xs text-slate-gray">
+          <span className="font-semibold">From</span>
           <input
             type="date"
             value={value.from}
             onChange={(event) => onChange({ ...value, from: event.target.value })}
-            className="rounded-lg border border-border-default px-3 py-2 text-sm min-w-[10rem]"
+            className="h-[38px] min-w-[10rem] rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </label>
-        <label className="text-xs text-slate-gray">
-          <span className="block mb-1 font-medium">To</span>
+        <label className="inline-flex items-center gap-2 text-xs text-slate-gray">
+          <span className="font-semibold">To</span>
           <input
             type="date"
             value={value.to}
             onChange={(event) => onChange({ ...value, to: event.target.value })}
-            className="rounded-lg border border-border-default px-3 py-2 text-sm min-w-[10rem]"
+            className="h-[38px] min-w-[10rem] rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </label>
       </div>

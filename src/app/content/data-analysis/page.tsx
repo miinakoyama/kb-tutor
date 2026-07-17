@@ -9,10 +9,9 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-import { DataAnalysisTabs } from "./tabs";
 import { DateRangePicker, defaultPilotRange, todayRange } from "./date-range";
 import { SchoolFilter } from "./school-filter";
-import { badgeAmber, badgeEmerald } from "@/lib/ui/status-badge-styles";
+import { badgeEmerald } from "@/lib/ui/status-badge-styles";
 
 interface OverviewResponse {
   meta: {
@@ -169,16 +168,9 @@ export default function OverviewPage() {
   );
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
-          Data Analysis
-        </h1>
-      </header>
+    <>
 
-      <DataAnalysisTabs active="overview" />
-
-      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)] mb-6">
         <DateRangePicker value={range} onChange={setRange} />
         <div className="mt-4 max-w-xl">
           <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
@@ -186,20 +178,20 @@ export default function OverviewPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+            className="inline-flex items-center gap-2 rounded-full font-heading font-bold px-5 py-2 text-sm transition duration-200 hover:brightness-110 active:brightness-95 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
           <button
             onClick={() => setRange(todayRange())}
-            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-primary-light transition-colors"
+            className="inline-flex items-center gap-2 rounded-full font-heading font-semibold px-4 py-2 text-sm transition-colors border border-[var(--assignment-row-cta-border)] bg-[var(--assignment-row-cta-bg)] text-[var(--assignment-row-cta-text)] shadow-[var(--assignment-row-cta-shadow)] hover:bg-[var(--assignment-row-cta-bg-hover)]"
           >
             Jump to today
           </button>
           <a
             href={csvHref}
-            className="inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-primary-light transition-colors"
+            className="inline-flex items-center gap-2 rounded-full font-heading font-semibold px-4 py-2 text-sm transition-colors border border-[var(--assignment-row-cta-border)] bg-[var(--assignment-row-cta-bg)] text-[var(--assignment-row-cta-text)] shadow-[var(--assignment-row-cta-shadow)] hover:bg-[var(--assignment-row-cta-bg-hover)]"
           >
             <Download className="w-4 h-4" />
             Download engagement CSV
@@ -214,7 +206,7 @@ export default function OverviewPage() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
+        <p className="rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error mb-6">
           {error}
         </p>
       )}
@@ -276,7 +268,7 @@ export default function OverviewPage() {
           onClose={() => setExpandedUserId(null)}
         />
       )}
-    </main>
+    </>
   );
 }
 
@@ -340,7 +332,7 @@ function HeadlineCard({
   hint?: string;
 }) {
   return (
-    <article className="rounded-xl border border-border-default bg-surface p-3 shadow-sm">
+    <article className="rounded-xl border border-border-default bg-surface p-3">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
@@ -365,14 +357,14 @@ function DataQualityPanel({
     data.duplicateClientAttemptIds === 0;
 
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-heading">Data quality</h2>
+        <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px]">Data quality</h2>
         <span
           className={
             allZero
               ? `rounded-full px-2 py-0.5 text-xs ${badgeEmerald}`
-              : `rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1 ${badgeAmber}`
+              : "inline-flex items-center gap-1 rounded-full border border-[#F8DFA0] bg-[var(--assignment-mode-review-bg)] px-2 py-0.5 text-xs text-[var(--assignment-mode-review)]"
           }
         >
           {allZero ? "No signals" : (
@@ -423,14 +415,16 @@ function QualityTile({
   value: number;
   hint: string;
 }) {
+  // Border-only tones aligned to the student dashboard palette:
+  // review-yellow #F8DFA0 (warning) and exam-pink #ED9ABB (bad), no fill.
   const tone =
     value === 0
       ? "border-border-default"
       : value < 5
-        ? "border-amber-200 bg-amber-50/50 dark:border-amber-800/35 dark:bg-amber-950/30"
-        : "border-error-border bg-error-light/50";
+        ? "border-[#F8DFA0]"
+        : "border-[#ED9ABB]";
   return (
-    <article className={`rounded-xl border ${tone} p-3`}>
+    <article className={`rounded-xl border-2 ${tone} p-3 shadow-[var(--assignment-card-shadow)]`}>
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
@@ -451,8 +445,8 @@ function DailyTrendChart({
   const maxActive = Math.max(1, ...daily.map((d) => d.activeStudents));
 
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-heading mb-3">Daily trend</h2>
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
+      <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px] mb-3">Daily trend</h2>
       {daily.length === 0 ? (
         <p className="text-sm text-muted-foreground">No data in this window.</p>
       ) : (
@@ -469,11 +463,11 @@ function DailyTrendChart({
                 >
                   <div className="flex items-end gap-0.5 h-full w-full justify-center">
                     <div
-                      className="w-2 rounded-t bg-primary"
+                      className="w-2 rounded-t bg-[var(--assignment-completed)]"
                       style={{ height: `${attemptsH}%` }}
                     />
                     <div
-                      className="w-2 rounded-t bg-amber-400"
+                      className="w-2 rounded-t bg-[#F8DFA0]"
                       style={{ height: `${activeH}%` }}
                     />
                   </div>
@@ -490,11 +484,11 @@ function DailyTrendChart({
           </div>
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-2 h-2 bg-primary rounded" />
+              <span className="inline-block w-2 h-2 bg-[var(--assignment-completed)] rounded" />
               Attempts
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-2 h-2 bg-amber-400 rounded" />
+              <span className="inline-block w-2 h-2 bg-[#F8DFA0] rounded" />
               Active students
             </span>
           </div>
@@ -513,8 +507,8 @@ function HourlyChart({
   const hasData = hourly.some((h) => h.attempts > 0);
 
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-heading mb-3">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
+      <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px] mb-3">
         Hourly activity
       </h2>
       {!hasData ? (
@@ -533,7 +527,7 @@ function HourlyChart({
                   title={`${row.hour}:00 · ${row.attempts} attempts · ${row.activeStudents} active`}
                 >
                   <div
-                    className="w-full rounded-t bg-primary/70"
+                    className="w-full rounded-t bg-[var(--assignment-progress-fill)]"
                     style={{ height: `${h}%`, minHeight: row.attempts > 0 ? 2 : 0 }}
                   />
                 </div>
@@ -564,8 +558,8 @@ function ModeMixCard({
 }) {
   const totalAttempts = modeMix.reduce((sum, row) => sum + row.attempts, 0);
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-heading mb-3">Mode mix</h2>
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
+      <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px] mb-3">Mode mix</h2>
       {modeMix.length === 0 ? (
         <p className="text-sm text-muted-foreground">No activity yet.</p>
       ) : (
@@ -582,7 +576,7 @@ function ModeMixCard({
                 </div>
                 <div className="mt-1 h-1.5 rounded bg-surface-muted overflow-hidden">
                   <div
-                    className="h-full bg-primary/70"
+                    className="h-full bg-[var(--assignment-progress-fill)]"
                     style={{ width: `${Math.max(2, share * 100)}%` }}
                   />
                 </div>
@@ -611,8 +605,8 @@ function ReachSummaryCard({
     deviceRows.length > 0 || browserRows.length > 0 || osRows.length > 0;
 
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-heading">Reach mix</h2>
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
+      <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px]">Reach mix</h2>
       <p className="text-[11px] text-muted-foreground mb-3">
         Auto-detected from user agent
       </p>
@@ -662,7 +656,7 @@ function ReachMixList({
                 </div>
                 <div className="mt-0.5 h-1 rounded bg-surface-muted overflow-hidden">
                   <div
-                    className="h-full bg-primary/70"
+                    className="h-full bg-[var(--assignment-progress-fill)]"
                     style={{ width: `${Math.max(2, share * 100)}%` }}
                   />
                 </div>
@@ -751,10 +745,10 @@ function EngagementTable({
   const activeCount = rows.length - inactiveCount;
 
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface shadow-sm overflow-hidden">
-      <div className="p-4 sm:p-5 border-b border-border-subtle flex flex-wrap items-center justify-between gap-3">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle p-5 sm:p-6">
         <div>
-          <h2 className="text-lg font-semibold text-heading">
+          <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px]">
             Per-student engagement
           </h2>
           <p className="text-xs text-muted-foreground">
@@ -776,7 +770,7 @@ function EngagementTable({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search name / email / id"
-            className="rounded-lg border border-border-default px-3 py-1.5 text-sm w-60"
+            className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-1.5 text-sm w-60 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>
       </div>
@@ -785,7 +779,7 @@ function EngagementTable({
           No students match the current filter.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto px-3 pb-2 sm:px-4">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-border-default text-left text-muted-foreground">
@@ -932,7 +926,7 @@ function StudentDrawer({
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Student detail
             </p>
-            <h3 className="text-lg font-semibold text-heading">
+            <h3 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px]">
               {nameFallback}
             </h3>
             <p className="text-xs text-muted-foreground">
@@ -983,7 +977,7 @@ function StudentDrawer({
             <div className="flex flex-wrap gap-2 text-sm">
               <a
                 href={`/content/data-analysis/students?student=${encodeURIComponent(student.userId)}`}
-                className="inline-flex items-center rounded-md border border-primary/40 px-2 py-1 text-forest hover:bg-primary-light"
+                className="inline-flex items-center rounded-full font-heading font-semibold px-2.5 py-1 text-xs transition-colors border border-[var(--assignment-row-cta-border)] bg-[var(--assignment-row-cta-bg)] text-[var(--assignment-row-cta-text)] shadow-[var(--assignment-row-cta-shadow)] hover:bg-[var(--assignment-row-cta-bg-hover)]"
               >
                 Open in Student attempts
               </a>

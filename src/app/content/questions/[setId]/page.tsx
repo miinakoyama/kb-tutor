@@ -234,9 +234,9 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+      <main className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <Loader2 className="w-8 h-8 text-[var(--assignment-completed)] animate-spin" />
         </div>
       </main>
     );
@@ -244,14 +244,14 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   if (!questionSet || questions.length === 0) {
     return (
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+      <main className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
         <div className="text-center py-16">
           <p className="text-muted-foreground mb-4">
             Question set not found or empty.
           </p>
           <Link
             href="/content/questions"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-primary hover:bg-primary-hover"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-heading font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Question Manager
@@ -265,19 +265,19 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
     .length;
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+    <main className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
       <Link
         href="/content/questions"
         className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"
       >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--assignment-calendar-nav-bg)]">
           <ArrowLeft className="w-4 h-4 text-heading" />
         </span>
         Back to Question Manager
       </Link>
 
       {actionError && (
-        <div className="mb-4 rounded-lg border border-error-border bg-error-light px-4 py-2 text-sm text-error">
+        <div className="mb-4 rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error">
           {actionError}
         </div>
       )}
@@ -298,7 +298,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                 type="button"
                 onClick={() => void handleSaveSetName()}
                 disabled={isSavingSetName}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-full font-heading font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
               >
                 <Check className="w-4 h-4" />
                 Save
@@ -319,7 +319,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-xl font-bold text-slate-gray">
+              <h1 className="font-heading text-xl font-bold text-slate-gray tracking-[-0.4px]">
                 {questionSet.name}
               </h1>
               {isGeneratedFromDb && (
@@ -363,7 +363,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
                   ? `/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}&schoolId=${encodeURIComponent(schoolIdFromQuery)}`
                   : `/assignments/manage/new?setId=${encodeURIComponent(questionSet.id)}`
               }
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary-hover transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-full font-heading font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
             >
               <ClipboardList className="w-4 h-4" />
               Create assignment from this set

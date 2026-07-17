@@ -184,7 +184,7 @@ export default function StudentDetailPage() {
   standardDetailQuery.set("studentId", studentId);
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+    <main className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
       <Breadcrumbs
         items={[
           { label: "Teacher dashboard", href: backHref },
@@ -227,7 +227,7 @@ function StudentHero({
   const tone = BAND_TONES[data.summary.status];
 
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm mb-6">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)] mb-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <StudentAvatar label={label} />
@@ -300,7 +300,7 @@ function OverviewTab({
 }) {
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-5 sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-gray">Accuracy over time</h2>
           <span className="text-xs text-slate-gray/60">Performance trend across sessions</span>
@@ -355,12 +355,12 @@ function OverviewTab({
       </section>
 
       <div className="grid gap-6 sm:grid-cols-2">
-        <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-gray mb-4">Mode comparison</h2>
           <ModeComparison byMode={data.byMode} />
         </section>
 
-        <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm p-5 sm:p-6">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-gray mb-4">Engagement signal</h2>
           <EngagementSignal summary={data.summary} />
         </section>
@@ -456,7 +456,7 @@ function StandardsTab({
   standardDetailQuery: URLSearchParams;
 }) {
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)]">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -482,7 +482,7 @@ function StandardsTab({
                 const tone = BAND_TONES[row.status];
                 const band = findStudentBand(row.status, data.thresholds);
                 return (
-                  <tr key={row.standardId} className="border-t border-border-subtle hover:bg-primary/5">
+                  <tr key={row.standardId} className="border-t border-border-subtle hover:bg-[var(--surface-muted)]">
                     <td className="px-5 py-3">
                       <Link
                         href={`/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery.toString()}`}
@@ -539,7 +539,7 @@ function QuestionsTab({
   standardDetailQuery: URLSearchParams;
 }) {
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)]">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -575,7 +575,7 @@ function QuestionsTab({
                 return (
                   <tr
                     key={`${row.setId ?? "legacy"}:${row.questionId}`}
-                    className="border-t border-border-subtle hover:bg-primary/5"
+                    className="border-t border-border-subtle hover:bg-[var(--surface-muted)]"
                   >
                     <td className="px-5 py-3 text-slate-gray">
                       {href ? (
