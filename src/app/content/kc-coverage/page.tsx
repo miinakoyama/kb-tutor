@@ -23,7 +23,7 @@ type View = "coverage" | "runs" | "exceptions";
 type ApiRow = Record<string, unknown>;
 type Kc = { code: string; statement: string };
 type School = { id: string; name: string };
-type KcBreakdown = { code: string; statement: string; questionCount: number };
+type KcBreakdown = { code: string; statement: string; mcqCount: number; saqCount: number };
 
 const ALL_SCHOOLS = "";
 
@@ -49,7 +49,8 @@ function kcBreakdown(value: unknown): KcBreakdown[] {
           {
             code: item.code,
             statement: typeof item.statement === "string" ? item.statement : "",
-            questionCount: num(item.questionCount),
+            mcqCount: num(item.mcqCount),
+            saqCount: num(item.saqCount),
           },
         ]
       : [],
@@ -373,12 +374,15 @@ export default function KcCoveragePage() {
   );
 }
 
-// One KC, with how many eligible Self Practice questions it actually has.
-// Zero means adaptive Practice cannot serve that KC at all; one means it has
-// nothing to rotate to once the student has answered it.
+// One KC, with how many eligible Self Practice questions it has in each
+// format. Missing a format entirely means Mixed self-practice can land on
+// this KC and have no question for the slot it needs (e.g. the pattern calls
+// for an SAQ but only MCQs are mapped here); having exactly one of a format
+// means it has nothing to rotate to within that format once answered.
 function KcChip({ kc }: { kc: KcBreakdown }) {
-  const tone =
-    kc.questionCount === 0 ? "empty" : kc.questionCount < 2 ? "thin" : "ok";
+  const missingFormat = kc.mcqCount === 0 || kc.saqCount === 0;
+  const thin = !missingFormat && (kc.mcqCount === 1 || kc.saqCount === 1);
+  const tone = missingFormat ? "empty" : thin ? "thin" : "ok";
   const styles: Record<typeof tone, React.CSSProperties> = {
     empty: { color: "var(--assignment-overdue)", background: "rgb(180 83 9 / 0.12)" },
     thin: { color: "var(--assignment-overdue)", background: "rgb(180 83 9 / 0.06)" },
@@ -387,11 +391,12 @@ function KcChip({ kc }: { kc: KcBreakdown }) {
   return (
     <span
       title={kc.statement || undefined}
-      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1"
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1"
       style={{ fontSize: 13, fontWeight: 600, fontFamily: geist, ...styles[tone] }}
     >
       <span>{kc.code}</span>
-      <span style={{ fontWeight: 700 }}>{kc.questionCount}</span>
+      <span style={{ fontWeight: 700, opacity: kc.mcqCount === 0 ? 1 : 0.85 }}>MCQ {kc.mcqCount}</span>
+      <span style={{ fontWeight: 700, opacity: kc.saqCount === 0 ? 1 : 0.85 }}>SAQ {kc.saqCount}</span>
     </span>
   );
 }
@@ -407,7 +412,7 @@ function KcBreakdownPanel({ kcs }: { kcs: KcBreakdown[] }) {
   return (
     <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--assignment-glass-border)" }}>
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Eligible questions per KC
+        Eligible MCQ / SAQ questions per KC
       </p>
       <div className="flex flex-wrap gap-2">
         {kcs.map((kc) => (
@@ -445,6 +450,7 @@ function CoverageList({
         const schoolCount = num(row.schoolCount);
         const unresolved = num(row.unresolvedCount);
         const emptyKcs = num(row.emptyKcCount);
+        const missingFormatKcs = num(row.missingFormatKcCount);
         const thinKcs = num(row.thinKcCount);
         const kcs = kcBreakdown(row.kcs);
         const open = expanded[standardId] ?? false;
@@ -478,7 +484,7 @@ function CoverageList({
                 <Metric
                   label="KC coverage"
                   value={`${text(row.coveredKcCount)} / ${text(row.activeKcCount)}`}
-                  tone={emptyKcs > 0 ? "warn" : thinKcs > 0 ? undefined : "ok"}
+                  tone={emptyKcs > 0 || missingFormatKcs > 0 ? "warn" : thinKcs > 0 ? undefined : "ok"}
                 />
               </div>
               <div className="flex flex-shrink-0 gap-1.5">
