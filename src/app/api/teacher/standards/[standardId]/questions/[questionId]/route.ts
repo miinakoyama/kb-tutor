@@ -19,8 +19,16 @@ import {
   toConfidenceQuadrantPercents,
   type ConfidenceQuadrantPercents,
 } from "@/lib/analytics/confidence";
-import { fetchQuestionPreviews, type QuestionPreview } from "@/lib/analytics/question-preview";
+import {
+  fetchQuestionPreviewsByIdentity,
+  questionPreviewIdentityKey,
+  resolveQuestionTypeFromAttempts,
+  type QuestionPreview,
+  type QuestionType,
+} from "@/lib/analytics/question-preview";
+import { compareShortAnswerAttempts } from "@/lib/analytics/short-answer-attempt-order";
 import { getStandardById } from "@/lib/standards";
+import type { GradedFeedback, PartLabel } from "@/types/short-answer";
 
 interface AttemptQueryRow {
   user_id: string;
@@ -55,11 +63,26 @@ export interface QuestionDetailChoice {
   percent: number;
 }
 
+export interface ShortAnswerResponseDetail {
+  attemptId: string;
+  studentId: string;
+  studentLabel: string;
+  partLabel: PartLabel;
+  attemptNumber: number;
+  responseText: string;
+  score: number;
+  maxScore: number;
+  isCorrect: boolean;
+  feedback: GradedFeedback | null;
+  answeredAt: string;
+}
+
 export interface QuestionDetailResponse {
   standard: { id: string; label: string } | null;
   question: {
     questionId: string;
     setId: string | null;
+    questionType: QuestionType | null;
     preview: QuestionPreview | null;
   };
   summary: {
@@ -69,6 +92,7 @@ export interface QuestionDetailResponse {
     averageTimeSec: number;
   };
   choices: QuestionDetailChoice[];
+  shortAnswerResponses: ShortAnswerResponseDetail[];
   totalStudents: number;
   confidence: ConfidenceQuadrantPercents;
   filters: {
@@ -80,6 +104,92 @@ export interface QuestionDetailResponse {
   };
 }
 
+interface ShortAnswerAttemptQueryRow {
+  id: string;
+  user_id: string;
+  part_label: string;
+  attempt_number: number;
+  response_text: string;
+  score: number;
+  max_score: number;
+  is_correct: boolean;
+  feedback: unknown;
+  answered_at: string;
+}
+
+const PART_LABELS = new Set<PartLabel>(["A", "B", "C"]);
+
+function isPartLabel(value: string): value is PartLabel {
+  return PART_LABELS.has(value as PartLabel);
+}
+
+function parseGradedFeedback(raw: unknown): GradedFeedback | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.verdict !== "string" || !Array.isArray(record.segments)) return null;
+  return record as unknown as GradedFeedback;
+}
+
+export async function fetchShortAnswerResponseDetails(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  params: {
+    questionId: string;
+    questionSetId: string | null;
+    studentIds: string[];
+    studentLabelById: Map<string, string>;
+    range: RangeKey;
+    mode: ModeFilter;
+    source: SourceFilter;
+  },
+): Promise<{ data: ShortAnswerResponseDetail[]; error: string | null }> {
+  let query = admin
+    .from("short_answer_attempts")
+    .select(
+      "id,user_id,part_label,attempt_number,response_text,score,max_score,is_correct,feedback,answered_at",
+    )
+    .in("user_id", params.studentIds)
+    .eq("question_id", params.questionId);
+  query = params.questionSetId
+    ? query.eq("question_set_id", params.questionSetId)
+    : query.is("question_set_id", null);
+  if (params.range !== "all") {
+    const days = params.range === "7d" ? 7 : 30;
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    query = query.gte("answered_at", from.toISOString());
+  }
+  if (params.mode !== "all" && params.mode !== "compare") {
+    query = query.eq("mode", params.mode);
+  }
+  if (params.source === "assigned") {
+    query = query.not("assignment_id", "is", null);
+  } else if (params.source === "self") {
+    query = query.is("assignment_id", null);
+  }
+
+  const { data, error } = await query;
+  if (error) return { data: [], error: error.message };
+
+  const details = ((data ?? []) as ShortAnswerAttemptQueryRow[])
+    .filter((row) => isPartLabel(row.part_label))
+    .map((row) => ({
+      attemptId: row.id,
+      studentId: row.user_id,
+      studentLabel: params.studentLabelById.get(row.user_id) ?? row.user_id,
+      partLabel: row.part_label as PartLabel,
+      attemptNumber: row.attempt_number,
+      responseText: row.response_text,
+      score: row.score,
+      maxScore: row.max_score,
+      isCorrect: row.is_correct,
+      feedback: parseGradedFeedback(row.feedback),
+      answeredAt: row.answered_at,
+    }))
+    .sort(compareShortAnswerAttempts);
+
+  return { data: details, error: null };
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ standardId: string; questionId: string }> },
@@ -89,6 +199,8 @@ export async function GET(
   const questionId = decodeURIComponent(rawQuestionId);
 
   const url = new URL(request.url);
+  const hasRequestedSetId = url.searchParams.has("setId");
+  const requestedSetId = url.searchParams.get("setId")?.trim() || null;
   const studentId = url.searchParams.get("studentId") || undefined;
   const classId = url.searchParams.get("classId") || undefined;
   const range = parseEnum<RangeKey>(url.searchParams.get("range"), ["7d", "30d", "all"] as const, "30d");
@@ -132,18 +244,22 @@ export async function GET(
     studentId: studentId ?? null,
   };
 
-  const { data: questionRow } = await admin
-    .from("generated_questions")
-    .select("set_id")
-    .eq("id", questionId)
-    .maybeSingle();
-  const setId = questionRow?.set_id ? String(questionRow.set_id) : null;
+  let setId = requestedSetId;
+  if (!hasRequestedSetId) {
+    const { data: questionRow } = await admin
+      .from("generated_questions")
+      .select("set_id")
+      .eq("id", questionId)
+      .maybeSingle();
+    setId = questionRow?.set_id ? String(questionRow.set_id) : null;
+  }
 
   const emptyResponse: QuestionDetailResponse = {
     standard: standardInfo ? { id: standardInfo.id, label: standardInfo.label } : null,
-    question: { questionId, setId, preview: null },
+    question: { questionId, setId, questionType: null, preview: null },
     summary: { attempted: 0, correct: 0, accuracy: 0, averageTimeSec: 0 },
     choices: [],
+    shortAnswerResponses: [],
     totalStudents: 0,
     confidence: { mastery: 0, misconception: 0, fragile: 0, expected: 0, total: 0 },
     filters,
@@ -175,12 +291,18 @@ export async function GET(
     studentId && effectiveStudents.some((s) => s.id === studentId)
       ? [studentId]
       : effectiveStudents.map((s) => s.id);
+  const studentLabelById = new Map(
+    effectiveStudents.map((student) => [student.id, student.label]),
+  );
 
   let attemptsQuery = admin
     .from("attempts")
     .select("user_id,question_id,standard_id,topic,mode,selected_option_id,is_correct,time_spent_sec,assignment_id,answered_at")
     .in("user_id", studentIds)
     .eq("question_id", questionId);
+  attemptsQuery = setId
+    ? attemptsQuery.eq("question_set_id", setId)
+    : attemptsQuery.is("question_set_id", null);
   attemptsQuery = standardInfo
     ? attemptsQuery.or(
         `standard_id.eq.${standardInfo.id},standard_id.is.null`,
@@ -213,16 +335,41 @@ export async function GET(
     (row) =>
       resolveAttemptStandardId(row.standard_id, row.topic) === standardId,
   );
-  const { data: previewByQuestionId, error: previewError } = await fetchQuestionPreviews(admin, [questionId]);
+  const questionIdentity = { questionId, questionSetId: setId };
+  const { data: previewByIdentity, error: previewError } =
+    await fetchQuestionPreviewsByIdentity(admin, [questionIdentity]);
   if (previewError) {
     return NextResponse.json({ error: previewError }, { status: 500 });
   }
-  const preview = previewByQuestionId.get(questionId) ?? null;
+  const preview =
+    previewByIdentity.get(questionPreviewIdentityKey(questionIdentity)) ?? null;
+  const questionType = resolveQuestionTypeFromAttempts(attempts, preview);
+
+  let shortAnswerResponses: ShortAnswerResponseDetail[] = [];
+  if (questionType === "open-ended") {
+    const { data: saqDetails, error: saqError } = await fetchShortAnswerResponseDetails(
+      admin,
+      {
+        questionId,
+        questionSetId: setId,
+        studentIds,
+        studentLabelById,
+        range,
+        mode,
+        source,
+      },
+    );
+    if (saqError) {
+      return NextResponse.json({ error: saqError }, { status: 500 });
+    }
+    shortAnswerResponses = saqDetails;
+  }
 
   if (attempts.length === 0) {
     return NextResponse.json({
       ...emptyResponse,
-      question: { questionId, setId, preview },
+      question: { questionId, setId, questionType, preview },
+      shortAnswerResponses,
     });
   }
 
@@ -253,37 +400,42 @@ export async function GET(
   for (const row of latestByStudent.values()) {
     choiceCounts.set(row.selected_option_id, (choiceCounts.get(row.selected_option_id) ?? 0) + 1);
   }
-  const choices: QuestionDetailChoice[] = (preview?.options ?? []).map((option) => {
-    const count = choiceCounts.get(option.id) ?? 0;
-    return {
-      id: option.id,
-      text: option.text,
-      isCorrect: option.id === preview?.correctOptionId,
-      count,
-      percent: totalStudents > 0 ? roundPercent((count / totalStudents) * 100) : 0,
-    };
-  });
+  const choices: QuestionDetailChoice[] =
+    questionType === "mcq" && preview?.questionType === "mcq"
+      ? preview.options.map((option) => {
+          const count = choiceCounts.get(option.id) ?? 0;
+          return {
+            id: option.id,
+            text: option.text,
+            isCorrect: option.id === preview.correctOptionId,
+            count,
+            percent: totalStudents > 0 ? roundPercent((count / totalStudents) * 100) : 0,
+          };
+        })
+      : [];
 
-  // --- Confidence quadrants ---
-  const { data: confidenceRows, error: confidenceError } = await fetchConfidenceEvents(
-    admin,
-    studentIds,
-    [questionId],
-  );
-  if (confidenceError) {
-    return NextResponse.json({ error: confidenceError }, { status: 500 });
-  }
+  // --- Confidence quadrants (MCQ only — SAQ has no confidence self-assessment step) ---
   const confidenceCounts = emptyConfidenceQuadrantCounts();
-  for (const row of confidenceRows) {
-    const level = parseConfidenceLevel(row.payload?.confidenceLevel);
-    const isCorrect = typeof row.payload?.isCorrect === "boolean" ? row.payload.isCorrect : null;
-    if (!level || isCorrect === null) continue;
-    addConfidenceSubmission(confidenceCounts, level, isCorrect);
+  if (questionType === "mcq") {
+    const { data: confidenceRows, error: confidenceError } = await fetchConfidenceEvents(
+      admin,
+      studentIds,
+      [questionId],
+    );
+    if (confidenceError) {
+      return NextResponse.json({ error: confidenceError }, { status: 500 });
+    }
+    for (const row of confidenceRows) {
+      const level = parseConfidenceLevel(row.payload?.confidenceLevel);
+      const isCorrect = typeof row.payload?.isCorrect === "boolean" ? row.payload.isCorrect : null;
+      if (!level || isCorrect === null) continue;
+      addConfidenceSubmission(confidenceCounts, level, isCorrect);
+    }
   }
 
   const response: QuestionDetailResponse = {
     standard: standardInfo ? { id: standardInfo.id, label: standardInfo.label } : null,
-    question: { questionId, setId, preview },
+    question: { questionId, setId, questionType, preview },
     summary: {
       attempted: attempts.length,
       correct,
@@ -291,6 +443,7 @@ export async function GET(
       averageTimeSec,
     },
     choices,
+    shortAnswerResponses,
     totalStudents,
     confidence: toConfidenceQuadrantPercents(confidenceCounts),
     filters,

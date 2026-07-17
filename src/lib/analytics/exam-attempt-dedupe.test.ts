@@ -4,6 +4,7 @@ import { dedupeAssignmentExamAttempts } from "./exam-attempt-dedupe";
 type Row = {
   user_id: string;
   question_id: string;
+  question_set_id?: string | null;
   mode: string | null;
   assignment_id: string | null;
   answered_at: string;
@@ -106,5 +107,29 @@ describe("dedupeAssignmentExamAttempts", () => {
 
     const deduped = dedupeAssignmentExamAttempts(rows);
     expect(deduped).toHaveLength(4);
+  });
+
+  it("does not collapse assignment exam rows from different question sets", () => {
+    const base = {
+      user_id: "u1",
+      question_id: "shared-question",
+      mode: "exam",
+      assignment_id: "a1",
+      selected_option_id: "A",
+    };
+    const rows: Row[] = [
+      {
+        ...base,
+        question_set_id: "set-a",
+        answered_at: "2026-04-20T10:00:00.000Z",
+      },
+      {
+        ...base,
+        question_set_id: "set-b",
+        answered_at: "2026-04-20T10:01:00.000Z",
+      },
+    ];
+
+    expect(dedupeAssignmentExamAttempts(rows)).toHaveLength(2);
   });
 });

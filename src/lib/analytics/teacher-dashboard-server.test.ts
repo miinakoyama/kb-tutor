@@ -29,6 +29,7 @@ function attempt(
     isCorrect,
     timeSpentSec,
     assignmentId: null,
+    isShortAnswer: false,
     ...overrides,
   };
 }
@@ -466,6 +467,96 @@ describe("buildDashboardResponse", () => {
     const row = result.byStandard.find((item) => item.standardId === "BIO.1.3");
     expect(row?.status).toBe("below_basic");
     expect(row?.accuracy).toBe(40);
+  });
+
+  it("pre-seeds every known standard as not_started when it has no attempts", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60, "Structure and Function"),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    // A standard nobody has attempted should still appear, as not_started.
+    const untouched = result.byStandard.find(
+      (item) => item.standardId === "3.1.9-12.S",
+    );
+    expect(untouched).toBeDefined();
+    expect(untouched?.attempted).toBe(0);
+    expect(untouched?.status).toBe("not_started");
+    // All 23 canonical standards should be present even though only one was attempted.
+    expect(result.byStandard.length).toBeGreaterThanOrEqual(23);
+  });
+
+  it("only pre-seeds standards matching the topic filter", () => {
+    const result = buildDashboardResponse({
+      attempts: [],
+      topic: "Structure and Function",
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    expect(
+      result.byStandard.every((row) => row.category === "Structure and Function"),
+    ).toBe(true);
+    expect(result.byStandard.length).toBeGreaterThan(0);
+  });
+
+  it("resolves module and category for canonical standards", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60, "Structure and Function"),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    const row = result.byStandard.find(
+      (item) => item.standardId === "3.1.9-12.A",
+    );
+    expect(row?.module).toBe("A");
+    expect(row?.category).toBe("Structure and Function");
+  });
+
+  it("leaves module and category null for unrecognized standard ids", () => {
+    const attempts: AttemptRecord[] = [attempt("s1", "BIO.1.3", true, 60)];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    const row = result.byStandard.find((item) => item.standardId === "BIO.1.3");
+    expect(row?.module).toBeNull();
+    expect(row?.category).toBeNull();
+  });
+
+  it("excludes short-answer completion rows from per-standard MCQ aggregation", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60),
+      attempt("s2", "3.1.9-12.A", false, 90, "Structure and Function", {
+        isShortAnswer: true,
+      }),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    const row = result.byStandard.find(
+      (item) => item.standardId === "3.1.9-12.A",
+    );
+    expect(row?.attempted).toBe(1);
+    expect(row?.correct).toBe(1);
+    expect(row?.accuracy).toBe(100);
   });
 });
 

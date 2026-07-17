@@ -98,7 +98,7 @@ export const alertAmber =
   "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800/35 dark:bg-amber-950/40 dark:text-amber-200/90";
 
 export const buttonOutlinePrimary =
-  "inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-forest hover:bg-primary-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center gap-2 rounded-lg border border-primary/50 px-4 py-2 text-sm font-medium text-primary hover:bg-primary-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 export const optionPanelCorrect =
   "p-3 rounded-lg text-sm bg-primary-light border border-primary/25";

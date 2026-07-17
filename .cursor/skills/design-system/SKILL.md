@@ -1,9 +1,10 @@
 ---
 name: "design-system"
-description: "Design token system extracted from the My Assignments page (student /assignments route) and its component tree. Use as the reference palette/type/spacing system when building new pages so they visually match My Assignments."
+description: "Design token system extracted from the My Assignments page (student /assignments route) and its component tree, extended with the teacher-dashboard admin-UI patterns (§10). Use as the reference palette/type/spacing system when building new pages so they visually match My Assignments, or the admin patterns when building dense dashboard/admin surfaces."
 metadata:
   source: "src/app/assignments/page.tsx and its full render tree, src/app/globals.css, src/components/Sidebar.tsx, src/app/layout.tsx"
   extracted: "2026-07-11"
+  extended: "2026-07-14 — added §10 Teacher Dashboard Extensions (Admin UI) after a compliance audit of src/app/teacher-dashboard/**, src/components/PerformanceThresholdsCard.tsx, src/components/short-answer/FeedbackReportsSection.tsx + FeedbackSettingsCard.tsx, src/lib/analytics/band-display.ts, src/components/ui/Button.tsx, src/lib/ui/status-badge-styles.ts"
 ---
 
 # My Assignments — Design Token System
@@ -36,6 +37,8 @@ classes are used for layout/flex/plain-Tailwind-scale spacing.
 |---|---|---|---|
 | `--sidebar-gradient` | `#0c6b45` | `#0c6b45` (same) | `Sidebar.tsx` aside/header/mobile-drawer background (flat color, despite the variable name — no gradient is applied anywhere it's used) |
 | `--primary` | `#16a34a` | `#3d9a62` | Not directly used inside the assignments component tree itself (search input has a `focus:ring-primary/40` Tailwind utility) |
+| `--primary-hover` | `#15803d` | `#348554` | Not in the original assignments-page extraction; used by the teacher-dashboard admin Button's `primary` variant (§10) |
+| `--primary-light` | `rgba(22, 163, 74, 0.1)` | `rgba(61, 154, 98, 0.14)` | Not in the original assignments-page extraction; used by the teacher-dashboard admin Button's `outline` variant hover state (§10) |
 | `--assignment-cta-bg-strong` | `rgb(12 107 69 / 0.9)` | *(not overridden in `.dark` — falls back to light value)* | Hero card primary CTA (`NextStepCard` "Continue"/"Start" button) |
 | `--assignment-cta-bg` | `rgb(12 107 69 / 0.7)` | *(not overridden — ⚠️ see below)* | Declared but **not referenced by any component** on this page — dead token |
 | `--assignment-cta-bg-hover` / `-active` | `rgb(12 107 69 / 0.76)` / `0.64` | *(not overridden)* | Declared but not referenced by any component on this page (hero CTA uses `hover:brightness-110` instead) — dead tokens |
@@ -397,6 +400,90 @@ Sidebar (outside the assignments tree, but shared chrome) uses a more deliberate
 
 ---
 
+## 10. Teacher Dashboard Extensions (Admin UI)
+
+Extracted from a rigorous compliance audit of the teacher-dashboard surfaces
+(`src/app/teacher-dashboard/**`, `src/components/PerformanceThresholdsCard.tsx`,
+`src/components/short-answer/FeedbackReportsSection.tsx` +
+`FeedbackSettingsCard.tsx`, `src/lib/analytics/band-display.ts`,
+`src/components/ui/Button.tsx`, `src/lib/ui/status-badge-styles.ts`). This
+admin/data-table surface predates this doc and introduced patterns with no
+`/assignments`-page precedent — documented here so they're a deliberate,
+checkable tier rather than undocumented drift. An audit against this doc's
+own anti-patterns found the teacher dashboard mixing `--primary` and
+`--forest` on 9 elements (badges reaching for `bg-primary`/`border-primary`
+but defaulting their text to `text-forest`); those were fixed to
+single-green (`text-primary`) as part of adding this section — see the
+strengthened anti-pattern note below.
+
+### Badge / tag
+
+`rounded-full bg-primary/10 border border-primary/25 text-primary`, padding
+`px-1.5–2 py-0.5`, text `10–11px font-semibold` (some add
+`uppercase tracking-wide`). Always single-green (`--primary` for bg, border,
+*and* text) — never pair with `text-forest`, which is reserved for
+interactive links/hover states (see Anti-patterns). Used for: module badges
+("Module A"), the "Current" marker in the class/student picker, question-type
+tags ("MCQ" / "Short answer"), "Custom" (band-settings override indicator),
+"Following the default" (feedback-settings inheritance indicator), "Reviewed"
+(feedback-report status).
+
+### Admin / compact Button
+
+`src/components/ui/Button.tsx` + `src/lib/ui/status-badge-styles.ts`. A
+**separate, intentional tier** from the assignments-page CTA button (§8) —
+this one is for dense admin/data-table contexts (dashboard toolbars, modal
+actions, table row actions), not a drift from the CTA spec:
+
+| | Primary | Outline | Icon |
+|---|---|---|---|
+| Background | `bg-primary` | transparent | transparent |
+| Text | `text-white` | `text-primary` | `text-slate-gray/60` |
+| Border | none | `border-primary/50` | none |
+| Hover | `hover:bg-primary-hover` | `hover:bg-primary-light` | `hover:bg-surface-muted hover:text-slate-gray` |
+| Radius | `rounded-lg` (8px) | `rounded-lg` (8px) | `rounded-lg` (8px) |
+| Height | auto (~36px via `py-2`, `text-sm`) | auto (~36px) | `h-8 w-8` (32px, fixed square) |
+
+Don't reach for the assignments-page CTA spec (999px pill / 46px) inside the
+teacher dashboard, and don't reach for this compact spec on the assignments
+page — they're deliberately different tiers for different densities.
+
+### Compact list-row
+
+`rounded-xl` (12px — a **third radius tier**, distinct from this doc's two
+card radii in §4), border only (`border-border-subtle` or
+`border-border-default`), **no shadow**, `bg-surface` or
+`bg-surface-muted/60`. Reserved for repeating dense rows nested *inside* an
+already-bordered outer card — question-choice rows, per-student response
+rows, feedback-report list items, per-school config boxes. Not for
+standalone top-level cards; those still follow §4's 16px/28–32px + border+shadow
+rule.
+
+### Stat pill
+
+`rounded-xl border border-border-subtle bg-surface-muted/60 px-3 py-2.5
+text-center` — the MCQ/SAQ performance metric tiles (Practice / Exam /
+Review / Avg time) on the standard-detail page.
+
+### Chart colors
+
+Recharts/SVG elements prefer `var(--token)` over raw hex wherever a semantic
+token exists (e.g. donut/legend swatches and line-chart stroke/dot/label all
+use `var(--primary)`, not a hardcoded `#16a34a`) — `var()` resolves correctly
+in these exact chart contexts, confirmed in code. Literal Tailwind-scale hex
+(e.g. `MODE_BAR_COLORS`'s amber/blue/red for a mode-comparison bar chart)
+remains acceptable only when no existing token maps to that hue.
+
+### Modal scrim
+
+Teacher-dashboard modals use `bg-slate-950/50`. Note only, not a rule to
+copy: the rest of the app uses several different scrim values (`bg-black/40`,
+`bg-slate-900/50`, `bg-black/20`, `bg-black/55`, etc.) with no single
+project-wide convention — this is pre-existing, project-wide inconsistency,
+out of scope to unify here.
+
+---
+
 ## CSS Variables Reference Block
 
 All tokens already exist in `src/app/globals.css` (`:root` / `.dark`). Nothing new needs to be added for a page to reuse this system — just apply the existing `--assignment-*`, `--border-*`, `--surface*`, `--background`, `--foreground`, `--muted-foreground`, `--error-*` variables. Do not redeclare them per-component.
@@ -435,7 +522,7 @@ None of the `--assignment-*` tokens are registered in `@theme inline`, so they a
 Based on patterns actually observed in this page's code:
 
 - **Don't introduce a new card radius.** Only two exist: 16px (row-level: `AssignmentRow`, `CompletedRow`, banners, agenda cards) and 28–32px (hero-level: `NextStepCard`). Don't add a third.
-- **Don't introduce a second green.** `--sidebar-gradient` / `--assignment-completed` (`#0c6b45`) is the one brand green used for "completed"/"primary CTA" semantics. `--primary` (`#16a34a`) exists as a separate, lighter green in the global palette but is not used inside the assignments tree — don't mix the two within one component.
+- **Don't introduce a second green.** `--sidebar-gradient` / `--assignment-completed` (`#0c6b45`) is the one brand green used for "completed"/"primary CTA" semantics. `--primary` (`#16a34a`) exists as a separate, lighter green in the global palette but is not used inside the assignments tree — don't mix the two within one component. **Badges/tags are the highest-risk spot for this**: a real, confirmed instance was found in the teacher dashboard where a badge's `bg-primary`/`border-primary` was paired with `text-forest` on the same element (fixed in §10) — when a tag/pill reaches for `--primary` on its background or border, make sure its text uses `--primary` too, not `--forest`.
 - **Don't invent a fourth mode color.** Only `practice` (blue), `exam` (pink/magenta), `review` (gold) exist in `ASSIGNMENT_MODE_META`. If a new assignment mode is ever added, follow the existing `{color, bg}` pair pattern rather than picking an arbitrary hue.
 - **Don't use filled icons.** Every icon on this page is `lucide-react` stroke-only, default `strokeWidth`. No solid/filled icon appears anywhere in the tree.
 - **Don't add a border-only OR shadow-only card.** Every elevated surface on this page pairs a 1–1.5px hairline border with a matching `--assignment-*-shadow`. Don't drop one and keep the other.

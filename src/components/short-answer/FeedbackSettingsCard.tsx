@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, MessageSquareText, RotateCcw } from "lucide-react";
 import type { GradingMethod } from "@/types/short-answer";
+import { Button } from "@/components/ui/Button";
 
 interface ModelInfo {
   id: string;
@@ -126,7 +127,7 @@ export function FeedbackSettingsCard() {
 
   if (isLoading) {
     return (
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-primary/25 bg-surface p-6 shadow-sm">
         <div className="flex items-center gap-2 text-sm text-slate-gray/60">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading feedback settings...
@@ -137,7 +138,7 @@ export function FeedbackSettingsCard() {
 
   if (loadError || !data) {
     return (
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-primary/25 bg-surface p-6 shadow-sm">
         <p className="text-sm text-slate-gray/70">
           {loadError ?? "Feedback settings are unavailable."}
         </p>
@@ -157,7 +158,7 @@ export function FeedbackSettingsCard() {
           <select
             value={draft.method}
             onChange={(e) => handleMethodChange(key, e.target.value as GradingMethod)}
-            className="min-w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-gray focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+            className="min-w-64 rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             {data.methods.map((m) => (
               <option key={m.method} value={m.method}>
@@ -175,7 +176,7 @@ export function FeedbackSettingsCard() {
             onChange={(e) =>
               updateDraft(key, { modelId: e.target.value, message: null, error: null })
             }
-            className="min-w-48 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-gray focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+            className="min-w-48 rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             {data.models.map((model) => (
               <option key={model.id} value={model.id}>
@@ -202,12 +203,11 @@ export function FeedbackSettingsCard() {
                 error: null,
               });
             }}
-            className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-gray focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+            className="w-24 rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </label>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Button
             disabled={draft.saving}
             onClick={() =>
               save(
@@ -229,14 +229,13 @@ export function FeedbackSettingsCard() {
                 "Saved.",
               )
             }
-            className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-2 text-sm font-medium text-white hover:bg-[#15803d] disabled:opacity-50 transition-colors"
           >
             {draft.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Save
-          </button>
+          </Button>
           {!isDefaultRow && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
               disabled={draft.saving}
               onClick={() =>
                 save(
@@ -245,17 +244,16 @@ export function FeedbackSettingsCard() {
                   "Reverted to the default configuration.",
                 )
               }
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-gray hover:bg-slate-50 disabled:opacity-50 transition-colors"
               title="Revert to the system default"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Reset
-            </button>
+            </Button>
           )}
         </div>
         {(draft.message || draft.error) && (
           <p
-            className={`w-full text-xs ${draft.error ? "text-rose-600" : "text-[#166534]"}`}
+            className={`w-full text-xs ${draft.error ? "text-rose-600 dark:text-rose-300" : "text-forest"}`}
           >
             {draft.error ?? draft.message}
           </p>
@@ -265,10 +263,10 @@ export function FeedbackSettingsCard() {
   };
 
   return (
-    <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mb-6">
-      <div className="border-b border-slate-100 px-5 py-4">
+    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm mb-6">
+      <div className="border-b border-border-subtle px-5 py-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-gray">
-          <MessageSquareText className="h-5 w-5 text-[#16a34a]" />
+          <MessageSquareText className="h-5 w-5 text-primary" />
           Short-answer feedback settings
         </h2>
         <p className="mt-1 text-sm text-slate-gray/60">
@@ -280,12 +278,12 @@ export function FeedbackSettingsCard() {
 
       <div className="space-y-6 px-5 py-5">
         {data.default.editable && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+          <div className="rounded-xl border border-border-default bg-surface-muted/60 p-4">
             <div className="mb-3 flex items-center gap-2">
               <span className="text-sm font-semibold text-slate-gray">
                 System default
               </span>
-              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-gray/70">
+              <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-gray/70">
                 Applies to schools without their own setting
               </span>
             </div>
@@ -301,14 +299,14 @@ export function FeedbackSettingsCard() {
           data.schools.map((school) => (
             <div
               key={school.schoolId}
-              className="rounded-xl border border-slate-200 p-4"
+              className="rounded-xl border border-border-default p-4"
             >
               <div className="mb-3 flex items-center gap-2">
                 <span className="text-sm font-semibold text-slate-gray">
                   {school.schoolName}
                 </span>
                 {school.inherited && (
-                  <span className="rounded-full bg-[#16a34a]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#166534]">
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                     Following the default
                   </span>
                 )}

@@ -20,12 +20,12 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
             {item.href && !isLast ? (
               <Link
                 href={item.href}
-                className="text-[#166534] hover:text-[#14532d] hover:underline"
+                className="text-forest hover:text-heading hover:underline"
               >
                 {item.label}
               </Link>
             ) : (
-              <span className={isLast ? "text-slate-gray" : "text-[#166534]"}>
+              <span className={isLast ? "text-slate-gray" : "text-forest"}>
                 {item.label}
               </span>
             )}
