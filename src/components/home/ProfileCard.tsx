@@ -9,9 +9,11 @@ import {
   RadarChart,
   ResponsiveContainer,
 } from "recharts";
-import { UserRound } from "lucide-react";
+import { Award, UserRound } from "lucide-react";
 import type { MasteryDatum } from "@/lib/progress/mastery";
 import type { StudentProfileSummary } from "@/lib/homepage/profile-summary";
+import type { StudentBadgeView } from "@/types/badges";
+import { BadgeModal } from "./BadgeModal";
 
 function initialsOf(name: string | null): string {
   if (!name) return "";
@@ -32,17 +34,21 @@ function initialsOf(name: string | null): string {
 export function ProfileCard({
   profile,
   mastery,
+  badges,
 }: {
   profile: StudentProfileSummary;
   mastery: MasteryDatum[];
+  badges: StudentBadgeView[];
 }) {
   // Recharts' ResponsiveContainer needs a real DOM to measure.
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
   }, []);
+  const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false);
 
   const initials = initialsOf(profile.name);
+  const earnedBadgeCount = badges.filter((badge) => badge.earned).length;
 
   return (
     <div
@@ -53,7 +59,24 @@ export function ProfileCard({
         boxShadow: "var(--assignment-card-shadow)",
       }}
     >
-      <h3 className="font-heading text-lg font-bold text-slate-gray">Profile</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-heading text-lg font-bold text-slate-gray">Profile</h3>
+        <button
+          type="button"
+          onClick={() => setIsBadgeModalOpen(true)}
+          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:brightness-95"
+          style={{
+            background: "var(--mastery-mastered-bg)",
+            color: "var(--mastery-mastered)",
+          }}
+        >
+          <Award className="h-3.5 w-3.5" aria-hidden="true" />
+          Badges
+          <span className="opacity-70">
+            {earnedBadgeCount}/{badges.length}
+          </span>
+        </button>
+      </div>
 
       <div className="flex items-center gap-3">
         {/* No avatar image data exists — an initials placeholder derived from
@@ -139,6 +162,14 @@ export function ProfileCard({
           />
         )}
       </div>
+
+      {isBadgeModalOpen && (
+        <BadgeModal
+          studentName={profile.name}
+          badges={badges}
+          onClose={() => setIsBadgeModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

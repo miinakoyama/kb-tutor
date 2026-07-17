@@ -10,6 +10,7 @@ import { getSelfPracticeWeeklySeconds } from "@/lib/homepage/self-practice-stats
 import { getLearningEffort } from "@/lib/homepage/learning-effort";
 import { getMasterySummary } from "@/lib/homepage/mastery-summary";
 import { getStudentProfileSummary } from "@/lib/homepage/profile-summary";
+import { getStudentBadges } from "@/lib/homepage/badges";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -41,6 +42,7 @@ export default async function Home() {
     learningEffort,
     masterySummary,
     profileSummary,
+    badges,
   ] = await Promise.all([
     getStudentAssignmentList(supabase, user.id),
     getStudentKeystoneExam(supabase, user.id, { timeZone }),
@@ -48,6 +50,7 @@ export default async function Home() {
     getLearningEffort(supabase, user.id, { timeZone }),
     getMasterySummary(supabase, user.id),
     getStudentProfileSummary(supabase, user.id),
+    getStudentBadges(supabase, user.id, { timeZone }),
   ]);
 
   return (
@@ -58,6 +61,7 @@ export default async function Home() {
       learningEffort={learningEffort}
       masterySummary={masterySummary}
       profileSummary={profileSummary}
+      badges={badges}
     />
   );
 }
