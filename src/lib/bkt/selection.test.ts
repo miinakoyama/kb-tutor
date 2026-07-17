@@ -107,4 +107,35 @@ describe("adaptive question ranking", () => {
     expect(repeated).toEqual(first);
     expect(anotherSession).not.toEqual(first);
   });
+  it("treats a required format as a hard constraint", () => {
+    const mcq = question({ questionId: "mcq" });
+    const saq = question({ questionId: "saq", format: "saq" });
+
+    expect(rankQuestionsForKc([mcq], "S1", null, "session", { requiredFormat: "saq" })).toEqual([]);
+    expect(rankQuestionsForKc([saq], "S1", null, "session", { requiredFormat: "mcq" })).toEqual([]);
+  });
+  it("keeps a required-format singleton repeat when other formats cannot be used", () => {
+    const mcq = question({ questionId: "mcq" });
+    const saq = question({ questionId: "saq", format: "saq" });
+
+    expect(rankQuestionsForKc(
+      [mcq, saq],
+      "S1",
+      { questionSetId: "set", questionId: "mcq" },
+      "session",
+      { requiredFormat: "mcq" },
+    )).toEqual([mcq]);
+  });
+  it("lets an opposite-format candidate trigger fallback instead of an immediate repeat", () => {
+    const mcq = question({ questionId: "mcq" });
+    const saq = question({ questionId: "saq", format: "saq" });
+
+    expect(rankQuestionsForKc(
+      [mcq, saq],
+      "S1",
+      { questionSetId: "set", questionId: "mcq" },
+      "session",
+      { requiredFormat: "mcq", avoidImmediateRepeatAcrossFormats: true },
+    )).toEqual([]);
+  });
 });

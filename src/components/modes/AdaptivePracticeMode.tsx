@@ -15,7 +15,17 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
-import type { AnswerRecord, ConfidenceLevel, GlossaryTerm, Question } from "@/types/question";
+import type {
+  AnswerRecord,
+  ConfidenceLevel,
+  GlossaryTerm,
+  Question,
+  QuestionTypeSelection,
+} from "@/types/question";
+import {
+  buildMixedQuestionSequence,
+  requiredFormatForSelection,
+} from "@/lib/question-type-sequence";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { ShortAnswerQuestionView } from "@/components/short-answer/ShortAnswerQuestionView";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
@@ -103,6 +113,8 @@ interface AdaptivePracticeModeProps {
   onAllSchoolAssignmentsCompleted?: () => void;
   /** Ordered adaptive scope. Omit for assignments and Review. */
   adaptiveStandardIds?: string[];
+  /** When set, constrains question selection to MCQ, SAQ, or a 3:1 mixed pattern. */
+  questionTypeSelection?: QuestionTypeSelection;
 }
 
 interface AttemptRecord {
@@ -123,6 +135,7 @@ export function AdaptivePracticeMode({
   assignmentRunAfter,
   onAllSchoolAssignmentsCompleted,
   adaptiveStandardIds,
+  questionTypeSelection,
 }: AdaptivePracticeModeProps) {
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -180,13 +193,14 @@ export function AdaptivePracticeMode({
   const adaptiveEnabled = adaptiveRequested && !adaptiveUnavailable;
 
   const requestAdaptiveQuestion = useCallback(
-    async (append: boolean): Promise<AdaptiveRequestResult> => {
+    async (append: boolean, slotIndex: number): Promise<AdaptiveRequestResult> => {
       const standardIds = adaptiveScopeKey.split(",").filter(Boolean);
       if (!standardIds.length) return "stopped";
       setAdaptiveLoading(true);
       setAdaptiveStopReason(null);
       try {
         selectionSeedRef.current ??= sessionIdRef.current ?? createPracticeSelectionSeed();
+        const requiredFormat = requiredFormatForSelection(questionTypeSelection, slotIndex);
         const response = await fetch("/api/practice/next", {
           method: "POST",
           credentials: "include",
@@ -195,6 +209,8 @@ export function AdaptivePracticeMode({
             standardIds,
             sessionId: sessionIdRef.current,
             selectionSeed: selectionSeedRef.current,
+            ...(questionTypeSelection ? { selectionMode: questionTypeSelection } : {}),
+            ...(requiredFormat ? { requiredFormat } : {}),
           }),
         });
         const payload = (await response.json()) as {
@@ -233,7 +249,7 @@ export function AdaptivePracticeMode({
         setAdaptiveLoading(false);
       }
     },
-    [adaptiveScopeKey],
+    [adaptiveScopeKey, questionTypeSelection],
   );
 
   // When mode === "review", emit the mode-level entry/exit events in addition
@@ -285,7 +301,9 @@ export function AdaptivePracticeMode({
       const count = questionCount ?? questions.length;
       const selected = isAssignmentRun
         ? questions.slice(0, count)
-        : shuffleArray(questions).slice(0, count);
+        : questionTypeSelection === "mixed"
+          ? buildMixedQuestionSequence(questions, count)
+          : shuffleArray(questions).slice(0, count);
       setSessionQuestions(selected);
       // Seed bookmark state from Supabase so it stays correct across devices.
       // toggleBookmark updates the localStorage cache synchronously after this
@@ -330,7 +348,7 @@ export function AdaptivePracticeMode({
       setSessionQuestions([]);
       setCurrentIndex(0);
       setIsInitialized(false);
-      void requestAdaptiveQuestion(false).then((result) => {
+      void requestAdaptiveQuestion(false, 0).then((result) => {
         if (result === "scope_unavailable") {
           setAdaptiveUnavailable(true);
           initializeFixedPractice();
@@ -341,7 +359,15 @@ export function AdaptivePracticeMode({
     setAdaptiveUnavailable(false);
     initializeFixedPractice();
     setIsInitialized(true);
-  }, [questions, questionCount, isAssignmentRun, answered, adaptiveRequested, requestAdaptiveQuestion]);
+  }, [
+    questions,
+    questionCount,
+    isAssignmentRun,
+    answered,
+    adaptiveRequested,
+    requestAdaptiveQuestion,
+    questionTypeSelection,
+  ]);
 
   useEffect(() => {
     setSelectedOptionId(null);
@@ -948,7 +974,7 @@ export function AdaptivePracticeMode({
           return;
         }
         await processQueue();
-        const result = await requestAdaptiveQuestion(true);
+        const result = await requestAdaptiveQuestion(true, sessionQuestions.length);
         if (result === "selected") {
           setCurrentIndex((prev) => prev + 1);
           requestAnimationFrame(() => {
@@ -958,8 +984,13 @@ export function AdaptivePracticeMode({
           finishSession();
         }
       } else {
-        // Self-practice: cycle by appending another shuffled batch
-        setSessionQuestions((prev) => [...prev, ...shuffleArray(questions)]);
+        // Self-practice: cycle by appending another shuffled (or mixed-pattern) batch
+        setSessionQuestions((prev) => [
+          ...prev,
+          ...(questionTypeSelection === "mixed"
+            ? buildMixedQuestionSequence(questions, questions.length, prev.length)
+            : shuffleArray(questions)),
+        ]);
         setCurrentIndex((prev) => prev + 1);
         requestAnimationFrame(() => {
           scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -976,7 +1007,9 @@ export function AdaptivePracticeMode({
     isCompleted,
     questions,
     questionCount,
+    questionTypeSelection,
     requestAdaptiveQuestion,
+    sessionQuestions.length,
     totalQuestions,
   ]);
 

@@ -24,7 +24,8 @@ import {
   Lightbulb,
   BookOpen,
 } from "lucide-react";
-import type { Question, AnswerRecord } from "@/types/question";
+import type { Question, AnswerRecord, QuestionTypeSelection } from "@/types/question";
+import { buildMixedQuestionSequence } from "@/lib/question-type-sequence";
 import type { GradedFeedback, PartLabel, ShortAnswerItem } from "@/types/short-answer";
 import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
 import { FeedbackBlock } from "@/components/short-answer/FeedbackBlock";
@@ -80,6 +81,8 @@ interface ExamModeProps {
   questions: Question[];
   topicName?: string;
   requestedQuestionCount?: number;
+  /** When "mixed", questions are ordered 3 MCQ : 1 SAQ (self-practice runs only). */
+  questionTypeSelection?: QuestionTypeSelection;
   assignmentId?: string;
   /** Where the header back link leads (set by the caller from the entry point). */
   backHref?: string;
@@ -179,6 +182,7 @@ export function ExamMode({
   questions,
   topicName,
   requestedQuestionCount,
+  questionTypeSelection,
   assignmentId,
   backHref = "/self-practice",
   answered,
@@ -341,6 +345,8 @@ export function ExamMode({
     let ordered: Question[];
     if (isAssignmentRun) {
       ordered = questions.slice(0, requestedQuestionCount);
+    } else if (questionTypeSelection === "mixed") {
+      ordered = buildMixedQuestionSequence(questions, requestedQuestionCount);
     } else {
       let pool = shuffleArray(questions);
       while (pool.length < requestedQuestionCount) {
@@ -371,7 +377,7 @@ export function ExamMode({
     }
 
     setIsInitialized(true);
-  }, [questions, requestedQuestionCount, isAssignmentRun, answered]);
+  }, [questions, requestedQuestionCount, isAssignmentRun, answered, questionTypeSelection]);
 
   useEffect(() => {
     if (sessionQuestions.length === 0) {

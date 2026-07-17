@@ -54,7 +54,31 @@ describe("SelfPracticePlanner flow", () => {
     expect(screen.queryByText("Building up")).toBeNull();
     expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
     expect(
+      (screen.getByRole("button", { name: "Next" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it("requires a question type before Start Practice is enabled", () => {
+    render(<SelfPracticePlanner />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Practice Get feedback as you go\./,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Structure and Function/ })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByText("Choose Question Type")).toBeTruthy();
+    expect(
       (screen.getByRole("button", { name: "Start Practice" }) as HTMLButtonElement).disabled,
     ).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Mixed/ }));
+
+    // Once every selection is made, Start Practice becomes a live link.
+    expect(screen.getByRole("link", { name: "Start Practice" })).toBeTruthy();
   });
 });

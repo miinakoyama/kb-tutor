@@ -10,10 +10,11 @@ async function PracticeContent({
     questions?: string;
     questionIds?: string;
     assignmentId?: string;
+    questionType?: string;
   }>;
 }) {
   const params = await searchParams;
-  
+
   return (
     <PracticePageClient
       topicsParam={params.topics}
@@ -21,6 +22,7 @@ async function PracticeContent({
       questionsParam={params.questions}
       questionIdsParam={params.questionIds}
       assignmentIdParam={params.assignmentId}
+      questionTypeParam={params.questionType}
     />
   );
 }
@@ -34,6 +36,7 @@ export default async function PracticePage({
     questions?: string;
     questionIds?: string;
     assignmentId?: string;
+    questionType?: string;
   }>;
 }) {
   return (
