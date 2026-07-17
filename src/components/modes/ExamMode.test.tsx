@@ -9,10 +9,12 @@ import { getAnswerHistory } from "@/lib/storage";
 const EXAM_ONBOARDING_DISMISSED_KEY = "kb-tutor-exam-onboarding-dismissed-v1";
 
 const {
+  checkForNewlyEarnedBadgesMock,
   trackAnalyticsEventMock,
   useAnalyticsSessionMock,
   useQuestionMediaMock,
 } = vi.hoisted(() => ({
+  checkForNewlyEarnedBadgesMock: vi.fn(),
   trackAnalyticsEventMock: vi.fn(),
   useAnalyticsSessionMock: vi.fn(),
   useQuestionMediaMock: vi.fn(),
@@ -24,6 +26,10 @@ vi.mock("@/lib/analytics/client", () => ({
 
 vi.mock("@/lib/analytics/session", () => ({
   useAnalyticsSession: useAnalyticsSessionMock,
+}));
+
+vi.mock("@/lib/badges/celebration-events", () => ({
+  checkForNewlyEarnedBadges: checkForNewlyEarnedBadgesMock,
 }));
 
 vi.mock("@/hooks/useQuestionMedia", () => ({
@@ -91,6 +97,8 @@ describe("ExamMode onboarding timing + analytics gating", () => {
   beforeEach(() => {
     cleanup();
     localStorage.clear();
+    checkForNewlyEarnedBadgesMock.mockReset();
+    checkForNewlyEarnedBadgesMock.mockResolvedValue(undefined);
     trackAnalyticsEventMock.mockReset();
     useAnalyticsSessionMock.mockReset();
     useAnalyticsSessionMock.mockReturnValue({
@@ -371,6 +379,30 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     const retriedAnswer = screen.getByLabelText("Answer for Part A");
     expect(retriedAnswer).toBeInstanceOf(HTMLTextAreaElement);
     expect((retriedAnswer as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("checks for newly earned badges after every exam retry", async () => {
+    localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+    render(<ExamMode questions={[baseQuestion]} requestedQuestionCount={1} />);
+
+    await screen.findByText(baseQuestion.text);
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByText("Submit Exam?");
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
+    await screen.findByText("Exam Complete!");
+    await waitFor(() => {
+      expect(checkForNewlyEarnedBadgesMock).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
+    await screen.findByText(baseQuestion.text);
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByText("Submit Exam?");
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
+
+    await waitFor(() => {
+      expect(checkForNewlyEarnedBadgesMock).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("does not send blank short-answer parts for exam grading", async () => {
