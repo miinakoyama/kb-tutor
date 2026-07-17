@@ -40,6 +40,21 @@ describe("POST /api/practice/next", () => {
     expect(response.status).toBe(400);
   });
 
+  it("rejects mixed selection without a current slot format", async () => {
+    state.server = createMockSupabaseClient({
+      user: { id: "student", app_metadata: {}, user_metadata: {}, aud: "authenticated", created_at: "2026-01-01" },
+    }).client;
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A"],
+        selectionMode: "mixed",
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+  });
+
   it("falls back when any requested standard is not enabled", async () => {
     state.server = createMockSupabaseClient({
       user: { id: "student", app_metadata: {}, user_metadata: {}, aud: "authenticated", created_at: "2026-01-01" },
@@ -236,7 +251,11 @@ describe("POST /api/practice/next", () => {
 
     const response = await POST(new Request("http://localhost/api/practice/next", {
       method: "POST",
-      body: JSON.stringify({ standardIds: ["3.1.9-12.A"], requiredFormat: "saq" }),
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A"],
+        selectionMode: "mixed",
+        requiredFormat: "saq",
+      }),
     }));
 
     expect(response.status).toBe(200);
@@ -246,7 +265,7 @@ describe("POST /api/practice/next", () => {
     });
   });
 
-  it("falls back to MCQ when requiredFormat is saq but no SAQ is mapped to the target KC", async () => {
+  it("keeps SAQ-only selection strict when no SAQ is mapped to the target KC", async () => {
     state.server = createMockSupabaseClient({ user: baseUser }).client;
     state.admin = buildMixedFormatAdmin([
       {
@@ -264,13 +283,80 @@ describe("POST /api/practice/next", () => {
 
     const response = await POST(new Request("http://localhost/api/practice/next", {
       method: "POST",
-      body: JSON.stringify({ standardIds: ["3.1.9-12.A"], requiredFormat: "saq" }),
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A"],
+        selectionMode: "open-ended",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "unavailable",
+      reason: "coverage_gap",
+    });
+  });
+
+  it("falls back from a mixed SAQ slot to MCQ when the scope has no SAQ", async () => {
+    state.server = createMockSupabaseClient({ user: baseUser }).client;
+    state.admin = buildMixedFormatAdmin([
+      {
+        question_set_id: "set-c", question_id: "q-mcq", content_version: null,
+        has_image: false, has_stimulus_image: false, format: "mcq",
+        standard_id: "3.1.9-12.A", part_kc_codes: ["3.1.9-12.A1"],
+        completed_count: 0, last_completed_at: null,
+        payload: {
+          id: "q-mcq", module: 1, topic: "Genetics", standardId: "3.1.9-12.A",
+          text: "q-mcq", imageUrl: null, options: [], correctOptionId: "",
+          source: "generated", questionType: "mcq",
+        },
+      },
+    ]);
+
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A"],
+        selectionMode: "mixed",
+        requiredFormat: "saq",
+      }),
     }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       status: "selected",
       question: { id: "q-mcq" },
+    });
+  });
+
+  it("falls back from a mixed MCQ slot to SAQ when the scope has no MCQ", async () => {
+    state.server = createMockSupabaseClient({ user: baseUser }).client;
+    state.admin = buildMixedFormatAdmin([
+      {
+        question_set_id: "set-c", question_id: "q-saq", content_version: null,
+        has_image: false, has_stimulus_image: false, format: "saq",
+        standard_id: "3.1.9-12.A", part_kc_codes: ["3.1.9-12.A1"],
+        completed_count: 0, last_completed_at: null,
+        payload: {
+          id: "q-saq", module: 1, topic: "Genetics", standardId: "3.1.9-12.A",
+          text: "q-saq", imageUrl: null, options: [], correctOptionId: "",
+          source: "generated", questionType: "open-ended", shortAnswer: sampleItem,
+        },
+      },
+    ]);
+
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A"],
+        selectionMode: "mixed",
+        requiredFormat: "mcq",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "selected",
+      question: { id: "q-saq" },
     });
   });
 });

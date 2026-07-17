@@ -208,6 +208,7 @@ export function AdaptivePracticeMode({
             standardIds,
             sessionId: sessionIdRef.current,
             selectionSeed: selectionSeedRef.current,
+            ...(questionTypeSelection ? { selectionMode: questionTypeSelection } : {}),
             ...(requiredFormat ? { requiredFormat } : {}),
           }),
         });
@@ -976,7 +977,7 @@ export function AdaptivePracticeMode({
         setSessionQuestions((prev) => [
           ...prev,
           ...(questionTypeSelection === "mixed"
-            ? buildMixedQuestionSequence(questions, questions.length)
+            ? buildMixedQuestionSequence(questions, questions.length, prev.length)
             : shuffleArray(questions)),
         ]);
         setCurrentIndex((prev) => prev + 1);

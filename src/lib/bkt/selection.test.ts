@@ -107,4 +107,11 @@ describe("adaptive question ranking", () => {
     expect(repeated).toEqual(first);
     expect(anotherSession).not.toEqual(first);
   });
+  it("treats a required format as a hard constraint", () => {
+    const mcq = question({ questionId: "mcq" });
+    const saq = question({ questionId: "saq", format: "saq" });
+
+    expect(rankQuestionsForKc([mcq], "S1", null, "session", "saq")).toEqual([]);
+    expect(rankQuestionsForKc([saq], "S1", null, "session", "mcq")).toEqual([]);
+  });
 });

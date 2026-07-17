@@ -184,6 +184,7 @@ describe("AdaptivePracticeMode session completion", () => {
         questionCount={5}
         mode="practice"
         adaptiveStandardIds={["3.1.9-12.A"]}
+        questionTypeSelection="mixed"
       />,
     );
     expect(await screen.findByText("Question display")).toBeTruthy();
@@ -194,6 +195,8 @@ describe("AdaptivePracticeMode session completion", () => {
     const request = vi.mocked(fetch).mock.calls[0]?.[1];
     expect(JSON.parse(String(request?.body))).toMatchObject({
       selectionSeed: "session-1",
+      selectionMode: "mixed",
+      requiredFormat: "mcq",
     });
   });
 

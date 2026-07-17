@@ -18,13 +18,15 @@ function extendPool(pool: Question[], minLength: number): Question[] {
 }
 
 /**
- * Builds a session-ordered list following the 3 MCQ : 1 SAQ pattern.
+ * Builds a session-ordered list following the 3 MCQ : 1 SAQ pattern, starting
+ * at the provided global session slot.
  * SAQ questions are never repeated; once the SAQ pool is exhausted, the
  * remaining SAQ slots fall back to MCQ (which may repeat via reshuffle).
  */
 export function buildMixedQuestionSequence(
   questions: Question[],
   count: number,
+  startSlot = 0,
 ): Question[] {
   if (count <= 0) return [];
   const mcqPool = questions.filter((question) => !isShortAnswer(question));
@@ -35,7 +37,8 @@ export function buildMixedQuestionSequence(
   let mcqIndex = 0;
   let saqIndex = 0;
   for (let slot = 0; slot < count; slot++) {
-    const wantsSaq = slot % MIXED_PATTERN_LENGTH === MIXED_PATTERN_LENGTH - 1;
+    const wantsSaq =
+      (startSlot + slot) % MIXED_PATTERN_LENGTH === MIXED_PATTERN_LENGTH - 1;
     if (wantsSaq && saqIndex < saqPool.length) {
       result.push(saqPool[saqIndex]);
       saqIndex++;
