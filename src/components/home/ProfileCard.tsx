@@ -9,11 +9,11 @@ import {
   RadarChart,
   ResponsiveContainer,
 } from "recharts";
-import { UserRound } from "lucide-react";
+import { Award, UserRound } from "lucide-react";
 import type { MasteryDatum } from "@/lib/progress/mastery";
 import type { StudentProfileSummary } from "@/lib/homepage/profile-summary";
 import type { StudentBadgeView } from "@/types/badges";
-import { AchievementBadges } from "@/components/home/AchievementBadges";
+import { BadgeModal } from "./BadgeModal";
 
 function initialsOf(name: string | null): string {
   if (!name) return "";
@@ -45,8 +45,10 @@ export function ProfileCard({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+  const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false);
 
   const initials = initialsOf(profile.name);
+  const earnedBadgeCount = badges.filter((badge) => badge.earned).length;
 
   return (
     <div
@@ -57,7 +59,24 @@ export function ProfileCard({
         boxShadow: "var(--assignment-card-shadow)",
       }}
     >
-      <h3 className="font-heading text-lg font-bold text-slate-gray">Profile</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-heading text-lg font-bold text-slate-gray">Profile</h3>
+        <button
+          type="button"
+          onClick={() => setIsBadgeModalOpen(true)}
+          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:brightness-95"
+          style={{
+            background: "var(--mastery-mastered-bg)",
+            color: "var(--mastery-mastered)",
+          }}
+        >
+          <Award className="h-3.5 w-3.5" aria-hidden="true" />
+          Badges
+          <span className="opacity-70">
+            {earnedBadgeCount}/{badges.length}
+          </span>
+        </button>
+      </div>
 
       <div className="flex items-center gap-3">
         {/* No avatar image data exists — an initials placeholder derived from
@@ -144,19 +163,13 @@ export function ProfileCard({
         )}
       </div>
 
-      <div className="h-px w-full" style={{ background: "var(--border-subtle)" }} />
-
-      <div className="w-full">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <span
-            className="text-[11px] font-semibold uppercase tracking-wide"
-            style={{ color: "var(--muted-foreground)" }}
-          >
-            Achievements
-          </span>
-        </div>
-        <AchievementBadges badges={badges} count={8} columns={4} />
-      </div>
+      {isBadgeModalOpen && (
+        <BadgeModal
+          studentName={profile.name}
+          badges={badges}
+          onClose={() => setIsBadgeModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
