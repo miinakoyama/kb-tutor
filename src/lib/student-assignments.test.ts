@@ -257,15 +257,30 @@ describe("resolveReviewQuestionsForAssignment", () => {
           is_correct: false,
           answered_at: "2026-04-02T10:05:00.000Z",
         },
+        {
+          user_id: "student-1",
+          question_id: "q3",
+          topic: "Genetics",
+          standard_id: "3.1.9-12.P",
+          is_correct: false,
+          is_finalized: false,
+          answered_at: "2026-04-02T10:10:00.000Z",
+        },
       ],
       generated_questions: [
         {
+          set_id: "set-1",
           id: "q1",
+          content_version: "00000000-0000-4000-8000-000000000021",
           payload: { id: "q1", text: "Q1" } as Question,
         },
         {
           id: "q2",
           payload: { id: "q2", text: "Q2" } as Question,
+        },
+        {
+          id: "q3",
+          payload: { id: "q3", text: "Draft Q3" } as Question,
         },
       ],
     });
@@ -277,6 +292,110 @@ describe("resolveReviewQuestionsForAssignment", () => {
     );
     expect(result.error).toBeNull();
     expect(result.questions.map((q) => q.id).sort()).toEqual(["q1", "q2"]);
+    expect(result.questions.find((q) => q.id === "q1")).toMatchObject({
+      questionSetId: "set-1",
+      contentVersion: "00000000-0000-4000-8000-000000000021",
+    });
+  });
+
+  it("keeps duplicate question ids in different sets as separate review candidates", async () => {
+    const supabase = makeSupabaseMock({
+      assignments: [baseAssignment],
+      attempts: [
+        {
+          user_id: "student-1",
+          question_set_id: "set-a",
+          question_id: "q1",
+          topic: "Genetics",
+          standard_id: "3.1.9-12.P",
+          is_correct: false,
+          answered_at: "2026-04-01T10:00:00.000Z",
+        },
+        {
+          user_id: "student-1",
+          question_set_id: "set-b",
+          question_id: "q1",
+          topic: "Genetics",
+          standard_id: "3.1.9-12.P",
+          is_correct: false,
+          answered_at: "2026-04-01T10:01:00.000Z",
+        },
+        {
+          user_id: "student-1",
+          question_set_id: "set-b",
+          question_id: "q1",
+          topic: "Genetics",
+          standard_id: "3.1.9-12.P",
+          is_correct: false,
+          answered_at: "2026-04-01T10:02:00.000Z",
+        },
+      ],
+      generated_questions: [
+        {
+          set_id: "set-a",
+          id: "q1",
+          content_version: "00000000-0000-4000-8000-000000000051",
+          payload: { id: "q1", text: "Set A question" } as Question,
+        },
+        {
+          set_id: "set-b",
+          id: "q1",
+          content_version: "00000000-0000-4000-8000-000000000052",
+          payload: { id: "q1", text: "Set B question" } as Question,
+        },
+      ],
+    });
+
+    const result = await resolveReviewQuestionsForAssignment(
+      supabase,
+      "student-1",
+      "as_1",
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.questions).toHaveLength(2);
+    expect(result.questions.map((question) => question.questionSetId)).toEqual([
+      "set-b",
+      "set-a",
+    ]);
+    expect(result.questions.map((question) => question.text)).toEqual([
+      "Set B question",
+      "Set A question",
+    ]);
+  });
+
+  it("does not guess a set for an ambiguous legacy review attempt", async () => {
+    const supabase = makeSupabaseMock({
+      assignments: [baseAssignment],
+      attempts: [{
+        user_id: "student-1",
+        question_id: "q1",
+        topic: "Genetics",
+        standard_id: "3.1.9-12.P",
+        is_correct: false,
+        answered_at: "2026-04-01T10:00:00.000Z",
+      }],
+      generated_questions: [
+        {
+          set_id: "set-a",
+          id: "q1",
+          payload: { id: "q1", text: "Set A question" } as Question,
+        },
+        {
+          set_id: "set-b",
+          id: "q1",
+          payload: { id: "q1", text: "Set B question" } as Question,
+        },
+      ],
+    });
+
+    const result = await resolveReviewQuestionsForAssignment(
+      supabase,
+      "student-1",
+      "as_1",
+    );
+
+    expect(result).toEqual({ questions: [], error: null });
   });
 
   it("caps results at max_questions", async () => {
@@ -369,6 +488,60 @@ describe("getStudentAssignmentList", () => {
     expect(item.status).toBe("in_progress");
     expect(item.progress).toEqual({ answered: 1, total: 2 });
     expect(item.mode).toBe("practice");
+  });
+
+  it("counts resolved short-answer summary rows in progress and accuracy", async () => {
+    const supabase = makeSupabaseMock({
+      school_members: [
+        {
+          school_id: "school-1",
+          student_user_id: "student-1",
+        },
+      ],
+      assignment_targets: [
+        {
+          assignment_id: "as_1",
+          student_user_id: "student-1",
+          created_at: "2026-04-01T10:00:00.000Z",
+          last_completed_at: null,
+        },
+      ],
+      assignments: [
+        {
+          id: "as_1",
+          school_id: "school-1",
+          created_at: "2026-04-01T09:00:00.000Z",
+          title: "Quiz",
+          due_date: null,
+          module_ids: [1],
+          topics: ["Genetics"],
+          target_minutes: 20,
+          mode: "practice",
+          randomize_order: true,
+          max_questions: null,
+        },
+      ],
+      assignment_question_snapshots: [
+        { assignment_id: "as_1", question_id: "q1" },
+        { assignment_id: "as_1", question_id: "q2" },
+      ],
+      attempts: [
+        {
+          assignment_id: "as_1",
+          question_id: "q1",
+          user_id: "student-1",
+          selected_option_id: "short-answer",
+          is_correct: true,
+          answered_at: "2026-04-02T10:00:00.000Z",
+        },
+      ],
+    });
+
+    const result = await getStudentAssignmentList(supabase, "student-1");
+    expect(result.error).toBeNull();
+    expect(result.assignments[0].status).toBe("in_progress");
+    expect(result.assignments[0].progress).toEqual({ answered: 1, total: 2 });
+    expect(result.assignments[0].accuracy).toBe(100);
   });
 
   it("marks the assignment completed when last_completed_at is set and ignores prior attempts", async () => {

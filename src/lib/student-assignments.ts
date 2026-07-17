@@ -175,7 +175,7 @@ async function fetchAssignmentList(
       .in("assignment_id", orderedIds),
     supabase
       .from("attempts")
-      .select("assignment_id,question_id,answered_at,is_correct")
+      .select("assignment_id,question_id,selected_option_id,answered_at,is_correct")
       .eq("user_id", studentUserId)
       .in("assignment_id", orderedIds),
     admin
@@ -258,6 +258,8 @@ async function fetchAssignmentList(
     if (!Number.isFinite(answeredAtMs)) continue;
 
     const qid = String(row.question_id);
+    // Short-answer rows in `attempts` are summary rows written only after every
+    // part is resolved, so they count as completed assignment questions.
     const isCorrect = Boolean(row.is_correct);
 
     if (answeredAtMs > lastCompletedMs) {
@@ -555,6 +557,31 @@ function toQuestionPayload(raw: unknown): Question | null {
   return value;
 }
 
+const SCOPED_REVIEW_PREFIX = "set-question:";
+const LEGACY_REVIEW_PREFIX = "legacy-question:";
+
+function reviewQuestionKey(questionSetId: unknown, questionId: string): string {
+  return typeof questionSetId === "string" && questionSetId.trim()
+    ? `${SCOPED_REVIEW_PREFIX}${questionSetId.trim()}\0${questionId}`
+    : `${LEGACY_REVIEW_PREFIX}${questionId}`;
+}
+
+function currentQuestionFromRow(row: Record<string, unknown>): Question | null {
+  const payload = toQuestionPayload(row.payload);
+  if (!payload) return null;
+  const questionSetId =
+    typeof row.set_id === "string" && row.set_id.trim()
+      ? row.set_id.trim()
+      : undefined;
+  return {
+    ...payload,
+    id: String(row.id),
+    questionSetId,
+    contentVersion:
+      typeof row.content_version === "string" ? row.content_version : undefined,
+  };
+}
+
 /**
  * Resolve review-mode questions dynamically for a single student.
  *
@@ -600,7 +627,9 @@ export async function resolveReviewQuestionsForAssignment(
 
   const { data: allAttempts, error: allAttemptsError } = await admin
     .from("attempts")
-    .select("question_id,topic,standard_id,is_correct,answered_at")
+    .select(
+      "question_set_id,question_id,topic,standard_id,is_correct,is_finalized,answered_at",
+    )
     .eq("user_id", studentUserId)
     .order("answered_at", { ascending: true });
   if (allAttemptsError) {
@@ -611,7 +640,12 @@ export async function resolveReviewQuestionsForAssignment(
   const topicsSet = new Set(topics);
   const standardsSet = new Set(standards);
   const wrongCountByQuestion = new Map<string, number>();
+  const identityByQuestion = new Map<
+    string,
+    { questionSetId: string | null; questionId: string }
+  >();
   for (const attempt of allAttempts ?? []) {
+    if (attempt.is_finalized === false) continue;
     const questionId = String(attempt.question_id);
     // OR semantic: a question matches the review scope when either its
     // standard_id matches a selected standard, or (fallback for legacy
@@ -625,64 +659,132 @@ export async function resolveReviewQuestionsForAssignment(
       topicsSet.size > 0 && topicsSet.has(String(attempt.topic ?? ""));
     const inScope = noFilter || standardMatch || topicMatch;
     if (!inScope) continue;
-    incrementWrongCount(
-      wrongCountByQuestion,
-      questionId,
-      Boolean(attempt.is_correct),
-    );
+    const questionSetId =
+      typeof attempt.question_set_id === "string" && attempt.question_set_id.trim()
+        ? attempt.question_set_id.trim()
+        : null;
+    const key = reviewQuestionKey(questionSetId, questionId);
+    identityByQuestion.set(key, { questionSetId, questionId });
+    incrementWrongCount(wrongCountByQuestion, key, Boolean(attempt.is_correct));
   }
 
-  const matchedQuestionIds = Array.from(wrongCountByQuestion.keys());
+  const matchedQuestions = Array.from(wrongCountByQuestion.keys()).flatMap((key) => {
+    const identity = identityByQuestion.get(key);
+    return identity ? [{ key, ...identity }] : [];
+  });
 
-  if (matchedQuestionIds.length === 0) {
+  if (matchedQuestions.length === 0) {
     return { questions: [], error: null };
   }
 
+  const matchedQuestionIds = [
+    ...new Set(matchedQuestions.map(({ questionId }) => questionId)),
+  ];
+
   const { data: generatedRows, error: generatedError } = await admin
     .from("generated_questions")
-    .select("id,payload")
+    .select("set_id,id,payload,content_version")
     .in("id", matchedQuestionIds);
   if (generatedError) {
     return { questions: [], error: generatedError.message };
   }
-  const payloadById = new Map<string, Question>();
+  const generatedByQuestionId = new Map<string, Question[]>();
   for (const row of generatedRows ?? []) {
-    const payload = toQuestionPayload(row.payload);
-    if (payload) payloadById.set(String(row.id), payload);
+    const question = currentQuestionFromRow(row as Record<string, unknown>);
+    if (!question) continue;
+    const rows = generatedByQuestionId.get(question.id) ?? [];
+    rows.push(question);
+    generatedByQuestionId.set(question.id, rows);
   }
 
-  const missingIds = matchedQuestionIds.filter((id) => !payloadById.has(id));
-  if (missingIds.length > 0) {
+  const resolvedBySourceKey = new Map<string, Question>();
+  for (const identity of matchedQuestions) {
+    const generatedCandidates = generatedByQuestionId.get(identity.questionId) ?? [];
+    const matches = identity.questionSetId
+      ? generatedCandidates.filter(
+          (question) => question.questionSetId === identity.questionSetId,
+        )
+      : generatedCandidates;
+    if (matches.length === 1) {
+      resolvedBySourceKey.set(identity.key, matches[0]);
+    }
+  }
+
+  const unresolvedQuestions = matchedQuestions.filter(
+    ({ key }) => !resolvedBySourceKey.has(key),
+  );
+  if (unresolvedQuestions.length > 0) {
+    const missingIds = [
+      ...new Set(unresolvedQuestions.map(({ questionId }) => questionId)),
+    ];
     const { data: snapshotRows } = await admin
       .from("assignment_question_snapshots")
       .select("question_id,payload")
       .in("question_id", missingIds);
-    for (const row of snapshotRows ?? []) {
-      if (payloadById.has(String(row.question_id))) continue;
-      const payload = toQuestionPayload(row.payload);
-      if (payload) payloadById.set(String(row.question_id), payload);
+
+    for (const identity of unresolvedQuestions) {
+      const snapshotCandidates = (snapshotRows ?? []).flatMap((row) => {
+        if (String(row.question_id) !== identity.questionId) return [];
+        const payload = toQuestionPayload(row.payload);
+        if (!payload) return [];
+        if (
+          identity.questionSetId &&
+          payload.questionSetId !== identity.questionSetId
+        ) {
+          return [];
+        }
+        return [payload];
+      });
+      if (snapshotCandidates.length === 1) {
+        const snapshot = snapshotCandidates[0];
+        resolvedBySourceKey.set(identity.key, {
+          ...snapshot,
+          id: identity.questionId,
+          questionSetId: identity.questionSetId ?? snapshot.questionSetId,
+        });
+      }
     }
   }
 
-  const candidates: Question[] = [];
-  for (const id of matchedQuestionIds) {
-    const payload = payloadById.get(id);
-    if (payload) candidates.push(payload);
+  // Legacy attempts without a set id can resolve to the same current question
+  // as newer scoped attempts. Aggregate them under the resolved identity so the
+  // question is served once while retaining its full wrong-attempt priority.
+  const candidateByKey = new Map<string, Question>();
+  const wrongCountByCandidate = new Map<string, number>();
+  for (const identity of matchedQuestions) {
+    const question = resolvedBySourceKey.get(identity.key);
+    if (!question) continue;
+    const candidateKey = reviewQuestionKey(question.questionSetId, question.id);
+    candidateByKey.set(candidateKey, question);
+    wrongCountByCandidate.set(
+      candidateKey,
+      (wrongCountByCandidate.get(candidateKey) ?? 0) +
+        (wrongCountByQuestion.get(identity.key) ?? 0),
+    );
   }
+
+  const candidates = Array.from(candidateByKey, ([id, question]) => ({
+    id,
+    question,
+  }));
 
   if (candidates.length === 0) {
     return { questions: [], error: null };
   }
 
-  const shuffled = prioritizeQuestionsByWrongCount(candidates, wrongCountByQuestion, {
-    shuffleWithinSameWrongCount: (bucket, wrongCount) =>
-      deterministicShuffle(
-        bucket,
-        `${assignmentId}::${studentUserId}::review::${wrongCount}`,
-      ),
-  });
+  const shuffled = prioritizeQuestionsByWrongCount(
+    candidates,
+    wrongCountByCandidate,
+    {
+      shuffleWithinSameWrongCount: (bucket, wrongCount) =>
+        deterministicShuffle(
+          bucket,
+          `${assignmentId}::${studentUserId}::review::${wrongCount}`,
+        ),
+    },
+  );
   return {
-    questions: shuffled.slice(0, maxQuestions),
+    questions: shuffled.slice(0, maxQuestions).map(({ question }) => question),
     error: null,
   };
 }

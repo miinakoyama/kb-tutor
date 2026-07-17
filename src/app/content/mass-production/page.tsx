@@ -13,13 +13,22 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import type { DOKLevel } from "@/types/question";
+import type { DOKLevel, Question } from "@/types/question";
+import type { ShortAnswerItem, StimulusType } from "@/types/short-answer";
 import {
   getAllStandards,
+  getStandardById,
   getStandardsByFilter,
   getStandardsForModule,
+  getModuleNumberForStandard,
+  getTopicForStandard,
   type ModuleCode,
 } from "@/lib/standards";
+import {
+  GENERATION_MODELS,
+  DEFAULT_GENERATION_MODEL_ID,
+  DEFAULT_GENERATION_TEMPERATURE,
+} from "@/lib/llm/models";
 
 const ALL_STANDARDS = getAllStandards();
 const ALL_STANDARD_IDS = new Set(ALL_STANDARDS.map((item) => item.id));
@@ -48,12 +57,8 @@ const TOPIC_SELECTION_BY_KEY = new Map(
   TOPIC_SELECTIONS.map((selection) => [selection.key, selection])
 );
 
-interface DiagramConfig {
-  chart: number;
-  table: number;
-  flowchart: number;
-  diagram: number;
-}
+type StimulusConfig = Record<StimulusType, number>;
+type StimulusSelectionMode = "auto" | "custom";
 
 interface GenerationSettings {
   questionSetName: string;
@@ -62,9 +67,12 @@ interface GenerationSettings {
   standards: string[];
   standardCounts: Record<string, number>;
   dokLevels: DOKLevel[];
-  includeDiagrams: boolean;
-  diagramConfig: DiagramConfig;
+  stimulusSelectionMode: StimulusSelectionMode;
+  stimulusConfig: StimulusConfig;
   customPrompt: string;
+  shortAnswerCount: number;
+  generationModelId: string;
+  generationTemperature: number;
 }
 
 function distributeStandardCounts(
@@ -83,6 +91,73 @@ function distributeStandardCounts(
   return counts;
 }
 
+/** Split per-standard totals into MCQ and short-answer portions (largest-remainder). */
+function splitStandardCountsByType(
+  activeStandardIds: string[],
+  standardCounts: Record<string, number>,
+  mcqTotal: number,
+  saqTotal: number,
+): { mcqCounts: Record<string, number>; saqCounts: Record<string, number> } {
+  const zeroed = Object.fromEntries(activeStandardIds.map((id) => [id, 0]));
+  if (activeStandardIds.length === 0) {
+    return { mcqCounts: zeroed, saqCounts: zeroed };
+  }
+
+  const allocateWithinStandardTotals = (total: number): Record<string, number> => {
+    if (total <= 0) return { ...zeroed };
+
+    const weights = activeStandardIds.map((id) => ({
+      id,
+      weight: standardCounts[id] ?? 0,
+    }));
+    const weightSum = weights.reduce((sum, row) => sum + row.weight, 0);
+
+    if (weightSum <= 0) {
+      return distributeStandardCounts(activeStandardIds, total);
+    }
+
+    const fractions = weights.map((row) => {
+      const exact = (total * row.weight) / weightSum;
+      const cap = Math.max(0, Math.floor(row.weight));
+      return { id: row.id, exact, cap, count: Math.min(cap, Math.floor(exact)) };
+    });
+    const result = Object.fromEntries(
+      fractions.map((row) => [row.id, row.count]),
+    );
+    let remainder = total - fractions.reduce((sum, row) => sum + row.count, 0);
+    const byRemainder = [...fractions].sort(
+      (a, b) => b.exact - Math.floor(b.exact) - (a.exact - Math.floor(a.exact)),
+    );
+    for (const row of byRemainder) {
+      if (remainder <= 0) break;
+      if (result[row.id] >= row.cap) continue;
+      result[row.id] += 1;
+      remainder -= 1;
+    }
+    return result;
+  };
+
+  if (mcqTotal <= saqTotal) {
+    const mcqCounts = allocateWithinStandardTotals(mcqTotal);
+    const saqCounts = Object.fromEntries(
+      activeStandardIds.map((id) => [
+        id,
+        Math.max(0, (standardCounts[id] ?? 0) - (mcqCounts[id] ?? 0)),
+      ]),
+    );
+    return { mcqCounts, saqCounts };
+  }
+
+  const saqCounts = allocateWithinStandardTotals(saqTotal);
+  const mcqCounts = Object.fromEntries(
+    activeStandardIds.map((id) => [
+      id,
+      Math.max(0, (standardCounts[id] ?? 0) - (saqCounts[id] ?? 0)),
+    ]),
+  );
+  return { mcqCounts, saqCounts };
+}
+
 const DEFAULT_SETTINGS: GenerationSettings = {
   questionSetName: "",
   questionCount: 5,
@@ -93,15 +168,164 @@ const DEFAULT_SETTINGS: GenerationSettings = {
     5
   ),
   dokLevels: [1, 2, 3],
-  includeDiagrams: false,
-  diagramConfig: {
-    chart: 0,
+  stimulusSelectionMode: "auto",
+  stimulusConfig: {
     table: 0,
-    flowchart: 0,
+    line_graph: 0,
+    bar_chart: 0,
     diagram: 0,
+    scenario: 0,
+    illustration: 0,
   },
   customPrompt: "",
+  shortAnswerCount: 0,
+  generationModelId: DEFAULT_GENERATION_MODEL_ID,
+  generationTemperature: DEFAULT_GENERATION_TEMPERATURE,
 };
+
+/** Expand per-standard counts into a flat list of standard codes (one per item). */
+function expandStandardCounts(counts: Record<string, number>): string[] {
+  const codes: string[] = [];
+  for (const [standardId, count] of Object.entries(counts)) {
+    for (let i = 0; i < count; i++) codes.push(standardId);
+  }
+  return codes;
+}
+
+const STIMULUS_LABELS: Record<StimulusType, string> = {
+  table: "Data table",
+  line_graph: "Line graph",
+  bar_chart: "Bar chart",
+  diagram: "Diagram",
+  scenario: "Scenario text",
+  illustration: "Illustration",
+};
+
+function stimulusConfigTotal(config: StimulusConfig): number {
+  return Object.values(config).reduce((sum, count) => sum + count, 0);
+}
+
+function normalizeCount(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : 0;
+}
+
+function readStimulusConfig(raw: Record<string, unknown>): StimulusConfig {
+  const stimulusRaw =
+    raw.stimulusConfig && typeof raw.stimulusConfig === "object"
+      ? (raw.stimulusConfig as Record<string, unknown>)
+      : null;
+  if (stimulusRaw) {
+    return {
+      table: normalizeCount(stimulusRaw.table),
+      line_graph: normalizeCount(stimulusRaw.line_graph),
+      bar_chart: normalizeCount(stimulusRaw.bar_chart),
+      diagram: normalizeCount(stimulusRaw.diagram),
+      scenario: normalizeCount(stimulusRaw.scenario),
+      illustration: normalizeCount(stimulusRaw.illustration),
+    };
+  }
+
+  const legacyRaw =
+    raw.diagramConfig && typeof raw.diagramConfig === "object"
+      ? (raw.diagramConfig as Record<string, unknown>)
+      : {};
+  const chart = normalizeCount(legacyRaw.chart);
+  return {
+    table: normalizeCount(legacyRaw.table),
+    line_graph: Math.ceil(chart / 2),
+    bar_chart: Math.floor(chart / 2),
+    diagram:
+      normalizeCount(legacyRaw.diagram) + normalizeCount(legacyRaw.flowchart),
+    scenario: 0,
+    illustration: 0,
+  };
+}
+
+function takeStimulusCount(
+  remaining: StimulusConfig,
+  key: StimulusType,
+  capacity: number,
+): number {
+  const count = Math.min(remaining[key], capacity);
+  remaining[key] -= count;
+  return count;
+}
+
+function splitStimulusConfig(
+  config: StimulusConfig,
+  mcqCapacity: number,
+): { mcqStimulusConfig: StimulusConfig; saqStimulusConfig: StimulusConfig } {
+  const remaining = { ...config };
+  let capacity = Math.max(0, mcqCapacity);
+  const mcqStimulusConfig: StimulusConfig = {
+    table: 0,
+    line_graph: 0,
+    bar_chart: 0,
+    diagram: 0,
+    scenario: 0,
+    illustration: 0,
+  };
+
+  for (const key of Object.keys(mcqStimulusConfig) as StimulusType[]) {
+    mcqStimulusConfig[key] = takeStimulusCount(remaining, key, capacity);
+    capacity -= mcqStimulusConfig[key];
+  }
+
+  return {
+    mcqStimulusConfig,
+    saqStimulusConfig: remaining,
+  };
+}
+
+function expandStimulusTypes(config: StimulusConfig, total: number): Array<StimulusType | undefined> {
+  const stimulusTypes: Array<StimulusType | undefined> = [];
+  for (const key of Object.keys(config) as StimulusType[]) {
+    for (let i = 0; i < config[key]; i++) stimulusTypes.push(key);
+  }
+  while (stimulusTypes.length < total) stimulusTypes.push(undefined);
+  return stimulusTypes.slice(0, total);
+}
+
+/** Randomly choose a stimulus type (or text-only) for every generated item. */
+function createRandomStimulusTypes(
+  total: number,
+  includeTextOnly: boolean,
+): Array<StimulusType | undefined> {
+  const choices: Array<StimulusType | undefined> = [
+    ...(includeTextOnly ? [undefined] : []),
+    ...(Object.keys(STIMULUS_LABELS) as StimulusType[]),
+  ];
+  return Array.from(
+    { length: total },
+    () => choices[Math.floor(Math.random() * choices.length)],
+  );
+}
+
+function buildShortAnswerQuestion(
+  item: ShortAnswerItem,
+  standardId: string,
+  id: string,
+): Question {
+  const standard = getStandardById(standardId);
+  return {
+    id,
+    module: getModuleNumberForStandard(standardId),
+    topic: getTopicForStandard(standardId),
+    standardId,
+    standardLabel: standard?.label,
+    text: item.parts[0]?.prompt ?? item.stem,
+    imageUrl: null,
+    options: [],
+    correctOptionId: "",
+    questionType: "open-ended",
+    shortAnswer: item,
+    kcCode: item.blueprint.anchorKc,
+    source: "generated",
+    includeInSelfPractice: true,
+  };
+}
 
 const STORAGE_KEY = "massProductionSettings";
 
@@ -114,6 +338,8 @@ export default function MassProductionPage() {
   const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
   const [selectedSchoolIds, setSelectedSchoolIds] = useState<string[]>([]);
@@ -146,7 +372,29 @@ export default function MassProductionPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const merged: GenerationSettings = { ...DEFAULT_SETTINGS, ...parsed };
+        const legacy = parsed as Record<string, unknown>;
+        const merged: GenerationSettings = {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          generationModelId:
+            typeof legacy.generationModelId === "string"
+              ? legacy.generationModelId
+              : typeof legacy.saModelId === "string"
+                ? legacy.saModelId
+                : DEFAULT_SETTINGS.generationModelId,
+          generationTemperature:
+            typeof legacy.generationTemperature === "number"
+              ? legacy.generationTemperature
+              : typeof legacy.saTemperature === "number"
+                ? legacy.saTemperature
+                : DEFAULT_SETTINGS.generationTemperature,
+          stimulusConfig: readStimulusConfig(legacy),
+          stimulusSelectionMode:
+            legacy.stimulusSelectionMode === "auto" ||
+            legacy.stimulusSelectionMode === "custom"
+              ? legacy.stimulusSelectionMode
+              : "custom",
+        };
 
         const normalizedTopics = Array.isArray(merged.topics)
           ? merged.topics.filter((topic): topic is string =>
@@ -180,10 +428,13 @@ export default function MassProductionPage() {
           (sum, count) => sum + count,
           0
         );
+        const totalTarget =
+          (typeof merged.questionCount === "number" ? merged.questionCount : 0) +
+          (typeof merged.shortAnswerCount === "number" ? merged.shortAnswerCount : 0);
         const resolvedStandardCounts =
-          assignedTotal === merged.questionCount
+          assignedTotal === totalTarget
             ? normalizedStandardCounts
-            : distributeStandardCounts(selectedStandards, merged.questionCount);
+            : distributeStandardCounts(selectedStandards, totalTarget);
 
         setSettings({
           ...merged,
@@ -215,22 +466,28 @@ export default function MassProductionPage() {
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  const totalDiagramCount =
-    settings.diagramConfig.chart +
-    settings.diagramConfig.table +
-    settings.diagramConfig.flowchart +
-    settings.diagramConfig.diagram;
+  const totalStimulusCount = stimulusConfigTotal(settings.stimulusConfig);
+  const totalQuestionTarget = settings.questionCount + settings.shortAnswerCount;
   const totalAssignedStandardCount = ALL_STANDARDS.reduce(
     (sum, standard) => sum + (settings.standardCounts[standard.id] ?? 0),
     0
   );
   const isStandardCountValid =
-    totalAssignedStandardCount === settings.questionCount;
+    totalQuestionTarget === 0
+      ? totalAssignedStandardCount === 0
+      : totalAssignedStandardCount === totalQuestionTarget;
   const activeStandardIds = ALL_STANDARDS
     .map((standard) => standard.id)
     .filter((standardId) => (settings.standardCounts[standardId] ?? 0) > 0);
 
-  const textOnlyCount = Math.max(0, settings.questionCount - totalDiagramCount);
+  const { mcqCounts, saqCounts } = splitStandardCountsByType(
+    activeStandardIds,
+    settings.standardCounts,
+    settings.questionCount,
+    settings.shortAnswerCount,
+  );
+
+  const textOnlyCount = Math.max(0, totalQuestionTarget - totalStimulusCount);
 
   const getStandardsForSelection = (selectionKey: string) => {
     const selection = TOPIC_SELECTION_BY_KEY.get(selectionKey);
@@ -246,7 +503,7 @@ export default function MassProductionPage() {
       ...prev,
       standardCounts: distributeStandardCounts(
         ALL_STANDARDS.map((item) => item.id),
-        prev.questionCount
+        prev.questionCount + prev.shortAnswerCount,
       ),
     }));
   };
@@ -280,23 +537,52 @@ export default function MassProductionPage() {
   const handleStandardCountChange = (standardId: string, rawValue: string) => {
     const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
     if (isNaN(value)) return;
-    setSettings((prev) => ({
-      ...prev,
-      standardCounts: {
-        ...prev.standardCounts,
-        [standardId]: Math.max(0, Math.min(value, prev.questionCount)),
-      },
-    }));
+    setSettings((prev) => {
+      const maxCount = prev.questionCount + prev.shortAnswerCount;
+      return {
+        ...prev,
+        standardCounts: {
+          ...prev.standardCounts,
+          [standardId]: Math.max(0, Math.min(value, maxCount)),
+        },
+      };
+    });
   };
 
-  const handleDiagramCountChange = (type: keyof DiagramConfig, rawValue: string) => {
+  const handleAutoDistributeDiagrams = () => {
+    const diagramTypes: StimulusType[] = ["table", "line_graph", "bar_chart", "diagram"];
+
+    setSettings((prev) => {
+      const total = prev.questionCount + prev.shortAnswerCount;
+      const base = Math.floor(total / diagramTypes.length);
+      let remainder = total % diagramTypes.length;
+      const nextStimulusConfig: StimulusConfig = {
+        ...prev.stimulusConfig,
+        table: 0,
+        line_graph: 0,
+        bar_chart: 0,
+        diagram: 0,
+        scenario: 0,
+        illustration: 0,
+      };
+
+      for (const type of diagramTypes) {
+        nextStimulusConfig[type] = base + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder -= 1;
+      }
+
+      return { ...prev, stimulusConfig: nextStimulusConfig };
+    });
+  };
+
+  const handleStimulusCountChange = (type: StimulusType, rawValue: string) => {
     const value = rawValue === "" ? 0 : parseInt(rawValue, 10);
     if (isNaN(value)) return;
     setSettings((prev) => ({
       ...prev,
-      diagramConfig: {
-        ...prev.diagramConfig,
-        [type]: Math.max(0, Math.min(value, prev.questionCount)),
+      stimulusConfig: {
+        ...prev.stimulusConfig,
+        [type]: Math.max(0, Math.min(value, prev.questionCount + prev.shortAnswerCount)),
       },
     }));
   };
@@ -309,27 +595,41 @@ export default function MassProductionPage() {
 
   const handleGenerate = async () => {
     const trimmedSetName = settings.questionSetName.trim();
+    const wantMcq = settings.questionCount > 0;
+    const wantShortAnswer = settings.shortAnswerCount > 0;
+
     if (!trimmedSetName) {
       setError("Please enter a question set name.");
       return;
     }
-    if (settings.dokLevels.length === 0) {
-      setError("Please select at least one DOK level.");
+    if (!wantMcq && !wantShortAnswer) {
+      setError("Set an MCQ count or a short-answer count greater than 0.");
       return;
     }
-    if (activeStandardIds.length === 0) {
-      setError("Please set count > 0 for at least one standard.");
+    if (wantMcq) {
+      if (settings.dokLevels.length === 0) {
+        setError("Please select at least one DOK level.");
+        return;
+      }
+    }
+    if (
+      settings.stimulusSelectionMode === "custom" &&
+      totalStimulusCount > totalQuestionTarget
+    ) {
+      setError("Total stimulus count cannot exceed MCQ count + short-answer count.");
       return;
     }
-    if (totalAssignedStandardCount !== settings.questionCount) {
-      setError(
-        `Standard counts must sum to ${settings.questionCount}. Current total: ${totalAssignedStandardCount}.`
-      );
-      return;
-    }
-    if (totalDiagramCount > settings.questionCount) {
-      setError("Total diagram count cannot exceed question count.");
-      return;
+    if (totalQuestionTarget > 0) {
+      if (activeStandardIds.length === 0) {
+        setError("Please set count > 0 for at least one standard.");
+        return;
+      }
+      if (!isStandardCountValid) {
+        setError(
+          `Standard counts must sum to ${totalQuestionTarget} (MCQ ${settings.questionCount} + short-answer ${settings.shortAnswerCount}). Current total: ${totalAssignedStandardCount}.`,
+        );
+        return;
+      }
     }
     if (selectedSchoolIds.length === 0) {
       setError("Select at least one school to attach this question set.");
@@ -348,50 +648,159 @@ export default function MassProductionPage() {
     }
 
     setError(null);
+    setWarnings([]);
+    setProgress(null);
     setIsGenerating(true);
 
     try {
-      const payload = {
-        ...settings,
-        topics: TOPIC_SELECTIONS.filter((selection) =>
-          getStandardsForSelection(selection.key).some(
-            (standard) => (settings.standardCounts[standard.id] ?? 0) > 0
-          )
-        ).map((selection) => selection.key),
-        standards: activeStandardIds,
-        questionSetName: trimmedSetName,
-        standardCounts: Object.fromEntries(
-          activeStandardIds.map((standardId) => [
-            standardId,
-            settings.standardCounts[standardId] ?? 0,
-          ])
-        ),
-      };
+      const generatedAt = new Date().toISOString();
+      const mergedQuestions: Question[] = [];
+      let generationModel: { id?: string; label?: string } | undefined;
+      const runWarnings: string[] = [];
+      const { mcqStimulusConfig, saqStimulusConfig } = splitStimulusConfig(
+        settings.stimulusSelectionMode === "custom"
+          ? settings.stimulusConfig
+          : DEFAULT_SETTINGS.stimulusConfig,
+        settings.questionCount,
+      );
 
-      const response = await fetch("/api/generate-questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      // ── MCQ generation (one HTTP call per item) ─────────────────────────
+      if (wantMcq) {
+        const codes = expandStandardCounts(mcqCounts);
+        const stimulusTypes =
+          settings.stimulusSelectionMode === "auto"
+            ? createRandomStimulusTypes(codes.length, true)
+            : expandStimulusTypes(
+                mcqStimulusConfig,
+                codes.length,
+              );
+        let succeeded = 0;
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to generate questions");
+        for (let i = 0; i < codes.length; i++) {
+          setProgress(`Generating multiple-choice question ${i + 1} of ${codes.length}...`);
+          const standardId = codes[i];
+          const payload = {
+            ...settings,
+            topics: TOPIC_SELECTIONS.filter((selection) =>
+              getStandardsForSelection(selection.key).some(
+                (standard) => standard.id === standardId,
+              ),
+            ).map((selection) => selection.key),
+            standards: [standardId],
+            questionSetName: trimmedSetName,
+            questionCount: 1,
+            generationModelId: settings.generationModelId,
+            generationTemperature: settings.generationTemperature,
+            includeDiagrams: stimulusTypes[i] !== undefined,
+            stimulusType: stimulusTypes[i],
+            standardCounts: { [standardId]: 1 },
+          };
+
+          const response = await fetch("/api/generate-questions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            const data = (await response.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            runWarnings.push(
+              `MCQ item ${i + 1} (${standardId}) failed: ${data.error ?? response.status}`,
+            );
+            continue;
+          }
+          const data = await response.json();
+          mergedQuestions.push(...(data.questions as Question[]));
+          generationModel = {
+            id: data.generationModelId,
+            label: data.generationModelLabel,
+          };
+          succeeded += 1;
+        }
+
+        if (succeeded === 0 && settings.questionCount > 0) {
+          setWarnings(runWarnings);
+          throw new Error("No multiple-choice questions were generated.");
+        }
       }
 
-      const data = await response.json();
+      // ── Short-answer generation (one HTTP call per item) ────────────────
+      if (wantShortAnswer) {
+        const codes = expandStandardCounts(saqCounts);
+        const stimulusTypes =
+          settings.stimulusSelectionMode === "auto"
+            ? createRandomStimulusTypes(codes.length, false)
+            : expandStimulusTypes(
+                saqStimulusConfig,
+                codes.length,
+              );
+        let succeeded = 0;
+        for (let i = 0; i < codes.length; i++) {
+          setProgress(
+            `Generating short-answer item ${i + 1} of ${codes.length}...`,
+          );
+          try {
+            const res = await fetch("/api/short-answer/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                standardCode: codes[i],
+                stimulusType: stimulusTypes[i],
+                modelId: settings.generationModelId,
+                temperature: settings.generationTemperature,
+              }),
+            });
+            if (!res.ok) {
+              const data = (await res.json().catch(() => ({}))) as {
+                error?: string;
+                stage?: string;
+              };
+              const detail =
+                data.stage != null
+                  ? `${data.error ?? res.status} (stage: ${data.stage})`
+                  : (data.error ?? String(res.status));
+              runWarnings.push(
+                `Short-answer item ${i + 1} (${codes[i]}) failed: ${detail}`,
+              );
+              continue;
+            }
+            const { item } = (await res.json()) as { item: ShortAnswerItem };
+            mergedQuestions.push(
+              buildShortAnswerQuestion(
+                item,
+                codes[i],
+                `sa-${generatedAt}-${i}`,
+              ),
+            );
+            succeeded += 1;
+          } catch {
+            runWarnings.push(
+              `Short-answer item ${i + 1} (${codes[i]}) failed: network error`,
+            );
+          }
+        }
+        if (!generationModel && succeeded > 0) {
+          const model = GENERATION_MODELS.find((m) => m.id === settings.generationModelId);
+          generationModel = { id: model?.id, label: model?.label };
+        }
+      }
 
-      const generatedAt = new Date().toISOString();
+      if (mergedQuestions.length === 0) {
+        setWarnings(runWarnings);
+        throw new Error(
+          "No questions were generated. See the details below and try again.",
+        );
+      }
+
+      setProgress("Saving question set...");
       const { addGeneratedQuestionSet } = await import("@/lib/question-storage");
       const setId = await addGeneratedQuestionSet(
-        data.questions,
+        mergedQuestions,
         trimmedSetName,
         generatedAt,
         {
-          generationModel: {
-            id: data.generationModelId,
-            label: data.generationModelLabel,
-          },
+          generationModel,
           schoolLinks: selectedSchoolIds.map((schoolId) => ({ schoolId })),
         },
       );
@@ -399,6 +808,7 @@ export default function MassProductionPage() {
       router.push(`/content/questions/${encodeURIComponent(setId)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
+      setProgress(null);
       setIsGenerating(false);
     }
   };
@@ -501,43 +911,118 @@ export default function MassProductionPage() {
             Basic Settings
           </h2>
 
-          {/* Question Count */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-gray mb-2">
-              Number of Questions
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={settings.questionCount || ""}
-              onChange={(e) => {
-                const rawValue = e.target.value;
-                if (rawValue === "") {
-                  setSettings((prev) => ({ ...prev, questionCount: 0 }));
-                  return;
-                }
-                const value = parseInt(rawValue, 10);
-                if (!isNaN(value)) {
-                  const nextCount = Math.max(0, Math.min(20, value));
+          {/* Question Counts (MCQ + short-answer) */}
+          <div className="mb-6 flex flex-wrap gap-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-2">
+                MCQ Count
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={settings.questionCount || ""}
+                onChange={(e) => {
+                  const rawValue = e.target.value;
+                  if (rawValue === "") {
+                    setSettings((prev) => ({ ...prev, questionCount: 0 }));
+                    return;
+                  }
+                  const value = parseInt(rawValue, 10);
+                  if (!isNaN(value)) {
+                    const nextCount = Math.max(0, Math.min(20, value));
+                    setSettings((prev) => ({
+                      ...prev,
+                      questionCount: nextCount,
+                    }));
+                  }
+                }}
+                placeholder="5"
+                className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                0-20 multiple-choice questions
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-2">
+                Short-answer Count
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={settings.shortAnswerCount || ""}
+                onChange={(e) => {
+                  const rawValue = e.target.value;
+                  if (rawValue === "") {
+                    setSettings((prev) => ({ ...prev, shortAnswerCount: 0 }));
+                    return;
+                  }
+                  const value = parseInt(rawValue, 10);
+                  if (!isNaN(value)) {
+                    setSettings((prev) => ({
+                      ...prev,
+                      shortAnswerCount: Math.max(0, Math.min(20, value)),
+                    }));
+                  }
+                }}
+                placeholder="0"
+                className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                0-20 constructed-response items
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-2">
+                Generation Model
+              </label>
+              <select
+                value={settings.generationModelId}
+                onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
-                    questionCount: nextCount,
-                  }));
+                    generationModelId: e.target.value,
+                  }))
                 }
-              }}
-              onBlur={() => {
-                if (settings.questionCount < 1) {
+                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+              >
+                {GENERATION_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Used for both multiple-choice and short-answer generation.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-gray mb-2">
+                Temperature
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={2}
+                step={0.1}
+                value={settings.generationTemperature}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
                   setSettings((prev) => ({
                     ...prev,
-                    questionCount: 1,
+                    generationTemperature: Number.isNaN(value)
+                      ? DEFAULT_GENERATION_TEMPERATURE
+                      : Math.max(0, Math.min(2, value)),
                   }));
-                }
-              }}
-              placeholder="5"
-              className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-            />
-            <p className="text-xs text-muted-foreground mt-1">1-20 questions per batch</p>
+                }}
+                className="w-28 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm text-center"
+              />
+            </div>
           </div>
 
           {/* Topic and Standard Selection */}
@@ -648,11 +1133,18 @@ export default function MassProductionPage() {
             >
               <span className="font-medium">
                 Total standard counts: {totalAssignedStandardCount} /{" "}
-                {settings.questionCount} questions
+                {totalQuestionTarget} questions
               </span>
+              {totalQuestionTarget > 0 && (
+                <span className="block text-xs mt-0.5 opacity-80">
+                  MCQ {settings.questionCount} + short-answer{" "}
+                  {settings.shortAnswerCount}
+                </span>
+              )}
               {!isStandardCountValid && (
                 <span className="block text-xs mt-1">
-                  Adjust counts so the total matches the number of questions.
+                  Adjust counts so the total matches MCQ count + short-answer
+                  count.
                 </span>
               )}
             </div>
@@ -699,103 +1191,107 @@ export default function MassProductionPage() {
 
         </section>
 
-        {/* Diagram Settings */}
+        {/* Stimulus Settings */}
         <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
-            Diagram Settings
+            Stimulus Settings
           </h2>
 
-          <label className="flex items-center gap-3 mb-4 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={settings.includeDiagrams}
-              onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  includeDiagrams: e.target.checked,
-                  diagramConfig: e.target.checked
-                    ? prev.diagramConfig
-                    : DEFAULT_SETTINGS.diagramConfig,
-                }))
-              }
-              className="w-4 h-4 rounded border-border-default text-primary focus:ring-primary/50"
-            />
-            <span className="text-sm font-medium text-slate-gray">
-              Include questions with diagrams
-            </span>
-          </label>
+          <div className="space-y-4">
+              <fieldset>
+                <legend className="text-sm font-medium text-slate-gray mb-2">
+                  How should stimulus types be selected?
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {([
+                    {
+                      value: "auto" as const,
+                      label: "Auto",
+                      description: "Randomly select a stimulus type for each question.",
+                    },
+                    {
+                      value: "custom" as const,
+                      label: "Specify counts",
+                      description: "Set the exact number for each stimulus type.",
+                    },
+                  ]).map((option) => {
+                    const selected = settings.stimulusSelectionMode === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                          selected
+                            ? "border-primary bg-primary/5"
+                            : "border-border-default hover:bg-foreground/5"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="stimulus-selection-mode"
+                          value={option.value}
+                          checked={selected}
+                          onChange={() =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              stimulusSelectionMode: option.value,
+                            }))
+                          }
+                          className="mt-0.5 h-4 w-4 border-border-default text-primary focus:ring-primary/50"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-slate-gray">
+                            {option.label}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                            {option.description}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
 
-          {settings.includeDiagrams && (
-            <div className="space-y-4 pl-7">
-              <p className="text-xs text-muted-foreground mb-3">
-                Specify how many questions should include each diagram type.
-                Remaining questions will be text-only.
-              </p>
+              {settings.stimulusSelectionMode === "auto" ? (
+                <div className="rounded-lg bg-primary/5 p-3 text-sm text-slate-gray">
+                  Each question will independently receive a random stimulus
+                  type. Multiple-choice questions may also be text-only.
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-end mb-1">
+                    <button
+                      onClick={handleAutoDistributeDiagrams}
+                      className="text-xs text-primary hover:text-primary-hover font-medium"
+                    >
+                      Auto distribute
+                    </button>
+                  </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-gray mb-1">
-                    Charts (Line/Bar)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.diagramConfig.chart || ""}
-                    onChange={(e) => handleDiagramCountChange("chart", e.target.value)}
-                    placeholder="0"
-                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-gray mb-1">
-                    Tables
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.diagramConfig.table || ""}
-                    onChange={(e) => handleDiagramCountChange("table", e.target.value)}
-                    placeholder="0"
-                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-gray mb-1">
-                    Flowcharts
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.diagramConfig.flowchart || ""}
-                    onChange={(e) => handleDiagramCountChange("flowchart", e.target.value)}
-                    placeholder="0"
-                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-gray mb-1">
-                    Biology Diagrams
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.diagramConfig.diagram || ""}
-                    onChange={(e) => handleDiagramCountChange("diagram", e.target.value)}
-                    placeholder="0"
-                    className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
-                  />
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                    {(Object.keys(STIMULUS_LABELS) as StimulusType[]).map((type) => (
+                      <div key={type}>
+                        <label className="block text-sm text-slate-gray mb-1">
+                          {STIMULUS_LABELS[type]}
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={settings.stimulusConfig[type] || ""}
+                          onChange={(e) => handleStimulusCountChange(type, e.target.value)}
+                          placeholder="0"
+                          className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+                        />
+                      </div>
+                    ))}
+                  </div>
 
-              <div className="mt-4 p-3 rounded-lg bg-slate-gray/5">
+                  <div className="mt-4 p-3 rounded-lg bg-slate-gray/5">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Diagram questions:</span>
+                  <span className="text-muted-foreground">Stimulus questions:</span>
                   <span className="font-medium text-slate-gray">
-                    {totalDiagramCount}
+                    {totalStimulusCount}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">
@@ -807,12 +1303,13 @@ export default function MassProductionPage() {
                 <div className="flex justify-between text-sm mt-1 pt-1 border-t border-border-subtle">
                   <span className="text-muted-foreground">Total:</span>
                   <span className="font-medium text-slate-gray">
-                    {settings.questionCount}
+                    {totalQuestionTarget}
                   </span>
                 </div>
-              </div>
-            </div>
-          )}
+                  </div>
+                </>
+              )}
+          </div>
         </section>
 
         {/* Advanced Settings */}
@@ -862,8 +1359,23 @@ export default function MassProductionPage() {
           </div>
         )}
 
+        {/* Per-item warnings (failed short-answer items) */}
+        {warnings.length > 0 && (
+          <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+            <p className="font-medium mb-1">Some items could not be generated:</p>
+            <ul className="list-disc pl-5 space-y-0.5">
+              {warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Generate Button */}
         <div className="flex items-center justify-end gap-4">
+          {isGenerating && progress && (
+            <span className="text-sm text-muted-foreground">{progress}</span>
+          )}
           {isGenerating && (
             <span className="text-sm text-muted-foreground">
               Elapsed: {formatTime(elapsedTime)}

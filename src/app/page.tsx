@@ -6,6 +6,11 @@ import { getStudentKeystoneExam } from "@/lib/keystone-exam";
 import { getStudentUserSettings } from "@/lib/user-settings";
 import { getRoleLandingPath } from "@/lib/auth/role";
 import { resolveRoleWithServerFallback } from "@/lib/auth/server-role";
+import { getSelfPracticeWeeklySeconds } from "@/lib/homepage/self-practice-stats";
+import { getLearningEffort } from "@/lib/homepage/learning-effort";
+import { getMasterySummary } from "@/lib/homepage/mastery-summary";
+import { getStudentProfileSummary } from "@/lib/homepage/profile-summary";
+import { getStudentBadges } from "@/lib/homepage/badges";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -30,15 +35,33 @@ export default async function Home() {
 
   const { timeZone } = await getStudentUserSettings(supabase);
 
-  const [assignmentResult, keystoneExam] = await Promise.all([
+  const [
+    assignmentResult,
+    keystoneExam,
+    selfPracticeWeeklySeconds,
+    learningEffort,
+    masterySummary,
+    profileSummary,
+    badges,
+  ] = await Promise.all([
     getStudentAssignmentList(supabase, user.id),
     getStudentKeystoneExam(supabase, user.id, { timeZone }),
+    getSelfPracticeWeeklySeconds(supabase, user.id),
+    getLearningEffort(supabase, user.id, { timeZone }),
+    getMasterySummary(supabase, user.id),
+    getStudentProfileSummary(supabase, user.id),
+    getStudentBadges(supabase, user.id, { timeZone }),
   ]);
 
   return (
     <HomePageContent
       assignments={assignmentResult.assignments}
       keystoneExam={keystoneExam}
+      selfPracticeWeeklySeconds={selfPracticeWeeklySeconds}
+      learningEffort={learningEffort}
+      masterySummary={masterySummary}
+      profileSummary={profileSummary}
+      badges={badges}
     />
   );
 }

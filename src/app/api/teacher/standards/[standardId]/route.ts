@@ -9,6 +9,7 @@ import {
 import { dedupeAssignmentExamAttempts } from "@/lib/analytics/exam-attempt-dedupe";
 import {
   classifyPerformance,
+  resolveAttemptStandardId,
   roundPercent,
   type AttemptMode,
   type StandardStatus,
@@ -24,17 +25,27 @@ import {
   type ConfidenceQuadrantCounts,
   type ConfidenceQuadrantPercents,
 } from "@/lib/analytics/confidence";
-import { fetchQuestionPreviews, type QuestionPreview } from "@/lib/analytics/question-preview";
+import {
+  fetchQuestionPreviewsByIdentity,
+  questionPreviewIdentityKey,
+  resolveQuestionTypeFromAttempts,
+  type QuestionPreview,
+  type QuestionType,
+} from "@/lib/analytics/question-preview";
 import { getStandardById } from "@/lib/standards";
 
 interface AttemptQueryRow {
   user_id: string;
   question_id: string;
+  question_set_id: string | null;
+  standard_id: string | null;
+  topic: string | null;
   mode: string | null;
   is_correct: boolean;
   time_spent_sec: number | null;
   assignment_id: string | null;
   answered_at: string;
+  selected_option_id: string | null;
 }
 
 const ATTEMPT_MODES = ["practice", "exam", "review"] as const satisfies readonly AttemptMode[];
@@ -45,6 +56,43 @@ function coerceAttemptMode(raw: string | null): AttemptMode {
 
 function emptyModeMetrics(): ModeMetrics {
   return { attempted: 0, correct: 0, accuracy: 0, averageTimeSec: 0, studentsAttempted: 0 };
+}
+
+function buildModeMetrics(rows: AttemptQueryRow[]): Record<AttemptMode, ModeMetrics> {
+  const byModeAgg: Record<AttemptMode, ModeMetrics> = {
+    practice: emptyModeMetrics(),
+    exam: emptyModeMetrics(),
+    review: emptyModeMetrics(),
+  };
+  const byModeTime: Record<AttemptMode, { total: number; count: number }> = {
+    practice: { total: 0, count: 0 },
+    exam: { total: 0, count: 0 },
+    review: { total: 0, count: 0 },
+  };
+  const byModeStudents: Record<AttemptMode, Set<string>> = {
+    practice: new Set(),
+    exam: new Set(),
+    review: new Set(),
+  };
+  for (const row of rows) {
+    const attemptMode = coerceAttemptMode(row.mode);
+    const modeMetrics = byModeAgg[attemptMode];
+    modeMetrics.attempted += 1;
+    if (row.is_correct) modeMetrics.correct += 1;
+    byModeStudents[attemptMode].add(row.user_id);
+    if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
+      byModeTime[attemptMode].total += row.time_spent_sec;
+      byModeTime[attemptMode].count += 1;
+    }
+  }
+  for (const m of ATTEMPT_MODES) {
+    const metrics = byModeAgg[m];
+    metrics.accuracy = metrics.attempted > 0 ? roundPercent((metrics.correct / metrics.attempted) * 100) : 0;
+    const time = byModeTime[m];
+    metrics.averageTimeSec = time.count > 0 ? Math.round(time.total / time.count) : 0;
+    metrics.studentsAttempted = byModeStudents[m].size;
+  }
+  return byModeAgg;
 }
 
 type RangeKey = "7d" | "30d" | "all";
@@ -61,6 +109,8 @@ function parseEnum<T extends string>(
 
 export interface StandardDetailQuestion {
   questionId: string;
+  setId: string | null;
+  questionType: QuestionType;
   preview: QuestionPreview | null;
   attempted: number;
   correct: number;
@@ -79,9 +129,13 @@ export interface StandardDetailResponse {
     averageTimeSec: number;
     status: StandardStatus;
     byMode: Record<AttemptMode, ModeMetrics>;
+    saqAverageTimeSec: number;
+    /** SAQ-only mode breakdown. */
+    saqByMode: Record<AttemptMode, ModeMetrics>;
   };
   confidence: ConfidenceQuadrantPercents;
-  questions: StandardDetailQuestion[];
+  mcqQuestions: StandardDetailQuestion[];
+  shortAnswerQuestions: StandardDetailQuestion[];
   filters: {
     range: RangeKey;
     mode: ModeFilter;
@@ -154,9 +208,12 @@ export async function GET(
       averageTimeSec: 0,
       status: "not_started",
       byMode: { practice: emptyModeMetrics(), exam: emptyModeMetrics(), review: emptyModeMetrics() },
+      saqAverageTimeSec: 0,
+      saqByMode: { practice: emptyModeMetrics(), exam: emptyModeMetrics(), review: emptyModeMetrics() },
     },
     confidence: { mastery: 0, misconception: 0, fragile: 0, expected: 0, total: 0 },
-    questions: [],
+    mcqQuestions: [],
+    shortAnswerQuestions: [],
     filters,
   };
 
@@ -189,9 +246,15 @@ export async function GET(
 
   let attemptsQuery = admin
     .from("attempts")
-    .select("user_id,question_id,mode,is_correct,time_spent_sec,assignment_id,answered_at")
-    .in("user_id", studentIds)
-    .eq("standard_id", standardId);
+    .select(
+      "user_id,question_id,question_set_id,standard_id,topic,mode,is_correct,time_spent_sec,assignment_id,answered_at,selected_option_id",
+    )
+    .in("user_id", studentIds);
+  attemptsQuery = standardInfo
+    ? attemptsQuery.or(
+        `standard_id.eq.${standardInfo.id},standard_id.is.null`,
+      )
+    : attemptsQuery.eq("standard_id", standardId);
   if (range !== "all") {
     const days = range === "7d" ? 7 : 30;
     const from = new Date();
@@ -213,101 +276,127 @@ export async function GET(
     return NextResponse.json({ error: "Failed to load attempts data" }, { status: 500 });
   }
 
-  const attempts = dedupeAssignmentExamAttempts((attemptsData ?? []) as AttemptQueryRow[]);
+  const attempts = dedupeAssignmentExamAttempts(
+    (attemptsData ?? []) as AttemptQueryRow[],
+  ).filter(
+    (row) =>
+      resolveAttemptStandardId(row.standard_id, row.topic) === standardId,
+  );
 
   if (attempts.length === 0) {
     return NextResponse.json(emptyResponse);
   }
 
-  // --- Standard-level summary (overall + per-mode) ---
-  const byModeAgg: Record<AttemptMode, ModeMetrics> = {
-    practice: emptyModeMetrics(),
-    exam: emptyModeMetrics(),
-    review: emptyModeMetrics(),
-  };
-  const byModeTime: Record<AttemptMode, { total: number; count: number }> = {
-    practice: { total: 0, count: 0 },
-    exam: { total: 0, count: 0 },
-    review: { total: 0, count: 0 },
-  };
-  const byModeStudents: Record<AttemptMode, Set<string>> = {
-    practice: new Set(),
-    exam: new Set(),
-    review: new Set(),
-  };
+  // MCQ and SAQ are fundamentally different tasks (single click vs. multi-part
+  // constructed response), so the standard-level summary/status/mode-breakdown
+  // is MCQ-only; SAQ gets its own parallel mode breakdown below.
+  const mcqAttempts = attempts.filter((row) => row.selected_option_id !== "short-answer");
+  const saqAttempts = attempts.filter((row) => row.selected_option_id === "short-answer");
+
+  // --- Standard-level summary (MCQ only) ---
   let overallCorrect = 0;
   let overallTimeTotal = 0;
   let overallTimeCount = 0;
+  for (const row of mcqAttempts) {
+    if (row.is_correct) overallCorrect += 1;
+    if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
+      overallTimeTotal += row.time_spent_sec;
+      overallTimeCount += 1;
+    }
+  }
+  const totalAttempted = mcqAttempts.length;
+  const overallAccuracy = totalAttempted > 0 ? roundPercent((overallCorrect / totalAttempted) * 100) : 0;
+  const overallAverageTimeSec = overallTimeCount > 0 ? Math.round(overallTimeTotal / overallTimeCount) : 0;
+  const status = classifyPerformance(overallAccuracy, totalAttempted, thresholds);
 
-  // --- Per-question aggregation ---
+  const byModeAgg = buildModeMetrics(mcqAttempts);
+  const saqByModeAgg = buildModeMetrics(saqAttempts);
+
+  let saqTimeTotal = 0;
+  let saqTimeCount = 0;
+  for (const row of saqAttempts) {
+    if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
+      saqTimeTotal += row.time_spent_sec;
+      saqTimeCount += 1;
+    }
+  }
+  const saqAverageTimeSec = saqTimeCount > 0 ? Math.round(saqTimeTotal / saqTimeCount) : 0;
+
+  // --- Per-question aggregation (both MCQ and SAQ questions; split downstream by preview type) ---
   interface QuestionAgg {
+    questionId: string;
+    questionSetId: string | null;
+    isShortAnswer: boolean;
     attempted: number;
     correct: number;
     timeTotal: number;
     timeCount: number;
   }
   const questionAgg = new Map<string, QuestionAgg>();
-  const firstPracticeByUserQuestion = new Map<string, { isCorrect: boolean; answeredAt: string }>();
+  const firstPracticeByUserQuestion = new Map<
+    string,
+    { identityKey: string; isCorrect: boolean; answeredAt: string }
+  >();
 
   for (const row of attempts) {
     const attemptMode = coerceAttemptMode(row.mode);
-    if (row.is_correct) overallCorrect += 1;
-    if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
-      overallTimeTotal += row.time_spent_sec;
-      overallTimeCount += 1;
-    }
+    const identity = {
+      questionId: row.question_id,
+      questionSetId: row.question_set_id,
+    };
+    const identityKey = questionPreviewIdentityKey(identity);
 
-    const modeMetrics = byModeAgg[attemptMode];
-    modeMetrics.attempted += 1;
-    if (row.is_correct) modeMetrics.correct += 1;
-    byModeStudents[attemptMode].add(row.user_id);
-    if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
-      byModeTime[attemptMode].total += row.time_spent_sec;
-      byModeTime[attemptMode].count += 1;
+    const qAgg = questionAgg.get(identityKey) ?? {
+      ...identity,
+      isShortAnswer: false,
+      attempted: 0,
+      correct: 0,
+      timeTotal: 0,
+      timeCount: 0,
+    };
+    if (resolveQuestionTypeFromAttempts([row], null) === "open-ended") {
+      qAgg.isShortAnswer = true;
     }
-
-    const qAgg = questionAgg.get(row.question_id) ?? { attempted: 0, correct: 0, timeTotal: 0, timeCount: 0 };
     qAgg.attempted += 1;
     if (row.is_correct) qAgg.correct += 1;
     if (typeof row.time_spent_sec === "number" && Number.isFinite(row.time_spent_sec)) {
       qAgg.timeTotal += row.time_spent_sec;
       qAgg.timeCount += 1;
     }
-    questionAgg.set(row.question_id, qAgg);
+    questionAgg.set(identityKey, qAgg);
 
     if (attemptMode === "practice") {
-      const key = `${row.user_id}::${row.question_id}`;
+      const key = JSON.stringify([
+        row.user_id,
+        row.question_set_id,
+        row.question_id,
+      ]);
       const first = firstPracticeByUserQuestion.get(key);
       if (!first || row.answered_at < first.answeredAt) {
-        firstPracticeByUserQuestion.set(key, { isCorrect: row.is_correct, answeredAt: row.answered_at });
+        firstPracticeByUserQuestion.set(key, {
+          identityKey,
+          isCorrect: row.is_correct,
+          answeredAt: row.answered_at,
+        });
       }
     }
   }
 
-  for (const m of ATTEMPT_MODES) {
-    const metrics = byModeAgg[m];
-    metrics.accuracy = metrics.attempted > 0 ? roundPercent((metrics.correct / metrics.attempted) * 100) : 0;
-    const time = byModeTime[m];
-    metrics.averageTimeSec = time.count > 0 ? Math.round(time.total / time.count) : 0;
-    metrics.studentsAttempted = byModeStudents[m].size;
-  }
-
-  const totalAttempted = attempts.length;
-  const overallAccuracy = totalAttempted > 0 ? roundPercent((overallCorrect / totalAttempted) * 100) : 0;
-  const overallAverageTimeSec = overallTimeCount > 0 ? Math.round(overallTimeTotal / overallTimeCount) : 0;
-  const status = classifyPerformance(overallAccuracy, totalAttempted, thresholds);
-
   const firstPracticeByQuestion = new Map<string, { n: number; correct: number }>();
-  for (const [key, value] of firstPracticeByUserQuestion) {
-    const questionId = key.split("::")[1] ?? "";
-    const bucket = firstPracticeByQuestion.get(questionId) ?? { n: 0, correct: 0 };
+  for (const value of firstPracticeByUserQuestion.values()) {
+    const bucket = firstPracticeByQuestion.get(value.identityKey) ?? {
+      n: 0,
+      correct: 0,
+    };
     bucket.n += 1;
     if (value.isCorrect) bucket.correct += 1;
-    firstPracticeByQuestion.set(questionId, bucket);
+    firstPracticeByQuestion.set(value.identityKey, bucket);
   }
 
   // --- Confidence quadrants (overall + per question) ---
-  const questionIds = Array.from(questionAgg.keys());
+  const questionIds = Array.from(
+    new Set(Array.from(questionAgg.values()).map((agg) => agg.questionId)),
+  );
   const { data: confidenceRows, error: confidenceError } = await fetchConfidenceEvents(
     admin,
     studentIds,
@@ -332,19 +421,29 @@ export async function GET(
     addConfidenceSubmission(confidenceByQuestion.get(questionId)!, level, isCorrect);
   }
 
-  const { data: previewByQuestionId, error: previewError } = await fetchQuestionPreviews(admin, questionIds);
+  const questionIdentities = Array.from(questionAgg.values()).map((agg) => ({
+    questionId: agg.questionId,
+    questionSetId: agg.questionSetId,
+  }));
+  const { data: previewByIdentity, error: previewError } =
+    await fetchQuestionPreviewsByIdentity(admin, questionIdentities);
   if (previewError) {
     return NextResponse.json({ error: previewError }, { status: 500 });
   }
 
   const questions: StandardDetailQuestion[] = Array.from(questionAgg.entries())
-    .map(([questionId, agg]) => {
+    .map(([identityKey, agg]) => {
       const accuracy = agg.attempted > 0 ? roundPercent((agg.correct / agg.attempted) * 100) : 0;
       const averageTimeSec = agg.timeCount > 0 ? Math.round(agg.timeTotal / agg.timeCount) : 0;
-      const firstAttempt = firstPracticeByQuestion.get(questionId);
+      const firstAttempt = firstPracticeByQuestion.get(identityKey);
+      const questionType: QuestionType = agg.isShortAnswer
+        ? "open-ended"
+        : "mcq";
       return {
-        questionId,
-        preview: previewByQuestionId.get(questionId) ?? null,
+        questionId: agg.questionId,
+        setId: agg.questionSetId,
+        questionType,
+        preview: previewByIdentity.get(identityKey) ?? null,
         attempted: agg.attempted,
         correct: agg.correct,
         accuracy,
@@ -357,11 +456,16 @@ export async function GET(
             }
           : null,
         confidence: toConfidenceQuadrantPercents(
-          confidenceByQuestion.get(questionId) ?? emptyConfidenceQuadrantCounts(),
+          confidenceByQuestion.get(agg.questionId) ?? emptyConfidenceQuadrantCounts(),
         ),
       };
     })
     .sort((a, b) => b.attempted - a.attempted);
+
+  const mcqQuestions = questions.filter((q) => q.questionType === "mcq");
+  const shortAnswerQuestions = questions.filter(
+    (q) => q.questionType === "open-ended",
+  );
 
   const response: StandardDetailResponse = {
     standard: standardInfo
@@ -374,9 +478,12 @@ export async function GET(
       averageTimeSec: overallAverageTimeSec,
       status,
       byMode: byModeAgg,
+      saqAverageTimeSec,
+      saqByMode: saqByModeAgg,
     },
     confidence: toConfidenceQuadrantPercents(overallConfidence),
-    questions,
+    mcqQuestions,
+    shortAnswerQuestions,
     filters,
   };
 

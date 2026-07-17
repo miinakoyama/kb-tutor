@@ -187,8 +187,8 @@ const STANDARD_MAP = new Map(
   STANDARD_DEFINITIONS.map((item) => [item.id, item]),
 );
 
-// Legacy module-topic names used in the static question bank (questions.json)
-// that don't match any standard category string.
+// Legacy topic names retained for older remote question payloads that do not
+// match a current standard category string.
 const LEGACY_TOPIC_STANDARD_ID: Record<string, string> = {
   "Basic Biological Principles": "3.1.9-12.A",
   "Chemical Basis for Life": "3.1.9-12.F",
@@ -250,6 +250,25 @@ export function getDefaultStandardForTopic(topic: string): StandardInfo {
 
 export function getStandardForTopic(topic: string): StandardInfo {
   return getDefaultStandardForTopic(topic);
+}
+
+/**
+ * All standards that belong to a given topic/category string, including
+ * legacy topic names from the static question bank (which map to a single
+ * standard rather than a category). Returns [] when the topic doesn't match
+ * anything known, so callers don't accidentally seed unrelated standards.
+ */
+export function getStandardsForTopicName(topic: string): StandardInfo[] {
+  const trimmed = topic.trim();
+  if (!trimmed) return [];
+  const mapped = getStandardsForTopic(trimmed);
+  if (mapped.length > 0) return mapped;
+  const legacyId = LEGACY_TOPIC_STANDARD_ID[trimmed];
+  if (legacyId) {
+    const legacy = STANDARD_MAP.get(legacyId);
+    if (legacy) return [legacy];
+  }
+  return [];
 }
 
 export function getModuleNumberForStandard(standardId: string): number {

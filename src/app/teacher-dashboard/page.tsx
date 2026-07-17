@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   BookOpen,
+  ChevronDown,
   ChevronRight,
   Download,
   Info,
@@ -17,6 +18,10 @@ import {
 import { StudentAvatar } from "@/components/StudentAvatar";
 import { InfoPopover } from "@/components/InfoPopover";
 import { PerformanceThresholdsCard } from "@/components/PerformanceThresholdsCard";
+import { FeedbackSettingsCard } from "@/components/short-answer/FeedbackSettingsCard";
+import { FeedbackReportsSection } from "@/components/short-answer/FeedbackReportsSection";
+import { Button } from "@/components/ui/Button";
+import { UnderlineTabs } from "@/components/shared/UnderlineTabs";
 import {
   downloadStandardMetricsCsv,
   downloadStudentMetricsCsv,
@@ -42,7 +47,17 @@ import {
   findStudentBand,
   type BandDescriptor,
 } from "@/lib/analytics/band-display";
+import { getAllStandards, MODULE_TITLES, type ModuleCode } from "@/lib/standards";
+import { textAmber, textEmerald, textRose } from "@/lib/ui/status-badge-styles";
+
+function accuracyToneClass(value: number, thresholds: PerformanceThresholds): string {
+  if (value >= thresholds.advancedMin) return "text-emerald-800 dark:text-emerald-200";
+  if (value >= thresholds.proficientMin) return textEmerald;
+  if (value >= thresholds.basicMin) return textAmber;
+  return textRose;
+}
 type RangeKey = "7d" | "30d" | "all";
+type DashboardSection = "analytics" | "feedbackReports" | "feedbackSettings";
 type ModeKey = "compare" | "practice" | "exam" | "review";
 type AttemptModeKey = "practice" | "exam" | "review";
 type SourceKey = "assigned" | "self" | "all";
@@ -70,6 +85,13 @@ interface StudentOption {
   label: string;
   classId: string | null;
   classIds?: string[];
+}
+
+interface StandardGroup {
+  key: string;
+  module: ModuleCode | null;
+  category: string | null;
+  rows: StandardRow[];
 }
 
 interface DashboardPayload {
@@ -194,6 +216,7 @@ function TeacherDashboardContent() {
     useState<StandardStatusFilter>("all");
   const [studentFilter, setStudentFilter] =
     useState<StudentStatusFilter>("all");
+  const [section, setSection] = useState<DashboardSection>("analytics");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -253,6 +276,55 @@ function TeacherDashboardContent() {
     return data.byStandard.filter((row) => row.status === standardFilter);
   }, [standardFilter, data.byStandard]);
 
+  const standardGroupOrder = useMemo(() => {
+    const seen = new Set<string>();
+    const order: { module: ModuleCode; category: string }[] = [];
+    for (const standard of getAllStandards()) {
+      const key = `${standard.module}::${standard.category}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      order.push({ module: standard.module, category: standard.category });
+    }
+    return order;
+  }, []);
+
+  const standardGroups = useMemo(() => {
+    const rowsByKey = new Map<string, StandardRow[]>();
+    for (const row of filteredStandards) {
+      const key = row.module && row.category ? `${row.module}::${row.category}` : "other";
+      const rows = rowsByKey.get(key) ?? [];
+      rows.push(row);
+      rowsByKey.set(key, rows);
+    }
+    const groups: StandardGroup[] = [];
+    for (const { module, category } of standardGroupOrder) {
+      const key = `${module}::${category}`;
+      const rows = rowsByKey.get(key);
+      if (!rows || rows.length === 0) continue;
+      groups.push({ key, module, category, rows });
+    }
+    const otherRows = rowsByKey.get("other");
+    if (otherRows && otherRows.length > 0) {
+      groups.push({ key: "other", module: null, category: null, rows: otherRows });
+    }
+    return groups;
+  }, [filteredStandards, standardGroupOrder]);
+
+  const [collapsedStandardGroups, setCollapsedStandardGroups] = useState<
+    Set<string>
+  >(new Set());
+  const toggleStandardGroup = (key: string) => {
+    setCollapsedStandardGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
   const filteredStudentRows = useMemo(() => {
     if (studentFilter === "all") return data.byStudent;
     if (studentFilter === "low_and_fast") {
@@ -272,46 +344,50 @@ function TeacherDashboardContent() {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <section className="mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-[#14532d]">
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">
             Teacher Dashboard
           </h1>
         </div>
       </section>
 
-      <FiltersBar
-        topic={topic}
-        classId={classId}
-        studentId={studentId}
-        range={range}
-        source={source}
-        topics={data.topics}
-        classes={data.classes}
-        students={filteredStudents}
-        onTopicChange={setTopic}
-        onClassChange={(value) => {
-          setClassId(value);
-          setStudentId("");
-        }}
-        onStudentChange={setStudentId}
-        onRangeChange={setRange}
-        onSourceChange={setSource}
-      />
+      <DashboardSectionTabs value={section} onChange={setSection} />
 
-      <ModeTabs
-        value={mode}
-        onChange={setMode}
-        thresholds={data.thresholds}
-        defaults={data.defaults}
-        thresholdsAreCustom={data.thresholdsAreCustom}
-        onThresholdsChange={() => setRefreshKey((prev) => prev + 1)}
-      />
+      {section === "analytics" && (
+        <>
+          <FiltersBar
+            topic={topic}
+            classId={classId}
+            studentId={studentId}
+            range={range}
+            source={source}
+            topics={data.topics}
+            classes={data.classes}
+            students={filteredStudents}
+            onTopicChange={setTopic}
+            onClassChange={(value) => {
+              setClassId(value);
+              setStudentId("");
+            }}
+            onStudentChange={setStudentId}
+            onRangeChange={setRange}
+            onSourceChange={setSource}
+          />
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          <ModeTabs
+            value={mode}
+            onChange={setMode}
+            thresholds={data.thresholds}
+            defaults={data.defaults}
+            thresholdsAreCustom={data.thresholdsAreCustom}
+            onThresholdsChange={() => setRefreshKey((prev) => prev + 1)}
+          />
+
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <KpiCard
           label="Active Students"
           value={`${data.summary.completionRate}%`}
           helper={activeStudentsHelper(data.summary, mode)}
-          accentClass="text-[#16a34a]"
+          accentClass="text-primary"
           info={
             <>
               Calculated as{" "}
@@ -337,7 +413,7 @@ function TeacherDashboardContent() {
                 ? `${data.summary.totalCorrect.toLocaleString()} correct of ${data.summary.totalAnswered.toLocaleString()} answered`
                 : "no attempts yet"
             }
-            accentClass="text-[#1d4ed8]"
+            accentClass="text-blue-700 dark:text-blue-300"
             info={
               <>
                 Calculated as{" "}
@@ -354,7 +430,7 @@ function TeacherDashboardContent() {
           label="Avg Time / Question"
           value={formatDuration(data.summary.avgTimeSec)}
           helper={avgTimeHelper(data.summary.avgTimeSec)}
-          accentClass="text-[#b45309]"
+          accentClass={textAmber}
           info={
             <>
               Mean dwell time per question over the active filters. Attempts
@@ -367,10 +443,10 @@ function TeacherDashboardContent() {
           summary={data.summary}
           thresholds={data.thresholds}
         />
-      </section>
+          </section>
 
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm mb-6">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm mb-6">
+        <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-gray">
               Performance by standard
@@ -399,13 +475,13 @@ function TeacherDashboardContent() {
                 })),
               ]}
             />
-            <button
+            <Button
+              variant="outline"
               onClick={() => downloadStandardMetricsCsv(filteredStandards)}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#15803d] transition-colors"
             >
               <Download className="w-4 h-4" />
               Download CSV
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -414,7 +490,7 @@ function TeacherDashboardContent() {
             className={`w-full text-sm ${mode === "compare" ? "min-w-[1040px]" : ""}`}
           >
             <thead>
-              <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+              <tr className="bg-surface-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
                 <th className="w-[34%] px-5 py-3">Standard</th>
                 {mode !== "compare" && (
                   <>
@@ -449,98 +525,131 @@ function TeacherDashboardContent() {
                   </td>
                 </tr>
               ) : (
-                filteredStandards.map((row) => (
-                  <tr
-                    key={row.standardId}
-                    onClick={() =>
-                      router.push(
-                        `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`,
-                      )
-                    }
-                    className="cursor-pointer border-t border-slate-100 hover:bg-[#16a34a]/5"
-                  >
-                    <td className="px-5 py-3">
-                      <Link
-                        href={`/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`}
-                        onClick={(event) => event.stopPropagation()}
-                        className="font-medium text-slate-gray hover:text-[#166534] hover:underline"
+                standardGroups.map((group) => {
+                  const isCollapsed = collapsedStandardGroups.has(group.key);
+                  return (
+                    <Fragment key={group.key}>
+                      <tr
+                        onClick={() => toggleStandardGroup(group.key)}
+                        className="cursor-pointer border-t border-border-subtle bg-surface-muted/60"
                       >
-                        {row.standardId}
-                      </Link>
-                      <p className="text-xs text-slate-gray/60 line-clamp-2 max-w-md">
-                        {row.standardLabel}
-                      </p>
-                    </td>
-                    {mode !== "compare" && (
-                      <>
-                        <td className="px-3 py-3 text-center text-slate-gray">
-                          {row.attempted}
+                        <td colSpan={7} className="px-5 py-2">
+                          <div className="flex items-center gap-2">
+                            {isCollapsed ? (
+                              <ChevronRight className="h-4 w-4 text-slate-gray/50" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-slate-gray/50" />
+                            )}
+                            {group.module && (
+                              <span
+                                title={MODULE_TITLES[group.module]}
+                                className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                              >
+                                Module {group.module}
+                              </span>
+                            )}
+                            <span className="text-sm font-semibold text-slate-gray">
+                              {group.category ?? "Other"}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-3 py-3 text-center text-slate-gray">
-                          {row.correct}
-                        </td>
-                      </>
-                    )}
-                    {mode === "compare" ? (
-                      <>
-                        <td className="px-3 py-3">
-                          <ModeAccuracyCell
-                            metrics={row.byMode?.practice}
-                            thresholds={data.thresholds}
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <ModeAccuracyCell
-                            metrics={row.byMode?.exam}
-                            thresholds={data.thresholds}
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <ModeAccuracyCell
-                            metrics={row.byMode?.review}
-                            thresholds={data.thresholds}
-                          />
-                        </td>
-                      </>
-                    ) : (
-                      <td className="px-3 py-3 text-center">
-                        <AccuracyValue
-                          value={row.accuracy}
-                          hasAttempts={row.attempted > 0}
-                          thresholds={data.thresholds}
-                        />
-                        <p className="mt-0.5 whitespace-nowrap text-[10px] text-slate-gray/50">
-                          {row.studentsAttempted === 0
-                            ? "no students"
-                            : `out of ${row.studentsAttempted} ${row.studentsAttempted === 1 ? "student" : "students"}`}
-                        </p>
-                      </td>
-                    )}
-                    <td className="px-3 py-3 text-center">
-                      <span className="inline-flex items-center justify-center gap-1.5 text-slate-gray/70">
-                        <Timer className="w-3.5 h-3.5 text-slate-gray/50" />
-                        {row.averageTimeSec}s
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <StandardStatusBadge
-                        status={row.status}
-                        thresholds={data.thresholds}
-                      />
-                    </td>
-                    <td className="px-3 py-3 text-right text-slate-gray/40">
-                      <ChevronRight className="ml-auto h-4 w-4" />
-                    </td>
-                  </tr>
-                ))
+                      </tr>
+                      {!isCollapsed &&
+                        group.rows.map((row) => (
+                          <tr
+                            key={row.standardId}
+                            onClick={() =>
+                              router.push(
+                                `/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`,
+                              )
+                            }
+                            className="cursor-pointer border-t border-border-subtle hover:bg-primary/5"
+                          >
+                            <td className="px-5 py-3">
+                              <Link
+                                href={`/teacher-dashboard/standards/${encodeURIComponent(row.standardId)}?${standardDetailQuery}`}
+                                onClick={(event) => event.stopPropagation()}
+                                className="font-medium text-slate-gray hover:text-forest hover:underline"
+                              >
+                                {row.standardId}
+                              </Link>
+                              <p className="text-xs text-slate-gray/60 line-clamp-2 max-w-md">
+                                {row.standardLabel}
+                              </p>
+                            </td>
+                            {mode !== "compare" && (
+                              <>
+                                <td className="px-3 py-3 text-center text-slate-gray">
+                                  {row.attempted}
+                                </td>
+                                <td className="px-3 py-3 text-center text-slate-gray">
+                                  {row.correct}
+                                </td>
+                              </>
+                            )}
+                            {mode === "compare" ? (
+                              <>
+                                <td className="px-3 py-3">
+                                  <ModeAccuracyCell
+                                    metrics={row.byMode?.practice}
+                                    thresholds={data.thresholds}
+                                  />
+                                </td>
+                                <td className="px-3 py-3">
+                                  <ModeAccuracyCell
+                                    metrics={row.byMode?.exam}
+                                    thresholds={data.thresholds}
+                                  />
+                                </td>
+                                <td className="px-3 py-3">
+                                  <ModeAccuracyCell
+                                    metrics={row.byMode?.review}
+                                    thresholds={data.thresholds}
+                                  />
+                                </td>
+                              </>
+                            ) : (
+                              <td className="px-3 py-3 text-center">
+                                <AccuracyValue
+                                  value={row.accuracy}
+                                  hasAttempts={row.attempted > 0}
+                                  thresholds={data.thresholds}
+                                />
+                                <p className="mt-0.5 whitespace-nowrap text-[10px] text-slate-gray/50">
+                                  {row.studentsAttempted === 0
+                                    ? "no students"
+                                    : `out of ${row.studentsAttempted} ${row.studentsAttempted === 1 ? "student" : "students"}`}
+                                </p>
+                              </td>
+                            )}
+                            <td className="px-3 py-3 text-center">
+                              <span className="inline-flex items-center justify-center gap-1.5 text-slate-gray/70">
+                                <Timer className="w-3.5 h-3.5 text-slate-gray/50" />
+                                {row.averageTimeSec}s
+                              </span>
+                            </td>
+                            <td className="px-5 py-3">
+                              <StandardStatusBadge
+                                status={row.status}
+                                thresholds={data.thresholds}
+                              />
+                            </td>
+                            <td className="px-3 py-3 text-right text-slate-gray/40">
+                              <ChevronRight className="ml-auto h-4 w-4" />
+                            </td>
+                          </tr>
+                        ))}
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-      </section>
+          </section>
 
-      <section className="rounded-2xl border border-[#16a34a]/25 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-gray">
               {studentId ? "Student detail" : "All students"}
@@ -586,18 +695,18 @@ function TeacherDashboardContent() {
                 },
               ]}
             />
-            <button
+            <Button
+              variant="outline"
               onClick={() => downloadStudentMetricsCsv(filteredStudentRows)}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#16a34a] px-3 py-1.5 text-sm font-medium text-[#166534] hover:bg-[#16a34a]/10 transition-colors"
             >
               <Download className="w-4 h-4" />
               Download CSV
-            </button>
+            </Button>
           </div>
         </div>
 
         {data.lowAndFastCount > 0 && (
-          <div className="flex items-center gap-2 border-b border-rose-100 bg-rose-50 px-5 py-2.5 text-sm text-rose-700">
+          <div className="flex items-center gap-2 border-b border-rose-100 bg-rose-50 px-5 py-2.5 text-sm text-rose-700 dark:border-rose-800/35 dark:bg-rose-950/40 dark:text-rose-200/90">
             <AlertTriangle className="h-4 w-4 flex-shrink-0" />
             <span className="font-medium">
               {data.lowAndFastCount} {data.lowAndFastCount === 1 ? "student" : "students"} showing
@@ -613,7 +722,7 @@ function TeacherDashboardContent() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+              <tr className="bg-surface-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
                 <th className="px-5 py-3">Student</th>
                 <th className="px-3 py-3 text-center">Attempted</th>
                 <th className="px-3 py-3 text-center">Correct</th>
@@ -644,7 +753,7 @@ function TeacherDashboardContent() {
                         `/teacher-dashboard/students/${encodeURIComponent(row.studentId)}?${standardDetailQuery}`,
                       )
                     }
-                    className="cursor-pointer border-t border-slate-100 hover:bg-[#16a34a]/5"
+                    className="cursor-pointer border-t border-border-subtle hover:bg-primary/5"
                   >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
@@ -653,12 +762,12 @@ function TeacherDashboardContent() {
                           <Link
                             href={`/teacher-dashboard/students/${encodeURIComponent(row.studentId)}?${standardDetailQuery}`}
                             onClick={(event) => event.stopPropagation()}
-                            className="font-medium text-slate-gray hover:text-[#166534] hover:underline"
+                            className="font-medium text-slate-gray hover:text-forest hover:underline"
                           >
                             {row.label}
                           </Link>
                           {row.isLowAndFast && (
-                            <p className="text-xs font-medium text-rose-600">
+                            <p className="text-xs font-medium text-rose-600 dark:text-rose-300">
                               Clicking without engaging
                             </p>
                           )}
@@ -696,16 +805,44 @@ function TeacherDashboardContent() {
             </tbody>
           </table>
         </div>
-      </section>
+          </section>
 
-      {isLoading &&
-        data.byStandard.length === 0 &&
-        data.byStudent.length === 0 && (
-          <p className="text-sm text-slate-gray/60 mt-4">
-            Loading dashboard data...
-          </p>
-        )}
+          {isLoading &&
+            data.byStandard.length === 0 &&
+            data.byStudent.length === 0 && (
+              <p className="text-sm text-slate-gray/60 mt-4">
+                Loading dashboard data...
+              </p>
+            )}
+        </>
+      )}
+
+      {section === "feedbackReports" && (
+        <FeedbackReportsSection />
+      )}
+
+      {section === "feedbackSettings" && (
+        <FeedbackSettingsCard />
+      )}
     </main>
+  );
+}
+
+const DASHBOARD_SECTION_TABS: Array<{ value: DashboardSection; label: string }> = [
+  { value: "analytics", label: "Analytics" },
+  { value: "feedbackReports", label: "Feedback reports" },
+  { value: "feedbackSettings", label: "Feedback settings" },
+];
+
+function DashboardSectionTabs({
+  value,
+  onChange,
+}: {
+  value: DashboardSection;
+  onChange: (value: DashboardSection) => void;
+}) {
+  return (
+    <UnderlineTabs tabs={DASHBOARD_SECTION_TABS} value={value} onChange={onChange} />
   );
 }
 
@@ -725,7 +862,7 @@ function FiltersBar(props: {
   onSourceChange: (value: SourceKey) => void;
 }) {
   return (
-    <section className="rounded-2xl border border-[#16a34a]/25 bg-white p-4 sm:p-5 shadow-sm mb-5">
+    <section className="rounded-2xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <FilterSelect
           label="Topic"
@@ -765,7 +902,7 @@ function FiltersBar(props: {
           <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
             Source
           </span>
-          <div className="flex h-[38px] w-full items-stretch overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          <div className="flex h-[38px] w-full items-stretch overflow-hidden rounded-lg border border-border-default bg-surface-muted p-0.5">
             <SourceToggle
               active={props.source === "all"}
               onClick={() => props.onSourceChange("all")}
@@ -812,7 +949,7 @@ function FilterSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-gray focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+        className="w-full rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       >
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map((option) => (
@@ -922,28 +1059,28 @@ function StudentSearchFilter({
             }
           }}
           placeholder="Search students"
-          className="h-[38px] w-full rounded-lg border border-slate-200 bg-white px-9 py-2 text-sm text-slate-gray placeholder:text-slate-gray/40 focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+          className="h-[38px] w-full rounded-lg border border-border-default bg-surface px-9 py-2 text-sm text-slate-gray placeholder:text-slate-gray/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           role="combobox"
           aria-expanded={isOpen}
           aria-controls={listboxId}
           aria-autocomplete="list"
         />
         {value && (
-          <button
-            type="button"
+          <Button
+            variant="icon"
             onClick={clearStudent}
-            className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-slate-gray/50 hover:bg-slate-100 hover:text-slate-gray"
+            className="absolute right-2 top-1/2 -translate-y-1/2"
           >
             <X className="h-3.5 w-3.5" />
             <span className="sr-only">Clear student</span>
-          </button>
+          </Button>
         )}
       </div>
       {isOpen && (
         <div
           id={listboxId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border-default bg-surface py-1 shadow-lg"
         >
           <button
             type="button"
@@ -951,11 +1088,11 @@ function StudentSearchFilter({
             aria-selected={!value}
             onMouseDown={(event) => event.preventDefault()}
             onClick={clearStudent}
-            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-gray hover:bg-[#16a34a]/5"
+            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-gray hover:bg-primary/5"
           >
             <span>All students</span>
             {!value && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-[#166534]">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-forest">
                 Current
               </span>
             )}
@@ -968,11 +1105,11 @@ function StudentSearchFilter({
               aria-selected={student.id === value}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectStudent(student)}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-gray hover:bg-[#16a34a]/5"
+              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-gray hover:bg-primary/5"
             >
               <span className="truncate">{student.label}</span>
               {student.id === value && (
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#166534]">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-forest">
                   Current
                 </span>
               )}
@@ -1002,9 +1139,9 @@ function SourceToggle({
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center whitespace-nowrap rounded-md px-2 text-xs font-semibold transition-colors ${
+      className={`flex flex-1 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors ${
         active
-          ? "bg-white text-[#166534] shadow"
+          ? "bg-surface text-forest shadow"
           : "text-slate-gray/70 hover:text-slate-gray"
       }`}
     >
@@ -1031,42 +1168,26 @@ function ModeTabs({
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   return (
-    <div className="mb-6 flex items-center justify-between gap-4 border-b border-slate-200">
-      <div className="flex items-center gap-4">
-        {MODE_TABS.map((tab) => {
-          const active = tab.value === value;
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => onChange(tab.value)}
-              className={`-mb-px border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
-                active
-                  ? "border-[#16a34a] text-[#14532d]"
-                  : "border-transparent text-slate-gray/60 hover:text-slate-gray"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-2 pb-2">
-        <PerformanceThresholdsCard
-          thresholds={thresholds}
-          defaults={defaults}
-          isCustom={thresholdsAreCustom}
-          onChange={onThresholdsChange}
-        />
-        <button
-          type="button"
-          onClick={() => setIsGuideOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-gray transition-colors hover:border-[#16a34a]/40 hover:bg-[#16a34a]/10 hover:text-[#166534]"
-        >
-          <Info className="h-4 w-4" />
-          About modes
-        </button>
-      </div>
+    <>
+      <UnderlineTabs
+        tabs={MODE_TABS}
+        value={value}
+        onChange={onChange}
+        trailing={
+          <>
+            <PerformanceThresholdsCard
+              thresholds={thresholds}
+              defaults={defaults}
+              isCustom={thresholdsAreCustom}
+              onChange={onThresholdsChange}
+            />
+            <Button variant="outline" onClick={() => setIsGuideOpen(true)}>
+              <Info className="h-4 w-4" />
+              About modes
+            </Button>
+          </>
+        }
+      />
 
       {isGuideOpen && (
         <div
@@ -1075,38 +1196,34 @@ function ModeTabs({
           aria-modal="true"
           aria-labelledby="mode-guide-title"
         >
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+          <div className="w-full max-w-xl rounded-2xl bg-surface shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4">
               <div>
                 <h2
                   id="mode-guide-title"
                   className="flex items-center gap-2 text-base font-semibold text-slate-gray"
                 >
-                  <Info className="h-4 w-4 text-[#16a34a]" />
+                  <Info className="h-4 w-4 text-primary" />
                   Mode guide
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsGuideOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-gray/60 transition-colors hover:bg-slate-100 hover:text-slate-gray"
-              >
+              <Button variant="icon" onClick={() => setIsGuideOpen(false)}>
                 <X className="h-4 w-4" />
                 <span className="sr-only">Close</span>
-              </button>
+              </Button>
             </div>
             <div className="px-5 py-4">
               {LEARNING_MODE_TABS.map((tab) => (
                 <div
                   key={tab.value}
-                  className="border-l-2 border-[#16a34a] py-3 pl-4 first:pt-0 last:pb-0 [&+&]:mt-3 [&+&]:border-t [&+&]:border-t-slate-100"
+                  className="border-l-2 border-primary py-3 pl-4 first:pt-0 last:pb-0 [&+&]:mt-3 [&+&]:border-t [&+&]:border-t-slate-100"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-slate-gray">
                       {tab.label}
                     </p>
                     {tab.value === value && (
-                      <span className="rounded-full bg-[#16a34a]/10 px-2 py-0.5 text-[10px] font-semibold text-[#166534]">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                         Current
                       </span>
                     )}
@@ -1117,19 +1234,13 @@ function ModeTabs({
                 </div>
               ))}
             </div>
-            <div className="flex justify-end border-t border-slate-100 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => setIsGuideOpen(false)}
-                className="rounded-lg bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#15803d]"
-              >
-                Done
-              </button>
+            <div className="flex justify-end border-t border-border-subtle px-5 py-4">
+              <Button onClick={() => setIsGuideOpen(false)}>Done</Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -1147,7 +1258,7 @@ function KpiCard({
   info?: ReactNode;
 }) {
   return (
-    <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
+    <article className="rounded-2xl border border-primary/20 bg-surface p-4 sm:p-6 shadow-sm">
       <div className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
         {label}
         {info && (
@@ -1170,16 +1281,10 @@ function ModeAccuracyCard({
   thresholds: PerformanceThresholds;
 }) {
   const byMode = summary.byMode;
-  const toneClass = (accuracy: number, hasAttempts: boolean) => {
-    if (!hasAttempts) return "text-slate-gray/40";
-    if (accuracy >= thresholds.advancedMin) return "text-emerald-800";
-    if (accuracy >= thresholds.proficientMin)
-      return "text-emerald-700";
-    if (accuracy >= thresholds.basicMin) return "text-amber-700";
-    return "text-rose-700";
-  };
+  const toneClass = (accuracy: number, hasAttempts: boolean) =>
+    hasAttempts ? accuracyToneClass(accuracy, thresholds) : "text-slate-gray/40";
   return (
-    <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
+    <article className="rounded-2xl border border-primary/20 bg-surface p-4 sm:p-6 shadow-sm">
       <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
         Accuracy by Mode
         <InfoPopover
@@ -1264,7 +1369,7 @@ function StudentBreakdownCard({
     },
   ];
   return (
-    <article className="rounded-2xl border border-[#16a34a]/20 bg-white p-4 shadow-sm">
+    <article className="rounded-2xl border border-primary/20 bg-surface p-4 sm:p-6 shadow-sm">
       <div className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
         Student Breakdown
         <InfoPopover
@@ -1318,7 +1423,7 @@ function DonutChart({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#f1f5f9"
+          stroke="var(--border-subtle)"
           strokeWidth={stroke}
           fill="none"
         />
@@ -1372,7 +1477,7 @@ function StatusFilterSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 min-w-44 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-gray shadow-sm transition-colors hover:border-[#16a34a]/40 focus:border-[#16a34a] focus:outline-none focus:ring-2 focus:ring-[#16a34a]/20"
+        className="h-9 min-w-44 rounded-lg border border-border-default bg-surface px-3 text-sm font-medium text-slate-gray shadow-sm transition-colors hover:border-primary/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1396,15 +1501,7 @@ function AccuracyValue({
   thresholds: PerformanceThresholds;
 }) {
   if (!hasAttempts) return <span className="text-slate-gray/40">—</span>;
-  const s = thresholds;
-  const tone =
-    value >= s.advancedMin
-      ? "text-emerald-800"
-      : value >= s.proficientMin
-        ? "text-emerald-700"
-        : value >= s.basicMin
-          ? "text-amber-700"
-          : "text-rose-700";
+  const tone = accuracyToneClass(value, thresholds);
   return <span className={`font-semibold ${tone}`}>{value}%</span>;
 }
 
@@ -1423,15 +1520,7 @@ function ModeAccuracyCell({
       </div>
     );
   }
-  const s = thresholds;
-  const tone =
-    metrics.accuracy >= s.advancedMin
-      ? "text-emerald-800"
-      : metrics.accuracy >= s.proficientMin
-        ? "text-emerald-700"
-        : metrics.accuracy >= s.basicMin
-          ? "text-amber-700"
-          : "text-rose-700";
+  const tone = accuracyToneClass(metrics.accuracy, thresholds);
   return (
     <div className="flex min-w-24 flex-col items-center">
       <span className={`text-sm font-semibold ${tone}`}>

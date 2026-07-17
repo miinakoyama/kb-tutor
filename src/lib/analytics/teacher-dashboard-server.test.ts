@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDashboardResponse,
+  resolveAttemptStandardId,
   type AttemptRecord,
 } from "./teacher-dashboard-server";
 
@@ -28,6 +29,7 @@ function attempt(
     isCorrect,
     timeSpentSec,
     assignmentId: null,
+    isShortAnswer: false,
     ...overrides,
   };
 }
@@ -169,7 +171,7 @@ describe("buildDashboardResponse", () => {
     const attempts: AttemptRecord[] = [
       attempt("s1", "", true, 60, "Cell Division", { standardId: null }),
       attempt("s1", "", false, 60, "Cell Division", { standardId: null }),
-      attempt("s2", "", true, 60, "Genetics", { standardId: null }),
+      attempt("s2", "", true, 60, "Some Unknown Topic", { standardId: null }),
     ];
 
     const result = buildDashboardResponse({
@@ -184,7 +186,32 @@ describe("buildDashboardResponse", () => {
     );
     expect(otherRows).toHaveLength(2);
     const labels = otherRows.map((row) => row.standardLabel).sort();
-    expect(labels).toEqual(["Cell Division", "Genetics"]);
+    expect(labels).toEqual(["Cell Division", "Some Unknown Topic"]);
+  });
+
+  it("reconciles a legacy null-standard attempt to its one-to-one topic standard", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "", true, 60, "Genetics", { standardId: null }),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    const geneticsRows = result.byStandard.filter(
+      (row) =>
+        row.standardId === "3.1.9-12.P" ||
+        row.standardId === "BIO.OTHER::Genetics",
+    );
+    expect(geneticsRows).toHaveLength(1);
+    expect(geneticsRows[0]).toMatchObject({
+      standardId: "3.1.9-12.P",
+      attempted: 1,
+      correct: 1,
+      status: "advanced",
+    });
   });
 
   it("uses the canonical label from standards.ts, ignoring stale attempt labels", () => {
@@ -356,6 +383,74 @@ describe("buildDashboardResponse", () => {
     expect(result.summary.byMode).toBeUndefined();
   });
 
+  it("pre-seeds every standard as not-started when no topic filter is active", () => {
+    const result = buildDashboardResponse({
+      attempts: [],
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    expect(result.byStandard.length).toBeGreaterThan(1);
+    expect(result.byStandard.every((row) => row.status === "not_started")).toBe(
+      true,
+    );
+  });
+
+  it("only pre-seeds standards belonging to the selected topic (category)", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60, "Structure and Function"),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      topic: "Structure and Function",
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    // Only standards in the "Structure and Function" category should appear —
+    // no leaking of unrelated categories like Genetics or Ecology.
+    const ids = result.byStandard.map((row) => row.standardId).sort();
+    expect(ids).toEqual(["3.1.9-12.A", "3.1.9-12.B", "3.1.9-12.C"]);
+  });
+
+  it("only pre-seeds the mapped standard for a legacy topic filter", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.P", true, 60, "Genetics"),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      topic: "Genetics",
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    expect(result.byStandard.map((row) => row.standardId)).toEqual([
+      "3.1.9-12.P",
+    ]);
+  });
+
+  it("pre-seeds no standards when the topic filter matches nothing known", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "", true, 60, "Some Unknown Topic", { standardId: null }),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      topic: "Some Unknown Topic",
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    // No canonical standards match, but the actual attempt's own bucket
+    // (BIO.OTHER::Some Unknown Topic) still shows up from aggregation.
+    expect(result.byStandard).toHaveLength(1);
+    expect(result.byStandard[0].standardId).toBe(
+      "BIO.OTHER::Some Unknown Topic",
+    );
+  });
+
   it("classifies standards as below_basic when accuracy is very low", () => {
     const attempts: AttemptRecord[] = [
       ...Array.from({ length: 10 }, (_, index) =>
@@ -372,5 +467,112 @@ describe("buildDashboardResponse", () => {
     const row = result.byStandard.find((item) => item.standardId === "BIO.1.3");
     expect(row?.status).toBe("below_basic");
     expect(row?.accuracy).toBe(40);
+  });
+
+  it("pre-seeds every known standard as not_started when it has no attempts", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60, "Structure and Function"),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    // A standard nobody has attempted should still appear, as not_started.
+    const untouched = result.byStandard.find(
+      (item) => item.standardId === "3.1.9-12.S",
+    );
+    expect(untouched).toBeDefined();
+    expect(untouched?.attempted).toBe(0);
+    expect(untouched?.status).toBe("not_started");
+    // All 23 canonical standards should be present even though only one was attempted.
+    expect(result.byStandard.length).toBeGreaterThanOrEqual(23);
+  });
+
+  it("only pre-seeds standards matching the topic filter", () => {
+    const result = buildDashboardResponse({
+      attempts: [],
+      topic: "Structure and Function",
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    expect(
+      result.byStandard.every((row) => row.category === "Structure and Function"),
+    ).toBe(true);
+    expect(result.byStandard.length).toBeGreaterThan(0);
+  });
+
+  it("resolves module and category for canonical standards", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60, "Structure and Function"),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    const row = result.byStandard.find(
+      (item) => item.standardId === "3.1.9-12.A",
+    );
+    expect(row?.module).toBe("A");
+    expect(row?.category).toBe("Structure and Function");
+  });
+
+  it("leaves module and category null for unrecognized standard ids", () => {
+    const attempts: AttemptRecord[] = [attempt("s1", "BIO.1.3", true, 60)];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    const row = result.byStandard.find((item) => item.standardId === "BIO.1.3");
+    expect(row?.module).toBeNull();
+    expect(row?.category).toBeNull();
+  });
+
+  it("excludes short-answer completion rows from per-standard MCQ aggregation", () => {
+    const attempts: AttemptRecord[] = [
+      attempt("s1", "3.1.9-12.A", true, 60),
+      attempt("s2", "3.1.9-12.A", false, 90, "Structure and Function", {
+        isShortAnswer: true,
+      }),
+    ];
+
+    const result = buildDashboardResponse({
+      attempts,
+      scopedStudents: students,
+      selectedStudentId: null,
+    });
+
+    const row = result.byStandard.find(
+      (item) => item.standardId === "3.1.9-12.A",
+    );
+    expect(row?.attempted).toBe(1);
+    expect(row?.correct).toBe(1);
+    expect(row?.accuracy).toBe(100);
+  });
+});
+
+describe("resolveAttemptStandardId", () => {
+  it("preserves an explicitly stored standard", () => {
+    expect(resolveAttemptStandardId("3.1.9-12.A", "Genetics")).toBe(
+      "3.1.9-12.A",
+    );
+  });
+
+  it("resolves a legacy topic that maps to exactly one standard", () => {
+    expect(resolveAttemptStandardId(null, " Genetics ")).toBe("3.1.9-12.P");
+  });
+
+  it("does not infer a standard from an ambiguous or unknown topic", () => {
+    expect(resolveAttemptStandardId(null, "Structure and Function")).toBeNull();
+    expect(resolveAttemptStandardId(null, "Some Unknown Topic")).toBeNull();
   });
 });

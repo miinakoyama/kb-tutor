@@ -11,6 +11,8 @@ import type {
   RationaleQuestion,
 } from "@/types/question";
 import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
+import { isShortAnswerItem } from "@/lib/short-answer/item-schema";
+import type { ShortAnswerItem } from "@/types/short-answer";
 
 export type AssignmentSourceType = "existing_set" | "generated_now" | "manual";
 export type AssignmentMode = "practice" | "exam" | "review";
@@ -440,8 +442,6 @@ export function normalizeQuestionPayload(
 ): Question | null {
   if (!raw || typeof raw !== "object") return null;
   const question = raw as Record<string, unknown>;
-  const text = typeof question.text === "string" ? question.text.trim() : "";
-  if (!text) return null;
 
   const topic =
     typeof question.topic === "string" && question.topic.trim()
@@ -451,6 +451,80 @@ export function normalizeQuestionPayload(
     typeof question.module === "number" && Number.isFinite(question.module)
       ? Math.max(1, Math.round(question.module))
       : 1;
+
+  const id =
+    typeof question.id === "string" && question.id.trim()
+      ? question.id
+      : `assignment-${sourceType}-${Date.now()}-${index + 1}`;
+
+  const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
+    question.inlineTerms,
+    question.sidebarTerms,
+    `${sourceType}-${index + 1}`,
+  );
+
+  const imageUrl =
+    typeof question.imageUrl === "string" && question.imageUrl.trim()
+      ? question.imageUrl
+      : null;
+
+  const diagram = asDiagram(question.diagram);
+
+  const baseFields = {
+    id,
+    module: moduleNumber,
+    topic,
+    standardId:
+      typeof question.standardId === "string" ? question.standardId : undefined,
+    standardLabel:
+      typeof question.standardLabel === "string"
+        ? question.standardLabel
+        : undefined,
+    imageUrl,
+    explanation: asOptionalString(question.explanation),
+    focusHint: asOptionalString(question.focusHint),
+    keyKnowledge: asOptionalString(question.keyKnowledge),
+    kcCode: asOptionalString(question.kcCode),
+    kcStatement: asOptionalString(question.kcStatement),
+    commonMisconception: asOptionalString(question.commonMisconception),
+    dok: asDokLevel(question.dok),
+    rationaleQuestion: asRationaleQuestion(question.rationaleQuestion),
+    inlineTerms,
+    sidebarTerms,
+    diagram,
+    source: "generated" as const,
+    questionSetId: asOptionalString(question.questionSetId),
+    contentVersion: asOptionalString(question.contentVersion),
+    isVisible: true,
+    generatedAt: new Date().toISOString(),
+  };
+
+  const questionType = asQuestionType(question.questionType);
+  const shortAnswerRaw = question.shortAnswer;
+  const isOpenEnded =
+    questionType === "open-ended" || isShortAnswerItem(shortAnswerRaw);
+
+  if (isOpenEnded) {
+    if (!isShortAnswerItem(shortAnswerRaw)) return null;
+    const shortAnswer: ShortAnswerItem = shortAnswerRaw;
+    const text =
+      (typeof question.text === "string" ? question.text.trim() : "") ||
+      shortAnswer.parts[0]?.prompt.trim() ||
+      shortAnswer.stem.trim();
+    if (!text) return null;
+
+    return {
+      ...baseFields,
+      text,
+      options: [],
+      correctOptionId: "",
+      questionType: "open-ended",
+      shortAnswer,
+    };
+  }
+
+  const text = typeof question.text === "string" ? question.text.trim() : "";
+  if (!text) return null;
 
   const optionsRaw = Array.isArray(question.options) ? question.options : [];
   const options = optionsRaw
@@ -478,49 +552,12 @@ export function normalizeQuestionPayload(
       ? question.correctOptionId
       : options[0].id;
 
-  const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
-    question.inlineTerms,
-    question.sidebarTerms,
-    `${sourceType}-${index + 1}`,
-  );
-
-  const imageUrl =
-    typeof question.imageUrl === "string" && question.imageUrl.trim()
-      ? question.imageUrl
-      : null;
-
-  const diagram = asDiagram(question.diagram);
-
   return {
-    id:
-      typeof question.id === "string" && question.id.trim()
-        ? question.id
-        : `assignment-${sourceType}-${Date.now()}-${index + 1}`,
-    module: moduleNumber,
-    topic,
-    standardId:
-      typeof question.standardId === "string" ? question.standardId : undefined,
-    standardLabel:
-      typeof question.standardLabel === "string"
-        ? question.standardLabel
-        : undefined,
+    ...baseFields,
     text,
-    imageUrl,
     options,
     correctOptionId,
-    explanation: asOptionalString(question.explanation),
-    focusHint: asOptionalString(question.focusHint),
-    keyKnowledge: asOptionalString(question.keyKnowledge),
-    commonMisconception: asOptionalString(question.commonMisconception),
-    dok: asDokLevel(question.dok),
     questionType: asQuestionType(question.questionType),
-    rationaleQuestion: asRationaleQuestion(question.rationaleQuestion),
-    inlineTerms,
-    sidebarTerms,
-    diagram,
-    source: "generated",
-    isVisible: true,
-    generatedAt: new Date().toISOString(),
   };
 }
 
@@ -565,21 +602,30 @@ async function resolveSelectedQuestions(
 
   const { data: questionRows, error: questionError } = await admin
     .from("generated_questions")
-    .select("set_id,id,payload,created_at")
+    .select("set_id,id,payload,content_version,created_at")
     .in("set_id", setIds)
     .order("created_at", { ascending: true });
   if (questionError) {
     return { error: questionError.message, status: 400 };
   }
 
-  const questionsBySet = new Map<string, Map<string, unknown>>();
+  const questionsBySet = new Map<
+    string,
+    Map<string, { payload: unknown; contentVersion?: string }>
+  >();
   for (const row of questionRows ?? []) {
     const setId = String(row.set_id);
     const questionId = String(row.id);
     if (!questionsBySet.has(setId)) {
       questionsBySet.set(setId, new Map());
     }
-    questionsBySet.get(setId)!.set(questionId, row.payload);
+    questionsBySet.get(setId)!.set(questionId, {
+      payload: row.payload,
+      contentVersion:
+        typeof row.content_version === "string"
+          ? row.content_version
+          : undefined,
+    });
   }
 
   const questions: Question[] = [];
@@ -588,15 +634,19 @@ async function resolveSelectedQuestions(
     const pool = questionsBySet.get(entry.setId);
     if (!pool) continue;
     for (const questionId of entry.questionIds) {
-      const payload = pool.get(questionId);
-      if (!payload) continue;
+      const source = pool.get(questionId);
+      if (!source) continue;
       const normalized = normalizeQuestionPayload(
-        payload,
+        source.payload,
         runningIndex,
         "existing_set",
       );
       if (normalized) {
-        questions.push(normalized);
+        questions.push({
+          ...normalized,
+          questionSetId: entry.setId,
+          contentVersion: source.contentVersion,
+        });
         runningIndex += 1;
       }
     }
@@ -656,7 +706,7 @@ export async function resolveSnapshotQuestions(
 
     const { data: questionRows, error: questionError } = await admin
       .from("generated_questions")
-      .select("payload,created_at")
+      .select("payload,content_version,created_at")
       .eq("set_id", setId)
       .order("created_at", { ascending: true });
     if (questionError) {
@@ -664,10 +714,24 @@ export async function resolveSnapshotQuestions(
     }
 
     const questions = (questionRows ?? [])
-      .map((row, index) =>
-        normalizeQuestionPayload(row.payload, index, "existing_set"),
-      )
-      .filter((row): row is Question => row !== null);
+      .map((row, index) => {
+        const normalized = normalizeQuestionPayload(
+          row.payload,
+          index,
+          "existing_set",
+        );
+        return normalized
+          ? {
+              ...normalized,
+              questionSetId: setId,
+              contentVersion:
+                typeof row.content_version === "string"
+                  ? row.content_version
+                  : undefined,
+            }
+          : null;
+      })
+      .filter((row) => row !== null);
     if (questions.length === 0) {
       return {
         error: "Selected question set has no usable questions.",

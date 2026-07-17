@@ -43,6 +43,10 @@ const REQUEST_TIMEOUT_MS = 10_000;
 export type AttemptPayload = {
   clientAttemptId: string;
   questionId: string;
+  questionSetId?: string | null;
+  questionContentVersion?: string | null;
+  isFinalized?: boolean;
+  questionCompleted?: boolean;
   selectedOptionId: string;
   isCorrect: boolean;
   mode: string;

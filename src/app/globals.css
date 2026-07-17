@@ -43,6 +43,12 @@
   --assignment-mode-exam-bg: #faedf3;
   --assignment-mode-review: #8a6216;
   --assignment-mode-review-bg: #fbf2dc;
+  /* Selection highlight: hero-card progress bar green (#80b99d) at reduced opacity. */
+  --assignment-selectable-border: rgba(127, 184, 157, 0.45);
+  --assignment-selected-accent: rgba(128, 185, 157, 0.75);
+  --assignment-selected-glow: rgba(127, 184, 157, 0.375);
+  --mastery-mastered: #0c6b45;
+  --mastery-mastered-bg: #e7f2ec;
   --assignment-due: #c24f44;
   --assignment-due-muted: rgb(194 79 68 / 0.5);
   --assignment-overdue: var(--assignment-due);
@@ -118,6 +124,11 @@
   --assignment-mode-exam-bg: rgba(168, 81, 121, 0.26);
   --assignment-mode-review: #f0cf86;
   --assignment-mode-review-bg: rgba(251, 242, 220, 0.16);
+  --assignment-selectable-border: rgba(127, 184, 157, 0.32);
+  --assignment-selected-accent: rgba(128, 185, 157, 0.65);
+  --assignment-selected-glow: rgba(127, 184, 157, 0.3);
+  --mastery-mastered: #9fd4b4;
+  --mastery-mastered-bg: rgba(12, 107, 69, 0.32);
   --assignment-due: #fca5a5;
   --assignment-due-muted: rgb(252 165 165 / 0.5);
   --assignment-overdue: var(--assignment-due);
@@ -199,4 +210,45 @@ body {
 .dark .diagram-raster {
   filter: invert(1);
   opacity: 0.94;
+}
+
+/* Short-answer selection highlighting */
+mark.sa-hl {
+  background: #fef08a;
+  border-radius: 2px;
+  cursor: pointer;
+  color: inherit;
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.dark mark.sa-hl {
+  background: rgba(253, 224, 71, 0.42);
+}
+
+mark.sa-hl.sa-hl-demo {
+  outline: 2px solid rgba(234, 179, 8, 0.6);
+}
+
+/* "My Notes" lined-notebook textarea */
+.sa-notebook {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent calc(2em - 1px),
+    rgba(12, 107, 69, 0.14) calc(2em - 1px),
+    rgba(12, 107, 69, 0.14) 2em
+  );
+  background-attachment: local;
+}
+
+.dark .sa-notebook {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent calc(2em - 1px),
+    rgba(143, 191, 159, 0.2) calc(2em - 1px),
+    rgba(143, 191, 159, 0.2) 2em
+  );
 }

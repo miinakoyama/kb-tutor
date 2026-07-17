@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateWithGemini, parseGeneratedQuestions } from "@/lib/gemini";
+import { chatComplete } from "@/lib/llm/client";
+import {
+  DEFAULT_GENERATION_MODEL_ID,
+  DEFAULT_GENERATION_TEMPERATURE,
+  findGenerationModelById,
+  isValidTemperature,
+} from "@/lib/llm/models";
 import { buildGenerationPrompt } from "@/lib/prompts";
 import type { Question, DOKLevel } from "@/types/question";
+import type { StimulusType } from "@/types/short-answer";
 import { getAllStandards, getStandardById } from "@/lib/standards";
 import { normalizeQuestionGlossaryTerms } from "@/lib/glossary";
+import { getKCsByStandard, type KC } from "@/lib/short-answer/generation/data";
+import { STIMULUS_TYPES } from "@/lib/short-answer/item-schema";
+import { generateIllustrationImage } from "@/lib/llm/images";
 
 interface GenerationSettings {
   questionSetName: string;
@@ -13,13 +24,18 @@ interface GenerationSettings {
   standardCounts?: Record<string, number>;
   dokLevels: DOKLevel[];
   includeDiagrams: boolean;
-  diagramConfig: {
+  diagramConfig?: {
     chart: number;
     table: number;
     flowchart: number;
     diagram: number;
   };
   customPrompt: string;
+  generationModelId?: string;
+  generationTemperature?: number;
+  stimulusType?: StimulusType;
+  fixedCoreKC?: string;
+  fixedCoreKCStatement?: string;
 }
 
 const MAX_GENERATION_ATTEMPTS = 5;
@@ -87,11 +103,28 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
     return false;
   }
 
-  if (!s.diagramConfig || typeof s.diagramConfig !== "object") {
+  if (s.stimulusType !== undefined) {
+    if (
+      typeof s.stimulusType !== "string" ||
+      !STIMULUS_TYPES.includes(s.stimulusType as StimulusType)
+    ) {
+      return false;
+    }
+  }
+
+  if (
+    s.diagramConfig !== undefined &&
+    (!s.diagramConfig || typeof s.diagramConfig !== "object")
+  ) {
     return false;
   }
 
-  const dc = s.diagramConfig as Record<string, unknown>;
+  const dc = (s.diagramConfig ?? {
+    chart: 0,
+    table: 0,
+    flowchart: 0,
+    diagram: 0,
+  }) as Record<string, unknown>;
   const diagramKeys = ["chart", "table", "flowchart", "diagram"] as const;
   for (const key of diagramKeys) {
     if (typeof dc[key] !== "number" || (dc[key] as number) < 0) {
@@ -104,7 +137,7 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
     (dc.table as number) +
     (dc.flowchart as number) +
     (dc.diagram as number);
-  if (requestedDiagramTotal > (s.questionCount as number)) {
+  if (!s.stimulusType && requestedDiagramTotal > (s.questionCount as number)) {
     return false;
   }
 
@@ -126,14 +159,73 @@ function validateSettings(settings: unknown): settings is GenerationSettings {
       return false;
     }
   }
+
+  if (
+    s.generationModelId !== undefined &&
+    (typeof s.generationModelId !== "string" || !findGenerationModelById(s.generationModelId))
+  ) {
+    return false;
+  }
+
+  if (
+    s.generationTemperature !== undefined &&
+    !isValidTemperature(s.generationTemperature)
+  ) {
+    return false;
+  }
+
+  if (s.fixedCoreKC !== undefined && typeof s.fixedCoreKC !== "string") {
+    return false;
+  }
   
   return true;
+}
+
+function pickKC(settings: GenerationSettings): KC | null {
+  if (settings.standards.length !== 1) return null;
+  const standardKCs = getKCsByStandard(settings.standards[0]);
+  if (standardKCs.length === 0) return null;
+  if (settings.fixedCoreKC) {
+    return standardKCs.find((kc) => kc.code === settings.fixedCoreKC) ?? null;
+  }
+  return standardKCs[Math.floor(Math.random() * standardKCs.length)];
+}
+
+async function generateWithSelectedModel(
+  prompt: string,
+  modelId: string,
+  temperature: number,
+): Promise<{ text: string; modelId: string; modelLabel: string }> {
+  const model = findGenerationModelById(modelId);
+  if (!model) {
+    throw new Error(`Unknown generation model: ${modelId}`);
+  }
+  if (model.provider === "google" && modelId === "gemini-3.1-flash-lite-preview") {
+    return generateWithGemini(prompt);
+  }
+
+  const result = await chatComplete({
+    model: modelId,
+    temperature,
+    maxTokens: 12288,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You generate standards-aligned biology multiple-choice questions. Return only a JSON array.",
+      },
+      { role: "user", content: prompt },
+    ],
+  });
+  return { text: result.content, modelId, modelLabel: model.label };
 }
 
 function validateQuestion(
   q: unknown,
   index: number,
-  allowedStandardIds: Set<string>
+  allowedStandardIds: Set<string>,
+  selectedKC: KC | null,
+  generatedImageUrl?: string,
 ): Question | null {
   if (!q || typeof q !== "object") return null;
   
@@ -153,6 +245,7 @@ function validateQuestion(
   }
   
   const timestamp = Date.now();
+  const uniqueSuffix = Math.random().toString(36).slice(2, 8);
   const fallbackStandardId =
     Array.from(allowedStandardIds)[0] ?? FALLBACK_STANDARD?.id;
   const standardIdRaw = typeof question.standardId === "string" ? question.standardId : "";
@@ -168,6 +261,18 @@ function validateQuestion(
     .replace(/[^a-z0-9]+/g, "-")
     .slice(0, 20);
   const moduleFromStandard = selectedStandard?.module === "B" ? 2 : 1;
+  const generatedKcCode =
+    selectedKC?.code ??
+    (typeof question.kcCode === "string" ? question.kcCode.trim() : "");
+  const validGeneratedKc = getKCsByStandard(selectedStandard.id).find(
+    (kc) => kc.code === generatedKcCode,
+  );
+  if (!validGeneratedKc) {
+    console.warn(
+      `Question ${index} is missing a valid KC for standard ${selectedStandard.id}`,
+    );
+    return null;
+  }
   const { inlineTerms, sidebarTerms } = normalizeQuestionGlossaryTerms(
     question.inlineTerms,
     question.sidebarTerms,
@@ -175,7 +280,7 @@ function validateQuestion(
   );
   
   return {
-    id: `generated-${topicSlug}-${timestamp}-${String(index + 1).padStart(3, "0")}`,
+    id: `generated-${topicSlug}-${timestamp}-${String(index + 1).padStart(3, "0")}-${uniqueSuffix}`,
     module: moduleFromStandard,
     topic: topicFromStandard,
     standardId: selectedStandard?.id,
@@ -183,11 +288,13 @@ function validateQuestion(
       (typeof question.standardLabel === "string" ? question.standardLabel : undefined) ||
       selectedStandard?.label,
     text: question.text as string,
-    imageUrl: null,
+    imageUrl: generatedImageUrl ?? null,
     options: question.options as Question["options"],
     correctOptionId: question.correctOptionId as string,
     focusHint: (question.focusHint as string) || undefined,
     keyKnowledge: (question.keyKnowledge as string) || undefined,
+    kcCode: validGeneratedKc.code,
+    kcStatement: validGeneratedKc.statement,
     commonMisconception: (question.commonMisconception as string) || undefined,
     inlineTerms,
     sidebarTerms,
@@ -237,7 +344,7 @@ function hasExactDiagramDistribution(
   }
 
   const expected = settings.includeDiagrams
-    ? settings.diagramConfig
+    ? (settings.diagramConfig ?? { chart: 0, table: 0, flowchart: 0, diagram: 0 })
     : { chart: 0, table: 0, flowchart: 0, diagram: 0 };
   const expectedTextOnly =
     settings.questionCount -
@@ -260,12 +367,56 @@ function hasExactDiagramDistribution(
   };
 }
 
+function hasExpectedStimulus(
+  questions: Question[],
+  stimulusType: StimulusType,
+): { ok: boolean; error?: string } {
+  if (questions.length !== 1) {
+    return { ok: false, error: `Expected exactly 1 question, got ${questions.length}.` };
+  }
+  const question = questions[0];
+  if (stimulusType === "scenario") {
+    return !question.diagram
+      ? { ok: true }
+      : { ok: false, error: "Expected a text-only scenario with diagram=null." };
+  }
+  if (stimulusType === "table") {
+    return question.diagram?.type === "table"
+      ? { ok: true }
+      : { ok: false, error: "Expected a table stimulus." };
+  }
+  if (stimulusType === "line_graph") {
+    return question.diagram?.type === "chart" &&
+      question.diagram.data &&
+      "chartType" in question.diagram.data &&
+      question.diagram.data.chartType === "line"
+      ? { ok: true }
+      : { ok: false, error: "Expected a line graph stimulus." };
+  }
+  if (stimulusType === "bar_chart") {
+    return question.diagram?.type === "chart" &&
+      question.diagram.data &&
+      "chartType" in question.diagram.data &&
+      question.diagram.data.chartType === "bar"
+      ? { ok: true }
+      : { ok: false, error: "Expected a bar chart stimulus." };
+  }
+  if (stimulusType === "illustration") {
+    return question.imageUrl
+      ? { ok: true }
+      : { ok: false, error: "Expected an illustration image." };
+  }
+  return question.diagram?.type === "diagram"
+    ? { ok: true }
+    : { ok: false, error: `Expected a ${stimulusType} SVG stimulus.` };
+}
+
 function tryNormalizeDiagramDistribution(
   questions: Question[],
   settings: GenerationSettings
 ): { ok: true; questions: Question[] } | { ok: false; reason: string } {
   const expected = settings.includeDiagrams
-    ? settings.diagramConfig
+    ? (settings.diagramConfig ?? { chart: 0, table: 0, flowchart: 0, diagram: 0 })
     : { chart: 0, table: 0, flowchart: 0, diagram: 0 };
   const expectedTextOnly =
     settings.questionCount -
@@ -396,13 +547,6 @@ function tryNormalizeStandardDistribution(
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY is not configured. Please add it to your environment variables." },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
     
     if (!validateSettings(body)) {
@@ -412,7 +556,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const basePrompt = buildGenerationPrompt(body);
+    const selectedKC = pickKC(body);
+    if (body.fixedCoreKC && !selectedKC) {
+      return NextResponse.json(
+        { error: "fixedCoreKC is not valid for the selected standard" },
+        { status: 400 },
+      );
+    }
+    const bodyWithContext: GenerationSettings = {
+      ...body,
+      fixedCoreKC: selectedKC?.code,
+      fixedCoreKCStatement: selectedKC?.statement,
+    };
+
+    const basePrompt = buildGenerationPrompt(bodyWithContext);
+    const selectedModelId = body.generationModelId ?? DEFAULT_GENERATION_MODEL_ID;
+    const selectedTemperature =
+      body.generationTemperature ?? DEFAULT_GENERATION_TEMPERATURE;
     const allowedStandardIds = new Set<string>(body.standards);
     let validQuestions: Question[] = [];
     let generationModelId: string | null = null;
@@ -426,7 +586,7 @@ export async function POST(request: NextRequest) {
       const retrySuffix =
         attempt === 0
           ? ""
-          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} questions, exact standard counts, and exact diagram counts as requested. Keep the MCQ Quality Checklist constraints (single best answer, plausible distractors, no giveaway cues).`;
+          : `\n\nIMPORTANT RETRY INSTRUCTION: Your previous output was invalid.\nReason: ${retryReason}\nReturn ONLY valid JSON (no markdown, no comments), with EXACTLY ${body.questionCount} question(s), exact standard alignment, a valid KC from the provided catalog, and the requested stimulus type/counts. Keep the MCQ Quality Checklist constraints (single best answer, plausible distractors, no giveaway cues).`;
       const finalPrompt = `${basePrompt}${retrySuffix}`;
 
       try {
@@ -436,7 +596,11 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        const generated = await generateWithGemini(finalPrompt);
+        const generated = await generateWithSelectedModel(
+          finalPrompt,
+          selectedModelId,
+          selectedTemperature,
+        );
         const responseText = generated.text;
         generationModelId = generated.modelId;
         generationModelLabel = generated.modelLabel;
@@ -444,7 +608,34 @@ export async function POST(request: NextRequest) {
 
         const attemptQuestions: Question[] = [];
         for (let i = 0; i < rawQuestions.length; i++) {
-          const validated = validateQuestion(rawQuestions[i], i, allowedStandardIds);
+          const rawQuestion = rawQuestions[i];
+          let generatedImageUrl: string | undefined;
+          if (body.stimulusType === "illustration") {
+            if (!rawQuestion || typeof rawQuestion !== "object") {
+              retryReason = "Illustration question response is not an object.";
+              continue;
+            }
+            const rawRecord = rawQuestion as Record<string, unknown>;
+            const illustrationPrompt =
+              typeof rawRecord.illustrationPrompt === "string"
+                ? rawRecord.illustrationPrompt.trim()
+                : "";
+            if (!illustrationPrompt) {
+              retryReason = "Missing illustrationPrompt for illustration stimulus.";
+              continue;
+            }
+            const image = await generateIllustrationImage({
+              prompt: illustrationPrompt,
+            });
+            generatedImageUrl = `data:image/png;base64,${image.imageB64}`;
+          }
+          const validated = validateQuestion(
+            rawQuestion,
+            i,
+            allowedStandardIds,
+            selectedKC,
+            generatedImageUrl,
+          );
           if (validated) {
             attemptQuestions.push(validated);
           }
@@ -478,8 +669,16 @@ export async function POST(request: NextRequest) {
           validQuestions = attemptQuestions;
         }
 
-        const distributionCheck = hasExactDiagramDistribution(validQuestions, body);
+        const distributionCheck = body.stimulusType
+          ? hasExpectedStimulus(validQuestions, body.stimulusType)
+          : hasExactDiagramDistribution(validQuestions, body);
         if (!distributionCheck.ok) {
+          if (body.stimulusType) {
+            retryReason =
+              distributionCheck.error || "Stimulus type mismatch.";
+            finalFailureReason = retryReason;
+            continue;
+          }
           const normalized = tryNormalizeDiagramDistribution(validQuestions, body);
           if (normalized.ok) {
             validQuestions = normalized.questions;

@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface AttemptBody {
   clientAttemptId?: string;
   questionId?: string;
+  questionSetId?: string | null;
+  questionContentVersion?: string | null;
+  isFinalized?: boolean;
+  questionCompleted?: boolean;
   selectedOptionId?: string;
   isCorrect?: boolean;
   mode?: string;
@@ -18,6 +23,7 @@ interface AttemptBody {
 }
 
 const ALLOWED_MODES = new Set(["practice", "exam", "review"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseConstraint(message: string): string | null {
   const match = /constraint\s+"([^"]+)"/i.exec(message);
@@ -102,6 +108,176 @@ async function resolveAuthorizedAssignmentId(
   return { assignmentId: normalizedAssignmentId, error: null };
 }
 
+function correctOptionIdFromPayload(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const correctOptionId = (value as Record<string, unknown>).correctOptionId;
+  return typeof correctOptionId === "string" && correctOptionId ? correctOptionId : null;
+}
+
+interface AuthoritativeQuestion {
+  correctOptionId: string;
+  questionSetId: string | null;
+  questionContentVersion: string | null;
+}
+
+function questionIdentityFromPayload(
+  value: unknown,
+): Pick<AuthoritativeQuestion, "questionSetId" | "questionContentVersion"> {
+  if (!value || typeof value !== "object") {
+    return { questionSetId: null, questionContentVersion: null };
+  }
+  const payload = value as Record<string, unknown>;
+  const questionSetId =
+    typeof payload.questionSetId === "string" && payload.questionSetId.trim()
+      ? payload.questionSetId.trim()
+      : null;
+  const questionContentVersion =
+    typeof payload.contentVersion === "string" && UUID_RE.test(payload.contentVersion)
+      ? payload.contentVersion
+      : null;
+  return { questionSetId, questionContentVersion };
+}
+
+async function canAccessHistoricalQuestion(
+  requester: SupabaseClient,
+  admin: SupabaseClient,
+  userId: string,
+  questionSetId: string,
+  questionId: string,
+): Promise<boolean> {
+  const { data: currentlyAccessible } = await requester
+    .from("generated_questions")
+    .select("id")
+    .eq("set_id", questionSetId)
+    .eq("id", questionId)
+    .maybeSingle();
+  if (currentlyAccessible) return true;
+
+  // A queued answer remains valid after the row is hidden or removed from
+  // Self Practice. Verify the student's school relationship to the set
+  // explicitly because the current generated_questions RLS no longer grants
+  // access once include_in_self_practice is cleared.
+  const { data: links, error: linkError } = await admin
+    .from("school_question_sets")
+    .select("school_id")
+    .eq("set_id", questionSetId);
+  if (linkError) return false;
+  const schoolIds = [
+    ...new Set((links ?? []).map((row) => String(row.school_id))),
+  ];
+  if (!schoolIds.length) return false;
+
+  const { data: memberships, error: membershipError } = await admin
+    .from("school_members")
+    .select("school_id")
+    .eq("student_user_id", userId)
+    .in("school_id", schoolIds)
+    .limit(1);
+  return !membershipError && (memberships?.length ?? 0) > 0;
+}
+
+async function resolveAuthoritativeQuestion(
+  requester: SupabaseClient,
+  admin: SupabaseClient,
+  userId: string,
+  questionId: string,
+  assignmentId: string | null,
+  questionSetId: string | null,
+  questionContentVersion: string | null,
+): Promise<AuthoritativeQuestion | null> {
+  if (assignmentId) {
+    const { data, error } = await admin
+      .from("assignment_question_snapshots")
+      .select("payload")
+      .eq("assignment_id", assignmentId)
+      .eq("question_id", questionId);
+    if (error) return null;
+
+    const snapshots = data ?? [];
+    const matchingSnapshots = questionSetId
+      ? snapshots.filter((snapshot) => {
+          const identity = questionIdentityFromPayload(snapshot.payload);
+          return identity.questionSetId === questionSetId &&
+            (!questionContentVersion ||
+              identity.questionContentVersion === questionContentVersion);
+        })
+      : snapshots.length === 1
+        ? snapshots
+        : [];
+    if (matchingSnapshots.length !== 1) {
+      if (matchingSnapshots.length > 1) {
+        console.error("Ambiguous assignment question snapshot identity", {
+          assignmentId,
+          questionId,
+          questionSetId,
+          questionContentVersion,
+          matchingSnapshotCount: matchingSnapshots.length,
+        });
+      }
+      return null;
+    }
+    const snapshot = matchingSnapshots[0];
+    const correctOptionId = correctOptionIdFromPayload(snapshot?.payload);
+    if (!correctOptionId) return null;
+    return {
+      correctOptionId,
+      ...questionIdentityFromPayload(snapshot.payload),
+    };
+  }
+
+  if (questionSetId) {
+    if (questionContentVersion) {
+      const canAccess = await canAccessHistoricalQuestion(
+        requester,
+        admin,
+        userId,
+        questionSetId,
+        questionId,
+      );
+      if (!canAccess) return null;
+
+      const { data: version } = await admin
+        .from("generated_question_versions")
+        .select("payload")
+        .eq("question_set_id", questionSetId)
+        .eq("question_id", questionId)
+        .eq("content_version", questionContentVersion)
+        .maybeSingle();
+      const correctOptionId = correctOptionIdFromPayload(version?.payload);
+      return correctOptionId
+        ? { correctOptionId, questionSetId, questionContentVersion }
+        : null;
+    }
+
+    const { data } = await requester
+      .from("generated_questions")
+      .select("payload")
+      .eq("set_id", questionSetId)
+      .eq("id", questionId)
+      .eq("is_visible", true)
+      .maybeSingle();
+    if (!data) return null;
+    const correctOptionId = correctOptionIdFromPayload(data.payload);
+    return correctOptionId
+      ? { correctOptionId, questionSetId, questionContentVersion: null }
+      : null;
+  }
+
+  // Backward compatibility for attempts queued before question identity
+  // snapshots were added. Ambiguous ids remain rejected by the length check.
+  const { data } = await requester
+    .from("generated_questions")
+    .select("payload")
+    .eq("id", questionId)
+    .eq("is_visible", true)
+    .limit(2);
+  if (!data || data.length !== 1) return null;
+  const correctOptionId = correctOptionIdFromPayload(data[0].payload);
+  return correctOptionId
+    ? { correctOptionId, questionSetId: null, questionContentVersion: null }
+    : null;
+}
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -118,11 +294,23 @@ export async function POST(request: Request) {
   if (!body.questionId) {
     return toHttpError(400, "Missing questionId");
   }
+  const questionSetId =
+    typeof body.questionSetId === "string" && body.questionSetId.trim()
+      ? body.questionSetId.trim()
+      : null;
+  const questionContentVersion =
+    typeof body.questionContentVersion === "string" &&
+    UUID_RE.test(body.questionContentVersion)
+      ? body.questionContentVersion
+      : null;
+  if (body.questionContentVersion && !questionContentVersion) {
+    return toHttpError(400, "Invalid questionContentVersion");
+  }
+  if (questionContentVersion && !questionSetId) {
+    return toHttpError(400, "questionSetId is required with questionContentVersion");
+  }
   if (!body.selectedOptionId) {
     return toHttpError(400, "Missing selectedOptionId");
-  }
-  if (typeof body.isCorrect !== "boolean") {
-    return toHttpError(400, "Missing isCorrect");
   }
   if (!body.mode || !ALLOWED_MODES.has(body.mode)) {
     return toHttpError(400, `Invalid mode: ${body.mode ?? "<missing>"}`);
@@ -142,13 +330,35 @@ export async function POST(request: Request) {
   if (assignmentResolution.error) {
     return toHttpError(400, assignmentResolution.error);
   }
+  const authoritativeQuestion = await resolveAuthoritativeQuestion(
+    supabase,
+    admin,
+    user.id,
+    body.questionId,
+    assignmentResolution.assignmentId,
+    questionSetId,
+    questionContentVersion,
+  );
+  if (!authoritativeQuestion) {
+    return toHttpError(404, "Question not found or inaccessible");
+  }
+  const isCorrect = body.selectedOptionId === authoritativeQuestion.correctOptionId;
+  const isFinalized = !(
+    body.isFinalized === false &&
+    body.mode === "exam" &&
+    assignmentResolution.assignmentId
+  );
 
   const payload = {
     user_id: user.id,
     client_attempt_id: body.clientAttemptId,
     question_id: body.questionId,
+    question_set_id: authoritativeQuestion.questionSetId,
+    question_content_version: authoritativeQuestion.questionContentVersion,
+    is_finalized: isFinalized,
+    question_completed: body.questionCompleted !== false,
     selected_option_id: body.selectedOptionId,
-    is_correct: body.isCorrect,
+    is_correct: isCorrect,
     mode: body.mode,
     module:
       typeof body.module === "number" && Number.isFinite(body.module)
@@ -197,5 +407,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, isCorrect });
 }

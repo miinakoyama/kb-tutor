@@ -15,10 +15,9 @@ import {
   X,
   ClipboardList,
 } from "lucide-react";
-import questionsData from "@/data/questions.json";
-import questionSetsData from "@/data/question-sets.json";
 import type { Question, QuestionSet } from "@/types/question";
 import { QuestionPreviewCard } from "@/components/mass-production/QuestionPreviewCard";
+import { ShortAnswerPreviewCard } from "@/components/mass-production/ShortAnswerPreviewCard";
 import { QuestionEditModal } from "@/components/mass-production/QuestionEditModal";
 import { downloadAsJson, downloadAsText, downloadAsTsv } from "@/lib/export-utils";
 import {
@@ -29,18 +28,6 @@ import {
   deleteGeneratedQuestionSet,
   updateGeneratedQuestionSetName,
 } from "@/lib/question-storage";
-import { getDefaultStandardForTopic } from "@/lib/standards";
-
-const fileQuestions = (questionsData as Question[]).map((question) => {
-  if (question.standardId) return question;
-  const standard = getDefaultStandardForTopic(question.topic);
-  return {
-    ...question,
-    standardId: standard.id,
-    standardLabel: standard.label,
-  };
-});
-const fileQuestionSets = questionSetsData as QuestionSet[];
 
 interface PageProps {
   params: Promise<{ setId: string }>;
@@ -63,20 +50,6 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   const loadData = useCallback(async () => {
     const decodedSetId = decodeURIComponent(setId);
-
-    const fileSet = fileQuestionSets.find((s) => s.id === decodedSetId);
-    if (fileSet) {
-      const filteredQuestions = fileQuestions.filter(
-        (q) => q.questionSetId === decodedSetId
-      );
-      setQuestionSet(fileSet);
-      setQuestions(filteredQuestions);
-      setIsGeneratedFromDb(false);
-      setIsEditingSetName(false);
-      setSetNameDraft(fileSet.name);
-      setIsLoading(false);
-      return;
-    }
 
     const { questions: localQuestions, questionSet: localSet } =
       await getGeneratedQuestionSetById(decodedSetId);
@@ -107,9 +80,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   const handleDelete = async (id: string) => {
     if (!isGeneratedFromDb || !questionSet) {
-      alert(
-        "Cannot delete questions from file. Only generated questions can be deleted."
-      );
+      alert("This question set is not available from the question service.");
       return;
     }
 
@@ -132,9 +103,7 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
   const handleDeleteAll = async () => {
     if (!isGeneratedFromDb || !questionSet) {
-      alert(
-        "Cannot delete questions from file. Only generated questions can be deleted."
-      );
+      alert("This question set is not available from the question service.");
       return;
     }
     if (!confirm("Delete all questions in this set? This cannot be undone."))
@@ -447,22 +416,40 @@ export default function QuestionSetDetailPage({ params }: PageProps) {
 
       {/* Question List */}
       <div className="space-y-4 mb-8">
-        {questions.map((question, index) => (
-          <QuestionPreviewCard
-            key={question.id}
-            question={question}
-            index={index}
-            onEdit={() => handleEdit(question)}
-            onDelete={() => handleDelete(question.id)}
-            includeInSelfPractice={question.includeInSelfPractice}
-            onToggleIncludeInSelfPractice={
-              isGeneratedFromDb
-                ? () => void handleToggleIncludeInSelfPractice(question)
-                : undefined
-            }
-            isEditable={isGeneratedFromDb}
-          />
-        ))}
+        {questions.map((question, index) =>
+          question.questionType === "open-ended" && question.shortAnswer ? (
+            <ShortAnswerPreviewCard
+              key={question.id}
+              question={question}
+              item={question.shortAnswer}
+              index={index}
+              onEdit={() => handleEdit(question)}
+              onDelete={() => handleDelete(question.id)}
+              includeInSelfPractice={question.includeInSelfPractice}
+              onToggleIncludeInSelfPractice={
+                isGeneratedFromDb
+                  ? () => void handleToggleIncludeInSelfPractice(question)
+                  : undefined
+              }
+              isEditable={isGeneratedFromDb}
+            />
+          ) : (
+            <QuestionPreviewCard
+              key={question.id}
+              question={question}
+              index={index}
+              onEdit={() => handleEdit(question)}
+              onDelete={() => handleDelete(question.id)}
+              includeInSelfPractice={question.includeInSelfPractice}
+              onToggleIncludeInSelfPractice={
+                isGeneratedFromDb
+                  ? () => void handleToggleIncludeInSelfPractice(question)
+                  : undefined
+              }
+              isEditable={isGeneratedFromDb}
+            />
+          ),
+        )}
       </div>
 
       {editingQuestion && (

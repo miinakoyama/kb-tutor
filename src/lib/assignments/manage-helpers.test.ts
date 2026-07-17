@@ -12,6 +12,8 @@ import {
   sanitizeStringArray,
 } from "@/lib/assignments/manage-helpers";
 import { createMockSupabaseClient } from "@/test-utils/supabase-mock";
+import sampleShortAnswerItem from "@/data/short-answer/sample-item.json";
+import type { ShortAnswerItem } from "@/types/short-answer";
 
 describe("asOptionalString", () => {
   it("returns trimmed string when value is non-empty", () => {
@@ -331,6 +333,73 @@ describe("normalizeQuestionPayload", () => {
   it("returns null when the raw payload is not an object", () => {
     expect(normalizeQuestionPayload(null, 0, "manual")).toBeNull();
     expect(normalizeQuestionPayload("oops", 0, "manual")).toBeNull();
+  });
+
+  it("normalizes a valid short-answer (open-ended) payload", () => {
+    const shortAnswer = sampleShortAnswerItem as ShortAnswerItem;
+    const question = normalizeQuestionPayload(
+      {
+        id: "sa-sample-1",
+        text: shortAnswer.parts[0].prompt,
+        questionType: "open-ended",
+        shortAnswer,
+        module: 2,
+        topic: "Genetics",
+        standardId: "3.1.9-12.A",
+      },
+      0,
+      "existing_set",
+    );
+
+    expect(question).not.toBeNull();
+    expect(question?.id).toBe("sa-sample-1");
+    expect(question?.questionType).toBe("open-ended");
+    expect(question?.options).toEqual([]);
+    expect(question?.correctOptionId).toBe("");
+    expect(question?.shortAnswer).toEqual(shortAnswer);
+    expect(question?.text).toBe(shortAnswer.parts[0].prompt);
+  });
+
+  it("falls back to stem text for short-answer when question.text is empty", () => {
+    const shortAnswer = sampleShortAnswerItem as ShortAnswerItem;
+    const question = normalizeQuestionPayload(
+      {
+        questionType: "open-ended",
+        shortAnswer,
+      },
+      0,
+      "existing_set",
+    );
+
+    expect(question?.text).toBe(shortAnswer.parts[0].prompt);
+  });
+
+  it("returns null for open-ended payloads without a valid shortAnswer item", () => {
+    expect(
+      normalizeQuestionPayload(
+        {
+          text: "Some prompt",
+          questionType: "open-ended",
+          options: [],
+        },
+        0,
+        "manual",
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when shortAnswer payload fails structural validation", () => {
+    expect(
+      normalizeQuestionPayload(
+        {
+          text: "Broken",
+          questionType: "open-ended",
+          shortAnswer: { stem: "only stem" },
+        },
+        0,
+        "manual",
+      ),
+    ).toBeNull();
   });
 });
 

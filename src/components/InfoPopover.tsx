@@ -89,7 +89,7 @@ export function InfoPopover({
         }}
         onFocus={() => setHovered(true)}
         onBlur={() => setHovered(false)}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-gray/50 transition-colors hover:text-[#16a34a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a34a]/40"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-gray/50 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         {trigger ?? <Info className="h-3.5 w-3.5" />}
       </button>
@@ -98,7 +98,7 @@ export function InfoPopover({
           id={panelId}
           role="dialog"
           aria-label={label}
-          className={`absolute top-full z-30 mt-2 ${alignClass} ${widthClass} rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-slate-gray shadow-lg`}
+          className={`absolute top-full z-30 mt-2 ${alignClass} ${widthClass} rounded-lg border border-border-default bg-surface px-3 py-2.5 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-slate-gray shadow-lg`}
         >
           {children}
         </span>

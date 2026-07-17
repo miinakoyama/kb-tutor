@@ -21,78 +21,82 @@ export type SchoolQuestionSetRow = {
   generationModelLabel?: string;
 };
 
+type SelfPracticeQuestionRow = {
+  id: string;
+  set_id: string;
+  payload: unknown;
+  content_version: string | null;
+  has_image: boolean;
+  has_stimulus_image: boolean;
+  set_name: string;
+  set_generated_at: string;
+  generation_model_id: string | null;
+  generation_model_label: string | null;
+};
+
 /**
  * Questions for students: sets linked to a school they attend, with per-question SP flag.
+ *
+ * Uses the `get_self_practice_questions` RPC (SECURITY DEFINER) instead of a
+ * direct select: per-row RLS on `generated_questions` evaluates nested
+ * EXISTS/helper-function checks for every row and hits the statement timeout
+ * on production data volumes.
+ *
+ * Payloads arrive with embedded base64 images stripped (they made the bank
+ * ~100 MB); `hasImage` / `hasStimulusImage` mark rows whose media must be
+ * loaded lazily via `useQuestionMedia` when displayed.
  */
 export async function fetchStudentSelfPracticeQuestions(
   supabase: SupabaseClient,
 ): Promise<{ questions: Question[]; questionSets: QuestionSet[] }> {
-  const { data: links, error: linkError } = await supabase
-    .from("school_question_sets")
-    .select("set_id");
+  const { data, error } = await supabase.rpc("get_self_practice_questions");
 
-  if (linkError) {
+  if (error || !Array.isArray(data)) {
     return { questions: [], questionSets: [] };
-  }
-
-  const setIds = [...new Set((links ?? []).map((row) => String(row.set_id)))];
-  if (setIds.length === 0) {
-    return { questions: [], questionSets: [] };
-  }
-
-  const [{ data: setsData, error: setError }, { data: questionsData, error: qError }] =
-    await Promise.all([
-      supabase
-        .from("generated_question_sets")
-        .select("id,name,generated_at,generation_model_id,generation_model_label")
-        .in("id", setIds),
-      supabase
-        .from("generated_questions")
-        .select("id,set_id,payload,is_visible,include_in_self_practice")
-        .eq("include_in_self_practice", true)
-        .in("set_id", setIds)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true }),
-    ]);
-
-  if (setError || qError || !setsData) {
-    return { questions: [], questionSets: [] };
-  }
-
-  const questionBySet = new Map<string, Question[]>();
-  for (const row of questionsData ?? []) {
-    const setId = String(row.set_id);
-    const payload = row.payload as Question;
-    const list = questionBySet.get(setId) ?? [];
-    list.push({
-      ...withStandard(payload),
-      questionSetId: setId,
-      isVisible: true,
-      includeInSelfPractice: true,
-    });
-    questionBySet.set(setId, list);
   }
 
   const questionSets: QuestionSet[] = [];
   const allQuestions: Question[] = [];
-  for (const set of setsData) {
-    const setId = String(set.id);
-    const questions = questionBySet.get(setId) ?? [];
-    if (questions.length === 0) continue;
-    questionSets.push({
-      id: setId,
-      name: String(set.name),
-      source: "generated",
-      createdAt: String(set.generated_at),
-      questionIds: questions.map((q) => q.id),
-      generationModelId: set.generation_model_id
-        ? String(set.generation_model_id)
-        : undefined,
-      generationModelLabel: set.generation_model_label
-        ? String(set.generation_model_label)
-        : undefined,
-    });
-    allQuestions.push(...questions);
+  const setById = new Map<string, QuestionSet>();
+
+  for (const row of data as SelfPracticeQuestionRow[]) {
+    const setId = String(row.set_id);
+    const payload = row.payload as Question;
+    const question: Question = {
+      ...withStandard(payload),
+      id: String(row.id),
+      questionSetId: setId,
+      contentVersion:
+        typeof row.content_version === "string"
+          ? row.content_version
+          : undefined,
+      isVisible: true,
+      includeInSelfPractice: true,
+      imageUrl: payload.imageUrl ?? null,
+      hasImage: row.has_image === true,
+      hasStimulusImage: row.has_stimulus_image === true,
+    };
+
+    let set = setById.get(setId);
+    if (!set) {
+      set = {
+        id: setId,
+        name: String(row.set_name),
+        source: "generated",
+        createdAt: String(row.set_generated_at),
+        questionIds: [],
+        generationModelId: row.generation_model_id
+          ? String(row.generation_model_id)
+          : undefined,
+        generationModelLabel: row.generation_model_label
+          ? String(row.generation_model_label)
+          : undefined,
+      };
+      setById.set(setId, set);
+      questionSets.push(set);
+    }
+    set.questionIds.push(question.id);
+    allQuestions.push(question);
   }
 
   return { questions: allQuestions, questionSets };

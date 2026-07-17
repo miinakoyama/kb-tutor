@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Edit3, Sparkles, ChevronRight } from "lucide-react";
+import { Edit3, Sparkles, ChevronRight, ShieldCheck } from "lucide-react";
 
 export default function ContentPage() {
   const [scopeLabel, setScopeLabel] = useState("My content");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const loadRole = async () => {
@@ -27,6 +28,7 @@ export default function ContentPage() {
           payload.user?.user_metadata?.role ??
           payload.user?.app_metadata?.role;
         setScopeLabel(role === "admin" ? "All content" : "My content");
+        setIsAdmin(role === "admin");
       } catch {
         setScopeLabel("My content");
       }
@@ -89,6 +91,22 @@ export default function ContentPage() {
           </Link>
         </div>
       </section>
+
+      {isAdmin && (
+      <section className="mb-8 border-t border-border-default pt-6">
+        <h2 className="mb-3 text-base font-semibold text-slate-gray">Governance</h2>
+        <Link
+          href="/content/kc-coverage"
+          className="flex items-center justify-between border border-border-default bg-surface p-4 hover:border-primary"
+        >
+          <span className="flex items-center gap-3">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <span className="font-medium text-slate-gray">KC Coverage</span>
+          </span>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Link>
+      </section>
+      )}
 
       <section className="rounded-xl border border-border-default bg-surface p-5 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">

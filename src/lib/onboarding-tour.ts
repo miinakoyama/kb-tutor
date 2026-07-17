@@ -7,7 +7,7 @@ export const TOUR_TARGET_IDS = {
   STUDENT_ASSIGNMENTS: "tour-student-assignments",
   SELF_PRACTICE: "tour-self-practice",
   PROGRESS: "tour-progress",
-  BOOKMARKS: "tour-bookmarks",
+  REVIEW: "tour-review",
   TEACHER_DASHBOARD: "tour-teacher-dashboard",
   TEACHER_ASSIGNMENTS: "tour-teacher-assignments",
   CONTENTS: "tour-contents",
@@ -67,11 +67,11 @@ const STUDENT_STEPS: OnboardingStep[] = [
     modeCards: STUDENT_MODE_CARDS,
   },
   {
-    title: "Bookmarks",
+    title: "Review",
     description:
-      "Save questions you want to revisit later and review them anytime.",
+      "Review missed questions, bookmarked questions, and your notes in one place.",
     type: "spotlight",
-    targetIds: [TOUR_TARGET_IDS.BOOKMARKS],
+    targetIds: [TOUR_TARGET_IDS.REVIEW],
     routePath: "/bookmarks",
   },
   {
@@ -143,7 +143,7 @@ export function getTourTargetIdForHref(
   if (href === "/") return TOUR_TARGET_IDS.HOME;
   if (href === "/self-practice") return TOUR_TARGET_IDS.SELF_PRACTICE;
   if (href === "/progress") return TOUR_TARGET_IDS.PROGRESS;
-  if (href === "/bookmarks") return TOUR_TARGET_IDS.BOOKMARKS;
+  if (href === "/bookmarks") return TOUR_TARGET_IDS.REVIEW;
 
   if (href === "/assignments") return TOUR_TARGET_IDS.STUDENT_ASSIGNMENTS;
   if (href === "/teacher-dashboard" && role !== "student") {
