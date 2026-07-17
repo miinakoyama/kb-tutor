@@ -1,20 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  calculateMastery,
-  type AttemptRow,
+  calculateKcMastery,
+  type ActiveKc,
   type MasteryDatum,
 } from "@/lib/progress/mastery";
 
 /**
- * Server-side topic-mastery data for the homepage profile radar. Same mastery
- * model as My Progress (`calculateMastery`), fetched with the auth-scoped
- * server client so the chart is in the initial render — previously the
- * ProfileCard fetched this from the browser on mount, causing a loading flash
- * and a second round trip.
+ * Server-side topic-mastery data for the homepage profile radar, fetched with
+ * the auth-scoped server client so the chart is in the initial render —
+ * previously the ProfileCard fetched this from the browser on mount, causing
+ * a loading flash and a second round trip.
+ *
+ * Mastery is each topic's active KCs averaged by BKT probability
+ * (`calculateKcMastery`), not raw attempt accuracy, so it reflects the same
+ * signal the adaptive selector uses to decide what a student still needs to
+ * practice.
  */
-
-const LOOKBACK_DAYS = 365;
-const FETCH_LIMIT = 2000;
 
 /** Radar axis labels — the full module/category names don't fit the chart. */
 const TOPIC_SHORT_LABELS: Record<string, string> = {
@@ -34,26 +35,31 @@ function withShortLabels(data: MasteryDatum[]): MasteryDatum[] {
 }
 
 /**
- * Mastery per topic over the last year. A failed query degrades to the
- * all-zero "insufficient data" shape (`calculateMastery([])`) — the radar
- * renders its empty frame rather than the card erroring out.
+ * Mastery per topic, derived from every active KC's current BKT probability.
+ * A failed query degrades to the all-zero "insufficient data" shape
+ * (`calculateKcMastery([], new Map())`) — the radar renders its empty frame
+ * rather than the card erroring out.
  */
 export async function getMasterySummary(
   supabase: SupabaseClient,
   studentUserId: string,
 ): Promise<MasteryDatum[]> {
-  const since = new Date();
-  since.setDate(since.getDate() - LOOKBACK_DAYS);
+  const [kcResult, masteryResult] = await Promise.all([
+    supabase.from("knowledge_components").select("code,standard_id").eq("active", true),
+    supabase.from("student_kc_mastery").select("kc_code,probability").eq("user_id", studentUserId),
+  ]);
 
-  const { data, error } = await supabase
-    .from("attempts")
-    .select("is_correct,answered_at,topic,standard_id")
-    .eq("user_id", studentUserId)
-    .gte("answered_at", since.toISOString())
-    .order("answered_at", { ascending: false })
-    .limit(FETCH_LIMIT);
+  if (kcResult.error || !kcResult.data || masteryResult.error) {
+    return withShortLabels(calculateKcMastery([], new Map()));
+  }
 
-  if (error || !data) return withShortLabels(calculateMastery([]));
+  const activeKcs: ActiveKc[] = kcResult.data.map((row) => ({
+    code: String(row.code),
+    standardId: String(row.standard_id),
+  }));
+  const probabilityByKcCode = new Map(
+    (masteryResult.data ?? []).map((row) => [String(row.kc_code), Number(row.probability)]),
+  );
 
-  return withShortLabels(calculateMastery(data as AttemptRow[]));
+  return withShortLabels(calculateKcMastery(activeKcs, probabilityByKcCode));
 }

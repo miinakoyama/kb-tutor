@@ -73,9 +73,11 @@ export function HomePageContent({
           </div>
         </section>
 
-        {/* 70/30 split spanning the full row, so the outer edges line up
-            with the countdown + Learning effort row above. */}
-        <div className="mt-6 grid gap-6 lg:items-start lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:gap-x-12">
+        {/* 65/35 split spanning the full row, so the outer edges line up
+            with the countdown + Learning effort row above. Column gap
+            matches the vertical gap between the stacked cards on the left
+            (gap-6) — the profile rail's radar chart needs the width. */}
+        <div className="mt-6 grid gap-6 lg:items-start lg:grid-cols-[minmax(0,6.7fr)_minmax(0,3.3fr)]">
           <div className="flex min-w-0 flex-col gap-6">
             <AssignedWorkList assignments={assignments} />
 

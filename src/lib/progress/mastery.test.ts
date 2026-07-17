@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getStandardsForModule } from "@/lib/standards";
 import {
-  calculateMastery,
-  getMasteryBand,
+  calculateKcMastery,
   PROGRESS_TOPICS,
-  type AttemptRow,
+  type ActiveKc,
 } from "@/lib/progress/mastery";
 
 function getTopicKeyFromStandard(standardId: string): string {
@@ -17,81 +16,45 @@ function getTopicKeyFromStandard(standardId: string): string {
   throw new Error("Standard id not found in PROGRESS_TOPICS");
 }
 
-describe("calculateMastery", () => {
-  it("marks topics without attempts as insufficient_data", () => {
-    const mastery = calculateMastery([]);
+describe("calculateKcMastery", () => {
+  it("marks topics with no active KCs as insufficient_data", () => {
+    const mastery = calculateKcMastery([], new Map());
 
     expect(mastery.length).toBeGreaterThan(0);
     expect(mastery.every((item) => item.level === "insufficient_data")).toBe(true);
     expect(mastery.every((item) => item.masteryValue === 0)).toBe(true);
   });
 
-  it("uses a gentle estimate for low-attempt topics", () => {
+  it("falls back to the default unobserved probability for KCs with no mastery row", () => {
     const standard = getStandardsForModule("A")[0];
     const key = getTopicKeyFromStandard(standard.id);
+    const activeKcs: ActiveKc[] = [{ code: "kc-1", standardId: standard.id }];
 
-    const rows: AttemptRow[] = [
-      {
-        is_correct: false,
-        answered_at: "2026-01-01T00:00:00.000Z",
-        topic: null,
-        standard_id: standard.id,
-      },
-    ];
-
-    const mastery = calculateMastery(rows);
+    const mastery = calculateKcMastery(activeKcs, new Map());
     const datum = mastery.find((item) => item.topic === key);
 
     expect(datum).toBeDefined();
-    expect(datum?.attempts).toBe(1);
-    expect(datum?.level).toBe("estimated");
-    // (0 + 3) / (1 + 5) => 50%
-    expect(datum?.mastery).toBe(50);
-  });
-
-  it("switches to measured level after enough attempts", () => {
-    const standard = getStandardsForModule("A")[0];
-    const key = getTopicKeyFromStandard(standard.id);
-
-    const rows: AttemptRow[] = [
-      {
-        is_correct: true,
-        answered_at: "2026-01-01T00:00:00.000Z",
-        topic: null,
-        standard_id: standard.id,
-      },
-      {
-        is_correct: false,
-        answered_at: "2026-01-02T00:00:00.000Z",
-        topic: null,
-        standard_id: standard.id,
-      },
-      {
-        is_correct: true,
-        answered_at: "2026-01-03T00:00:00.000Z",
-        topic: null,
-        standard_id: standard.id,
-      },
-    ];
-
-    const mastery = calculateMastery(rows);
-    const datum = mastery.find((item) => item.topic === key);
-
-    expect(datum).toBeDefined();
-    expect(datum?.attempts).toBe(3);
+    expect(datum?.masteryValue).toBe(30);
     expect(datum?.level).toBe("measured");
-    // (2 + 3) / (3 + 5) => 62.5 => 63%
-    expect(datum?.mastery).toBe(63);
-  });
-});
-
-describe("getMasteryBand", () => {
-  it("uses raw accuracy instead of smoothed mastery for rubric bands", () => {
-    expect(getMasteryBand(17, 20)).toBe("mastered");
   });
 
-  it("requires both the accuracy and minimum attempt count", () => {
-    expect(getMasteryBand(17, 19)).toBe("on_track");
-    expect(getMasteryBand(0, 0)).toBe("no_data");
+  it("averages probability across every active KC in the topic", () => {
+    const standard = getStandardsForModule("A")[0];
+    const key = getTopicKeyFromStandard(standard.id);
+    const activeKcs: ActiveKc[] = [
+      { code: "kc-1", standardId: standard.id },
+      { code: "kc-2", standardId: standard.id },
+    ];
+    const probabilityByKcCode = new Map([
+      ["kc-1", 0.9],
+      ["kc-2", 0.5],
+    ]);
+
+    const mastery = calculateKcMastery(activeKcs, probabilityByKcCode);
+    const datum = mastery.find((item) => item.topic === key);
+
+    expect(datum).toBeDefined();
+    // (0.9 + 0.5) / 2 => 70%
+    expect(datum?.masteryValue).toBe(70);
   });
 });

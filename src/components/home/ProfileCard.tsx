@@ -8,12 +8,37 @@ import {
   Radar,
   RadarChart,
   ResponsiveContainer,
+  Tooltip,
 } from "recharts";
 import { Award, UserRound } from "lucide-react";
 import type { MasteryDatum } from "@/lib/progress/mastery";
 import type { StudentProfileSummary } from "@/lib/homepage/profile-summary";
 import type { StudentBadgeView } from "@/types/badges";
 import { BadgeModal } from "./BadgeModal";
+
+function MasteryTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: MasteryDatum }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const { fullTopic, masteryValue } = payload[0].payload;
+  return (
+    <div
+      className="rounded-lg px-3 py-2 text-xs"
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--assignment-glass-border)",
+        boxShadow: "var(--assignment-popover-shadow)",
+      }}
+    >
+      <p className="font-semibold text-slate-gray">{fullTopic}</p>
+      <p className="mt-0.5 text-muted-foreground">{masteryValue}% mastery</p>
+    </div>
+  );
+}
 
 function initialsOf(name: string | null): string {
   if (!name) return "";
@@ -133,19 +158,24 @@ export function ProfileCard({
         Topic mastery
       </p>
 
-      {/* Skill radar — the same mastery model as My Progress. The chart
-          height is explicit: ResponsiveContainer's percentage height needs a
-          definite ancestor height, which this auto-sized card doesn't have. */}
-      <div className="h-[240px] w-full">
+      {/* Skill radar. The chart height is explicit: ResponsiveContainer's
+          percentage height needs a definite ancestor height, which this
+          auto-sized card doesn't have. */}
+      <div className="h-[280px] w-full">
         {isMounted ? (
-          <ResponsiveContainer width="100%" height={240}>
-            <RadarChart data={mastery} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <RadarChart
+              data={mastery}
+              outerRadius="85%"
+              margin={{ top: 10, right: 20, bottom: 10, left: 90 }}
+            >
               <PolarGrid stroke="var(--assignment-completed)" strokeOpacity={0.2} />
               <PolarAngleAxis
                 dataKey="topic"
                 tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               />
               <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+              <Tooltip content={<MasteryTooltip />} />
               <Radar
                 dataKey="masteryValue"
                 stroke="var(--assignment-completed)"
