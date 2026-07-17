@@ -271,7 +271,11 @@ export async function POST(request: Request) {
         kcCode,
         lastQuestionByStandard.get(target.standardId) ?? null,
         sessionSeed,
-        format,
+        {
+          requiredFormat: format,
+          avoidImmediateRepeatAcrossFormats:
+            body.selectionMode === "mixed" && formatPassIndex === 0,
+        },
       );
       if (!ranked.length) {
         fallbackKcCodes.push(kcCode);

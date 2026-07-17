@@ -199,7 +199,10 @@ describe("POST /api/practice/next", () => {
     created_at: "2026-01-01",
   };
 
-  function buildMixedFormatAdmin(candidateRows: Record<string, unknown>[]) {
+  function buildMixedFormatAdmin(
+    candidateRows: Record<string, unknown>[],
+    selectionRows: Record<string, unknown>[] = [],
+  ) {
     return createMockSupabaseClient({
       tables: {
         school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
@@ -211,7 +214,7 @@ describe("POST /api/practice/next", () => {
         },
         student_kc_mastery: { rows: [] },
         adaptive_rotation_states: { rows: [] },
-        adaptive_selection_events: { rows: [] },
+        adaptive_selection_events: { rows: selectionRows },
       },
       rpcs: {
         get_adaptive_practice_candidates: async () => ({ data: candidateRows, error: null }),
@@ -343,6 +346,60 @@ describe("POST /api/practice/next", () => {
         },
       },
     ]);
+
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A"],
+        selectionMode: "mixed",
+        requiredFormat: "mcq",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "selected",
+      question: { id: "q-saq" },
+    });
+  });
+
+  it("falls back to SAQ instead of immediately repeating the only MCQ", async () => {
+    state.server = createMockSupabaseClient({ user: baseUser }).client;
+    state.admin = buildMixedFormatAdmin(
+      [
+        {
+          question_set_id: "set-c", question_id: "q-mcq", content_version: null,
+          has_image: false, has_stimulus_image: false, format: "mcq",
+          standard_id: "3.1.9-12.A", part_kc_codes: ["3.1.9-12.A1"],
+          completed_count: 0, last_completed_at: null,
+          payload: {
+            id: "q-mcq", module: 1, topic: "Genetics", standardId: "3.1.9-12.A",
+            text: "q-mcq", imageUrl: null, options: [], correctOptionId: "",
+            source: "generated", questionType: "mcq",
+          },
+        },
+        {
+          question_set_id: "set-c", question_id: "q-saq", content_version: null,
+          has_image: false, has_stimulus_image: false, format: "saq",
+          standard_id: "3.1.9-12.A", part_kc_codes: ["3.1.9-12.A1"],
+          completed_count: 1, last_completed_at: "2026-01-01T00:00:00Z",
+          payload: {
+            id: "q-saq", module: 1, topic: "Genetics", standardId: "3.1.9-12.A",
+            text: "q-saq", imageUrl: null, options: [], correctOptionId: "",
+            source: "generated", questionType: "open-ended", shortAnswer: sampleItem,
+          },
+        },
+      ],
+      [{
+        standard_id: "3.1.9-12.A",
+        target_kc_code: "3.1.9-12.A1",
+        question_set_id: "set-c",
+        question_id: "q-mcq",
+        created_at: "2026-01-02T00:00:00Z",
+        outcome: "selected",
+        user_id: "student",
+      }],
+    );
 
     const response = await POST(new Request("http://localhost/api/practice/next", {
       method: "POST",
