@@ -7,11 +7,13 @@ import sampleShortAnswerItem from "@/data/short-answer/sample-item.json";
 import type { ShortAnswerItem } from "@/types/short-answer";
 
 const {
+  checkForNewlyEarnedBadgesMock,
   markStageCompletedMock,
   processQueueMock,
   trackAnalyticsEventMock,
   useAnalyticsSessionMock,
 } = vi.hoisted(() => ({
+  checkForNewlyEarnedBadgesMock: vi.fn(),
   markStageCompletedMock: vi.fn(),
   processQueueMock: vi.fn(),
   trackAnalyticsEventMock: vi.fn(),
@@ -28,6 +30,10 @@ vi.mock("@/lib/analytics/session", () => ({
 
 vi.mock("@/lib/sync-queue", () => ({
   processQueue: processQueueMock,
+}));
+
+vi.mock("@/lib/badges/celebration-events", () => ({
+  checkForNewlyEarnedBadges: checkForNewlyEarnedBadgesMock,
 }));
 
 vi.mock("@/lib/storage", () => ({
@@ -126,6 +132,8 @@ const shortAnswerItem = sampleShortAnswerItem as ShortAnswerItem;
 
 describe("AdaptivePracticeMode session completion", () => {
   beforeEach(() => {
+    checkForNewlyEarnedBadgesMock.mockReset();
+    checkForNewlyEarnedBadgesMock.mockResolvedValue(undefined);
     markStageCompletedMock.mockReset();
     processQueueMock.mockReset();
     processQueueMock.mockResolvedValue(undefined);
@@ -163,6 +171,32 @@ describe("AdaptivePracticeMode session completion", () => {
         assignmentId: undefined,
         sessionId: "session-1",
       });
+    });
+  });
+
+  it.each([
+    { mode: "practice" as const, summary: "Session Complete", retry: "Try Again" },
+    { mode: "review" as const, summary: "Review Complete", retry: "Review Again" },
+  ])("checks for newly earned badges after every repeated $mode run", async ({
+    mode,
+    summary,
+    retry,
+  }) => {
+    render(
+      <AdaptivePracticeMode questions={[question]} questionCount={1} mode={mode} />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Finish Session" }));
+    await screen.findByText(summary);
+    await waitFor(() => {
+      expect(checkForNewlyEarnedBadgesMock).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: retry }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finish Session" }));
+
+    await waitFor(() => {
+      expect(checkForNewlyEarnedBadgesMock).toHaveBeenCalledTimes(2);
     });
   });
 

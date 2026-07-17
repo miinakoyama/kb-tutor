@@ -5,6 +5,7 @@ import type { KeystoneExamInfo } from "@/lib/keystone-exam";
 import type { LearningEffort } from "@/lib/homepage/learning-effort";
 import type { MasteryDatum } from "@/lib/progress/mastery";
 import type { StudentProfileSummary } from "@/lib/homepage/profile-summary";
+import type { StudentBadgeView } from "@/types/badges";
 import { ExamCountdownCard } from "@/components/home/ExamCountdownCard";
 import { LearningEffortCard } from "@/components/home/LearningEffortCard";
 import { AssignedWorkList } from "@/components/home/AssignedWorkList";
@@ -22,6 +23,7 @@ interface HomePageContentProps {
   learningEffort: LearningEffort | null;
   masterySummary: MasteryDatum[];
   profileSummary: StudentProfileSummary;
+  badges: StudentBadgeView[];
 }
 
 /**
@@ -35,6 +37,7 @@ export function HomePageContent({
   learningEffort,
   masterySummary,
   profileSummary,
+  badges,
 }: HomePageContentProps) {
   return (
     <main
@@ -72,15 +75,15 @@ export function HomePageContent({
 
         {/* 70/30 split spanning the full row, so the outer edges line up
             with the countdown + Learning effort row above. */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:gap-x-12">
+        <div className="mt-6 grid gap-6 lg:items-start lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:gap-x-12">
           <div className="flex min-w-0 flex-col gap-6">
             <AssignedWorkList assignments={assignments} />
 
-            {/* One bento tile with two inner practice tiles; flex-1 keeps
-                the column's bottom level with the profile card. */}
+            {/* One bento tile with two equally sized inner practice tiles.
+                Its height stays independent from the profile rail. */}
             <section
               aria-labelledby="practice-independently-heading"
-              className="flex flex-1 flex-col rounded-[24px] p-5 sm:p-6"
+              className="flex flex-col rounded-[24px] p-5 sm:p-6"
               style={{
                 background: "var(--surface)",
                 border: "1px solid var(--assignment-glass-border)",
@@ -93,7 +96,7 @@ export function HomePageContent({
               >
                 Practice independently
               </h2>
-              <div className="mt-4 grid flex-1 gap-4 sm:grid-cols-2">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <ReviewQuickStartCard />
                 <SelfPracticeQuickStartCard weeklySeconds={selfPracticeWeeklySeconds} />
               </div>
@@ -101,7 +104,7 @@ export function HomePageContent({
           </div>
 
           <div className="min-w-0">
-            <ProfileCard profile={profileSummary} mastery={masterySummary} />
+            <ProfileCard profile={profileSummary} mastery={masterySummary} badges={badges} />
           </div>
         </div>
       </div>

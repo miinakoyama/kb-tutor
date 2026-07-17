@@ -11,6 +11,7 @@ const {
   profileSummaryMock,
   resolveRoleWithServerFallbackMock,
   selfPracticeWeeklySecondsMock,
+  studentBadgesMock,
   userSettingsMock,
 } = vi.hoisted(() => ({
   assignmentListMock: vi.fn(),
@@ -24,6 +25,7 @@ const {
   }),
   resolveRoleWithServerFallbackMock: vi.fn(),
   selfPracticeWeeklySecondsMock: vi.fn(),
+  studentBadgesMock: vi.fn(),
   userSettingsMock: vi.fn(),
 }));
 
@@ -67,6 +69,10 @@ vi.mock("@/lib/homepage/profile-summary", () => ({
   getStudentProfileSummary: profileSummaryMock,
 }));
 
+vi.mock("@/lib/homepage/badges", () => ({
+  getStudentBadges: studentBadgesMock,
+}));
+
 vi.mock("@/components/HomePageContent", () => ({
   HomePageContent: () => null,
 }));
@@ -107,6 +113,7 @@ describe("Home role routing", () => {
     profileSummaryMock.mockReset();
     resolveRoleWithServerFallbackMock.mockReset();
     selfPracticeWeeklySecondsMock.mockReset();
+    studentBadgesMock.mockReset();
     userSettingsMock.mockReset();
   });
 
@@ -142,6 +149,7 @@ describe("Home role routing", () => {
     learningEffortMock.mockResolvedValue(null);
     masterySummaryMock.mockResolvedValue([]);
     profileSummaryMock.mockResolvedValue({ name: null, schoolName: null });
+    studentBadgesMock.mockResolvedValue([]);
 
     await expect(Home()).resolves.toBeTruthy();
 

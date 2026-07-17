@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { MigrationBootstrap } from "@/components/MigrationBootstrap";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { AllAssignmentsCompleteModalManager } from "@/components/assignments/AllAssignmentsCompleteModalManager";
+import { BadgeCelebrationModalManager } from "@/components/badges/BadgeCelebrationModalManager";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -17,6 +18,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     pathname === "/self-practice" ||
     pathname === "/practice" ||
     pathname === "/exam" ||
+    pathname === "/bookmarks" ||
     (/^\/assignments\/[^/]+$/.test(pathname) && pathname !== "/assignments/manage");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -52,6 +54,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <AllAssignmentsCompleteModalManager />
+      <BadgeCelebrationModalManager />
 
       {!hideDecorativeLeaf && (
         <div className="fixed bottom-0 right-0 pointer-events-none opacity-10 translate-x-1/4 translate-y-1/4">

@@ -54,6 +54,7 @@ import { useAnalyticsSession } from "@/lib/analytics/session";
 import { processQueue } from "@/lib/sync-queue";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 import { answeredEntryForQuestion } from "@/lib/assignments/answered-map";
+import { checkForNewlyEarnedBadges } from "@/lib/badges/celebration-events";
 
 const MAX_ATTEMPTS = 2;
 const GLOSSARY_FALLBACK_LIMIT = 6;
@@ -945,6 +946,16 @@ export function AdaptivePracticeMode({
     setShowSummary(true);
   }, [assignmentId, markStageCompleted, mode]);
 
+  // Check for newly earned badges once the session summary appears — never
+  // mid-session. Covers both self-practice and review, since ReviewMode
+  // renders this same component with mode="review".
+  const badgeCelebrationCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!showSummary || badgeCelebrationCheckedRef.current) return;
+    badgeCelebrationCheckedRef.current = true;
+    void checkForNewlyEarnedBadges();
+  }, [showSummary]);
+
   const handleNext = useCallback(async () => {
     if (!isCompleted) return;
     if (currentIndex < totalQuestions - 1) {
@@ -1235,6 +1246,7 @@ export function AdaptivePracticeMode({
           <div className="flex flex-wrap gap-3 justify-center">
             <button
               onClick={() => {
+                badgeCelebrationCheckedRef.current = false;
                 setCurrentIndex(0);
                 setAttemptsByIndex({});
                 setRetryReadyByIndex({});
@@ -1343,6 +1355,7 @@ export function AdaptivePracticeMode({
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
         contextLabel={contextLabel}
+        hideQuestionCounter={mode === "practice" && !isAssignmentRun}
         onFinishSession={!isAssignmentRun ? finishSession : undefined}
         variant={
           isShortAnswerQuestion && question.shortAnswer ? "split" : "mcq"
