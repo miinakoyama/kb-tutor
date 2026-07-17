@@ -5,7 +5,6 @@ import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download,
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { LatexText } from "@/components/shared/LatexText";
 import type { Diagram } from "@/types/question";
-import { DataAnalysisTabs } from "../tabs";
 import { SchoolFilter } from "../school-filter";
 import {
   badgeAmber,
@@ -251,16 +250,9 @@ export default function QuestionQualityPage() {
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
-          Question Quality Diagnostics
-        </h1>
-      </header>
+    <>
 
-      <DataAnalysisTabs active="questions" />
-
-      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)] mb-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
           <label className="text-sm text-slate-gray">
@@ -268,7 +260,7 @@ export default function QuestionQualityPage() {
             <select
               value={standardFilter}
               onChange={(event) => setStandardFilter(event.target.value)}
-              className="w-full rounded-lg border border-border-default px-3 py-2"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               <option value="">All standards</option>
               {standards.map((standard) => (
@@ -285,7 +277,7 @@ export default function QuestionQualityPage() {
               min={0}
               value={minN}
               onChange={(event) => setMinN(Math.max(0, Number.parseInt(event.target.value, 10) || 0))}
-              className="w-full rounded-lg border border-border-default px-3 py-2"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
           </label>
         </div>
@@ -293,7 +285,7 @@ export default function QuestionQualityPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+            className="inline-flex items-center gap-2 rounded-full font-heading font-bold px-5 py-2 text-sm transition duration-200 hover:brightness-110 active:brightness-95 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -313,12 +305,12 @@ export default function QuestionQualityPage() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
+        <p className="rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error mb-6">
           {error}
         </p>
       )}
 
-      <section className="rounded-xl border border-primary/25 bg-surface shadow-sm overflow-hidden">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] overflow-hidden">
         {loading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading question stats...</p>
         ) : sortedRows.length === 0 ? (
@@ -416,7 +408,7 @@ export default function QuestionQualityPage() {
           </div>
         )}
       </section>
-    </main>
+    </>
   );
 }
 
@@ -463,15 +455,15 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-border-default bg-surface p-4">
-        <h3 className="text-sm font-semibold text-slate-gray mb-2">Question preview</h3>
+      <div className="rounded-xl border border-border-default bg-surface p-4">
+        <h3 className="font-heading text-sm font-semibold text-slate-gray tracking-[-0.2px] mb-2">Question preview</h3>
         {row.question ? (
           <div className="space-y-3">
             <p className="text-sm text-slate-gray leading-relaxed">
               <LatexText text={row.question.text} />
             </p>
             {row.question.imageUrl && (
-              <div className="overflow-hidden rounded-lg border border-border-default bg-surface">
+              <div className="overflow-hidden rounded-xl border border-border-default bg-surface">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={row.question.imageUrl}
@@ -481,7 +473,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
               </div>
             )}
             {row.question.diagram && (
-              <div className="rounded-lg border border-border-default bg-surface-muted p-3">
+              <div className="rounded-xl border border-border-default bg-surface-muted p-3">
                 <DiagramRenderer diagram={row.question.diagram as Diagram} />
               </div>
             )}
@@ -517,7 +509,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div>
-        <h3 className="text-sm font-semibold text-slate-gray mb-2">Mode comparison</h3>
+        <h3 className="font-heading text-sm font-semibold text-slate-gray tracking-[-0.2px] mb-2">Mode comparison</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -576,7 +568,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
         </div>
         <div className="space-y-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-gray mb-2">Choice selection rate</h3>
+            <h3 className="font-heading text-sm font-semibold text-slate-gray tracking-[-0.2px] mb-2">Choice selection rate</h3>
             <div className="space-y-4">
               {modesOrder.map((mode) => {
                 const list = choicesByMode.get(mode);
@@ -607,7 +599,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                             <div
                               className={
                                 choice.isCorrectChoice
-                                  ? "h-full bg-primary"
+                                  ? "h-full bg-[var(--assignment-completed)]"
                                   : "h-full bg-slate-400"
                               }
                               style={{ width: `${Math.min(100, choice.share * 100)}%` }}
@@ -622,8 +614,8 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
             </div>
           </div>
 
-          <div className="rounded-lg border border-border-default bg-surface p-3">
-            <h3 className="text-sm font-semibold text-slate-gray mb-2">Confidence distribution</h3>
+          <div className="rounded-xl border border-border-default bg-surface p-3">
+            <h3 className="font-heading text-sm font-semibold text-slate-gray tracking-[-0.2px] mb-2">Confidence distribution</h3>
             {confidenceTotal === 0 ? (
               <p className="text-xs text-muted-foreground">No confidence submissions for this question yet.</p>
             ) : (
@@ -642,7 +634,7 @@ function QuestionDetail({ row }: { row: QuestionSummary }) {
                         </div>
                         <div className="mt-0.5 h-1.5 w-full rounded bg-surface-muted overflow-hidden">
                           <div
-                            className="h-full bg-primary/70"
+                            className="h-full bg-[var(--assignment-progress-fill)]"
                             style={{ width: `${Math.min(100, share * 100)}%` }}
                           />
                         </div>

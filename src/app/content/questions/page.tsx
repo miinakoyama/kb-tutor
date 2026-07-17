@@ -190,7 +190,7 @@ export default function QuestionsPage() {
       case "imported":
         return <FileText className="w-5 h-5 text-muted-foreground" />;
       case "generated":
-        return <Sparkles className="w-5 h-5 text-primary" />;
+        return <Sparkles className="w-5 h-5 text-[var(--assignment-completed)]" />;
     }
   };
 
@@ -207,19 +207,19 @@ export default function QuestionsPage() {
 
   if (loadingSchools) {
     return (
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      <main className="mx-auto flex w-full max-w-[1500px] justify-center px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
+        <Loader2 className="w-8 h-8 text-[var(--assignment-completed)] animate-spin" />
       </main>
     );
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+    <main className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
       <Link
         href="/content"
         className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"
       >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--assignment-calendar-nav-bg)]">
           <ArrowLeft className="w-4 h-4 text-heading" />
         </span>
         Back to Content Management
@@ -227,7 +227,7 @@ export default function QuestionsPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-gray">Question Manager</h1>
+          <h1 className="font-heading text-xl font-bold text-slate-gray tracking-[-0.4px]">Question Manager</h1>
           <p className="text-sm text-muted-foreground">
             {selectedSchoolId
               ? filteredSetCount !== totalSetCount || searchQuery.trim() || onlyMySets
@@ -240,7 +240,7 @@ export default function QuestionsPage() {
           <button
             type="button"
             onClick={() => setAddMenuOpen((o) => !o)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-primary hover:bg-primary-hover transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-full font-heading font-bold text-sm transition duration-200 hover:brightness-110 active:brightness-95 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
           >
             <Plus className="w-4 h-4" />
             Add new
@@ -253,17 +253,17 @@ export default function QuestionsPage() {
                 aria-label="Close menu"
                 onClick={() => setAddMenuOpen(false)}
               />
-              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border-default bg-surface shadow-lg z-20 py-1">
+              <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-[var(--assignment-glass-border)] bg-[var(--surface)] py-1 shadow-[var(--assignment-popover-shadow)]">
                 <Link
                   href={
                     selectedSchoolId
                       ? `/content/mass-production?schoolIds=${encodeURIComponent(selectedSchoolId)}`
                       : "/content/mass-production"
                   }
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-primary/10"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-[var(--surface-muted)]"
                   onClick={() => setAddMenuOpen(false)}
                 >
-                  <Sparkles className="w-4 h-4 text-primary" />
+                  <Sparkles className="w-4 h-4 text-[var(--assignment-completed)]" />
                   Generate with AI
                 </Link>
                 <Link
@@ -272,10 +272,10 @@ export default function QuestionsPage() {
                       ? `/content/questions/new/manual?schoolIds=${encodeURIComponent(selectedSchoolId)}`
                       : "/content/questions/new/manual"
                   }
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-primary/10"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-gray hover:bg-[var(--surface-muted)]"
                   onClick={() => setAddMenuOpen(false)}
                 >
-                  <FileText className="w-4 h-4 text-primary" />
+                  <FileText className="w-4 h-4 text-[var(--assignment-completed)]" />
                   Add manually
                 </Link>
               </div>
@@ -285,7 +285,7 @@ export default function QuestionsPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-error-border bg-error-light px-4 py-2 text-sm text-error">
+        <div className="mb-4 rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error">
           {error}
         </div>
       )}
@@ -298,7 +298,7 @@ export default function QuestionsPage() {
           <select
             value={selectedSchoolId ?? ""}
             onChange={(e) => setSelectedSchoolId(e.target.value || null)}
-            className="min-w-[220px] border border-border-default rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="min-w-[220px] rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
             {schools.length === 0 ? (
               <option value="">No schools available</option>
@@ -318,7 +318,7 @@ export default function QuestionsPage() {
             placeholder="Search question sets..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+            className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] pl-10 pr-4 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>
         <div className="flex h-10 items-center">
@@ -327,7 +327,7 @@ export default function QuestionsPage() {
               type="checkbox"
               checked={onlyMySets}
               onChange={(e) => setOnlyMySets(e.target.checked)}
-              className="rounded border-border-default text-primary"
+              className="rounded border-border-default accent-[var(--assignment-completed)]"
             />
             Show only my sets
           </label>
@@ -336,7 +336,7 @@ export default function QuestionsPage() {
 
       {loadingSets ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <Loader2 className="w-8 h-8 text-[var(--assignment-completed)] animate-spin" />
         </div>
       ) : (
         <div className="space-y-3">
@@ -345,7 +345,7 @@ export default function QuestionsPage() {
             return (
               <div
                 key={set.id}
-                className="rounded-xl border border-primary/30 bg-surface p-4 shadow-sm"
+                className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-4 shadow-[var(--assignment-card-shadow)]"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <Link
@@ -360,11 +360,11 @@ export default function QuestionsPage() {
                       {getSourceIcon(set.source)}
                     </div>
                     <div className="min-w-0">
-                      <h2 className="font-medium text-slate-gray group-hover:text-primary transition-colors truncate">
+                      <h2 className="font-medium text-slate-gray group-hover:text-[var(--assignment-completed)] transition-colors truncate">
                         {set.name}
                       </h2>
                       <div className="flex flex-wrap items-center gap-3 mt-1">
-                        <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">
+                        <span className="text-xs text-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)] px-2 py-0.5 rounded">
                           {getSourceLabel(set.source)}
                         </span>
                         {set.createdAt && (
@@ -379,7 +379,7 @@ export default function QuestionsPage() {
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-primary shrink-0" />
+                    <ChevronRight className="w-5 h-5 text-slate-gray/30 group-hover:text-[var(--assignment-completed)] shrink-0" />
                   </Link>
                   <div className="flex flex-wrap items-center gap-3 sm:justify-end">
                     <button

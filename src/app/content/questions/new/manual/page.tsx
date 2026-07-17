@@ -106,18 +106,18 @@ export default function ManualQuestionSetPage() {
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+    <main className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
       <Link
         href="/content/questions"
         className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"
       >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--assignment-calendar-nav-bg)]">
           <ArrowLeft className="w-4 h-4 text-heading" />
         </span>
         Back to Question Manager
       </Link>
 
-      <h1 className="text-xl font-bold text-slate-gray mb-2">
+      <h1 className="mb-2 font-heading text-xl font-bold text-slate-gray tracking-[-0.4px]">
         Add manual question set
       </h1>
       <p className="text-sm text-muted-foreground mb-6">
@@ -126,13 +126,13 @@ export default function ManualQuestionSetPage() {
       </p>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-error-border bg-error-light px-4 py-2 text-sm text-error">
+        <div className="mb-4 rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error">
           {error}
         </div>
       )}
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
-        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm space-y-4">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)] space-y-4">
           <h2 className="text-lg font-medium text-slate-gray">Schools *</h2>
           {schoolOptions.length === 0 ? (
             <p className="text-sm text-amber-700">Loading schools…</p>
@@ -151,7 +151,7 @@ export default function ManualQuestionSetPage() {
                             : [...prev, school.id],
                         );
                       }}
-                      className="rounded border-border-default text-primary"
+                      className="rounded border-border-default accent-[var(--assignment-completed)]"
                     />
                     {school.name}
                   </label>
@@ -161,7 +161,7 @@ export default function ManualQuestionSetPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm space-y-4">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)] space-y-4">
           <label className="block">
             <span className="text-sm font-medium text-slate-gray">Set name *</span>
             <input
@@ -174,7 +174,7 @@ export default function ManualQuestionSetPage() {
           </label>
         </section>
 
-        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm space-y-4">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)] space-y-4">
           <h2 className="text-lg font-medium text-slate-gray">Questions</h2>
           <ManualQuestionEditor drafts={manualDrafts} onChange={setManualDrafts} />
         </section>
@@ -182,7 +182,7 @@ export default function ManualQuestionSetPage() {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-heading font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
         >
           {saving ? (
             <>

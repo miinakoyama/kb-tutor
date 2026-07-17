@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
-import { DataAnalysisTabs } from "../tabs";
 import { DateRangePicker, defaultPilotRange } from "../date-range";
 import { SchoolFilter } from "../school-filter";
 import {
@@ -207,16 +206,9 @@ export default function InsightsPage() {
   }, [fetchData]);
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
-          Data Analysis — Insights
-        </h1>
-      </header>
+    <>
 
-      <DataAnalysisTabs active="insights" />
-
-      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)] mb-6">
         <DateRangePicker value={range} onChange={setRange} />
         <div className="mt-4 max-w-xl">
           <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
@@ -224,7 +216,7 @@ export default function InsightsPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+            className="inline-flex items-center gap-2 rounded-full font-heading font-bold px-5 py-2 text-sm transition duration-200 hover:brightness-110 active:brightness-95 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -241,7 +233,7 @@ export default function InsightsPage() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
+        <p className="rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error mb-6">
           {error}
         </p>
       )}
@@ -260,7 +252,7 @@ export default function InsightsPage() {
       ) : (
         <p className="text-sm text-muted-foreground">No data for the selected window.</p>
       )}
-    </main>
+    </>
   );
 }
 
@@ -573,9 +565,9 @@ function QuestionSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-5 sm:p-6 shadow-sm">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
       <header className="mb-4">
-        <h2 className="text-xl font-semibold text-heading">{title}</h2>
+        <h2 className="font-heading text-xl font-semibold text-heading tracking-[-0.4px]">{title}</h2>
       </header>
       <div className="mb-5">{leadAnswer}</div>
       {children}
@@ -601,7 +593,7 @@ function LeadAnswer({
         ? "text-amber-600"
         : "text-heading";
   return (
-    <div className="rounded-xl bg-primary-light border border-primary/20 px-4 py-3">
+    <div className="rounded-2xl border border-[var(--assignment-panel-border)] bg-[var(--assignment-glass-bg)] px-4 py-3">
       <p className={`text-3xl sm:text-4xl font-bold tabular-nums ${toneClass}`}>{metric}</p>
       <p className="text-sm text-slate-gray mt-1">{label}</p>
       {sublabel && <p className="text-xs text-muted-foreground mt-1">{sublabel}</p>}
@@ -618,7 +610,7 @@ function SubsectionHeader({
 }) {
   return (
     <div className="mt-5 mb-2">
-      <h3 className="text-sm font-semibold text-slate-gray">{title}</h3>
+      <h3 className="font-heading text-sm font-semibold text-slate-gray tracking-[-0.2px]">{title}</h3>
       {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
     </div>
   );
@@ -646,7 +638,7 @@ function MetricCard({
         ? metricCardWarn
         : metricCardNeutral;
   return (
-    <article className={`rounded-xl border ${ring} p-4 shadow-sm`}>
+    <article className={`rounded-xl border ${ring} p-4`}>
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold text-slate-gray tabular-nums">{value}</p>
       {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
@@ -871,8 +863,8 @@ function Scatter({
         aria-label="Scatter plot: practice errors vs review minutes"
       >
         {/* Axes */}
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-slate-300" />
-        <div className="absolute bottom-0 top-0 left-0 w-px bg-slate-300" />
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-[var(--border-default)]" />
+        <div className="absolute bottom-0 top-0 left-0 w-px bg-[var(--border-default)]" />
         <span className="absolute -left-1 top-0 text-[10px] text-muted-foreground">
           {fmtMinutes(maxMinutes)}
         </span>
@@ -884,7 +876,7 @@ function Scatter({
         {points.map((p) => {
           const x = (p.practiceErrors / maxErrors) * 100;
           const y = (p.reviewMinutes / maxMinutes) * 100;
-          const tone = p.enteredReview ? "bg-primary" : "bg-error-light0";
+          const tone = p.enteredReview ? "bg-[var(--assignment-completed)]" : "bg-error-light0";
           return (
             <div
               key={p.userId}
@@ -903,7 +895,7 @@ function Scatter({
       </div>
       <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-full bg-primary" />
+          <span className="inline-block w-2 h-2 rounded-full bg-[var(--assignment-completed)]" />
           Entered review
         </span>
         <span className="inline-flex items-center gap-1">

@@ -38,6 +38,54 @@ function normalizeAdminError(message: string | undefined, defaultMessage: string
   return message;
 }
 
+const GEIST = "var(--font-geist), ui-sans-serif, sans-serif";
+
+/** Card recipe from the design system: glass surface + hairline + shadow. */
+const CARD_STYLE: React.CSSProperties = {
+  background: "var(--assignment-glass-bg-strong)",
+  border: "1px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-card-shadow)",
+};
+
+const INPUT_STYLE: React.CSSProperties = {
+  background: "var(--surface-muted)",
+  border: "1px solid var(--border-default)",
+};
+
+/** Rounded-xl field, muted fill, primary focus ring. */
+const INPUT_CLASS =
+  "w-full rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
+
+/** Primary pill CTA (design-system hero CTA). */
+const PRIMARY_BTN_CLASS =
+  "inline-flex items-center justify-center gap-2 rounded-full font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50 disabled:hover:brightness-100";
+const PRIMARY_BTN_STYLE: React.CSSProperties = {
+  color: "var(--assignment-cta-text)",
+  background: "var(--assignment-cta-bg-strong)",
+  border: "1.5px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-cta-elevated-shadow)",
+  fontFamily: GEIST,
+};
+
+/** Lighter-green pill for the per-row Save (softer than the primary CTA). */
+const SAVE_BTN_STYLE: React.CSSProperties = {
+  color: "#ffffff",
+  background: "var(--assignment-progress-fill)",
+  border: "1.5px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-row-cta-shadow)",
+  fontFamily: GEIST,
+};
+
+/** Neutral pill CTA (design-system row CTA). */
+const SECONDARY_BTN_CLASS =
+  "inline-flex items-center justify-center rounded-full font-semibold transition-colors hover:bg-[var(--assignment-row-cta-bg-hover)] disabled:opacity-50";
+const SECONDARY_BTN_STYLE: React.CSSProperties = {
+  color: "var(--assignment-row-cta-text)",
+  background: "var(--assignment-row-cta-bg)",
+  border: "1px solid var(--assignment-row-cta-border)",
+  boxShadow: "var(--assignment-row-cta-shadow)",
+};
+
 export default function AccountManagementPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
@@ -204,33 +252,33 @@ export default function AccountManagementPage() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <header className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
-            Account Management
-          </h1>
-          <p className="text-muted-foreground">
-            Manage teacher and admin accounts. Students are registered automatically when they first log in.
-          </p>
-        </div>
+    <main
+      className="mx-auto w-full px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12"
+      style={{ maxWidth: 1500 }}
+    >
+      <header className="mb-10 flex items-center justify-between gap-4">
+        <h1 className="font-heading text-2xl font-bold text-heading sm:text-3xl">
+          Account Management
+        </h1>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover transition-colors shadow-sm"
+          className={`${PRIMARY_BTN_CLASS} h-12 flex-shrink-0 gap-2.5 px-6 text-base`}
+          style={PRIMARY_BTN_STYLE}
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="h-5 w-5" />
           Create Staff Account
         </button>
       </header>
 
-      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
+      <section className="mb-8 rounded-2xl p-5 sm:p-6" style={CARD_STYLE}>
   <div className="flex flex-wrap items-end gap-4">
     <label className="text-sm text-slate-gray">
-      <span className="block mb-1 font-medium">Role filter</span>
+      <span className="mb-1 block font-semibold">Role filter</span>
       <select
         value={roleFilter}
         onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}
-        className="rounded-lg border border-border-default px-3 py-2"
+        className={INPUT_CLASS}
+        style={INPUT_STYLE}
       >
         <option value="all">All roles</option>
         <option value="student">student</option>
@@ -240,13 +288,14 @@ export default function AccountManagementPage() {
     </label>
 
     <label className="text-sm text-slate-gray">
-      <span className="block mb-1 font-medium">Analytics filter</span>
+      <span className="mb-1 block font-semibold">Analytics filter</span>
       <select
         value={analyticsFilter}
         onChange={(event) =>
           setAnalyticsFilter(event.target.value as "all" | "included" | "excluded")
         }
-        className="rounded-lg border border-border-default px-3 py-2"
+        className={INPUT_CLASS}
+        style={INPUT_STYLE}
       >
         <option value="all">All users</option>
         <option value="included">Included in analytics</option>
@@ -255,11 +304,12 @@ export default function AccountManagementPage() {
     </label>
 
     <label className="text-sm text-slate-gray">
-      <span className="block mb-1 font-medium">School filter</span>
+      <span className="mb-1 block font-semibold">School filter</span>
       <select
         value={schoolFilter}
         onChange={(event) => setSchoolFilter(event.target.value)}
-        className="rounded-lg border border-border-default px-3 py-2"
+        className={INPUT_CLASS}
+        style={INPUT_STYLE}
       >
         <option value="all">All schools</option>
         {schools.map((school) => (
@@ -271,26 +321,25 @@ export default function AccountManagementPage() {
     </label>
   </div>
 
-  <p className="mt-3 text-xs text-muted-foreground">
+  <p className="mt-4 text-xs text-muted-foreground">
     Users marked as &quot;Excluded from analytics&quot; are skipped when computing teacher dashboard
     metrics and assignment response counts. This setting applies to student accounts only. Use this
     for developer or test accounts whose data should not affect reporting.
   </p>
 </section>
 
-
       {message && (
-        <p className={`${alertSuccess} mb-4`}>
+        <p className={`${alertSuccess} mb-6`}>
           {message}
         </p>
       )}
       {error && (
-        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
+        <p className="mb-6 rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error">
           {error}
         </p>
       )}
 
-      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <section className="rounded-2xl p-5 sm:p-6" style={CARD_STYLE}>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading users...</p>
         ) : users.length === 0 ? (
@@ -319,7 +368,8 @@ export default function AccountManagementPage() {
                         onChange={(e) =>
                           updateLocalUser(user.id, { student_id: e.target.value || null })
                         }
-                        className="w-full rounded-lg border border-border-default px-2.5 py-2"
+                        className="w-full rounded-xl px-2.5 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        style={INPUT_STYLE}
                       />
                     </td>
                     <td className="px-2 py-3 min-w-[180px]">
@@ -328,7 +378,8 @@ export default function AccountManagementPage() {
                         onChange={(e) =>
                           updateLocalUser(user.id, { display_name: e.target.value || null })
                         }
-                        className="w-full rounded-lg border border-border-default px-2.5 py-2"
+                        className="w-full rounded-xl px-2.5 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        style={INPUT_STYLE}
                       />
                     </td>
                     <td className="px-2 py-3 min-w-[130px]">
@@ -337,7 +388,8 @@ export default function AccountManagementPage() {
                         onChange={(e) =>
                           updateLocalUser(user.id, { role: e.target.value as Role })
                         }
-                        className="w-full rounded-lg border border-border-default px-2.5 py-2"
+                        className="w-full rounded-xl px-2.5 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        style={INPUT_STYLE}
                       >
                         <option value="student">student</option>
                         <option value="teacher">teacher</option>
@@ -362,7 +414,8 @@ export default function AccountManagementPage() {
                                 excluded_from_analytics: e.target.checked,
                               })
                             }
-                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-[#16a34a]"
+                            className="h-4 w-4 rounded focus:ring-2 focus:ring-primary/40"
+                            style={{ accentColor: "var(--assignment-completed)" }}
                           />
                           <span className="text-xs text-slate-gray/80">
                             {user.excluded_from_analytics ? "Excluded" : "Included"}
@@ -388,13 +441,14 @@ export default function AccountManagementPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => void saveUser(user)}
-                          className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary-hover transition-colors"
+                          className={`${PRIMARY_BTN_CLASS} px-3.5 py-2 text-xs`}
+                          style={SAVE_BTN_STYLE}
                         >
                           Save
                         </button>
                         <button
                           onClick={() => void deleteUser(user.id)}
-                          className="rounded-lg border border-error-border px-3 py-2 text-xs font-medium text-error hover:bg-error-light transition-colors"
+                          className="inline-flex items-center justify-center rounded-full border border-error-border px-3.5 py-2 text-xs font-semibold text-error transition-colors hover:bg-error-light"
                         >
                           Delete
                         </button>
@@ -420,7 +474,8 @@ export default function AccountManagementPage() {
                 id="account-page-size"
                 value={pageSize}
                 onChange={(event) => setPageSize(Number(event.target.value) as 25 | 50 | 100)}
-                className="rounded-lg border border-border-default px-2 py-1.5"
+                className="rounded-xl px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                style={INPUT_STYLE}
               >
                 <option value={25}>25</option>
                 <option value={50}>50</option>
@@ -429,7 +484,8 @@ export default function AccountManagementPage() {
               <button
                 onClick={() => setPage((current) => Math.max(1, current - 1))}
                 disabled={page <= 1}
-                className="rounded-lg border border-border-default px-3 py-1.5 disabled:opacity-50"
+                className={`${SECONDARY_BTN_CLASS} px-3.5 py-1.5 text-sm`}
+                style={SECONDARY_BTN_STYLE}
               >
                 Previous
               </button>
@@ -439,7 +495,8 @@ export default function AccountManagementPage() {
               <button
                 onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                 disabled={page >= totalPages}
-                className="rounded-lg border border-border-default px-3 py-1.5 disabled:opacity-50"
+                className={`${SECONDARY_BTN_CLASS} px-3.5 py-1.5 text-sm`}
+                style={SECONDARY_BTN_STYLE}
               >
                 Next
               </button>
@@ -454,20 +511,29 @@ export default function AccountManagementPage() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setShowCreateModal(false)}
           />
-          <div className="relative bg-surface rounded-xl shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
-              <h2 className="text-lg font-semibold text-slate-gray">Create Staff Account</h2>
+          <div
+            className="relative mx-4 w-full max-w-md rounded-2xl"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--assignment-glass-border)",
+              boxShadow: "var(--assignment-popover-shadow)",
+            }}
+          >
+            <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
+              <h2 className="font-heading text-lg font-bold text-slate-gray">
+                Create Staff Account
+              </h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-muted-foreground hover:bg-surface-muted transition-colors"
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-surface-muted"
               >
-                <X className="w-5 h-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
             <form className="p-5 space-y-4" onSubmit={createStaffUser}>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Email</span>
+                <span className="mb-1 block font-semibold">Email</span>
                 <input
                   type="email"
                   value={createForm.email}
@@ -475,40 +541,44 @@ export default function AccountManagementPage() {
                     setCreateForm((prev) => ({ ...prev, email: e.target.value }))
                   }
                   placeholder="teacher@school.example"
-                  className="w-full rounded-lg border border-border-default px-3 py-2"
+                  className={INPUT_CLASS}
+                  style={INPUT_STYLE}
                   required
                 />
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Display Name</span>
+                <span className="mb-1 block font-semibold">Display Name</span>
                 <input
                   value={createForm.displayName}
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, displayName: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-border-default px-3 py-2"
+                  className={INPUT_CLASS}
+                  style={INPUT_STYLE}
                 />
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Password</span>
+                <span className="mb-1 block font-semibold">Password</span>
                 <input
                   type="password"
                   value={createForm.password}
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, password: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-border-default px-3 py-2"
+                  className={INPUT_CLASS}
+                  style={INPUT_STYLE}
                   required
                 />
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Role</span>
+                <span className="mb-1 block font-semibold">Role</span>
                 <select
                   value={createForm.role}
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, role: e.target.value as "teacher" | "admin" }))
                   }
-                  className="w-full rounded-lg border border-border-default px-3 py-2"
+                  className={INPUT_CLASS}
+                  style={INPUT_STYLE}
                 >
                   <option value="teacher">teacher</option>
                   <option value="admin">admin</option>
@@ -519,14 +589,15 @@ export default function AccountManagementPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-muted transition-colors"
+                  className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-surface-muted"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isCreating}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60 transition-colors"
+                  className={`${PRIMARY_BTN_CLASS} px-5 py-2 text-sm`}
+                  style={PRIMARY_BTN_STYLE}
                 >
                   {isCreating ? "Creating..." : "Create Account"}
                 </button>

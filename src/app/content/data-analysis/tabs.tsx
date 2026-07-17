@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export type Tab =
   | "overview"
@@ -8,10 +9,6 @@ export type Tab =
   | "students"
   | "questions"
   | "feature-usage";
-
-interface DataAnalysisTabsProps {
-  active: Tab;
-}
 
 const TABS: Array<{ id: Tab; label: string; href: string; description: string }> = [
   {
@@ -48,12 +45,18 @@ const TABS: Array<{ id: Tab; label: string; href: string; description: string }>
   },
 ];
 
-export function DataAnalysisTabs({ active }: DataAnalysisTabsProps) {
+export function DataAnalysisTabs() {
+  const pathname = usePathname();
+  // Longest matching href wins so nested routes light up their own tab.
+  const activeId =
+    TABS.filter((tab) => pathname === tab.href || pathname.startsWith(`${tab.href}/`))
+      .sort((a, b) => b.href.length - a.href.length)[0]?.id ?? "overview";
+
   return (
-    <nav className="mb-6 border-b border-border-default" aria-label="Data analysis tabs">
-      <div className="flex items-center gap-4 overflow-x-auto">
+    <nav className="border-b border-border-default" aria-label="Data analysis tabs">
+      <div className="flex items-center gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((tab) => {
-          const isActive = tab.id === active;
+          const isActive = tab.id === activeId;
           return (
             <Link
               key={tab.id}
@@ -62,7 +65,7 @@ export function DataAnalysisTabs({ active }: DataAnalysisTabsProps) {
               aria-current={isActive ? "page" : undefined}
               className={
                 isActive
-                  ? "-mb-px whitespace-nowrap border-b-2 border-primary px-1.5 pb-2.5 pt-1 text-sm font-semibold text-heading transition-colors"
+                  ? "-mb-px whitespace-nowrap border-b-2 border-[var(--assignment-completed)] px-1.5 pb-2.5 pt-1 text-sm font-semibold text-[var(--assignment-completed)] transition-colors"
                   : "-mb-px whitespace-nowrap border-b-2 border-transparent px-1.5 pb-2.5 pt-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
               }
             >

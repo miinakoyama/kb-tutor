@@ -120,10 +120,10 @@ export function FeedbackReportsSection() {
   };
 
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm mb-6">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] mb-6">
       <div className="border-b border-border-subtle px-5 py-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-gray">
-          <Flag className="h-5 w-5 text-primary" />
+        <h2 className="flex items-center gap-2 font-heading text-lg font-semibold text-slate-gray tracking-[-0.2px]">
+          <Flag className="h-5 w-5 text-[var(--assignment-completed)]" />
           Short-answer feedback reports
         </h2>
         <p className="mt-1 text-sm text-slate-gray/60">
@@ -137,7 +137,7 @@ export function FeedbackReportsSection() {
         <div
           role="tablist"
           aria-label="Report status filter"
-          className="inline-flex rounded-lg border border-border-default p-0.5"
+          className="inline-flex rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1"
         >
           {TABS.map((t) => (
             <button
@@ -149,10 +149,10 @@ export function FeedbackReportsSection() {
                 setTab(t.id);
                 setExpandedId(null);
               }}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
                 tab === t.id
-                  ? "bg-primary text-white"
-                  : "text-slate-gray hover:bg-surface-muted"
+                  ? "bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)]"
+                  : "text-slate-gray hover:bg-[var(--surface)]"
               }`}
             >
               {t.label}
@@ -201,7 +201,7 @@ export function FeedbackReportsSection() {
                           {formatTimestamp(report.createdAt)}
                         </span>
                         {report.reviewedAt && (
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                          <span className="rounded-full bg-[var(--assignment-calendar-nav-bg)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--assignment-completed)]">
                             Reviewed
                           </span>
                         )}
@@ -269,7 +269,7 @@ export function FeedbackReportsSection() {
                               <div
                                 className={`mt-1 rounded-lg border px-3 py-2 ${
                                   verdict?.tone === "correct"
-                                    ? "border-primary/30 bg-primary/5"
+                                    ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)]"
                                     : "border-rose-200 bg-rose-50/60"
                                 }`}
                               >
