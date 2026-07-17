@@ -341,7 +341,7 @@ function TeacherDashboardContent() {
   }, [range, mode, source, classId, studentId]);
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+    <main className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
       <section className="mb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading">

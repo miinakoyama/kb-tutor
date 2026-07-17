@@ -814,21 +814,21 @@ export default function MassProductionPage() {
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+    <main className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12">
       <Link
         href="/content"
         className="inline-flex items-center gap-2 text-base font-semibold text-heading hover:text-forest transition-colors mb-6"
       >
-        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--assignment-calendar-nav-bg)]">
           <ArrowLeft className="w-4 h-4 text-heading" />
         </span>
         Back to Content Management
       </Link>
 
       <div className="flex items-center gap-3 mb-6">
-        <Sparkles className="w-6 h-6 text-primary" />
+        <Sparkles className="w-6 h-6 text-[var(--assignment-completed)]" />
         <div>
-          <h1 className="text-xl font-bold text-slate-gray">
+          <h1 className="font-heading text-xl font-bold text-slate-gray tracking-[-0.4px]">
             LLM Mass Production
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -839,7 +839,7 @@ export default function MassProductionPage() {
 
       <div className="space-y-6">
         {/* Question Set Name */}
-        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)]">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
             Question Set
           </h2>
@@ -857,7 +857,7 @@ export default function MassProductionPage() {
                 }))
               }
               placeholder="e.g., Photosynthesis Practice Set"
-              className="w-full max-w-md px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full max-w-md rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
               required
             />
             <p className="text-xs text-muted-foreground mt-1">
@@ -867,7 +867,7 @@ export default function MassProductionPage() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)]">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
             Schools *
           </h2>
@@ -895,7 +895,7 @@ export default function MassProductionPage() {
                             : [...prev, school.id],
                         );
                       }}
-                      className="rounded border-border-default text-primary focus:ring-[#16a34a]"
+                      className="rounded border-border-default accent-[var(--assignment-completed)]"
                     />
                     {school.name}
                   </label>
@@ -906,7 +906,7 @@ export default function MassProductionPage() {
         </section>
 
         {/* Basic Settings */}
-        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)]">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
             Basic Settings
           </h2>
@@ -938,7 +938,7 @@ export default function MassProductionPage() {
                   }
                 }}
                 placeholder="5"
-                className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+                className="w-24 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-center"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 0-20 multiple-choice questions
@@ -968,7 +968,7 @@ export default function MassProductionPage() {
                   }
                 }}
                 placeholder="0"
-                className="w-24 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+                className="w-24 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-center"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 0-20 constructed-response items
@@ -989,7 +989,7 @@ export default function MassProductionPage() {
                     generationModelId: e.target.value,
                   }))
                 }
-                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm"
               >
                 {GENERATION_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -1020,7 +1020,7 @@ export default function MassProductionPage() {
                       : Math.max(0, Math.min(2, value)),
                   }));
                 }}
-                className="w-28 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm text-center"
+                className="w-28 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm text-center"
               />
             </div>
           </div>
@@ -1034,13 +1034,13 @@ export default function MassProductionPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleAutoDistributeCounts}
-                  className="text-xs text-primary hover:text-primary-hover font-medium"
+                  className="text-xs text-[var(--assignment-completed)] hover:brightness-110 font-medium"
                 >
                   Auto distribute
                 </button>
                 <button
                   onClick={handleClearAllCounts}
-                  className="text-xs text-primary hover:text-primary-hover font-medium"
+                  className="text-xs text-[var(--assignment-completed)] hover:brightness-110 font-medium"
                 >
                   Clear all counts
                 </button>
@@ -1127,7 +1127,7 @@ export default function MassProductionPage() {
             <div
               className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
                 isStandardCountValid
-                  ? "border-primary/30 bg-primary/10 text-heading"
+                  ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)] text-heading"
                   : "border-error-border bg-error-light text-error"
               }`}
             >
@@ -1165,7 +1165,7 @@ export default function MassProductionPage() {
                     type="checkbox"
                     checked={settings.dokLevels.includes(level)}
                     onChange={() => handleDokToggle(level)}
-                    className="w-4 h-4 mt-0.5 rounded border-border-default text-primary focus:ring-primary/50"
+                    className="w-4 h-4 mt-0.5 rounded border-border-default accent-[var(--assignment-completed)]"
                   />
                   <div>
                     <span className="text-sm font-medium text-slate-gray">
@@ -1192,7 +1192,7 @@ export default function MassProductionPage() {
         </section>
 
         {/* Stimulus Settings */}
-        <section className="rounded-xl border border-primary/30 bg-surface p-6 shadow-sm">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)]">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
             Stimulus Settings
           </h2>
@@ -1221,7 +1221,7 @@ export default function MassProductionPage() {
                         key={option.value}
                         className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
                           selected
-                            ? "border-primary bg-primary/5"
+                            ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)]"
                             : "border-border-default hover:bg-foreground/5"
                         }`}
                       >
@@ -1236,7 +1236,7 @@ export default function MassProductionPage() {
                               stimulusSelectionMode: option.value,
                             }))
                           }
-                          className="mt-0.5 h-4 w-4 border-border-default text-primary focus:ring-primary/50"
+                          className="mt-0.5 h-4 w-4 border-border-default accent-[var(--assignment-completed)]"
                         />
                         <span>
                           <span className="block text-sm font-medium text-slate-gray">
@@ -1253,7 +1253,7 @@ export default function MassProductionPage() {
               </fieldset>
 
               {settings.stimulusSelectionMode === "auto" ? (
-                <div className="rounded-lg bg-primary/5 p-3 text-sm text-slate-gray">
+                <div className="rounded-xl bg-[var(--assignment-calendar-nav-bg)] p-3 text-sm text-slate-gray">
                   Each question will independently receive a random stimulus
                   type. Multiple-choice questions may also be text-only.
                 </div>
@@ -1262,7 +1262,7 @@ export default function MassProductionPage() {
                   <div className="flex justify-end mb-1">
                     <button
                       onClick={handleAutoDistributeDiagrams}
-                      className="text-xs text-primary hover:text-primary-hover font-medium"
+                      className="text-xs text-[var(--assignment-completed)] hover:brightness-110 font-medium"
                     >
                       Auto distribute
                     </button>
@@ -1281,7 +1281,7 @@ export default function MassProductionPage() {
                           value={settings.stimulusConfig[type] || ""}
                           onChange={(e) => handleStimulusCountChange(type, e.target.value)}
                           placeholder="0"
-                          className="w-20 px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+                          className="w-20 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-center"
                         />
                       </div>
                     ))}
@@ -1313,7 +1313,7 @@ export default function MassProductionPage() {
         </section>
 
         {/* Advanced Settings */}
-        <section className="rounded-xl border border-primary/30 bg-surface shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] overflow-hidden">
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="w-full flex items-center justify-between p-6 text-left hover:bg-foreground/5"
@@ -1343,7 +1343,7 @@ export default function MassProductionPage() {
                 }
                 placeholder="Add any specific instructions for the AI, e.g., 'Focus on photosynthesis concepts' or 'Include more application-based questions'"
                 rows={4}
-                className="w-full px-3 py-2 border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm resize-none"
+                className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 These instructions will be added to the generation prompt.
@@ -1384,7 +1384,7 @@ export default function MassProductionPage() {
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-heading font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
           >
             {isGenerating ? (
               <>

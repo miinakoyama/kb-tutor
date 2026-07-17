@@ -33,6 +33,54 @@ function normalizeAdminError(message?: string) {
   return message;
 }
 
+const GEIST = "var(--font-geist), ui-sans-serif, sans-serif";
+
+/** Card recipe from the design system: glass surface + hairline + shadow. */
+const CARD_STYLE: React.CSSProperties = {
+  background: "var(--assignment-glass-bg-strong)",
+  border: "1px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-card-shadow)",
+};
+
+const INPUT_STYLE: React.CSSProperties = {
+  background: "var(--surface-muted)",
+  border: "1px solid var(--border-default)",
+};
+
+/** Rounded-xl field, muted fill, primary focus ring. */
+const INPUT_CLASS =
+  "w-full rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
+
+/** Primary pill CTA (design-system hero CTA). */
+const PRIMARY_BTN_CLASS =
+  "inline-flex items-center justify-center gap-2 rounded-full font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50 disabled:hover:brightness-100";
+const PRIMARY_BTN_STYLE: React.CSSProperties = {
+  color: "var(--assignment-cta-text)",
+  background: "var(--assignment-cta-bg-strong)",
+  border: "1.5px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-cta-elevated-shadow)",
+  fontFamily: GEIST,
+};
+
+/** Lighter-green pill for the per-row Save (softer than the primary CTA). */
+const SAVE_BTN_STYLE: React.CSSProperties = {
+  color: "#ffffff",
+  background: "var(--assignment-progress-fill)",
+  border: "1.5px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-row-cta-shadow)",
+  fontFamily: GEIST,
+};
+
+/** Neutral pill CTA (design-system row CTA). */
+const SECONDARY_BTN_CLASS =
+  "inline-flex items-center justify-center rounded-full font-semibold transition-colors hover:bg-[var(--assignment-row-cta-bg-hover)] disabled:opacity-50";
+const SECONDARY_BTN_STYLE: React.CSSProperties = {
+  color: "var(--assignment-row-cta-text)",
+  background: "var(--assignment-row-cta-bg)",
+  border: "1px solid var(--assignment-row-cta-border)",
+  boxShadow: "var(--assignment-row-cta-shadow)",
+};
+
 export default function SchoolManagementPage() {
   const [teachers, setTeachers] = useState<ProfileOption[]>([]);
   const [schools, setSchools] = useState<SchoolView[]>([]);
@@ -209,53 +257,53 @@ export default function SchoolManagementPage() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <header className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-1">
-            School Management
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Create schools, assign teachers, and control student login visibility.
-          </p>
-        </div>
+    <main
+      className="mx-auto w-full px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12"
+      style={{ maxWidth: 1500 }}
+    >
+      <header className="mb-10 flex items-center justify-between gap-4">
+        <h1 className="font-heading text-2xl font-bold text-heading sm:text-3xl">
+          School Management
+        </h1>
         <button
           onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover transition-colors shadow-sm"
+          className={`${PRIMARY_BTN_CLASS} h-12 flex-shrink-0 gap-2.5 px-6 text-base`}
+          style={PRIMARY_BTN_STYLE}
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="h-5 w-5" />
           Create School
         </button>
       </header>
 
       {message && (
-        <p className={`${alertSuccess} mb-4`}>
+        <p className={`${alertSuccess} mb-6`}>
           {message}
         </p>
       )}
       {error && (
-        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
+        <p className="mb-6 rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error">
           {error}
         </p>
       )}
 
-      <section className="rounded-xl border border-primary/25 bg-surface shadow-sm">
+      <section className="overflow-hidden rounded-2xl" style={CARD_STYLE}>
         {loading ? (
           <div className="p-8 text-center text-sm text-muted-foreground">Loading schools...</div>
         ) : schools.length === 0 ? (
           <div className="p-8 text-center">
-            <School className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-muted-foreground mb-4">No schools yet.</p>
+            <School className="mx-auto mb-3 h-12 w-12 text-muted-foreground" />
+            <p className="mb-4 text-muted-foreground">No schools yet.</p>
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+              className={`${PRIMARY_BTN_CLASS} px-5 py-2.5 text-sm`}
+              style={PRIMARY_BTN_STYLE}
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="h-4 w-4" />
               Create your first school
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border-subtle">
             {schools.map((school) => (
               <article
                 key={school.id}
@@ -302,37 +350,45 @@ export default function SchoolManagementPage() {
             className="absolute inset-0 bg-black/40"
             onClick={closeCreateModal}
           />
-          <div className="relative bg-surface rounded-xl shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
-              <h2 className="text-lg font-semibold text-slate-gray">Create School</h2>
+          <div
+            className="relative mx-4 w-full max-w-md rounded-2xl"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--assignment-glass-border)",
+              boxShadow: "var(--assignment-popover-shadow)",
+            }}
+          >
+            <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
+              <h2 className="font-heading text-lg font-bold text-slate-gray">Create School</h2>
               <button
                 onClick={closeCreateModal}
-                className="p-1 rounded-lg text-muted-foreground hover:text-muted-foreground hover:bg-surface-muted transition-colors"
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-surface-muted"
               >
-                <X className="w-5 h-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             <form className="p-5 space-y-4" onSubmit={createSchool}>
               {createError && (
                 <p
                   role="alert"
-                  className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error"
+                  className="rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error"
                 >
                   {createError}
                 </p>
               )}
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">School Name</span>
+                <span className="mb-1 block font-semibold">School Name</span>
                 <input
                   placeholder="e.g. Greenfield High School"
                   value={createForm.name}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
-                  className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors"
+                  className={INPUT_CLASS}
+                  style={INPUT_STYLE}
                   required
                 />
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Keystone Exam Date (optional)</span>
+                <span className="mb-1 block font-semibold">Keystone Exam Date (optional)</span>
                 <input
                   type="date"
                   value={createForm.keystoneExamDate}
@@ -342,14 +398,15 @@ export default function SchoolManagementPage() {
                       keystoneExamDate: e.target.value,
                     }))
                   }
-                  className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors"
+                  className={INPUT_CLASS}
+                  style={INPUT_STYLE}
                 />
                 <span className="mt-1 block text-xs text-muted-foreground">
                   When set, students see a countdown on their home page.
                 </span>
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Student login notice (optional)</span>
+                <span className="mb-1 block font-semibold">Student login notice (optional)</span>
                 <textarea
                   rows={4}
                   maxLength={2000}
@@ -358,7 +415,8 @@ export default function SchoolManagementPage() {
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, studentLoginNotice: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors resize-y min-h-[88px]"
+                  className={`${INPUT_CLASS} min-h-[88px] resize-y`}
+                  style={INPUT_STYLE}
                 />
                 <span className="mt-1 block text-xs text-muted-foreground">
                   Shown on the student login page below Student ID when this school is selected.
@@ -366,8 +424,8 @@ export default function SchoolManagementPage() {
                 </span>
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Teachers (optional)</span>
-                <div className="max-h-40 overflow-y-auto rounded-lg border border-border-default p-3 space-y-2">
+                <span className="mb-1 block font-semibold">Teachers (optional)</span>
+                <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-border-default p-3">
                   {teachers.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No teachers available. Create teacher accounts first.</p>
                   ) : (
@@ -380,6 +438,7 @@ export default function SchoolManagementPage() {
                         >
                           <input
                             type="checkbox"
+                            className="accent-[var(--assignment-completed)]"
                             checked={checked}
                             onChange={(e) => {
                               setCreateForm((prev) => ({
@@ -397,7 +456,7 @@ export default function SchoolManagementPage() {
                   )}
                 </div>
               </label>
-              <label className="flex items-start gap-3 rounded-lg border border-border-default p-3 text-sm text-slate-gray">
+              <label className="flex items-start gap-3 rounded-xl border border-border-default p-3 text-sm text-slate-gray">
                 <input
                   type="checkbox"
                   checked={createForm.isHidden}
@@ -407,7 +466,7 @@ export default function SchoolManagementPage() {
                       isHidden: e.target.checked,
                     }))
                   }
-                  className="mt-0.5"
+                  className="mt-0.5 accent-[var(--assignment-completed)]"
                 />
                 <span>
                   <span className="block font-medium">Hide from student login</span>
@@ -421,13 +480,14 @@ export default function SchoolManagementPage() {
                 <button
                   type="button"
                   onClick={closeCreateModal}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-muted transition-colors"
+                  className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-surface-muted"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+                  className={`${PRIMARY_BTN_CLASS} px-5 py-2 text-sm`}
+                  style={PRIMARY_BTN_STYLE}
                 >
                   Create
                 </button>
@@ -443,47 +503,57 @@ export default function SchoolManagementPage() {
             className="absolute inset-0 bg-black/40"
             onClick={closeEditModal}
           />
-          <div className="relative bg-surface rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
-              <h2 className="text-lg font-semibold text-slate-gray">Edit School</h2>
+          <div
+            className="relative mx-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--assignment-glass-border)",
+              boxShadow: "var(--assignment-popover-shadow)",
+            }}
+          >
+            <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
+              <h2 className="font-heading text-lg font-bold text-slate-gray">Edit School</h2>
               <button
                 onClick={closeEditModal}
-                className="p-1 rounded-lg text-muted-foreground hover:text-muted-foreground hover:bg-surface-muted transition-colors"
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-surface-muted"
               >
-                <X className="w-5 h-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             <div className="p-5 space-y-4">
               {editError && (
                 <p
                   role="alert"
-                  className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error"
+                  className="rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error"
                 >
                   {editError}
                 </p>
               )}
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">School Name</span>
+                <span className="mb-1 block font-semibold">School Name</span>
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors"
+                  className={INPUT_CLASS}
+                  style={INPUT_STYLE}
                 />
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Keystone Exam Date</span>
+                <span className="mb-1 block font-semibold">Keystone Exam Date</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="date"
                     value={editKeystoneExamDate}
                     onChange={(e) => setEditKeystoneExamDate(e.target.value)}
-                    className="flex-1 rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors"
+                    className={`${INPUT_CLASS} flex-1`}
+                    style={INPUT_STYLE}
                   />
                   {editKeystoneExamDate && (
                     <button
                       type="button"
                       onClick={() => setEditKeystoneExamDate("")}
-                      className="rounded-lg border border-border-default px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-surface-muted transition-colors"
+                      className={`${SECONDARY_BTN_CLASS} px-3.5 py-2 text-xs`}
+                      style={SECONDARY_BTN_STYLE}
                     >
                       Clear
                     </button>
@@ -494,22 +564,23 @@ export default function SchoolManagementPage() {
                 </span>
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Student login notice</span>
+                <span className="mb-1 block font-semibold">Student login notice</span>
                 <textarea
                   rows={4}
                   maxLength={2000}
                   placeholder="Optional message for students on /login"
                   value={editStudentLoginNotice}
                   onChange={(e) => setEditStudentLoginNotice(e.target.value)}
-                  className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-colors resize-y min-h-[88px]"
+                  className={`${INPUT_CLASS} min-h-[88px] resize-y`}
+                  style={INPUT_STYLE}
                 />
                 <span className="mt-1 block text-xs text-muted-foreground">
                   Shown below Student ID when this school is chosen. Clear the text and save to remove.
                 </span>
               </label>
               <label className="block text-sm text-slate-gray">
-                <span className="block mb-1 font-medium">Teachers</span>
-                <div className="max-h-40 overflow-y-auto rounded-lg border border-border-default p-3 space-y-2">
+                <span className="mb-1 block font-semibold">Teachers</span>
+                <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-border-default p-3">
                   {teachers.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No teachers available.</p>
                   ) : (
@@ -522,6 +593,7 @@ export default function SchoolManagementPage() {
                         >
                           <input
                             type="checkbox"
+                            className="accent-[var(--assignment-completed)]"
                             checked={checked}
                             onChange={(e) => {
                               setEditTeacherIds((prev) =>
@@ -538,12 +610,12 @@ export default function SchoolManagementPage() {
                   )}
                 </div>
               </label>
-              <label className="flex items-start gap-3 rounded-lg border border-border-default p-3 text-sm text-slate-gray">
+              <label className="flex items-start gap-3 rounded-xl border border-border-default p-3 text-sm text-slate-gray">
                 <input
                   type="checkbox"
                   checked={editIsHidden}
                   onChange={(e) => setEditIsHidden(e.target.checked)}
-                  className="mt-0.5"
+                  className="mt-0.5 accent-[var(--assignment-completed)]"
                 />
                 <span>
                   <span className="block font-medium">Hide from student login</span>
@@ -554,14 +626,14 @@ export default function SchoolManagementPage() {
               </label>
 
               <div>
-                <p className="text-sm font-medium text-slate-gray mb-2">
+                <p className="mb-2 text-sm font-semibold text-slate-gray">
                   Students ({selectedSchool.students.length} enrolled)
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Students are enrolled automatically when they log in with this school selected.
                 </p>
                 {selectedSchool.students.length > 0 && (
-                  <div className="mt-2 max-h-32 overflow-y-auto rounded-lg border border-border-default p-3 space-y-1">
+                  <div className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded-xl border border-border-default p-3">
                     {selectedSchool.students.map((student) => (
                       <p key={student.id} className="text-sm text-slate-gray">
                         {student.label}
@@ -574,22 +646,23 @@ export default function SchoolManagementPage() {
               <div className="flex items-center justify-between pt-2">
                 <button
                   onClick={() => void deleteSchool()}
-                  className="inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-error hover:text-error hover:bg-error-light px-3 py-2 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-error-border px-3.5 py-2 text-sm font-semibold text-error transition-colors hover:bg-error-light"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="h-4 w-4" />
                   Delete
                 </button>
                 <div className="flex gap-3">
                   <button
                     type="button"
                     onClick={closeEditModal}
-                    className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-muted transition-colors"
+                    className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-surface-muted"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => void saveSchool()}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+                    className={`${PRIMARY_BTN_CLASS} px-5 py-2 text-sm`}
+                    style={SAVE_BTN_STYLE}
                   >
                     Save Changes
                   </button>

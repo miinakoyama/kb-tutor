@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { DataAnalysisTabs } from "../tabs";
 import { DateRangePicker, defaultPilotRange } from "../date-range";
 import { SchoolFilter } from "../school-filter";
 import { badgeEmerald, buttonOutlinePrimary } from "@/lib/ui/status-badge-styles";
@@ -99,16 +98,9 @@ function StudentsInner() {
   }, [from, mode, schoolIds, student, to]);
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
-          Data Analysis
-        </h1>
-      </header>
+    <>
 
-      <DataAnalysisTabs active="students" />
-
-      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)] mb-6">
         <DateRangePicker value={range} onChange={setRange} />
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -118,7 +110,7 @@ function StudentsInner() {
             <select
               value={mode}
               onChange={(event) => setMode(event.target.value)}
-              className="w-full rounded-lg border border-border-default px-3 py-2"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               <option value="all">All modes</option>
               <option value="practice">Practice</option>
@@ -133,7 +125,7 @@ function StudentsInner() {
               value={student}
               onChange={(event) => setStudent(event.target.value)}
               placeholder="Filter by student user id"
-              className="w-full rounded-lg border border-border-default px-3 py-2"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
           </label>
         </div>
@@ -141,7 +133,7 @@ function StudentsInner() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => void fetchData()}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+            className="inline-flex items-center gap-2 rounded-full font-heading font-bold px-5 py-2 text-sm transition duration-200 hover:brightness-110 active:brightness-95 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -157,7 +149,7 @@ function StudentsInner() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
+        <p className="rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error mb-6">
           {error}
         </p>
       )}
@@ -170,7 +162,7 @@ function StudentsInner() {
         <MetricCard label="Avg time / question" value={`${summary?.averageTimeSec ?? 0}s`} />
       </section>
 
-      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading analytics data...</p>
         ) : rows.length === 0 ? (
@@ -227,13 +219,13 @@ function StudentsInner() {
           </div>
         )}
       </section>
-    </main>
+    </>
   );
 }
 
 function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <article className="rounded-xl border border-border-default bg-surface p-4 shadow-sm">
+    <article className="rounded-xl border border-border-default bg-surface p-4">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold text-slate-gray">{value}</p>
     </article>
