@@ -22,11 +22,14 @@ import {
 import type { Question } from "@/types/question";
 import { computeCoverageGaps } from "@/lib/bkt/gap-fill";
 import {
+  generateItemWithRetry,
   generateMcqItem,
   generateSaqItem,
   pickRandomStimulusType,
   runWithConcurrency,
+  withRetry,
 } from "@/lib/generation/generate-item";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   GENERATION_MODELS,
   DEFAULT_GENERATION_MODEL_ID,
@@ -258,68 +261,120 @@ export default function KcCoveragePage() {
     }
     setError(null);
     setGapWarnings([]);
-    setGapProgress(`0 / ${gapItems.length} generated`);
+    setGapProgress("Preparing question set…");
     const generatedAt = new Date().toISOString();
     const setName = `KC Gap Fill - ${schoolName} - ${generatedAt.slice(0, 19).replace("T", " ")}`;
-    const tasks = gapItems.map((gap, index) => async () => {
-      const result =
-        gap.format === "mcq"
-          ? await generateMcqItem({
-              standardId: gap.standardId,
-              setName,
-              kcCode: gap.kcCode,
-              modelId: DEFAULT_GENERATION_MODEL_ID,
-              temperature: DEFAULT_GENERATION_TEMPERATURE,
-              stimulusType: pickRandomStimulusType(true),
-            })
-          : await generateSaqItem({
-              standardId: gap.standardId,
-              questionId: `sa-${generatedAt}-${index}`,
-              kcCode: gap.kcCode,
-              modelId: DEFAULT_GENERATION_MODEL_ID,
-              temperature: DEFAULT_GENERATION_TEMPERATURE,
-              stimulusType: pickRandomStimulusType(false),
-            });
-      return { gap, result };
-    });
+    const {
+      addGeneratedQuestionSet,
+      appendQuestionsToGeneratedSet,
+      deleteGeneratedQuestionSet,
+    } = await import("@/lib/question-storage");
+    const supabase = getSupabaseBrowserClient();
+
+    // Long runs outlive the access token; getSession() refreshes it in one
+    // place (single-flight) instead of letting 4 concurrent API calls race
+    // the refresh inside middleware.
+    const keepSessionAlive = async () => {
+      try {
+        await supabase.auth.getSession();
+      } catch {
+        // Non-fatal: the next request retries with whatever token exists.
+      }
+    };
+
+    const total = gapItems.length;
+    const warnings: string[] = [];
+    let attempted = 0;
+    let saved = 0;
+    const progressLabel = () =>
+      `${attempted} / ${total} generated · ${saved} saved`;
+
     try {
-      const settled = await runWithConcurrency(tasks, 4, (completed) =>
-        setGapProgress(`${completed} / ${gapItems.length} generated`),
+      await keepSessionAlive();
+      // Create the set shell + school link up front so completed work can be
+      // persisted incrementally — a crash mid-run must not discard questions.
+      const defaultModel = GENERATION_MODELS.find((m) => m.id === DEFAULT_GENERATION_MODEL_ID);
+      const setId = await withRetry(() =>
+        addGeneratedQuestionSet([], setName, generatedAt, {
+          generationModel: { id: defaultModel?.id, label: defaultModel?.label },
+          schoolLinks: [{ schoolId }],
+        }),
       );
-      const questions: Question[] = [];
-      const warnings: string[] = [];
-      let generationModel: { id?: string; label?: string } | undefined;
-      for (const { gap, result } of settled) {
-        if (result.ok) {
-          questions.push(...result.questions);
-          if (result.modelId) {
-            generationModel = { id: result.modelId, label: result.modelLabel };
-          }
-        } else {
-          warnings.push(
-            `${gap.format.toUpperCase()} for ${gap.kcCode} failed: ${result.error}`,
+
+      // Chunked run: each chunk generates in parallel, then persists its
+      // successes before the next chunk starts, bounding how much work a
+      // failure can lose.
+      const CHUNK_SIZE = 12;
+      try {
+        for (let offset = 0; offset < total; offset += CHUNK_SIZE) {
+          const chunk = gapItems.slice(offset, offset + CHUNK_SIZE);
+          await keepSessionAlive();
+          const settled = await runWithConcurrency(
+            chunk.map((gap, chunkIndex) => async () => {
+              const result = await generateItemWithRetry(() =>
+                gap.format === "mcq"
+                  ? generateMcqItem({
+                      standardId: gap.standardId,
+                      setName,
+                      kcCode: gap.kcCode,
+                      modelId: DEFAULT_GENERATION_MODEL_ID,
+                      temperature: DEFAULT_GENERATION_TEMPERATURE,
+                      stimulusType: pickRandomStimulusType(true),
+                    })
+                  : generateSaqItem({
+                      standardId: gap.standardId,
+                      questionId: `sa-${generatedAt}-${offset + chunkIndex}`,
+                      kcCode: gap.kcCode,
+                      modelId: DEFAULT_GENERATION_MODEL_ID,
+                      temperature: DEFAULT_GENERATION_TEMPERATURE,
+                      stimulusType: pickRandomStimulusType(false),
+                    }),
+              );
+              attempted += 1;
+              setGapProgress(progressLabel());
+              return { gap, result };
+            }),
+            4,
           );
+
+          const questions: Question[] = [];
+          for (const { gap, result } of settled) {
+            if (result.ok) {
+              questions.push(...result.questions);
+            } else {
+              warnings.push(
+                `${gap.format.toUpperCase()} for ${gap.kcCode} failed: ${result.error}`,
+              );
+              setGapWarnings([...warnings]);
+            }
+          }
+          if (questions.length > 0) {
+            await withRetry(() => appendQuestionsToGeneratedSet(setId, questions));
+            saved += questions.length;
+            setGapProgress(progressLabel());
+          }
         }
+      } catch (runError) {
+        // A save failed even after retries. Everything persisted so far is
+        // kept; re-running generates only what is still missing.
+        const detail = runError instanceof Error ? runError.message : "unknown error";
+        throw new Error(
+          `The run stopped after saving ${saved} of ${total} question(s): ${detail}. ` +
+            "Saved questions are kept — re-run to generate the rest.",
+        );
       }
-      if (!generationModel && questions.length > 0) {
-        const model = GENERATION_MODELS.find((m) => m.id === DEFAULT_GENERATION_MODEL_ID);
-        generationModel = { id: model?.id, label: model?.label };
-      }
-      setGapWarnings(warnings);
-      if (questions.length === 0) {
+
+      if (saved === 0) {
+        // Nothing persisted: remove the empty shell so it doesn't clutter
+        // Question Manager, then surface the failure.
+        await deleteGeneratedQuestionSet(setId).catch(() => {});
         throw new Error("No questions were generated. See the failures below and try again.");
       }
-      setGapProgress("Saving question set…");
-      const { addGeneratedQuestionSet } = await import("@/lib/question-storage");
-      await addGeneratedQuestionSet(questions, setName, generatedAt, {
-        generationModel,
-        schoolLinks: [{ schoolId }],
-      });
-      await load();
     } catch (gapError) {
       setError(gapError instanceof Error ? gapError.message : "Gap fill failed");
     } finally {
       setGapProgress(null);
+      await load();
     }
   };
 
