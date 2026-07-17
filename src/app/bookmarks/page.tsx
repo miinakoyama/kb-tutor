@@ -34,6 +34,7 @@ import {
   getStandardById,
   type ModuleCode,
 } from "@/lib/standards";
+import { badgeEmerald } from "@/lib/ui/status-badge-styles";
 
 interface TopicGroup {
   topic: string;
@@ -46,6 +47,10 @@ const REVIEW_MODULE_ORDER: ModuleCode[] = ["A", "B"];
 const REVIEW_MODULE_LABELS: Record<ModuleCode, string> = {
   A: "Molecules to Organisms",
   B: "Continuity and Unity of Life",
+};
+const REVIEW_MODULE_SUBTITLES: Record<ModuleCode, string> = {
+  A: "Molecules to organisms",
+  B: "Continuity and unity of life",
 };
 
 interface ReviewCategorySelection {
@@ -341,16 +346,12 @@ function BookmarksPageContent() {
     handleRemoveBookmark(questionId);
   }, [handleRemoveBookmark]);
 
-  const handleToggleTopic = useCallback(
-    (section: "needs" | "bookmarked", topic: string) => {
-      const key = `${section}:${topic}`;
-      setExpandedTopics((prev) => ({
-        ...prev,
-        [key]: !prev[key],
-      }));
-    },
-    [],
-  );
+  const handleToggleTopic = useCallback((key: string) => {
+    setExpandedTopics((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  }, []);
 
   const handleToggleQuestion = useCallback((questionId: string) => {
     setExpandedQuestions((prev) => ({
@@ -379,30 +380,17 @@ function BookmarksPageContent() {
     );
   }, [availablePracticeTopics]);
 
-  const renderTopicSections = (
+  const renderTopicGroupCard = (
     groups: TopicGroup[],
     section: "needs" | "bookmarked",
     allowRemoveBookmark: boolean,
+    groupKeyPrefix: string,
   ) => {
-    if (groups.length === 0) {
-      const message =
-        section === "needs"
-          ? "Questions you answer incorrectly will appear here."
-          : "Questions you bookmark will appear here.";
-      return (
-        <div className="rounded-2xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
-          {message}
-        </div>
-      );
-    }
-
     return (
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface">
         {groups.map((group, index) => {
-          const topicKey = `${section}:${group.topic}`;
+          const topicKey = `${section}:${groupKeyPrefix}:${group.topic}`;
           const isExpanded = Boolean(expandedTopics[topicKey]);
-          const topicModule = group.questions.find((question) => typeof question.module === "number")?.module;
-          const moduleLabel = topicModule === 1 ? "A" : topicModule === 2 ? "B" : null;
 
           return (
             <div
@@ -411,13 +399,10 @@ function BookmarksPageContent() {
             >
               <button
                 type="button"
-                onClick={() => handleToggleTopic(section, group.topic)}
+                onClick={() => handleToggleTopic(topicKey)}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/5"
               >
                 <span className="min-w-0">
-                  {moduleLabel ? (
-                    <span className="mb-0.5 block text-xs text-muted-foreground">Module {moduleLabel}</span>
-                  ) : null}
                   <span className="block text-sm font-medium text-heading">{group.topic}</span>
                 </span>
                 <span className="inline-flex items-center gap-2">
@@ -578,6 +563,96 @@ function BookmarksPageContent() {
             </div>
           );
         })}
+      </div>
+    );
+  };
+
+  const renderTopicSections = (
+    groups: TopicGroup[],
+    section: "needs" | "bookmarked",
+    allowRemoveBookmark: boolean,
+  ) => {
+    if (groups.length === 0) {
+      const message =
+        section === "needs"
+          ? "Questions you answer incorrectly will appear here."
+          : "Questions you bookmark will appear here.";
+      return (
+        <div className="rounded-2xl border border-border-subtle bg-surface p-4 text-sm text-muted-foreground">
+          {message}
+        </div>
+      );
+    }
+
+    const groupsByModule: Record<ModuleCode, TopicGroup[]> = { A: [], B: [] };
+    const ungroupedGroups: TopicGroup[] = [];
+
+    for (const group of groups) {
+      const questionsByModule: Record<ModuleCode, Question[]> = { A: [], B: [] };
+      const ungroupedQuestions: Question[] = [];
+
+      for (const question of group.questions) {
+        if (question.module === 1) {
+          questionsByModule.A.push(question);
+        } else if (question.module === 2) {
+          questionsByModule.B.push(question);
+        } else {
+          ungroupedQuestions.push(question);
+        }
+      }
+
+      for (const moduleCode of REVIEW_MODULE_ORDER) {
+        if (questionsByModule[moduleCode].length > 0) {
+          groupsByModule[moduleCode].push({
+            topic: group.topic,
+            questions: questionsByModule[moduleCode],
+          });
+        }
+      }
+
+      if (ungroupedQuestions.length > 0) {
+        ungroupedGroups.push({
+          topic: group.topic,
+          questions: ungroupedQuestions,
+        });
+      }
+    }
+
+    return (
+      <div className="space-y-5">
+        {REVIEW_MODULE_ORDER.map((moduleCode) => {
+          const moduleGroups = groupsByModule[moduleCode];
+          if (moduleGroups.length === 0) return null;
+
+          return (
+            <div key={moduleCode}>
+              <div className="mb-2 flex items-baseline gap-2">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${badgeEmerald}`}
+                >
+                  Module {moduleCode}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {REVIEW_MODULE_SUBTITLES[moduleCode]}
+                </span>
+              </div>
+              {renderTopicGroupCard(
+                moduleGroups,
+                section,
+                allowRemoveBookmark,
+                moduleCode,
+              )}
+            </div>
+          );
+        })}
+        {ungroupedGroups.length > 0
+          ? renderTopicGroupCard(
+              ungroupedGroups,
+              section,
+              allowRemoveBookmark,
+              "ungrouped",
+            )
+          : null}
       </div>
     );
   };
