@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { orderTargetKcs, rankQuestionsForKc } from "@/lib/bkt/selection";
+import type { TargetSelectionResult } from "@/lib/bkt/selection";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStandardById } from "@/lib/standards";
@@ -179,8 +180,39 @@ export async function POST(request: Request) {
       return [standard, recentKcCodes] as const;
     }),
   );
-  const target = orderTargetKcs({ candidates: kcCandidates, standardOrder: enabledStandards, cyclePositionByStandard: cyclePosition, standardLastServedAt: standardLastServed, recentKcCodesByStandard });
-  if (!target) {
+  const targetInput = {
+    standardOrder: enabledStandards,
+    cyclePositionByStandard: cyclePosition,
+    standardLastServedAt: standardLastServed,
+    recentKcCodesByStandard,
+  };
+  const requiredFormat = body.selectionMode === "mcq"
+    ? "mcq"
+    : body.selectionMode === "open-ended"
+      ? "saq"
+      : body.requiredFormat;
+  const canTryAnotherTarget =
+    body.selectionMode === "mcq" || body.selectionMode === "open-ended";
+  const targets: TargetSelectionResult[] = [];
+  let remainingKcCandidates = kcCandidates;
+  while (remainingKcCandidates.length > 0) {
+    const nextTarget = orderTargetKcs({
+      ...targetInput,
+      candidates: remainingKcCandidates,
+    });
+    if (!nextTarget) break;
+    targets.push(nextTarget);
+    if (!canTryAnotherTarget) break;
+    const targetKcCodes = new Set(nextTarget.orderedKcCodes);
+    const nextRemaining = remainingKcCandidates.filter(
+      (candidate) =>
+        candidate.standardId !== nextTarget.standardId ||
+        !targetKcCodes.has(candidate.kcCode),
+    );
+    if (nextRemaining.length === remainingKcCandidates.length) break;
+    remainingKcCandidates = nextRemaining;
+  }
+  if (targets.length === 0) {
     const standardId = enabledStandards[0];
     const state = rotationByStandard.get(standardId);
     await admin.rpc("record_adaptive_selection", {
@@ -194,13 +226,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "complete", reason: "all_mastered" });
   }
 
-  const state = rotationByStandard.get(target.standardId);
   const sessionSeed = body.sessionId ?? body.selectionSeed ?? user.id;
-  const requiredFormat = body.selectionMode === "mcq"
-    ? "mcq"
-    : body.selectionMode === "open-ended"
-      ? "saq"
-      : body.requiredFormat;
   const formatPasses: Array<"mcq" | "saq" | undefined> = [requiredFormat];
   if (body.selectionMode === "mixed" && requiredFormat) {
     formatPasses.push(requiredFormat === "mcq" ? "saq" : "mcq");
@@ -212,115 +238,140 @@ export async function POST(request: Request) {
       questionByKey: Map<string, Question>;
     }
   >();
-  let coverageGapKcCodes = [...target.orderedKcCodes];
+  const primaryTarget = targets[0];
+  let primaryCoverageGapKcCodes = [...primaryTarget.orderedKcCodes];
 
-  for (let formatPassIndex = 0; formatPassIndex < formatPasses.length; formatPassIndex += 1) {
-    const format = formatPasses[formatPassIndex];
-    const fallbackKcCodes: string[] = [];
-    for (const kcCode of target.orderedKcCodes) {
-      let loaded = loadedByKc.get(kcCode);
-      if (!loaded) {
-        const candidateResult = await loadAdaptiveCandidateRows(
-          admin,
-          user.id,
-          target.standardId,
-          kcCode,
-        );
-        if (candidateResult.error) {
-          console.error("Unable to load adaptive practice candidates", {
-            code: candidateResult.error.code,
-            message: candidateResult.error.message,
-            standardId: target.standardId,
-            targetKcCode: kcCode,
-          });
-          return NextResponse.json(
-            { error: "Unable to load mapped question candidates" },
-            { status: 500 },
+  for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
+    const target = targets[targetIndex];
+    const state = rotationByStandard.get(target.standardId);
+    let targetCoverageGapKcCodes = [...target.orderedKcCodes];
+
+    for (let formatPassIndex = 0; formatPassIndex < formatPasses.length; formatPassIndex += 1) {
+      const format = formatPasses[formatPassIndex];
+      const fallbackKcCodes: string[] = [];
+      for (const kcCode of target.orderedKcCodes) {
+        const targetKcKey = `${target.standardId}\0${kcCode}`;
+        let loaded = loadedByKc.get(targetKcKey);
+        if (!loaded) {
+          const candidateResult = await loadAdaptiveCandidateRows(
+            admin,
+            user.id,
+            target.standardId,
+            kcCode,
           );
+          if (candidateResult.error) {
+            console.error("Unable to load adaptive practice candidates", {
+              code: candidateResult.error.code,
+              message: candidateResult.error.message,
+              standardId: target.standardId,
+              targetKcCode: kcCode,
+            });
+            return NextResponse.json(
+              { error: "Unable to load mapped question candidates" },
+              { status: 500 },
+            );
+          }
+
+          const questionByKey = new Map<string, Question>();
+          const candidates: AdaptiveQuestionCandidate[] = [];
+          for (const row of candidateResult.data) {
+            const question = questionFromCandidateRow(row);
+            if (!question?.questionSetId) continue;
+            const partKcCodes = Array.isArray(row.part_kc_codes)
+              ? row.part_kc_codes.filter((code): code is string => typeof code === "string")
+              : [];
+            if (!partKcCodes.includes(kcCode)) continue;
+            const key = `${question.questionSetId}\0${question.id}`;
+            questionByKey.set(key, question);
+            candidates.push({
+              questionId: question.id,
+              questionSetId: question.questionSetId,
+              format: row.format === "saq" ? "saq" : "mcq",
+              standardId: target.standardId,
+              targetKcCode: kcCode,
+              partKcCodes,
+              completedCount: Math.max(0, Number(row.completed_count) || 0),
+              lastCompletedAt:
+                typeof row.last_completed_at === "string" ? row.last_completed_at : null,
+            });
+          }
+          loaded = { candidates, questionByKey };
+          loadedByKc.set(targetKcKey, loaded);
         }
 
-        const questionByKey = new Map<string, Question>();
-        const candidates: AdaptiveQuestionCandidate[] = [];
-        for (const row of candidateResult.data) {
-          const question = questionFromCandidateRow(row);
-          if (!question?.questionSetId) continue;
-          const partKcCodes = Array.isArray(row.part_kc_codes)
-            ? row.part_kc_codes.filter((code): code is string => typeof code === "string")
-            : [];
-          if (!partKcCodes.includes(kcCode)) continue;
-          const key = `${question.questionSetId}\0${question.id}`;
-          questionByKey.set(key, question);
-          candidates.push({
-            questionId: question.id,
-            questionSetId: question.questionSetId,
-            format: row.format === "saq" ? "saq" : "mcq",
-            standardId: target.standardId,
-            targetKcCode: kcCode,
-            partKcCodes,
-            completedCount: Math.max(0, Number(row.completed_count) || 0),
-            lastCompletedAt:
-              typeof row.last_completed_at === "string" ? row.last_completed_at : null,
-          });
+        const ranked = rankQuestionsForKc(
+          loaded.candidates,
+          kcCode,
+          lastQuestionByStandard.get(target.standardId) ?? null,
+          sessionSeed,
+          {
+            requiredFormat: format,
+            avoidImmediateRepeatAcrossFormats:
+              body.selectionMode === "mixed" && formatPassIndex === 0,
+          },
+        );
+        if (!ranked.length) {
+          fallbackKcCodes.push(kcCode);
+          continue;
         }
-        loaded = { candidates, questionByKey };
-        loadedByKc.set(kcCode, loaded);
-      }
-
-      const ranked = rankQuestionsForKc(
-        loaded.candidates,
-        kcCode,
-        lastQuestionByStandard.get(target.standardId) ?? null,
-        sessionSeed,
-        format,
-      );
-      if (!ranked.length) {
-        fallbackKcCodes.push(kcCode);
-        continue;
-      }
-      const selected = ranked[0];
-      const question = loaded.questionByKey.get(`${selected.questionSetId}\0${selected.questionId}`);
-      if (!question) {
-        fallbackKcCodes.push(kcCode);
-        continue;
-      }
-      const context = {
-        mastery: Object.fromEntries(kcCandidates.filter((candidate) => target.orderedKcCodes.includes(candidate.kcCode)).map((candidate) => [candidate.kcCode, candidate.probability])),
-        rankedQuestionIds: ranked.map((candidate) => candidate.questionId),
-        selectedPartKcCodes: selected.partKcCodes,
-        selectedCompletedCount: selected.completedCount,
-        selectedLastCompletedAt: selected.lastCompletedAt,
-        requestedFormat: requiredFormat ?? null,
-        formatFallbackUsed: formatPassIndex > 0,
-      };
-      const { data: recorded, error } = await admin.rpc("record_adaptive_selection", {
-        p_user_id: user.id, p_session_id: body.sessionId, p_standard_id: target.standardId,
-        p_lane: target.lane, p_candidate_kc_codes: target.orderedKcCodes,
-        p_target_kc_code: kcCode, p_fallback_kc_codes: fallbackKcCodes,
-        p_question_set_id: selected.questionSetId, p_question_id: selected.questionId,
-        p_question_format: selected.format, p_outcome: "selected", p_decision_context: context,
-        p_expected_version: Number(state?.lock_version ?? 0),
-      });
-      if (error) return NextResponse.json({ error: "Unable to record adaptive selection" }, { status: 500 });
-      if (!recorded) {
-        if (retryCount < 2) {
-          return POST(new Request(request.url, {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-bkt-selection-retry": String(retryCount + 1) },
-            body: JSON.stringify(body),
-          }));
+        const selected = ranked[0];
+        const question = loaded.questionByKey.get(`${selected.questionSetId}\0${selected.questionId}`);
+        if (!question) {
+          fallbackKcCodes.push(kcCode);
+          continue;
         }
-        return NextResponse.json({ error: "Adaptive state changed; retry the request", retriable: true }, { status: 409 });
+        const context = {
+          mastery: Object.fromEntries(kcCandidates.filter((candidate) => target.orderedKcCodes.includes(candidate.kcCode)).map((candidate) => [candidate.kcCode, candidate.probability])),
+          rankedQuestionIds: ranked.map((candidate) => candidate.questionId),
+          selectedPartKcCodes: selected.partKcCodes,
+          selectedCompletedCount: selected.completedCount,
+          selectedLastCompletedAt: selected.lastCompletedAt,
+          requestedFormat: requiredFormat ?? null,
+          formatFallbackUsed: formatPassIndex > 0,
+          targetFallbacksUsed: targetIndex,
+        };
+        const { data: recorded, error } = await admin.rpc("record_adaptive_selection", {
+          p_user_id: user.id, p_session_id: body.sessionId, p_standard_id: target.standardId,
+          p_lane: target.lane, p_candidate_kc_codes: target.orderedKcCodes,
+          p_target_kc_code: kcCode, p_fallback_kc_codes: fallbackKcCodes,
+          p_question_set_id: selected.questionSetId, p_question_id: selected.questionId,
+          p_question_format: selected.format, p_outcome: "selected", p_decision_context: context,
+          p_expected_version: Number(state?.lock_version ?? 0),
+        });
+        if (error) return NextResponse.json({ error: "Unable to record adaptive selection" }, { status: 500 });
+        if (!recorded) {
+          if (retryCount < 2) {
+            return POST(new Request(request.url, {
+              method: "POST",
+              headers: { "content-type": "application/json", "x-bkt-selection-retry": String(retryCount + 1) },
+              body: JSON.stringify(body),
+            }));
+          }
+          return NextResponse.json({ error: "Adaptive state changed; retry the request", retriable: true }, { status: 409 });
+        }
+        return NextResponse.json({ status: "selected", lane: target.lane, targetKcCode: kcCode, question: { ...question, questionSetId: selected.questionSetId } }, { headers: { "Cache-Control": "no-store" } });
       }
-      return NextResponse.json({ status: "selected", lane: target.lane, targetKcCode: kcCode, question: { ...question, questionSetId: selected.questionSetId } }, { headers: { "Cache-Control": "no-store" } });
+      targetCoverageGapKcCodes = fallbackKcCodes;
     }
-    coverageGapKcCodes = fallbackKcCodes;
+    if (targetIndex === 0) {
+      primaryCoverageGapKcCodes = targetCoverageGapKcCodes;
+    }
   }
+  const primaryState = rotationByStandard.get(primaryTarget.standardId);
   await admin.rpc("record_adaptive_selection", {
-    p_user_id: user.id, p_session_id: body.sessionId, p_standard_id: target.standardId,
-    p_lane: target.lane, p_candidate_kc_codes: target.orderedKcCodes,
-    p_target_kc_code: target.orderedKcCodes[0], p_fallback_kc_codes: coverageGapKcCodes,
+    p_user_id: user.id, p_session_id: body.sessionId, p_standard_id: primaryTarget.standardId,
+    p_lane: primaryTarget.lane, p_candidate_kc_codes: primaryTarget.orderedKcCodes,
+    p_target_kc_code: primaryTarget.orderedKcCodes[0], p_fallback_kc_codes: primaryCoverageGapKcCodes,
     p_question_set_id: null, p_question_id: null, p_question_format: null,
-    p_outcome: "coverage_gap", p_decision_context: {}, p_expected_version: Number(state?.lock_version ?? 0),
+    p_outcome: "coverage_gap",
+    p_decision_context: {
+      attemptedTargets: targets.map((target) => ({
+        standardId: target.standardId,
+        kcCodes: target.orderedKcCodes,
+      })),
+      requestedFormat: requiredFormat ?? null,
+    },
+    p_expected_version: Number(primaryState?.lock_version ?? 0),
   });
-  return NextResponse.json({ status: "unavailable", reason: "coverage_gap", standardId: target.standardId, kcCodes: coverageGapKcCodes });
+  return NextResponse.json({ status: "unavailable", reason: "coverage_gap", standardId: primaryTarget.standardId, kcCodes: primaryCoverageGapKcCodes });
 }

@@ -106,7 +106,6 @@ describe("buildMixedQuestionSequence", () => {
     expect(new Set(firstBatch.map((question) => question.id)).size).toBe(2);
     expect(new Set(secondBatch.map((question) => question.id)).size).toBe(2);
   });
-
   it("returns an empty array for a non-positive count", () => {
     expect(buildMixedQuestionSequence([makeQuestion("a", "mcq")], 0)).toEqual([]);
   });

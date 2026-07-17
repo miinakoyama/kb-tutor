@@ -199,7 +199,10 @@ describe("POST /api/practice/next", () => {
     created_at: "2026-01-01",
   };
 
-  function buildMixedFormatAdmin(candidateRows: Record<string, unknown>[]) {
+  function buildMixedFormatAdmin(
+    candidateRows: Record<string, unknown>[],
+    selectionRows: Record<string, unknown>[] = [],
+  ) {
     return createMockSupabaseClient({
       tables: {
         school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
@@ -211,7 +214,7 @@ describe("POST /api/practice/next", () => {
         },
         student_kc_mastery: { rows: [] },
         adaptive_rotation_states: { rows: [] },
-        adaptive_selection_events: { rows: [] },
+        adaptive_selection_events: { rows: selectionRows },
       },
       rpcs: {
         get_adaptive_practice_candidates: async () => ({ data: candidateRows, error: null }),
@@ -296,6 +299,93 @@ describe("POST /api/practice/next", () => {
     });
   });
 
+  it("tries another selected standard before reporting a single-format coverage gap", async () => {
+    state.server = createMockSupabaseClient({ user: baseUser }).client;
+    const candidateRpc = vi.fn(async (args: Record<string, unknown>) => {
+      const isSecondStandard = args.p_standard_id === "3.1.9-12.B";
+      const standardId = isSecondStandard ? "3.1.9-12.B" : "3.1.9-12.A";
+      const kcCode = isSecondStandard ? "3.1.9-12.B1" : "3.1.9-12.A1";
+      const questionId = isSecondStandard ? "q-b-mcq" : "q-a-saq";
+      return {
+        data: [{
+          question_set_id: "set-c",
+          question_id: questionId,
+          content_version: null,
+          has_image: false,
+          has_stimulus_image: false,
+          format: isSecondStandard ? "mcq" : "saq",
+          standard_id: standardId,
+          part_kc_codes: [kcCode],
+          completed_count: 0,
+          last_completed_at: null,
+          payload: {
+            id: questionId,
+            module: 1,
+            topic: "Genetics",
+            standardId,
+            text: questionId,
+            imageUrl: null,
+            options: [],
+            correctOptionId: "",
+            source: "generated",
+            questionType: isSecondStandard ? "mcq" : "open-ended",
+            ...(isSecondStandard ? {} : { shortAnswer: sampleItem }),
+          },
+        }],
+        error: null,
+      };
+    });
+    state.admin = createMockSupabaseClient({
+      tables: {
+        school_members: { rows: [{ school_id: "school-a", student_user_id: "student" }] },
+        bkt_standard_rollouts: {
+          rows: [
+            { school_id: "school-a", standard_id: "3.1.9-12.A", status: "enabled" },
+            { school_id: "school-a", standard_id: "3.1.9-12.B", status: "enabled" },
+          ],
+        },
+        knowledge_components: {
+          rows: [
+            { code: "3.1.9-12.A1", standard_id: "3.1.9-12.A", catalog_order: 1, active: true },
+            { code: "3.1.9-12.B1", standard_id: "3.1.9-12.B", catalog_order: 1, active: true },
+          ],
+        },
+        student_kc_mastery: { rows: [] },
+        adaptive_rotation_states: { rows: [] },
+        adaptive_selection_events: { rows: [] },
+      },
+      rpcs: {
+        get_adaptive_practice_candidates: candidateRpc,
+        record_adaptive_selection: async () => ({ data: true, error: null }),
+      },
+    }).client;
+
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A", "3.1.9-12.B"],
+        selectionMode: "mcq",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "selected",
+      targetKcCode: "3.1.9-12.B1",
+      question: { id: "q-b-mcq" },
+    });
+    expect(candidateRpc).toHaveBeenNthCalledWith(1, {
+      p_user_id: "student",
+      p_standard_id: "3.1.9-12.A",
+      p_target_kc_code: "3.1.9-12.A1",
+    });
+    expect(candidateRpc).toHaveBeenNthCalledWith(2, {
+      p_user_id: "student",
+      p_standard_id: "3.1.9-12.B",
+      p_target_kc_code: "3.1.9-12.B1",
+    });
+  });
+
   it("falls back from a mixed SAQ slot to MCQ when the scope has no SAQ", async () => {
     state.server = createMockSupabaseClient({ user: baseUser }).client;
     state.admin = buildMixedFormatAdmin([
@@ -343,6 +433,59 @@ describe("POST /api/practice/next", () => {
         },
       },
     ]);
+
+    const response = await POST(new Request("http://localhost/api/practice/next", {
+      method: "POST",
+      body: JSON.stringify({
+        standardIds: ["3.1.9-12.A"],
+        selectionMode: "mixed",
+        requiredFormat: "mcq",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "selected",
+      question: { id: "q-saq" },
+    });
+  });
+  it("falls back to SAQ instead of immediately repeating the only MCQ", async () => {
+    state.server = createMockSupabaseClient({ user: baseUser }).client;
+    state.admin = buildMixedFormatAdmin(
+      [
+        {
+          question_set_id: "set-c", question_id: "q-mcq", content_version: null,
+          has_image: false, has_stimulus_image: false, format: "mcq",
+          standard_id: "3.1.9-12.A", part_kc_codes: ["3.1.9-12.A1"],
+          completed_count: 0, last_completed_at: null,
+          payload: {
+            id: "q-mcq", module: 1, topic: "Genetics", standardId: "3.1.9-12.A",
+            text: "q-mcq", imageUrl: null, options: [], correctOptionId: "",
+            source: "generated", questionType: "mcq",
+          },
+        },
+        {
+          question_set_id: "set-c", question_id: "q-saq", content_version: null,
+          has_image: false, has_stimulus_image: false, format: "saq",
+          standard_id: "3.1.9-12.A", part_kc_codes: ["3.1.9-12.A1"],
+          completed_count: 1, last_completed_at: "2026-01-01T00:00:00Z",
+          payload: {
+            id: "q-saq", module: 1, topic: "Genetics", standardId: "3.1.9-12.A",
+            text: "q-saq", imageUrl: null, options: [], correctOptionId: "",
+            source: "generated", questionType: "open-ended", shortAnswer: sampleItem,
+          },
+        },
+      ],
+      [{
+        standard_id: "3.1.9-12.A",
+        target_kc_code: "3.1.9-12.A1",
+        question_set_id: "set-c",
+        question_id: "q-mcq",
+        created_at: "2026-01-02T00:00:00Z",
+        outcome: "selected",
+        user_id: "student",
+      }],
+    );
 
     const response = await POST(new Request("http://localhost/api/practice/next", {
       method: "POST",

@@ -14,6 +14,13 @@ export interface TargetSelectionResult {
   orderedKcCodes: string[];
 }
 
+export interface QuestionRankingOptions {
+  /** Hard format constraint for this ranking pass. */
+  requiredFormat?: "mcq" | "saq";
+  /** Let a non-repeating opposite-format candidate force this pass to fall back. */
+  avoidImmediateRepeatAcrossFormats?: boolean;
+}
+
 function time(value: string | null): number {
   return value ? Date.parse(value) || 0 : 0;
 }
@@ -67,22 +74,24 @@ export function rankQuestionsForKc(
   targetKcCode: string,
   lastQuestion: { questionSetId: string | null; questionId: string } | null,
   sessionSeed: string,
-  /** Hard format constraint for this ranking pass. */
-  requiredFormat?: "mcq" | "saq",
+  options: QuestionRankingOptions = {},
 ): AdaptiveQuestionCandidate[] {
-  let eligible = candidates.filter(
+  const targetEligible = candidates.filter(
     (candidate) =>
       candidate.targetKcCode === targetKcCode ||
       (candidate.format === "saq" && candidate.partKcCodes.includes(targetKcCode)),
   );
-  if (requiredFormat) {
-    eligible = eligible.filter((candidate) => candidate.format === requiredFormat);
-  }
+  let eligible = options.requiredFormat
+    ? targetEligible.filter((candidate) => candidate.format === options.requiredFormat)
+    : targetEligible;
   const isImmediate = (candidate: AdaptiveQuestionCandidate) =>
     candidate.questionId === lastQuestion?.questionId &&
     (!lastQuestion.questionSetId ||
       candidate.questionSetId === lastQuestion.questionSetId);
-  if (eligible.length > 1) {
+  const repeatAlternatives = options.avoidImmediateRepeatAcrossFormats
+    ? targetEligible
+    : eligible;
+  if (repeatAlternatives.some((candidate) => !isImmediate(candidate))) {
     eligible = eligible.filter((candidate) => !isImmediate(candidate));
   }
 
