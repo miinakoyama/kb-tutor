@@ -3,11 +3,58 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, CalendarDays, ClipboardList, List, Plus, Trash2, Users } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, List, Plus, Trash2 } from "lucide-react";
 import { AssignmentProgressPanel } from "@/components/assignments/AssignmentProgressPanel";
 import { formatDueDateTime } from "@/lib/due-date";
 import type { AssignmentProgressResponse } from "@/lib/analytics/assignment-progress";
-import { alertSuccess, badgeAmber } from "@/lib/ui/status-badge-styles";
+import { alertSuccess } from "@/lib/ui/status-badge-styles";
+
+const GEIST = "var(--font-geist), ui-sans-serif, sans-serif";
+
+/** Card recipe from the design system: glass surface + hairline + shadow. */
+const CARD_STYLE: React.CSSProperties = {
+  background: "var(--assignment-glass-bg-strong)",
+  border: "1px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-card-shadow)",
+};
+
+/** Primary pill CTA (design-system hero CTA). */
+const PRIMARY_BTN_CLASS =
+  "inline-flex items-center justify-center gap-2 rounded-full font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50";
+const PRIMARY_BTN_STYLE: React.CSSProperties = {
+  color: "var(--assignment-cta-text)",
+  background: "var(--assignment-cta-bg-strong)",
+  border: "1.5px solid var(--assignment-glass-border)",
+  boxShadow: "var(--assignment-cta-elevated-shadow)",
+  fontFamily: GEIST,
+};
+
+/** Tightened frosted-bead shadow: inset top gloss + a narrow drop. */
+const PILL_SHADOW =
+  "inset 0 1px 1px rgba(255,255,255,0.55), 0 1px 3px rgba(31,45,31,0.12)";
+const PILL_BLUR = "blur(10px) saturate(140%)";
+
+/** Light-green frosted-glass bead (e.g. the school tag). */
+const GREEN_PILL_STYLE: React.CSSProperties = {
+  color: "var(--assignment-completed)",
+  background:
+    "linear-gradient(180deg, rgba(127,184,157,0.32) 0%, rgba(127,184,157,0.16) 100%)",
+  border: "1px solid rgba(127,184,157,0.55)",
+  boxShadow: PILL_SHADOW,
+  backdropFilter: PILL_BLUR,
+  WebkitBackdropFilter: PILL_BLUR,
+};
+
+/** Yellow frosted-glass bead (e.g. the answered count). */
+const YELLOW_PILL_STYLE: React.CSSProperties = {
+  color: "var(--assignment-mode-review)",
+  background:
+    "linear-gradient(180deg, rgba(248,223,160,0.6) 0%, rgba(248,223,160,0.32) 100%)",
+  border: "1px solid rgba(248,223,160,0.9)",
+  boxShadow: PILL_SHADOW,
+  backdropFilter: PILL_BLUR,
+  WebkitBackdropFilter: PILL_BLUR,
+};
 
 interface SchoolRow {
   id: string;
@@ -237,32 +284,31 @@ function AssignmentManagementContent() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <header className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-1">
-            Assignment Management
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Create assignments per school and automatically assign to students.
-          </p>
-        </div>
+    <main
+      className="mx-auto w-full px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 xl:px-12"
+      style={{ maxWidth: 1500 }}
+    >
+      <header className="mb-10 flex items-center justify-between gap-4">
+        <h1 className="font-heading text-2xl font-bold text-heading sm:text-3xl">
+          Assignment Management
+        </h1>
         <Link
           href="/assignments/manage/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover transition-colors shadow-sm"
+          className={`${PRIMARY_BTN_CLASS} h-12 flex-shrink-0 gap-2.5 px-6 text-base`}
+          style={PRIMARY_BTN_STYLE}
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="h-5 w-5" />
           Create Assignment
         </Link>
       </header>
 
       {message && (
-        <p className={`${alertSuccess} mb-4`}>
+        <p className={`${alertSuccess} mb-6`}>
           {message}
         </p>
       )}
       {error && (
-        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
+        <p className="mb-6 rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error">
           {error}
         </p>
       )}
@@ -279,7 +325,7 @@ function AssignmentManagementContent() {
           onClick={() => setTab("list")}
           className={`-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
             tab === "list"
-              ? "border-primary text-heading"
+              ? "border-[var(--assignment-completed)] text-[var(--assignment-completed)]"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -293,7 +339,7 @@ function AssignmentManagementContent() {
           onClick={() => setTab("progress")}
           className={`-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1.5 pb-2.5 pt-1 text-sm font-semibold transition-colors ${
             tab === "progress"
-              ? "border-primary text-heading"
+              ? "border-[var(--assignment-completed)] text-[var(--assignment-completed)]"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -303,20 +349,21 @@ function AssignmentManagementContent() {
       </div>
 
       {tab === "list" ? (
-        <section className="rounded-xl border border-border-default bg-surface shadow-sm">
+        <section className="overflow-hidden rounded-2xl" style={CARD_STYLE}>
           {isLoading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
               Loading assignments...
             </div>
           ) : assignments.length === 0 ? (
             <div className="p-8 text-center">
-              <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-muted-foreground mb-4">No assignments yet.</p>
+              <ClipboardList className="mx-auto mb-3 h-12 w-12 text-muted-foreground" />
+              <p className="mb-4 text-muted-foreground">No assignments yet.</p>
               <Link
                 href="/assignments/manage/new"
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+                className={`${PRIMARY_BTN_CLASS} px-5 py-2.5 text-sm`}
+                style={PRIMARY_BTN_STYLE}
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="h-4 w-4" />
                 Create your first assignment
               </Link>
             </div>
@@ -344,18 +391,21 @@ function AssignmentManagementContent() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className="text-base font-semibold text-slate-gray truncate group-hover:text-heading">
+                          <h3 className="truncate font-heading text-base font-semibold text-slate-gray tracking-[-0.2px] group-hover:text-heading">
                             {assignment.title}
                           </h3>
-                          <span className="flex-shrink-0 inline-flex items-center text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                          <span
+                            className="inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                            style={GREEN_PILL_STYLE}
+                          >
                             {schoolNameById.get(assignment.school_id) ?? assignment.school_id}
                           </span>
                           {attemptCount > 0 && (
                             <span
-                              className={`flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${badgeAmber}`}
+                              className="inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                              style={YELLOW_PILL_STYLE}
                               title={`${respondentCount} students answered, ${attemptCount} attempts`}
                             >
-                              <Users className="w-3 h-3" />
                               {respondentCount} answered
                             </span>
                           )}
@@ -401,7 +451,7 @@ function AssignmentManagementContent() {
                 <select
                   value={progressSchoolId}
                   onChange={(e) => setProgressSchoolId(e.target.value)}
-                  className="w-full min-w-[12rem] rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 sm:w-auto"
+                  className="w-full min-w-[12rem] rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 sm:w-auto"
                 >
                   <option value="">All your schools</option>
                   {schools.map((s) => (

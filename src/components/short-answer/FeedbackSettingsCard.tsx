@@ -127,7 +127,7 @@ export function FeedbackSettingsCard() {
 
   if (isLoading) {
     return (
-      <section className="rounded-2xl border border-primary/25 bg-surface p-6 shadow-sm">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)]">
         <div className="flex items-center gap-2 text-sm text-slate-gray/60">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading feedback settings...
@@ -138,7 +138,7 @@ export function FeedbackSettingsCard() {
 
   if (loadError || !data) {
     return (
-      <section className="rounded-2xl border border-primary/25 bg-surface p-6 shadow-sm">
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)]">
         <p className="text-sm text-slate-gray/70">
           {loadError ?? "Feedback settings are unavailable."}
         </p>
@@ -158,7 +158,7 @@ export function FeedbackSettingsCard() {
           <select
             value={draft.method}
             onChange={(e) => handleMethodChange(key, e.target.value as GradingMethod)}
-            className="min-w-64 rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="min-w-64 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
             {data.methods.map((m) => (
               <option key={m.method} value={m.method}>
@@ -176,7 +176,7 @@ export function FeedbackSettingsCard() {
             onChange={(e) =>
               updateDraft(key, { modelId: e.target.value, message: null, error: null })
             }
-            className="min-w-48 rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="min-w-48 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
             {data.models.map((model) => (
               <option key={model.id} value={model.id}>
@@ -203,7 +203,7 @@ export function FeedbackSettingsCard() {
                 error: null,
               });
             }}
-            className="w-24 rounded-lg border border-border-default bg-surface px-3 py-2 text-sm text-slate-gray focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-24 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </label>
         <div className="flex items-center gap-2">
@@ -263,10 +263,10 @@ export function FeedbackSettingsCard() {
   };
 
   return (
-    <section className="rounded-2xl border border-primary/25 bg-surface shadow-sm mb-6">
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] mb-6">
       <div className="border-b border-border-subtle px-5 py-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-gray">
-          <MessageSquareText className="h-5 w-5 text-primary" />
+        <h2 className="flex items-center gap-2 font-heading text-lg font-semibold text-slate-gray tracking-[-0.2px]">
+          <MessageSquareText className="h-5 w-5 text-[var(--assignment-completed)]" />
           Short-answer feedback settings
         </h2>
         <p className="mt-1 text-sm text-slate-gray/60">
@@ -306,7 +306,7 @@ export function FeedbackSettingsCard() {
                   {school.schoolName}
                 </span>
                 {school.inherited && (
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  <span className="rounded-full bg-[var(--assignment-calendar-nav-bg)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--assignment-completed)]">
                     Following the default
                   </span>
                 )}

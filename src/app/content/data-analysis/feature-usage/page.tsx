@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
-import { DataAnalysisTabs } from "../tabs";
 import { DateRangePicker, defaultPilotRange } from "../date-range";
 import { SchoolFilter } from "../school-filter";
 import { alertAmber, buttonOutlinePrimary } from "@/lib/ui/status-badge-styles";
@@ -89,20 +88,8 @@ export default function FeatureUsagePage() {
   }, [fetchData]);
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold font-heading text-heading mb-2">
-          Data Analysis
-        </h1>
-        <p className="text-muted-foreground max-w-3xl">
-          Tracks primarily user-initiated support actions (glossary, read-aloud, bookmarks, confidence).
-          Auto-shown hint/feedback events are intentionally excluded.
-        </p>
-      </header>
-
-      <DataAnalysisTabs active="feature-usage" />
-
-      <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm mb-6">
+    <>
+      <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)] mb-6">
         <DateRangePicker value={range} onChange={setRange} />
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <SchoolFilter value={schoolIds} onChange={setSchoolIds} />
@@ -111,7 +98,7 @@ export default function FeatureUsagePage() {
             <select
               value={mode}
               onChange={(event) => setMode(event.target.value)}
-              className="w-full rounded-lg border border-border-default px-3 py-2"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               <option value="all">All modes</option>
               <option value="practice">Practice</option>
@@ -122,7 +109,7 @@ export default function FeatureUsagePage() {
           <div className="flex items-end flex-wrap gap-2">
             <button
               onClick={() => void fetchData()}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+              className="inline-flex items-center gap-2 rounded-full font-heading font-bold px-5 py-2 text-sm transition duration-200 hover:brightness-110 active:brightness-95 border-[1.5px] border-[var(--assignment-glass-border)] bg-[var(--assignment-cta-bg-strong)] text-[var(--assignment-cta-text)] shadow-[var(--assignment-cta-elevated-shadow)]"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
@@ -140,7 +127,7 @@ export default function FeatureUsagePage() {
       </section>
 
       {error && (
-        <p className="rounded-lg border border-error-border bg-error-light px-3 py-2 text-sm text-error mb-4">
+        <p className="rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error mb-6">
           {error}
         </p>
       )}
@@ -163,7 +150,7 @@ export default function FeatureUsagePage() {
       ) : (
         <p className="text-sm text-muted-foreground">No feature usage events in the selected window.</p>
       )}
-    </main>
+    </>
   );
 }
 
@@ -205,8 +192,8 @@ function GlossarySection({ data }: { data: FeatureUsageResponse["glossary"] }) {
   const allSources = [...sources, ...extraSources];
 
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-heading mb-3">Glossary usage</h2>
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
+      <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px] mb-3">Glossary usage</h2>
       {total === 0 ? (
         <p className="text-sm text-muted-foreground">No glossary opens in this window.</p>
       ) : (
@@ -222,11 +209,11 @@ function GlossarySection({ data }: { data: FeatureUsageResponse["glossary"] }) {
             ))}
           </div>
 
-          <h3 className="text-sm font-semibold text-slate-gray mb-2">Top terms</h3>
+          <h3 className="font-heading text-sm font-semibold text-slate-gray tracking-[-0.2px] mb-2">Top terms</h3>
           {data.topTerms.length === 0 ? (
             <p className="text-sm text-muted-foreground">No term-level data.</p>
           ) : (
-            <ul className="divide-y divide-slate-100 text-sm">
+            <ul className="divide-y divide-border-subtle text-sm">
               {data.topTerms.map((term) => (
                 <li
                   key={term.termId}
@@ -256,8 +243,8 @@ function TtsSection({ data }: { data: FeatureUsageResponse["tts"] }) {
   const allTargets = [...targets, ...extraTargets];
 
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-heading mb-3">Read-aloud (TTS)</h2>
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
+      <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px] mb-3">Read-aloud (TTS)</h2>
       {total === 0 ? (
         <p className="text-sm text-muted-foreground">No read-aloud plays in this window.</p>
       ) : (
@@ -290,8 +277,8 @@ function ConfidenceSection({ data }: { data: FeatureUsageResponse["confidence"] 
   );
 
   return (
-    <section className="rounded-xl border border-primary/25 bg-surface p-4 sm:p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-heading mb-3">Confidence × correctness</h2>
+    <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-5 sm:p-6 shadow-[var(--assignment-card-shadow)]">
+      <h2 className="font-heading text-lg font-semibold text-heading tracking-[-0.4px] mb-3">Confidence × correctness</h2>
       {total === 0 ? (
         <p className="text-sm text-muted-foreground">No confidence ratings in this window.</p>
       ) : (
@@ -349,7 +336,7 @@ function MetricCard({
   hint?: string;
 }) {
   return (
-    <article className="rounded-xl border border-border-default bg-surface p-4 shadow-sm">
+    <article className="rounded-xl border border-border-default bg-surface p-4">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold text-slate-gray">{value}</p>
       {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
@@ -368,7 +355,7 @@ function CounterTile({
 }) {
   const pct = total > 0 ? Math.round((counter.n / total) * 100) : 0;
   return (
-    <article className="rounded-xl border border-border-default bg-surface p-3 shadow-sm">
+    <article className="rounded-xl border border-border-default bg-surface p-3">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold text-slate-gray tabular-nums">
         {counter.n}
@@ -404,7 +391,7 @@ function BarRow({
       </div>
       <div className="h-2 rounded-full bg-surface-muted overflow-hidden">
         <div
-          className="h-full bg-primary/70"
+          className="h-full bg-[var(--assignment-progress-fill)]"
           style={{ width: `${Math.max(2, pct)}%` }}
         />
       </div>
