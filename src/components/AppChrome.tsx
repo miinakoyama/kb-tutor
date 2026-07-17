@@ -11,8 +11,10 @@ import { BadgeCelebrationModalManager } from "@/components/badges/BadgeCelebrati
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const hideNavigationChrome = pathname === "/login" || pathname === "/login/staff";
-  // Question-taking routes plus pages that opted out of the corner leaf.
+  // Question-taking routes, the login pages, plus pages that opted out of
+  // the corner leaf.
   const hideDecorativeLeaf =
+    hideNavigationChrome ||
     pathname === "/" ||
     pathname === "/assignments" ||
     pathname === "/self-practice" ||
