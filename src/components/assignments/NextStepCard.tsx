@@ -28,6 +28,11 @@ export function NextStepCard({
   // Effective visible image start inside the PNG (left transparent gutter excluded).
   // Use this for edge clamping so the visible content, not the transparent canvas, aligns to track edges.
   const markerEffectiveStartX = 49;
+  // At 100% the marker's left clamps to (100% - markerEffectiveStartX), so its
+  // right edge overhangs the track by this much. Reserve exactly that (plus a
+  // small buffer) as the gap before the % so the number never sits under the
+  // mascot, at any completion or panel width. Derived, not a magic number.
+  const markerOverhangPx = markerWidth - markerEffectiveStartX + 8;
 
   const href = buildPracticeHref(assignment);
   const { progress } = assignment;
@@ -139,9 +144,11 @@ export function NextStepCard({
             </button>
           )}
 
-          {/* Progress bar + percentage */}
-          <div className="flex items-center gap-3">
-            <div className="relative" style={{ width: "85%", paddingTop: 10 }}>
+          {/* Progress bar + percentage. The track flexes to fill, and the %
+              is offset by exactly the mascot's right overhang (derived above)
+              so the number always clears the icon at any completion. */}
+          <div className="flex items-center">
+            <div className="relative flex-1" style={{ paddingTop: 10 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/illustrations/Progress 1.png"
@@ -181,7 +188,7 @@ export function NextStepCard({
               </div>
             </div>
             <span
-              className="flex-shrink-0"
+              className="relative flex-shrink-0"
               style={{
                 fontSize: 15,
                 lineHeight: 1.5,
@@ -191,6 +198,12 @@ export function NextStepCard({
                 color: "var(--muted-foreground)",
                 minWidth: 36,
                 textAlign: "right",
+                // Clear the mascot's right overhang (derived from marker
+                // constants), and stay above it just in case. The right
+                // margin pulls it off the divider so it isn't crowded.
+                marginLeft: markerOverhangPx,
+                marginRight: 24,
+                zIndex: 3,
               }}
             >
               {Math.round(completionRatio * 100)}%
