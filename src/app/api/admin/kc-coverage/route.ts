@@ -212,7 +212,10 @@ export async function GET(request: Request) {
     invalidCount: number;
     // Only questions eligible for adaptive selection (valid + in Self Practice)
     // count towards a KC — anything else is not something Practice can serve.
-    kcQuestionCounts: Map<string, number>;
+    // Tracked per format so a KC that has, say, MCQ items but zero SAQ items
+    // (or vice versa) can be told apart from one that is genuinely covered —
+    // Mixed self-practice requires both formats to be servable per KC.
+    kcFormatCounts: Map<string, { mcq: number; saq: number }>;
   }>();
   for (const row of data) {
     const id = String(row.standard_id ?? "Unassigned");
@@ -223,7 +226,7 @@ export async function GET(request: Request) {
       validCount: 0,
       unresolvedCount: 0,
       invalidCount: 0,
-      kcQuestionCounts: new Map<string, number>(),
+      kcFormatCounts: new Map<string, { mcq: number; saq: number }>(),
     };
     summary.questionCount += 1;
     if (row.include_in_self_practice) summary.selfPracticeCount += 1;
@@ -237,7 +240,10 @@ export async function GET(request: Request) {
     ) {
       for (const code of row.confirmed_kc_codes) {
         if (typeof code !== "string") continue;
-        summary.kcQuestionCounts.set(code, (summary.kcQuestionCounts.get(code) ?? 0) + 1);
+        const counts = summary.kcFormatCounts.get(code) ?? { mcq: 0, saq: 0 };
+        if (row.format === "saq") counts.saq += 1;
+        else counts.mcq += 1;
+        summary.kcFormatCounts.set(code, counts);
       }
     }
     standards.set(id, summary);
@@ -260,7 +266,7 @@ export async function GET(request: Request) {
       validCount: 0,
       unresolvedCount: 0,
       invalidCount: 0,
-      kcQuestionCounts: new Map<string, number>(),
+      kcFormatCounts: new Map<string, { mcq: number; saq: number }>(),
     });
   }
   // A rollout now belongs to one school, so a status is only well-defined when a
@@ -284,23 +290,28 @@ export async function GET(request: Request) {
   const rows = Array.from(standards.values())
     .sort((a, b) => a.standardId.localeCompare(b.standardId))
     .slice(cursor, cursor + limit)
-    .map(({ kcQuestionCounts, ...summary }) => {
+    .map(({ kcFormatCounts, ...summary }) => {
       const activeKcs = activeKcsByStandard.get(summary.standardId) ?? [];
-      const kcBreakdown = activeKcs.map((kc) => ({
-        code: kc.code,
-        statement: kc.statement,
-        questionCount: kcQuestionCounts.get(kc.code) ?? 0,
-      }));
+      const kcBreakdown = activeKcs.map((kc) => {
+        const counts = kcFormatCounts.get(kc.code) ?? { mcq: 0, saq: 0 };
+        return { code: kc.code, statement: kc.statement, mcqCount: counts.mcq, saqCount: counts.saq };
+      });
       const rollout = rolloutForSchool.get(summary.standardId);
       return {
         ...summary,
         kcs: kcBreakdown,
-        coveredKcCount: kcBreakdown.filter((kc) => kc.questionCount > 0).length,
+        coveredKcCount: kcBreakdown.filter((kc) => kc.mcqCount + kc.saqCount > 0).length,
         activeKcCount: activeKcs.length,
-        emptyKcCount: kcBreakdown.filter((kc) => kc.questionCount === 0).length,
-        // A KC with a single item gives the selector nothing to rotate to once
-        // the student has answered it, so surface it separately from a hard gap.
-        thinKcCount: kcBreakdown.filter((kc) => kc.questionCount > 0 && kc.questionCount < 2).length,
+        emptyKcCount: kcBreakdown.filter((kc) => kc.mcqCount + kc.saqCount === 0).length,
+        // A KC that has questions in only one format can't serve Mixed
+        // self-practice's required cadence for that KC (e.g. the pattern calls
+        // for an SAQ but none is mapped there) — distinct from a hard gap.
+        missingFormatKcCount: kcBreakdown.filter(
+          (kc) => kc.mcqCount + kc.saqCount > 0 && (kc.mcqCount === 0 || kc.saqCount === 0),
+        ).length,
+        // A KC with only one item in a format gives the selector nothing to
+        // rotate to within that format once the student has answered it.
+        thinKcCount: kcBreakdown.filter((kc) => kc.mcqCount === 1 || kc.saqCount === 1).length,
         rolloutStatus: schoolId ? (rollout?.status ?? "disabled") : null,
         coverageHash: schoolId ? (rollout?.coverage_hash ?? null) : null,
         enabledSchoolCount: enabledSchoolsByStandard.get(summary.standardId) ?? 0,
