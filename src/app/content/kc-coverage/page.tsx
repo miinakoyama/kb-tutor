@@ -191,6 +191,7 @@ export default function KcCoveragePage() {
   const [schoolId, setSchoolId] = useState<string>(ALL_SCHOOLS);
   const [selectedStandards, setSelectedStandards] = useState<Record<string, boolean>>({});
   const [gapTarget, setGapTarget] = useState(2);
+  const [gapModelId, setGapModelId] = useState(DEFAULT_GENERATION_MODEL_ID);
   const [gapProgress, setGapProgress] = useState<string | null>(null);
   const [gapWarnings, setGapWarnings] = useState<string[]>([]);
 
@@ -293,10 +294,10 @@ export default function KcCoveragePage() {
       await keepSessionAlive();
       // Create the set shell + school link up front so completed work can be
       // persisted incrementally — a crash mid-run must not discard questions.
-      const defaultModel = GENERATION_MODELS.find((m) => m.id === DEFAULT_GENERATION_MODEL_ID);
+      const generationModel = GENERATION_MODELS.find((m) => m.id === gapModelId);
       const setId = await withRetry(() =>
         addGeneratedQuestionSet([], setName, generatedAt, {
-          generationModel: { id: defaultModel?.id, label: defaultModel?.label },
+          generationModel: { id: generationModel?.id, label: generationModel?.label },
           schoolLinks: [{ schoolId }],
         }),
       );
@@ -317,7 +318,7 @@ export default function KcCoveragePage() {
                       standardId: gap.standardId,
                       setName,
                       kcCode: gap.kcCode,
-                      modelId: DEFAULT_GENERATION_MODEL_ID,
+                      modelId: gapModelId,
                       temperature: DEFAULT_GENERATION_TEMPERATURE,
                       stimulusType: pickRandomStimulusType(true),
                     })
@@ -325,7 +326,7 @@ export default function KcCoveragePage() {
                       standardId: gap.standardId,
                       questionId: `sa-${generatedAt}-${offset + chunkIndex}`,
                       kcCode: gap.kcCode,
-                      modelId: DEFAULT_GENERATION_MODEL_ID,
+                      modelId: gapModelId,
                       temperature: DEFAULT_GENERATION_TEMPERATURE,
                       stimulusType: pickRandomStimulusType(false),
                     }),
@@ -538,6 +539,31 @@ export default function KcCoveragePage() {
               border: "1.5px solid var(--assignment-row-cta-border)",
             }}
           />
+          <label
+            htmlFor="gap-model"
+            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
+          >
+            Model
+          </label>
+          <select
+            id="gap-model"
+            value={gapModelId}
+            disabled={generating}
+            onChange={(event) => setGapModelId(event.target.value)}
+            className="h-10 rounded-full px-4 text-sm font-semibold"
+            style={{
+              fontFamily: geist,
+              color: "var(--assignment-row-cta-text)",
+              background: "var(--assignment-row-cta-bg)",
+              border: "1.5px solid var(--assignment-row-cta-border)",
+            }}
+          >
+            {GENERATION_MODELS.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.label}
+              </option>
+            ))}
+          </select>
           <ActionButton
             dense
             disabled={generating || standardIdsWithGaps.length === 0}
