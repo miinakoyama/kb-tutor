@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowUpDown,
   Bookmark,
   CheckCircle2,
   ChevronLeft,
@@ -160,6 +161,8 @@ function BookmarksPageContent() {
   const [firstTryWrongIds, setFirstTryWrongIds] = useState<string[]>([]);
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
   const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
+  /** Per-topic sort order for the expanded question list. Missing entries default to "recent". */
+  const [topicSortOrder, setTopicSortOrder] = useState<Record<string, "recent" | "oldest">>({});
   const [isChoosingTopics, setIsChoosingTopics] = useState(
     () => searchParams.get("chooseTopics") === "1",
   );
@@ -353,6 +356,13 @@ function BookmarksPageContent() {
     }));
   }, []);
 
+  const handleToggleSortOrder = useCallback((topicKey: string) => {
+    setTopicSortOrder((prev) => ({
+      ...prev,
+      [topicKey]: (prev[topicKey] ?? "recent") === "recent" ? "oldest" : "recent",
+    }));
+  }, []);
+
   const handleToggleQuestion = useCallback((questionId: string) => {
     setExpandedQuestions((prev) => ({
       ...prev,
@@ -380,6 +390,24 @@ function BookmarksPageContent() {
     );
   }, [availablePracticeTopics]);
 
+  /**
+   * `group.questions` order reflects how each section's id list is produced:
+   * "needs" is oldest-first (computeFirstTryIncorrectIds sorts ascending by
+   * first-wrong timestamp), "bookmarked" is newest-first (syncBookmarksFromDb
+   * orders by created_at descending). Reverse only when the requested sort
+   * doesn't already match that incoming order.
+   */
+  const getOrderedQuestions = useCallback(
+    (questions: Question[], section: "needs" | "bookmarked", sortMode: "recent" | "oldest"): Question[] => {
+      const incomingIsMostRecentFirst = section === "bookmarked";
+      const wantMostRecentFirst = sortMode === "recent";
+      return incomingIsMostRecentFirst === wantMostRecentFirst
+        ? questions
+        : [...questions].reverse();
+    },
+    [],
+  );
+
   const renderTopicGroupCard = (
     groups: TopicGroup[],
     section: "needs" | "bookmarked",
@@ -391,6 +419,8 @@ function BookmarksPageContent() {
         {groups.map((group, index) => {
           const topicKey = `${section}:${groupKeyPrefix}:${group.topic}`;
           const isExpanded = Boolean(expandedTopics[topicKey]);
+          const sortMode = topicSortOrder[topicKey] ?? "recent";
+          const orderedQuestions = getOrderedQuestions(group.questions, section, sortMode);
 
           return (
             <div
@@ -427,7 +457,17 @@ function BookmarksPageContent() {
                     className="overflow-hidden"
                   >
                     <div className="space-y-2 border-t border-border-subtle px-4 py-3">
-                      {group.questions.map((question) => {
+                      <div className="flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSortOrder(topicKey)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-slate-gray/5 px-2.5 py-1 text-xs font-medium text-slate-gray transition-colors hover:bg-slate-gray/10"
+                        >
+                          <ArrowUpDown className="h-3.5 w-3.5" />
+                          {sortMode === "recent" ? "Most recent" : "Oldest first"}
+                        </button>
+                      </div>
+                      {orderedQuestions.map((question) => {
                         const isShortAnswer = isShortAnswerQuestion(question);
                         const previewText = isShortAnswer
                           ? question.shortAnswer?.stem ?? question.text

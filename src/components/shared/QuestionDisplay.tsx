@@ -101,10 +101,11 @@ export function QuestionDisplay({
       >
         {showHeader && (
           <div className={`flex items-start justify-between gap-3 ${compact ? "mb-2" : "mb-6"}`}>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
                 Question {questionNumber}
               </p>
+              {headerAction}
               {questionMetaText && (
                 <p className="text-sm text-muted-foreground">{questionMetaText}</p>
               )}
@@ -127,7 +128,6 @@ export function QuestionDisplay({
                   />
                 </div>
               )}
-              {headerAction}
             </div>
           </div>
         )}

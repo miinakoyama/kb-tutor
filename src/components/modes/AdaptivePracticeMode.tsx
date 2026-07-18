@@ -10,6 +10,7 @@ import {
   Send,
   RefreshCcw,
   BookOpen,
+  Home,
   X,
   ArrowLeft,
   CheckCircle2,
@@ -93,7 +94,6 @@ interface AdaptivePracticeModeProps {
   questionCount?: number;
   assignmentId?: string;
   mode?: "practice" | "review";
-  preferReviewTopicsCta?: boolean;
   backHref?: string;
   showBackLink?: boolean;
   /**
@@ -128,7 +128,6 @@ export function AdaptivePracticeMode({
   questionCount,
   assignmentId,
   mode = "practice",
-  preferReviewTopicsCta = false,
   backHref = "/self-practice",
   showBackLink = false,
   answered,
@@ -1264,16 +1263,12 @@ export function AdaptivePracticeMode({
               {mode === "review" ? "Review Again" : "Try Again"}
             </button>
             <Link
-              href={
-                mode === "review" || preferReviewTopicsCta
-                  ? "/bookmarks?chooseTopics=1"
-                  : "/self-practice"
-              }
+              href="/"
               className={assignmentPrimaryButtonClass}
               style={assignmentPrimaryButtonStyle}
             >
-              <BookOpen className="w-4 h-4" />
-              Practice Other Topics
+              <Home className="w-4 h-4" />
+              Back to Home
             </Link>
           </div>
         </div>
@@ -1355,7 +1350,10 @@ export function AdaptivePracticeMode({
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
         contextLabel={contextLabel}
-        hideQuestionCounter={mode === "practice" && !isAssignmentRun}
+        // Narrower than `mode === "practice" && !isAssignmentRun`: also keeps
+        // the counter for a bounded review-by-question-ids session (e.g. "3
+        // review questions" from Bookmarks), which has a real fixed total.
+        hideQuestionCounter={adaptiveRequested}
         onFinishSession={!isAssignmentRun ? finishSession : undefined}
         variant={
           isShortAnswerQuestion && question.shortAnswer ? "split" : "mcq"

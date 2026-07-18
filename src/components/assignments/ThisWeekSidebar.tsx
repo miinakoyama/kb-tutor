@@ -2,8 +2,14 @@
 
 import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { StudentAssignmentListItem } from "@/lib/student-assignments";
+import type { AssignmentMode, StudentAssignmentListItem } from "@/lib/student-assignments";
 import { formatDueDateTime } from "@/lib/due-date";
+import { AssignmentModeBadge } from "@/components/assignments/AssignmentModeBadge";
+
+type CalendarAssignmentEntry = {
+  title: string;
+  mode: AssignmentMode;
+};
 
 type CalendarDay = {
   key: string;
@@ -11,6 +17,8 @@ type CalendarDay = {
   inMonth: boolean;
   dueCount: number;
   doneCount: number;
+  dueEntries: CalendarAssignmentEntry[];
+  doneEntries: CalendarAssignmentEntry[];
   isToday: boolean;
 };
 
@@ -67,8 +75,8 @@ function weekTitle(weekStart: Date): string {
 
 function buildCalendarDays(
   monthCursor: Date,
-  dueByDay: Map<string, number>,
-  doneByDay: Map<string, number>,
+  dueByDay: Map<string, CalendarAssignmentEntry[]>,
+  doneByDay: Map<string, CalendarAssignmentEntry[]>,
 ): CalendarDay[] {
   const monthStart = new Date(
     monthCursor.getFullYear(),
@@ -91,12 +99,16 @@ function buildCalendarDays(
     cursor = addDays(cursor, 1)
   ) {
     const key = dayKey(cursor);
+    const dueEntries = dueByDay.get(key) ?? [];
+    const doneEntries = doneByDay.get(key) ?? [];
     days.push({
       key,
       date: cursor,
       inMonth: cursor.getMonth() === monthCursor.getMonth(),
-      dueCount: dueByDay.get(key) ?? 0,
-      doneCount: doneByDay.get(key) ?? 0,
+      dueCount: dueEntries.length,
+      doneCount: doneEntries.length,
+      dueEntries,
+      doneEntries,
       isToday: cursor.getTime() === today.getTime(),
     });
   }
@@ -219,8 +231,8 @@ export function ThisWeekSidebar({
   };
 
   const { dueByDay, doneByDay, weeklyTodos, weeklyDone } = useMemo(() => {
-    const dueMap = new Map<string, number>();
-    const doneMap = new Map<string, number>();
+    const dueMap = new Map<string, CalendarAssignmentEntry[]>();
+    const doneMap = new Map<string, CalendarAssignmentEntry[]>();
 
     const todos: StudentAssignmentListItem[] = [];
     const done: StudentAssignmentListItem[] = [];
@@ -229,7 +241,9 @@ export function ThisWeekSidebar({
       const dueDate = toValidDate(assignment.due_date);
       if (dueDate && assignment.status !== "completed") {
         const key = dayKey(dueDate);
-        dueMap.set(key, (dueMap.get(key) ?? 0) + 1);
+        const entries = dueMap.get(key) ?? [];
+        entries.push({ title: assignment.title, mode: assignment.mode });
+        dueMap.set(key, entries);
 
         if (
           dueDate.getTime() >= selectedWeekStartTime &&
@@ -242,7 +256,9 @@ export function ThisWeekSidebar({
       const doneDate = toValidDate(assignment.last_completed_at);
       if (doneDate && assignment.status === "completed") {
         const key = dayKey(doneDate);
-        doneMap.set(key, (doneMap.get(key) ?? 0) + 1);
+        const entries = doneMap.get(key) ?? [];
+        entries.push({ title: assignment.title, mode: assignment.mode });
+        doneMap.set(key, entries);
 
         if (
           doneDate.getTime() >= selectedWeekStartTime &&
@@ -380,16 +396,53 @@ export function ThisWeekSidebar({
           {calendarDays.map((day) => {
             const hasDue = day.dueCount > 0;
             const hasDone = day.doneCount > 0;
+            const hasMarks = hasDue || hasDone;
 
             return (
               <div
                 key={day.key}
-                className="flex aspect-square flex-col items-start justify-center px-0 py-0"
+                className={`group relative flex aspect-square flex-col items-start justify-center px-0 py-0 ${hasMarks ? "cursor-default" : ""}`}
                 style={{
                   minHeight: 22,
                   opacity: day.inMonth ? 1 : 0.45,
                 }}
               >
+                {hasMarks && (
+                  <div
+                    role="tooltip"
+                    className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 flex w-max max-w-[220px] -translate-x-1/2 flex-col gap-1.5 rounded-lg px-3 py-2.5 text-left opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                    style={{
+                      background: "var(--assignment-popover-bg)",
+                      border: "1px solid var(--assignment-popover-border)",
+                      boxShadow: "var(--assignment-popover-shadow)",
+                      backdropFilter: "blur(14px) saturate(115%)",
+                      WebkitBackdropFilter: "blur(14px) saturate(115%)",
+                    }}
+                  >
+                    {day.dueEntries.map((entry, index) => (
+                      <div key={`due-${index}`} className="flex items-center gap-1.5">
+                        <span
+                          className="truncate text-slate-gray"
+                          style={{ fontSize: 12, lineHeight: 1.5, fontWeight: 500 }}
+                        >
+                          {entry.title}
+                        </span>
+                        <AssignmentModeBadge mode={entry.mode} size="xs" />
+                      </div>
+                    ))}
+                    {day.doneEntries.map((entry, index) => (
+                      <div key={`done-${index}`} className="flex items-center gap-1.5">
+                        <span
+                          className="truncate text-muted-foreground line-through"
+                          style={{ fontSize: 12, lineHeight: 1.5, fontWeight: 500 }}
+                        >
+                          {entry.title}
+                        </span>
+                        <AssignmentModeBadge mode={entry.mode} size="xs" />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <span
                   className="inline-flex items-center justify-center rounded-[14px]"
                   style={{
