@@ -116,6 +116,41 @@ describe("gradePart", () => {
     expect(chatComplete).toHaveBeenCalledTimes(4);
     expect(result.feedback.verdict).toBe("heres_the_idea");
     expect(result.feedback.segments[0].text).toContain("mRNA that carries the code");
+    // The closure generator must receive the part's full-credit criteria so it
+    // can teach the model answer regardless of the grading method's gap quality.
+    const closureUserMessage = chatComplete.mock.calls[3][0].messages[1].content;
+    expect(closureUserMessage).toContain("CORRECT ANSWER");
+  });
+
+  it("method 3 attempt 2 (no diagnosed gap) still teaches the model answer via full-credit criteria", async () => {
+    chatComplete
+      // Method 3 scoring call: returns no diagnosedGap.
+      .mockResolvedValueOnce(jsonCompletion({ score: 0, feedback: "Reconsider the messenger.", confidence: "medium" }))
+      // classifyResolution
+      .mockResolvedValueOnce(textCompletion("not_at_all"))
+      // closure feedback
+      .mockResolvedValueOnce(textCompletion("Good effort. The messenger molecule is mRNA."));
+
+    const { gradePart } = await load();
+    const result = await gradePart({
+      ...baseParams,
+      method: "3",
+      studentResponse: "still DNA",
+      attemptNumber: 2,
+      maxAttempts: 2,
+      attempt1Feedback: "What travels to the ribosome?",
+      // Method 3 stored no gap on attempt 1.
+      attempt1Gap: "",
+    });
+
+    expect(result.feedback.verdict).toBe("heres_the_idea");
+    // The gap fed to classification/closure must NOT be the literal "Unknown
+    // gap" placeholder — it must fall back to the part's full-credit criteria.
+    const classifyUser = chatComplete.mock.calls[1][0].messages[1].content;
+    expect(classifyUser).not.toContain("Unknown gap");
+    const closureUser = chatComplete.mock.calls[2][0].messages[1].content;
+    expect(closureUser).toContain("CORRECT ANSWER");
+    expect(closureUser).not.toContain("Unknown gap");
   });
 
   it("correct answers never trigger the closure pipeline", async () => {

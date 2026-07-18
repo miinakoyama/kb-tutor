@@ -78,6 +78,7 @@ export async function gradePart(
       const attempt2 = await buildAttempt2StudentFeedback({
         attempt1Feedback,
         attempt1Gap,
+        fullCreditCriteria: partFullCreditCriteria(input.part),
         itemStem: input.item.stem,
         partLabel: input.part.label,
         partPrompt: input.part.prompt,
@@ -97,6 +98,7 @@ export async function gradePart(
         resolution: "not_at_all",
         attempt1Feedback: "",
         attempt1Gap: output.diagnosedGap?.trim() || partFullCreditCriteria(input.part),
+        fullCreditCriteria: partFullCreditCriteria(input.part),
         questionStem: input.item.stem,
         partLabel: input.part.label,
         partPrompt: input.part.prompt,

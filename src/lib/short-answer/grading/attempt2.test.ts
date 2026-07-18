@@ -27,6 +27,7 @@ describe("attempt2 feedback pipeline", () => {
     const result = await buildAttempt2StudentFeedback({
       attempt1Feedback: "What molecule carries the code to the ribosome?",
       attempt1Gap: "Student named DNA instead of mRNA.",
+      fullCreditCriteria: "Names mRNA as the molecule that carries the code to the ribosome.",
       itemStem: "Cells use DNA to build proteins.",
       partLabel: "A",
       partPrompt: "Name the messenger molecule.",
@@ -38,8 +39,17 @@ describe("attempt2 feedback pipeline", () => {
     expect(result.resolution).toBe("not_at_all");
     expect(result.feedback).toContain("Gene expression");
     expect(chatComplete).toHaveBeenCalledTimes(2);
+    // The classification call must use the configured temperature, not a
+    // hardcoded 0 — reasoning-class models (e.g. gpt-5.4) reject any
+    // temperature other than their default and would throw otherwise.
+    expect(chatComplete.mock.calls[0][0].temperature).toBe(1);
     expect(chatComplete.mock.calls[1][0].messages[0].content).toContain(
       "HARD CONSTRAINT",
+    );
+    // The generator must be handed the full-credit criteria so it can teach the
+    // model answer even when the method diagnosed no usable gap.
+    expect(chatComplete.mock.calls[1][0].messages[1].content).toContain(
+      "Names mRNA as the molecule",
     );
   });
 
@@ -55,6 +65,7 @@ describe("attempt2 feedback pipeline", () => {
     const result = await buildAttempt2StudentFeedback({
       attempt1Feedback: "Think about the molecule that leaves the nucleus.",
       attempt1Gap: "Missing messenger RNA.",
+      fullCreditCriteria: "Names mRNA as the molecule that carries the code to the ribosome.",
       itemStem: "Cells use DNA to build proteins.",
       partLabel: "A",
       partPrompt: "Name the messenger molecule.",

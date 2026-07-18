@@ -12,10 +12,11 @@ export async function classifyResolution(params: {
   attempt1Gap: string;
   attempt2Response: string;
   modelId: string;
+  temperature: number;
 }): Promise<Attempt2Resolution> {
   const completion = await chatComplete({
     model: params.modelId,
-    temperature: 0,
+    temperature: params.temperature,
     messages: [
       {
         role: "system",
@@ -47,6 +48,8 @@ export interface Attempt2FeedbackInput {
   resolution: Attempt2Resolution;
   attempt1Feedback: string;
   attempt1Gap: string;
+  /** Full-credit rubric criteria for the part — the model answer to teach. */
+  fullCreditCriteria: string;
   questionStem: string;
   partLabel: string;
   partPrompt: string;
@@ -67,15 +70,15 @@ function feedbackInstruction(resolution: Attempt2Resolution): string {
       return [
         "IF resolution = partially:",
         "The student made some progress but did not fully close the gap.",
-        "First, recognize what changed or improved from attempt 1 (be specific, not generic). Then in the next sentence, state the remaining missing piece directly as a fact — do not hint, just complete the reasoning.",
+        "First, recognize what changed or improved from attempt 1 (be specific, not generic). Then, in the next sentence, teach the rest of the answer: state the remaining missing idea directly as a fact, drawn from the CORRECT ANSWER, so the student learns it. Do not hint — complete the reasoning.",
         "Do not ask a question. Maximum 2 sentences. No question mark.",
       ].join("\n");
     default:
       return [
         "IF resolution = not_at_all:",
-        "The student did not address the gap, but still made an attempt — acknowledge that briefly.",
-        "Then complete the reasoning for the student: identify the specific step they missed and state it clearly as a declarative sentence.",
-        "Format: '[One word of acknowledgment for the effort.] [The missing step stated directly.]'",
+        "This is the student's final attempt and it is still incorrect — teach them the answer now.",
+        "First, briefly acknowledge the effort (one short phrase). Then teach the correct answer: state the key idea from the CORRECT ANSWER directly as a declarative sentence so the student learns what they missed.",
+        "Format: '[One word of acknowledgment for the effort.] [The correct idea stated directly.]'",
         "Do not ask a question. Maximum 2 sentences. No question mark.",
       ].join("\n");
   }
@@ -89,6 +92,7 @@ export async function generateAttempt2Feedback(
     resolution,
     attempt1Feedback,
     attempt1Gap,
+    fullCreditCriteria,
     questionStem,
     partLabel,
     partPrompt,
@@ -105,6 +109,7 @@ export async function generateAttempt2Feedback(
         role: "system",
         content: [
           "You are giving targeted feedback on a student's second attempt at a Keystone Biology question.",
+          "This is the student's LAST attempt: they will not answer again, so it is correct to reveal and teach the answer here.",
           "",
           `Gap resolution: ${resolution}`,
           "",
@@ -120,6 +125,7 @@ export async function generateAttempt2Feedback(
         content: [
           `Question: ${questionStem}`,
           `Part ${partLabel}: ${partPrompt}`,
+          `CORRECT ANSWER (full-credit criteria for this part): ${fullCreditCriteria}`,
           `What was missing (attempt 1): ${attempt1Gap}`,
           `Student attempt 2 response: ${studentResponse}`,
         ].join("\n"),
@@ -137,6 +143,8 @@ export async function generateAttempt2Feedback(
 export async function buildAttempt2StudentFeedback(params: {
   attempt1Feedback: string;
   attempt1Gap: string;
+  /** Full-credit rubric criteria for the part — the model answer to teach. */
+  fullCreditCriteria: string;
   itemStem: string;
   partLabel: string;
   partPrompt: string;
@@ -150,17 +158,26 @@ export async function buildAttempt2StudentFeedback(params: {
   tokenCount: number;
   latencyMs: number;
 }> {
-  const gap = params.attempt1Gap.trim() || params.fallbackGap?.trim() || "Unknown gap";
+  // Methods differ in the gap they diagnose: method 1 gives a rich concept-level
+  // gap, method 2 only a failure-type code, method 3 none at all. Fall back to
+  // the part's full-credit criteria so classification and teaching always have
+  // the correct answer to work from.
+  const gap =
+    params.attempt1Gap.trim() ||
+    params.fallbackGap?.trim() ||
+    params.fullCreditCriteria;
   const resolution = await classifyResolution({
     attempt1Gap: gap,
     attempt2Response: params.studentResponse,
     modelId: params.modelId,
+    temperature: params.temperature,
   });
 
   const generated = await generateAttempt2Feedback({
     resolution,
     attempt1Feedback: params.attempt1Feedback,
     attempt1Gap: gap,
+    fullCreditCriteria: params.fullCreditCriteria,
     questionStem: params.itemStem,
     partLabel: params.partLabel,
     partPrompt: params.partPrompt,
