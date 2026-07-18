@@ -10,6 +10,7 @@ import sampleItem from "@/data/short-answer/sample-item.json";
 import type { ShortAnswerItem } from "@/types/short-answer";
 
 const item = sampleItem as ShortAnswerItem;
+const partA = item.parts[0];
 
 describe("normalizeScore", () => {
   it("clamps and rounds to [0, maxScore]", () => {
@@ -36,6 +37,7 @@ describe("buildGradedFeedback", () => {
       correct: true,
       isFinalAttempt: true,
       item,
+      part: partA,
       attemptsRemaining: 0,
       studentResponse: "It's mRNA.",
     });
@@ -51,6 +53,7 @@ describe("buildGradedFeedback", () => {
       correct: false,
       isFinalAttempt: false,
       item,
+      part: partA,
       attemptsRemaining: 1,
       studentResponse: "It's DNA.",
     });
@@ -58,6 +61,7 @@ describe("buildGradedFeedback", () => {
     expect(fb.segments).toHaveLength(1);
     expect(fb.segments[0].label).toBe("");
     expect(fb.segments[0].text).toContain("messenger molecule");
+    // A non-final miss still has retries, so no model answer is revealed yet.
     expect(fb.modelAnswer).toBeUndefined();
     expect(Array.isArray(fb.glossaryTerms)).toBe(true);
   });
@@ -69,6 +73,7 @@ describe("buildGradedFeedback", () => {
       correct: false,
       isFinalAttempt: false,
       item,
+      part: partA,
       attemptsRemaining: 1,
       studentResponse: "I think the mRNA travels there.",
     });
@@ -77,20 +82,23 @@ describe("buildGradedFeedback", () => {
     expect(fb.glossaryTerms).toContain("translation");
   });
 
-  it("shows LLM closure feedback (not a static model answer) on any final incorrect attempt", () => {
+  it("shows both the LLM closure feedback and the rubric model answer on a final incorrect attempt", () => {
     const fb = buildGradedFeedback({
       rawFeedback:
         "Thanks for revising. The messenger RNA carries the genetic code from the nucleus to the ribosome.",
       correct: false,
       isFinalAttempt: true,
       item,
+      part: partA,
       attemptsRemaining: 0,
       studentResponse: "I think it might be DNA still.",
     });
     expect(fb.verdict).toBe("heres_the_idea");
     expect(fb.segments).toHaveLength(1);
     expect(fb.segments[0].text).toContain("messenger RNA");
-    expect(fb.modelAnswer).toBeUndefined();
+    // The model answer is sourced from the part's full-credit rubric criteria,
+    // independent of the LLM prose.
+    expect(fb.modelAnswer).toBe(partA.rubric.criteria[String(partA.maxScore)]);
   });
 });
 

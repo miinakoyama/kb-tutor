@@ -70,15 +70,16 @@ function feedbackInstruction(resolution: Attempt2Resolution): string {
       return [
         "IF resolution = partially:",
         "The student made some progress but did not fully close the gap.",
-        "First, recognize what changed or improved from attempt 1 (be specific, not generic). Then, in the next sentence, teach the rest of the answer: state the remaining missing idea directly as a fact, drawn from the CORRECT ANSWER, so the student learns it. Do not hint — complete the reasoning.",
+        "Recognize specifically what improved from attempt 1, then briefly name the concept still missing so they know where the gap is.",
+        "The exact correct answer is shown to the student in a separate 'Model answer' section, so do NOT restate it verbatim — keep this to a short, encouraging explanation.",
         "Do not ask a question. Maximum 2 sentences. No question mark.",
       ].join("\n");
     default:
       return [
         "IF resolution = not_at_all:",
-        "This is the student's final attempt and it is still incorrect — teach them the answer now.",
-        "First, briefly acknowledge the effort (one short phrase). Then teach the correct answer: state the key idea from the CORRECT ANSWER directly as a declarative sentence so the student learns what they missed.",
-        "Format: '[One word of acknowledgment for the effort.] [The correct idea stated directly.]'",
+        "This is the student's final attempt and it is still incorrect, but they made an attempt — acknowledge that briefly.",
+        "Then add one short sentence that explains the underlying idea or points them to what to focus on, using the CORRECT ANSWER for accuracy.",
+        "The exact correct answer is shown to the student in a separate 'Model answer' section, so do NOT copy it verbatim — keep this to a brief, encouraging explanation.",
         "Do not ask a question. Maximum 2 sentences. No question mark.",
       ].join("\n");
   }

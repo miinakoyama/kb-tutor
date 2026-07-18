@@ -117,6 +117,7 @@ export async function gradePart(
     correct,
     isFinalAttempt,
     item: input.item,
+    part: input.part,
     attemptsRemaining,
     studentResponse: input.studentResponse,
   });

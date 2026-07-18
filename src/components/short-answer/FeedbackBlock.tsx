@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Lightbulb } from "lucide-react";
+import { ChevronDown, Lightbulb } from "lucide-react";
 import type { GradedFeedback } from "@/types/short-answer";
 import { HIGHLIGHT_ZONE_ATTR } from "@/lib/short-answer/highlight";
 import { verdictDisplay } from "./verdict-display";
@@ -89,6 +89,9 @@ export function FeedbackBlock({
 }: FeedbackBlockProps) {
   const display = verdictDisplay(feedback.verdict, isFinalAttempt);
   const tone = TONE_STYLES[display.tone];
+  // The model answer is dense reference text, so it stays collapsed behind an
+  // explicit click (not hover — that fails on touch and hides the key content).
+  const [showModelAnswer, setShowModelAnswer] = useState(false);
 
   return (
     <div
@@ -148,14 +151,30 @@ export function FeedbackBlock({
       )}
 
       {feedback.modelAnswer && (
-        <p
-          {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
-          className={`px-4 pb-3 text-[15px] leading-relaxed text-[color:var(--foreground)]/75 ${
-            feedback.segments.length > 0 ? "pt-3" : "pt-1"
-          }`}
+        <div
+          className={`px-4 pb-3 ${feedback.segments.length > 0 ? "pt-2" : "pt-1"}`}
         >
-          {feedback.modelAnswer}
-        </p>
+          <button
+            type="button"
+            onClick={() => setShowModelAnswer((prev) => !prev)}
+            aria-expanded={showModelAnswer}
+            className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/50 transition-colors hover:text-[color:var(--foreground)]/75"
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${showModelAnswer ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+            {showModelAnswer ? "Hide model answer" : "Show model answer"}
+          </button>
+          {showModelAnswer && (
+            <p
+              {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
+              className="mt-1.5 text-[15px] leading-relaxed text-[color:var(--foreground)]/75"
+            >
+              {feedback.modelAnswer}
+            </p>
+          )}
+        </div>
       )}
 
       {unlock && <UnlockCountdown label={unlock.label} onUnlock={unlock.onUnlock} />}

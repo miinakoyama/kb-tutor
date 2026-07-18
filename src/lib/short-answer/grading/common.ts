@@ -117,6 +117,8 @@ export interface BuildFeedbackParams {
   /** True when no further attempts remain (real attempt 2, or exam's single attempt). */
   isFinalAttempt: boolean;
   item: ShortAnswerItem;
+  /** The part being graded, used to source the model answer on a final miss. */
+  part: ShortAnswerPart;
   attemptsRemaining: number;
   /** The student's own submitted text, used to pick glossary terms they didn't use. */
   studentResponse: string;
@@ -132,7 +134,7 @@ export interface BuildFeedbackParams {
  *   exam mode's single attempt).
  */
 export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback {
-  const { rawFeedback, correct, isFinalAttempt, item } = params;
+  const { rawFeedback, correct, isFinalAttempt, item, part } = params;
 
   if (correct) {
     return {
@@ -142,9 +144,14 @@ export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback
   }
 
   if (isFinalAttempt) {
+    // No more attempts: surface the canonical answer straight from the item's
+    // rubric alongside the LLM's explanation. This is reliable regardless of
+    // which grading method produced the feedback (method 3 diagnoses no gap,
+    // method 2 only a failure-type code), so the student always sees the answer.
     return {
       verdict: "heres_the_idea",
       segments: [{ label: "", text: rawFeedback }],
+      modelAnswer: partFullCreditCriteria(part),
     };
   }
 

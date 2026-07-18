@@ -61,7 +61,8 @@ describe("gradePart", () => {
     expect(result.feedback.verdict).toBe("heres_the_idea");
     expect(result.feedback.segments).toHaveLength(1);
     expect(result.feedback.segments[0].text).toContain("messenger RNA carries the code");
-    expect(result.feedback.modelAnswer).toBeUndefined();
+    // Final attempt with no retries: the rubric model answer is surfaced too.
+    expect(result.feedback.modelAnswer).toBe(partA.rubric.criteria[String(partA.maxScore)]);
   });
 
   it("exam mode skips resolution classification (no genuine attempt 1 to compare against)", async () => {
