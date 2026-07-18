@@ -176,6 +176,11 @@ export function ShortAnswerQuestionView({
    */
   const partActiveSinceRef = useRef<Partial<Record<PartLabel, number>>>({});
   const [showCompletion, setShowCompletion] = useState(false);
+  // Highest part index the student has actively started answering (clicked or
+  // typed into). A resolved part collapses once a strictly-later part is
+  // engaged — i.e. the student has moved on to the next part. Programmatic
+  // focus on unlock doesn't count, so the just-answered part stays readable.
+  const [engagedIndex, setEngagedIndex] = useState(-1);
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [historyModal, setHistoryModal] = useState<{
     partLabel: PartLabel;
@@ -279,6 +284,7 @@ export function ShortAnswerQuestionView({
   useEffect(() => {
     setHydrationReady(false);
     setShowCompletion(false);
+    setEngagedIndex(-1);
     allResolvedFiredRef.current = false;
     partActiveSinceRef.current = {};
     setRuntimes(item.parts.map((_, i) => initialRuntime(i)));
@@ -390,6 +396,10 @@ export function ShortAnswerQuestionView({
     },
     [item.parts],
   );
+
+  const handlePartEngage = useCallback((index: number) => {
+    setEngagedIndex((prev) => (index > prev ? index : prev));
+  }, []);
 
   const handleCheck = useCallback(
     async (index: number, response: string) => {
@@ -741,7 +751,10 @@ export function ShortAnswerQuestionView({
               : `Part ${item.parts[i + 1].label} unlocks in`;
             return (
               <PartCard
-                key={part.label}
+                // Include the run context so the card remounts (fresh local
+                // expand/engagement state) on a new question or a retry, but
+                // stays mounted — preserving layout animations — within one run.
+                key={`${questionId}:${assignmentId ?? "practice"}:${assignmentRunAfter ?? "0"}:${sessionId ?? "0"}:${part.label}`}
                 part={part}
                 status={runtime.status}
                 attempts={runtime.attempts}
@@ -753,6 +766,8 @@ export function ShortAnswerQuestionView({
                 }
                 checkDisabled={checkDisabled}
                 previousLabel={i > 0 ? item.parts[i - 1].label : undefined}
+                laterPartEngaged={engagedIndex > i}
+                onEngage={() => handlePartEngage(i)}
                 unlock={
                   runtime.countdownActive
                     ? { label: unlockLabel, onUnlock: () => unlockNext(i) }

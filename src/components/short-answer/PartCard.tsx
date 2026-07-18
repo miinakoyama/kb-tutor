@@ -24,9 +24,13 @@ interface PartCardProps {
   checkDisabled?: boolean;
   /** Label of the preceding part, used for the locked row's unlock condition. */
   previousLabel?: PartLabel;
+  /** True once the student has actively started a strictly-later part. */
+  laterPartEngaged?: boolean;
   onCheck: (response: string) => void;
   onOpenAttempt: (attempt: AttemptHistoryEntry) => void;
   onGlossaryClick: (term: string, event: React.MouseEvent) => void;
+  /** Fired when the student first clicks into or types in this part. */
+  onEngage?: () => void;
 }
 
 function AttemptDots({
@@ -93,26 +97,67 @@ export function PartCard({
   initialValue = "",
   checkDisabled = false,
   previousLabel,
+  laterPartEngaged = false,
   onCheck,
   onOpenAttempt,
   onGlossaryClick,
+  onEngage,
 }: PartCardProps) {
   const [value, setValue] = useState("");
-  // Manual expand/collapse for an already-completed part. Forced open while
-  // its unlock countdown is running so the student can read feedback before
-  // it auto-collapses and the next part becomes current.
+  // Manual expand/collapse for a completed part. Forced open while its unlock
+  // countdown is running; once the countdown finishes we pin it open (see the
+  // effect below) so the feedback stays put until the student collapses it
+  // themselves — it no longer auto-collapses when the next part unlocks.
   const [manuallyExpanded, setManuallyExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hadUnlockRef = useRef(false);
   const locked = status === "locked";
   const submitting = status === "submitting";
   const resolved = status === "resolved";
   const canType = status === "active";
   const isFinalAttempt = attempts.length >= maxAttempts;
-  const expanded = Boolean(unlock) || manuallyExpanded;
+  const hasUnlock = Boolean(unlock);
+  const expanded = hasUnlock || manuallyExpanded;
 
   useEffect(() => {
     setValue(initialValue);
   }, [initialValue, part.label]);
+
+  // Keep the feedback visible after the unlock countdown ends. While the
+  // countdown runs, `unlock` forces the card open; when it clears we flip
+  // manuallyExpanded on so the card stays expanded instead of collapsing on
+  // its own. The student then collapses it with the chevron whenever they're
+  // done reading. Only fires for a part that actually ran a countdown (i.e.
+  // just resolved this session), so hydrated completed parts stay collapsed.
+  useEffect(() => {
+    if (hasUnlock) {
+      hadUnlockRef.current = true;
+    } else if (hadUnlockRef.current) {
+      hadUnlockRef.current = false;
+      setManuallyExpanded(true);
+    }
+  }, [hasUnlock]);
+
+  // Report the student's first real interaction with this part (a click into
+  // or keystroke in the textarea — not the programmatic focus on unlock) so the
+  // parent can collapse earlier parts once the student moves on. Fired once.
+  const engagedRef = useRef(false);
+  const notifyEngage = () => {
+    if (engagedRef.current) return;
+    engagedRef.current = true;
+    onEngage?.();
+  };
+
+  // Auto-collapse this part's feedback once the student engages a later part.
+  // Edge-triggered on the false→true transition so a subsequent manual
+  // re-expand isn't immediately undone.
+  const prevLaterEngagedRef = useRef(false);
+  useEffect(() => {
+    if (laterPartEngaged && !prevLaterEngagedRef.current) {
+      setManuallyExpanded(false);
+    }
+    prevLaterEngagedRef.current = laterPartEngaged;
+  }, [laterPartEngaged]);
 
   // Focus follows the current part: fires on the initial "become active"
   // transition and again after every retry attempt. preventScroll avoids
@@ -275,7 +320,11 @@ export function PartCard({
               <textarea
                 ref={textareaRef}
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={(e) => {
+                  notifyEngage();
+                  setValue(e.target.value);
+                }}
+                onPointerDown={notifyEngage}
                 disabled={!canType}
                 maxLength={part.maxLength}
                 rows={3}
