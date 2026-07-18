@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 interface School {
   id: string;
@@ -77,137 +78,155 @@ export default function LoginPage() {
     }
   }
 
+  const fieldClass =
+    "mt-2 w-full rounded-xl border border-[#A6A39B]/45 bg-white px-3.5 py-3 text-[16.5px] text-[#26251F] transition-colors placeholder:text-[#A6A39B] focus:border-[#0C6B45] focus:outline-none focus:ring-2 focus:ring-[#0C6B45]/25 disabled:opacity-60";
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <section
-        className="w-full max-w-md rounded-[28px] p-7 sm:p-8"
-        style={{
-          background: "var(--assignment-glass-bg-strong)",
-          border: "1px solid var(--assignment-glass-border)",
-          boxShadow: "var(--assignment-elevated-shadow)",
-          backdropFilter: "blur(14px) saturate(115%)",
-          WebkitBackdropFilter: "blur(14px) saturate(115%)",
-        }}
-      >
-        <h1
-          className="font-heading font-bold text-heading"
-          style={{ fontSize: 26, letterSpacing: -0.4, lineHeight: 1.25 }}
-        >
-          Student Login
-        </h1>
-        <p className="mt-1.5 mb-7 text-sm text-muted-foreground">
-          Select your school and enter your student ID.
-        </p>
-        <form onSubmit={onSubmit} className="space-y-5">
-          <label className="block">
-            <span className="text-sm font-semibold text-slate-gray">School</span>
-            {!schoolsLoaded ? (
-              <p className="mt-1.5 text-sm text-muted-foreground">Loading schools...</p>
-            ) : schoolLoadError ? (
-              <div className="mt-1.5 space-y-2">
-                <p className="text-sm text-error">{schoolLoadError}</p>
-                <button
-                  type="button"
-                  onClick={() => void loadSchools()}
-                  className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition hover:bg-[var(--assignment-row-cta-bg-hover)]"
-                  style={{
-                    color: "var(--assignment-row-cta-text)",
-                    background: "var(--assignment-row-cta-bg)",
-                    border: "1px solid var(--assignment-row-cta-border)",
-                  }}
-                >
-                  Retry loading schools
-                </button>
-              </div>
-            ) : schools.length === 0 ? (
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                No schools are available for student login.
-              </p>
-            ) : (
-              <select
-                className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                style={{
-                  background: "var(--surface-muted)",
-                  border: "1px solid var(--border-default)",
-                }}
-                value={schoolId}
-                onChange={(e) => setSchoolId(e.target.value)}
-                required
+    <main className="flex min-h-screen w-full bg-white md:bg-[#F1F3F0]/63">
+      {/* Left / illustration area — sits directly on the page background, hidden on mobile */}
+      <aside className="relative hidden overflow-hidden md:block md:w-[55%]">
+        {/* Illustration centered on the full page height */}
+        <Image
+          src="/illustrations/login-illustration2.png"
+          alt=""
+          fill
+          priority
+          sizes="55vw"
+          className="object-contain object-center"
+          style={{ transform: "scale(0.689)" }}
+        />
+      </aside>
+
+      {/* Right / form area — the whole right side is one large white card */}
+      <section className="flex flex-1 md:py-6 md:pr-6 lg:py-8 lg:pr-8">
+        <div className="flex w-full items-stretch justify-center bg-white px-6 py-10 md:rounded-[24px] md:border md:border-[color:var(--assignment-glass-border)] md:px-10 md:shadow-[var(--assignment-card-shadow)] lg:px-16">
+          <div className="flex w-full max-w-[440px] flex-col">
+          <div className="my-auto w-full">
+          <Image
+            src="/illustrations/logo-icon.png"
+            alt="BioBridge"
+            width={1071}
+            height={441}
+            priority
+            className="mb-6 h-auto w-[98px] opacity-90 mx-auto"
+            style={{ transform: "translateY(-50%)" }}
+          />
+
+          <h1
+            className="font-heading text-[31px] font-bold leading-tight tracking-tight text-[#26251F] text-center"
+          >
+            Student Login
+          </h1>
+          <p className="mt-4 text-[16.5px] text-[#73706A] text-center">
+            Select your school and enter your student ID.
+          </p>
+
+          <form onSubmit={onSubmit} className="mt-12 space-y-8">
+            <div>
+              <label
+                htmlFor="school"
+                className="block text-[15.5px] font-semibold text-[#26251F]"
               >
-                <option value="" disabled>
-                  Select your school
-                </option>
-                {schools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </label>
-          <label className="block">
-            <span className="text-sm font-semibold text-slate-gray">Student ID</span>
-            <input
-              className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-              style={{
-                background: "var(--surface-muted)",
-                border: "1px solid var(--border-default)",
-              }}
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              autoComplete="username"
-              placeholder="e.g. st000000000"
-              required
-            />
-            {studentLoginNotice && (
-              <div
-                role="note"
-                className="mt-3 rounded-2xl px-3.5 py-3 text-sm text-heading"
-                style={{
-                  background: "var(--assignment-glass-bg)",
-                  border: "1px solid var(--assignment-panel-border)",
-                  boxShadow: "var(--assignment-card-shadow)",
-                }}
-              >
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  School notice
+                School
+              </label>
+              {!schoolsLoaded ? (
+                <p className="mt-2 text-[15.5px] text-[#73706A]">Loading schools...</p>
+              ) : schoolLoadError ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-[15.5px] text-[#c24f44]">{schoolLoadError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void loadSchools()}
+                    className="rounded-full border border-[#A6A39B]/45 bg-[#F9F8F4] px-3.5 py-1.5 text-[13px] font-semibold text-[#095536] transition-colors hover:bg-[#E3F0E9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0C6B45]/40"
+                  >
+                    Retry loading schools
+                  </button>
+                </div>
+              ) : schools.length === 0 ? (
+                <p className="mt-2 text-[15.5px] text-[#73706A]">
+                  No schools are available for student login.
                 </p>
-                <p className="whitespace-pre-wrap break-words leading-relaxed">{studentLoginNotice}</p>
-              </div>
+              ) : (
+                <select
+                  id="school"
+                  className={fieldClass}
+                  value={schoolId}
+                  onChange={(e) => setSchoolId(e.target.value)}
+                  required
+                >
+                  <option value="" disabled>
+                    Select your school
+                  </option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="studentId"
+                className="block text-[15.5px] font-semibold text-[#26251F]"
+              >
+                Student ID
+              </label>
+              <input
+                id="studentId"
+                className={fieldClass}
+                value={studentId}
+                onChange={(e) => setStudentId(e.target.value)}
+                autoComplete="username"
+                placeholder="e.g. st000000000"
+                required
+              />
+              {studentLoginNotice && (
+                <div
+                  role="note"
+                  className="mt-3 rounded-xl border border-[#B8CCE8] bg-[#EDF2FA] px-3.5 py-3 text-[15.5px] text-[#26251F]"
+                >
+                  <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-[#3A5C96]">
+                    School notice
+                  </p>
+                  <p className="whitespace-pre-wrap break-words leading-relaxed">
+                    {studentLoginNotice}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <p
+                role="alert"
+                className="rounded-xl border border-[#c24f44]/30 bg-[#c24f44]/10 px-3.5 py-2.5 text-[15.5px] text-[#c24f44]"
+              >
+                {error}
+              </p>
             )}
-          </label>
-          {error && (
-            <p className="rounded-xl border border-error-border bg-error-light px-3.5 py-2.5 text-sm text-error">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={isSubmitting || !schoolId}
-            className="inline-flex h-[46px] w-full items-center justify-center rounded-full font-bold transition duration-200 hover:brightness-110 active:brightness-95 disabled:opacity-50 disabled:hover:brightness-100"
-            style={{
-              fontSize: 16,
-              letterSpacing: 0.3,
-              color: "var(--assignment-cta-text)",
-              background: "var(--assignment-cta-bg-strong)",
-              border: "1.5px solid var(--assignment-glass-border)",
-              boxShadow: "var(--assignment-cta-elevated-shadow)",
-              fontFamily: "var(--font-geist), ui-sans-serif, sans-serif",
-            }}
-          >
-            {isSubmitting ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
-        <p className="mt-7 text-center text-sm text-muted-foreground">
-          Teacher or admin?{" "}
-          <Link
-            href="/login/staff"
-            className="font-semibold transition hover:brightness-110"
-            style={{ color: "var(--assignment-completed)" }}
-          >
-            Sign in here
-          </Link>
-        </p>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || !schoolId}
+              className="inline-flex h-12 w-full items-center justify-center rounded-full bg-[#0C6B45] text-[17.5px] font-semibold text-white transition-colors hover:bg-[#095536] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0C6B45] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#0C6B45]"
+            >
+              {isSubmitting ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+          </div>
+
+          <p className="pt-6 text-center text-[15.5px] text-[#73706A]">
+            Teacher or admin?{" "}
+            <Link
+              href="/login/staff"
+              className="font-medium text-[#3A5C96] underline-offset-2 transition-colors hover:text-[#3A5C96] hover:underline focus:outline-none focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-[#4A72B8]/40"
+            >
+              Sign in here
+            </Link>
+          </p>
+          </div>
+        </div>
       </section>
     </main>
   );
