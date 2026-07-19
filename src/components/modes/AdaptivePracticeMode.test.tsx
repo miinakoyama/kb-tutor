@@ -5,6 +5,7 @@ import { AdaptivePracticeMode } from "./AdaptivePracticeMode";
 import type { Question } from "@/types/question";
 import sampleShortAnswerItem from "@/data/short-answer/sample-item.json";
 import type { ShortAnswerItem } from "@/types/short-answer";
+import * as sessionPace from "@/lib/practice/session-pace";
 
 const {
   checkForNewlyEarnedBadgesMock,
@@ -479,5 +480,195 @@ describe("AdaptivePracticeMode session completion", () => {
     expect(screen.getByText(/“Answer for A \(attempt 1\)”/)).toBeTruthy();
     expect(screen.getByText(/“Answer for A \(attempt 2\)”/)).toBeTruthy();
     expect(screen.getByText(shortAnswerItem.parts[0].prompt)).toBeTruthy();
+  });
+
+  async function completeCurrentMcqAndGoNext() {
+    fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+  }
+
+  it("offers a pace check-in after ten MCQs with continue and finish choices", async () => {
+    const questions = Array.from({ length: 10 }, (_, index) => ({
+      ...question,
+      id: `pace-mcq-${index}`,
+    }));
+
+    render(<AdaptivePracticeMode questions={questions} mode="practice" />);
+
+    for (let i = 0; i < 9; i += 1) {
+      await completeCurrentMcqAndGoNext();
+      expect(screen.queryByText("Nice progress — take a breather?")).toBeNull();
+    }
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Nice progress — take a breather?",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText(/You've worked through 10 questions/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue practicing" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Nice progress — take a breather?")).toBeNull();
+    });
+    expect(screen.getByText("Question display")).toBeTruthy();
+  });
+
+  it("finishes the session from the pace check-in", async () => {
+    const questions = Array.from({ length: 10 }, (_, index) => ({
+      ...question,
+      id: `pace-finish-${index}`,
+    }));
+
+    render(<AdaptivePracticeMode questions={questions} mode="practice" />);
+
+    for (let i = 0; i < 9; i += 1) {
+      await completeCurrentMcqAndGoNext();
+    }
+    fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Finish session" }),
+    );
+    await screen.findByText("Session Complete");
+    expect(markStageCompletedMock).toHaveBeenCalled();
+  });
+
+  it("offers a pace check-in after five short-answer questions", async () => {
+    const questions = Array.from({ length: 5 }, (_, index) => ({
+      ...question,
+      id: `pace-saq-${index}`,
+      text: shortAnswerItem.stem,
+      questionType: "open-ended" as const,
+      options: [],
+      correctOptionId: "",
+      shortAnswer: shortAnswerItem,
+    }));
+
+    render(<AdaptivePracticeMode questions={questions} mode="practice" />);
+
+    for (let i = 0; i < 4; i += 1) {
+      fireEvent.click(await screen.findByRole("button", { name: "Resolve short answer" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+      expect(screen.queryByText("Nice progress — take a breather?")).toBeNull();
+    }
+
+    fireEvent.click(await screen.findByRole("button", { name: "Resolve short answer" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Nice progress — take a breather?",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText(/You've worked through 5 questions/)).toBeTruthy();
+  });
+
+  it("offers another pace check-in every ten MCQs", async () => {
+    const questions = Array.from({ length: 20 }, (_, index) => ({
+      ...question,
+      id: `pace-repeat-${index}`,
+    }));
+
+    render(<AdaptivePracticeMode questions={questions} mode="practice" />);
+
+    for (let i = 0; i < 9; i += 1) {
+      await completeCurrentMcqAndGoNext();
+    }
+    fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Continue practicing" }),
+    );
+
+    for (let i = 0; i < 9; i += 1) {
+      await completeCurrentMcqAndGoNext();
+      expect(screen.queryByText("Nice progress — take a breather?")).toBeNull();
+    }
+    fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Nice progress — take a breather?",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText(/You've worked through 20 questions/)).toBeTruthy();
+  });
+
+  it("offers a pace check-in during open-ended review sessions", async () => {
+    const questions = Array.from({ length: 10 }, (_, index) => ({
+      ...question,
+      id: `pace-review-${index}`,
+    }));
+
+    render(<AdaptivePracticeMode questions={questions} mode="review" />);
+
+    for (let i = 0; i < 9; i += 1) {
+      await completeCurrentMcqAndGoNext();
+    }
+    fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Nice progress — take a breather?",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("skips the pace check-in when the adaptive question limit is reached", async () => {
+    // Force a check-in whenever the gate is enabled, so this test isolates the
+    // adaptive questionCount terminal guard rather than the pace threshold.
+    const paceSpy = vi
+      .spyOn(sessionPace, "shouldOfferPracticePaceCheckIn")
+      .mockImplementation((options) => options.enabled);
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "selected",
+        targetKcCode: "3.1.9-12.A2",
+        question: {
+          ...question,
+          id: "adaptive-limit-1",
+          standardId: "3.1.9-12.A",
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      render(
+        <AdaptivePracticeMode
+          questions={[]}
+          questionCount={1}
+          mode="practice"
+          adaptiveStandardIds={["3.1.9-12.A"]}
+        />,
+      );
+
+      fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+      expect(screen.queryByText("Nice progress — take a breather?")).toBeNull();
+      await screen.findByText("Session Complete");
+      expect(paceSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: false }),
+      );
+    } finally {
+      paceSpy.mockRestore();
+    }
   });
 });

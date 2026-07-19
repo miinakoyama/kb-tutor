@@ -54,4 +54,21 @@ describe("ShortAnswerQuestionView media gating", () => {
       expect((checkButton as HTMLButtonElement).disabled).toBe(true);
     });
   });
+
+  it("shows the session question number next to part progress", async () => {
+    const item = sampleShortAnswerItem as ShortAnswerItem;
+
+    render(
+      <ShortAnswerQuestionView
+        item={{ ...item, parts: [item.parts[0]] }}
+        questionId="saq-question-number"
+        mode="practice"
+        continueLabel="Continue"
+        onContinue={vi.fn()}
+        questionNumber={3}
+      />,
+    );
+
+    expect(await screen.findByText("Question 3")).toBeTruthy();
+  });
 });

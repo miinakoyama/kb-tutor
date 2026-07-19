@@ -67,6 +67,12 @@ import { processQueue } from "@/lib/sync-queue";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 import { answeredEntryForQuestion } from "@/lib/assignments/answered-map";
 import { checkForNewlyEarnedBadges } from "@/lib/badges/celebration-events";
+import {
+  computeSessionPaceCount,
+  practicePaceMilestone,
+  shouldOfferPracticePaceCheckIn,
+} from "@/lib/practice/session-pace";
+import { PracticePaceCheckIn } from "@/components/modes/PracticePaceCheckIn";
 
 const MAX_ATTEMPTS = 2;
 const GLOSSARY_FALLBACK_LIMIT = 6;
@@ -180,6 +186,8 @@ export function AdaptivePracticeMode({
   const [adaptiveUnavailable, setAdaptiveUnavailable] = useState(false);
   const [activeFeatureSpotlight, setActiveFeatureSpotlight] =
     useState<FeatureSpotlightType | null>(null);
+  const [showPaceCheckIn, setShowPaceCheckIn] = useState(false);
+  const [lastPaceCheckInMilestone, setLastPaceCheckInMilestone] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const attemptDwellMsRef = useRef(0);
   const attemptVisitRef = useRef<{ index: number; startMs: number } | null>(null);
@@ -1032,6 +1040,7 @@ export function AdaptivePracticeMode({
   }, [assignmentId, currentIndex, feedbackVisible, isCompleted, mode, question]);
 
   const finishSession = useCallback(() => {
+    setShowPaceCheckIn(false);
     trackAnalyticsEvent({
       eventType: mode === "review" ? "review_item_completed" : "stage_completed",
       mode,
@@ -1052,8 +1061,7 @@ export function AdaptivePracticeMode({
     void checkForNewlyEarnedBadges();
   }, [showSummary]);
 
-  const handleNext = useCallback(async () => {
-    if (!isCompleted) return;
+  const advanceAfterCompleted = useCallback(async () => {
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex((prev) => prev + 1);
       requestAnimationFrame(() => {
@@ -1061,38 +1069,41 @@ export function AdaptivePracticeMode({
       });
       return;
     }
-    if (allCompleted) {
-      if (isAssignmentRun) {
+    if (!allCompleted) return;
+
+    if (isAssignmentRun) {
+      finishSession();
+      return;
+    }
+    if (adaptiveEnabled) {
+      if (questionCount && completedCount >= questionCount) {
         finishSession();
-      } else if (adaptiveEnabled) {
-        if (questionCount && completedCount >= questionCount) {
-          finishSession();
-          return;
-        }
-        await processQueue();
-        const result = await requestAdaptiveQuestion(true, sessionQuestions.length);
-        if (result === "selected") {
-          setCurrentIndex((prev) => prev + 1);
-          requestAnimationFrame(() => {
-            scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-          });
-        } else {
-          finishSession();
-        }
-      } else {
-        // Self-practice: cycle by appending another shuffled (or mixed-pattern) batch
-        setSessionQuestions((prev) => [
-          ...prev,
-          ...(questionTypeSelection === "mixed"
-            ? buildMixedQuestionSequence(questions, questions.length, prev)
-            : shuffleArray(questions)),
-        ]);
+        return;
+      }
+      await processQueue();
+      const result = await requestAdaptiveQuestion(true, sessionQuestions.length);
+      if (result === "selected") {
         setCurrentIndex((prev) => prev + 1);
         requestAnimationFrame(() => {
           scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         });
+      } else {
+        finishSession();
       }
+      return;
     }
+
+    // Self-practice: cycle by appending another shuffled (or mixed-pattern) batch
+    setSessionQuestions((prev) => [
+      ...prev,
+      ...(questionTypeSelection === "mixed"
+        ? buildMixedQuestionSequence(questions, questions.length, prev)
+        : shuffleArray(questions)),
+    ]);
+    setCurrentIndex((prev) => prev + 1);
+    requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
   }, [
     allCompleted,
     adaptiveEnabled,
@@ -1100,7 +1111,6 @@ export function AdaptivePracticeMode({
     currentIndex,
     finishSession,
     isAssignmentRun,
-    isCompleted,
     questions,
     questionCount,
     questionTypeSelection,
@@ -1108,6 +1118,52 @@ export function AdaptivePracticeMode({
     sessionQuestions.length,
     totalQuestions,
   ]);
+
+  const handleNext = useCallback(async () => {
+    if (!isCompleted) return;
+
+    // Adaptive runs with a requested questionCount finish on that boundary.
+    // Skip the Continue/Finish check-in there — Continue would immediately
+    // end the session anyway (see advanceAfterCompleted's terminal guard).
+    const adaptiveQuestionLimitReached =
+      adaptiveEnabled &&
+      questionCount !== undefined &&
+      completedCount >= questionCount;
+
+    const completedIndices = Object.keys(finalAnswers)
+      .map((index) => Number(index))
+      .filter((index) => Number.isInteger(index));
+    const paceCount = computeSessionPaceCount(sessionQuestions, completedIndices);
+    if (
+      shouldOfferPracticePaceCheckIn({
+        // Open-ended Practice and Review both cycle; assignments stay bounded.
+        enabled: !isAssignmentRun && !adaptiveQuestionLimitReached,
+        lastOfferedMilestone: lastPaceCheckInMilestone,
+        paceCount,
+      })
+    ) {
+      setLastPaceCheckInMilestone(practicePaceMilestone(paceCount));
+      setShowPaceCheckIn(true);
+      return;
+    }
+
+    await advanceAfterCompleted();
+  }, [
+    adaptiveEnabled,
+    advanceAfterCompleted,
+    completedCount,
+    finalAnswers,
+    isAssignmentRun,
+    isCompleted,
+    lastPaceCheckInMilestone,
+    questionCount,
+    sessionQuestions,
+  ]);
+
+  const handlePaceContinue = useCallback(() => {
+    setShowPaceCheckIn(false);
+    void advanceAfterCompleted();
+  }, [advanceAfterCompleted]);
 
   useEffect(() => {
     if (attempts.length === 0) return;
@@ -1381,6 +1437,8 @@ export function AdaptivePracticeMode({
                 setShowSummary(false);
                 setSummaryReviewIndex(null);
                 setCompletionReported(false);
+                setShowPaceCheckIn(false);
+                setLastPaceCheckInMilestone(0);
                 resetAttemptDwell();
               }}
               className={assignmentSecondaryButtonClass}
@@ -1503,6 +1561,7 @@ export function AdaptivePracticeMode({
                 sessionId={assignmentId ? null : sessionId}
                 assignmentRunAfter={assignmentRunAfter ?? null}
                 mode={mode}
+                questionNumber={currentIndex + 1}
                 continueLabel={
                   isAssignmentRun && currentIndex === totalQuestions - 1
                     ? "View Results"
@@ -1635,6 +1694,13 @@ export function AdaptivePracticeMode({
       </QuestionSessionShell>
 
       {question ? <QuestionNoteDrawer questionId={question.id} /> : null}
+
+      <PracticePaceCheckIn
+        open={showPaceCheckIn}
+        questionsCompleted={completedCount}
+        onContinue={handlePaceContinue}
+        onFinish={finishSession}
+      />
 
       {activeFeatureSpotlight === "read-aloud" ? (
         <FeatureSpotlight
