@@ -178,3 +178,129 @@ describe("discardFailedPending", () => {
     expect(discardFailedPending()).toBe(0);
   });
 });
+
+describe("applyBatchResults silent recovery", () => {
+  const { applyBatchResults, SyncWriteError, BACKOFF_MS } = __testing;
+
+  function attemptEntry(id: string, tries = 0) {
+    return {
+      id,
+      kind: "attempt" as const,
+      payload: {
+        clientAttemptId: id,
+        questionId: `q-${id}`,
+        selectedOptionId: "A",
+        isCorrect: true,
+        mode: "practice",
+        answeredAt: new Date().toISOString(),
+      },
+      tries,
+      createdAt: Date.now(),
+      nextAttemptAt: Date.now(),
+    };
+  }
+
+  it("discards permanent failures instead of parking them as failed", () => {
+    const entry = attemptEntry("perm");
+    __testing.writeQueue([entry]);
+
+    const anyFailure = applyBatchResults(
+      [entry],
+      [
+        {
+          status: "rejected",
+          reason: new SyncWriteError({
+            message: "fk boom",
+            code: "23503",
+            details: null,
+            constraint: null,
+          }),
+        },
+      ],
+    );
+
+    expect(anyFailure).toBe(true);
+    expect(__testing.readQueue()).toHaveLength(0);
+  });
+
+  it("keeps scheduling transient failures past MAX_TRIES with max backoff", () => {
+    const entry = attemptEntry("temp", __testing.MAX_TRIES);
+    __testing.writeQueue([entry]);
+    const before = Date.now();
+
+    const anyFailure = applyBatchResults(
+      [entry],
+      [{ status: "rejected", reason: new Error("network down") }],
+    );
+
+    expect(anyFailure).toBe(true);
+    const remaining = __testing.readQueue();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].tries).toBe(__testing.MAX_TRIES + 1);
+    expect(remaining[0].nextAttemptAt).toBeGreaterThanOrEqual(
+      before + BACKOFF_MS[BACKOFF_MS.length - 1],
+    );
+  });
+});
+
+describe("reclaimExhaustedEntries", () => {
+  it("drops legacy non-retriable failures and resets exhausted transient ones", () => {
+    __testing.writeQueue([
+      {
+        id: "perm",
+        kind: "attempt",
+        payload: {
+          clientAttemptId: "perm",
+          questionId: "q1",
+          selectedOptionId: "A",
+          isCorrect: true,
+          mode: "practice",
+          answeredAt: new Date().toISOString(),
+        },
+        tries: __testing.MAX_TRIES,
+        createdAt: Date.now(),
+        nextAttemptAt: Number.MAX_SAFE_INTEGER,
+        lastError: "[non-retriable] fk boom",
+      },
+      {
+        id: "temp",
+        kind: "attempt",
+        payload: {
+          clientAttemptId: "temp",
+          questionId: "q2",
+          selectedOptionId: "B",
+          isCorrect: true,
+          mode: "practice",
+          answeredAt: new Date().toISOString(),
+        },
+        tries: __testing.MAX_TRIES,
+        createdAt: Date.now(),
+        nextAttemptAt: Number.MAX_SAFE_INTEGER,
+        lastError: "network down",
+      },
+      {
+        id: "ok",
+        kind: "attempt",
+        payload: {
+          clientAttemptId: "ok",
+          questionId: "q3",
+          selectedOptionId: "C",
+          isCorrect: true,
+          mode: "practice",
+          answeredAt: new Date().toISOString(),
+        },
+        tries: 2,
+        createdAt: Date.now(),
+        nextAttemptAt: Date.now() + 1_000,
+      },
+    ]);
+
+    __testing.reclaimExhaustedEntries();
+
+    const remaining = __testing.readQueue();
+    expect(remaining.map((w) => w.id)).toEqual(["temp", "ok"]);
+    expect(remaining[0].tries).toBe(0);
+    expect(remaining[0].nextAttemptAt).toBeLessThanOrEqual(Date.now());
+    expect(remaining[1].tries).toBe(2);
+  });
+});
