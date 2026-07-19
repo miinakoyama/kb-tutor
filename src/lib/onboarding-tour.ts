@@ -114,7 +114,7 @@ const TEACHER_STEPS: OnboardingStep[] = [
     routePath: "/assignments/manage",
   },
   {
-    title: "Contents",
+    title: "Content",
     description:
       "Add and edit the question bank. You can also generate questions with Gemini.",
     type: "spotlight",

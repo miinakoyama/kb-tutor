@@ -9,6 +9,7 @@ interface StaffProvisionPayload {
   password: string;
   displayName?: string;
   role: "teacher" | "admin";
+  schoolId?: string | null;
 }
 
 export async function POST(request: Request) {
@@ -35,6 +36,10 @@ export async function POST(request: Request) {
   const password = payload.password?.trim();
   const role = payload.role as AppRole;
   const displayName = payload.displayName?.trim() || null;
+  const schoolId =
+    typeof payload.schoolId === "string" && payload.schoolId.trim()
+      ? payload.schoolId.trim()
+      : null;
 
   if (!email || !password || !role) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -43,8 +48,38 @@ export async function POST(request: Request) {
   if (!["teacher", "admin"].includes(role)) {
     return NextResponse.json({ error: "Only teacher and admin roles can be provisioned here." }, { status: 400 });
   }
+  if (
+    payload.schoolId !== undefined &&
+    payload.schoolId !== null &&
+    typeof payload.schoolId !== "string"
+  ) {
+    return NextResponse.json(
+      { error: "schoolId must be a string or null" },
+      { status: 400 },
+    );
+  }
+  if (role !== "teacher" && schoolId) {
+    return NextResponse.json(
+      { error: "Only teacher accounts can be assigned to a school" },
+      { status: 400 },
+    );
+  }
 
   const admin = createSupabaseAdminClient();
+
+  if (schoolId) {
+    const { data: school, error: schoolError } = await admin
+      .from("schools")
+      .select("id")
+      .eq("id", schoolId)
+      .maybeSingle();
+    if (schoolError) {
+      return NextResponse.json({ error: schoolError.message }, { status: 400 });
+    }
+    if (!school) {
+      return NextResponse.json({ error: "School not found" }, { status: 400 });
+    }
+  }
 
   const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
     email,
@@ -77,9 +112,34 @@ export async function POST(request: Request) {
     );
   }
 
+  if (role === "teacher" && schoolId) {
+    const { error: schoolAssignmentError } = await admin.rpc(
+      "set_teacher_school_assignment",
+      {
+        p_teacher_user_id: createdUser.user.id,
+        p_school_id: schoolId,
+      },
+    );
+    if (schoolAssignmentError) {
+      const { error: cleanupError } = await admin.auth.admin.deleteUser(
+        createdUser.user.id,
+      );
+      const cleanupMessage = cleanupError
+        ? ` Cleanup also failed: ${cleanupError.message}`
+        : "";
+      return NextResponse.json(
+        {
+          error: `Failed to assign the teacher to the school: ${schoolAssignmentError.message}.${cleanupMessage}`,
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     userId: createdUser.user.id,
     email,
+    schoolId,
   });
 }

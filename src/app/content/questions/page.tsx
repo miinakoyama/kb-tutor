@@ -52,6 +52,7 @@ export default function QuestionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [rows, setRows] = useState<QuestionManagerRow[]>([]);
   const [loadingSchools, setLoadingSchools] = useState(true);
   const [loadingSets, setLoadingSets] = useState(false);
@@ -89,6 +90,33 @@ export default function QuestionsPage() {
   useEffect(() => {
     void loadSchools();
   }, [loadSchools]);
+
+  useEffect(() => {
+    const loadRole = async () => {
+      try {
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          profile?: { role?: string } | null;
+          user?: {
+            user_metadata?: { role?: string };
+            app_metadata?: { role?: string };
+          } | null;
+        };
+        const role =
+          payload.profile?.role ??
+          payload.user?.user_metadata?.role ??
+          payload.user?.app_metadata?.role;
+        setIsAdmin(role === "admin");
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    void loadRole();
+  }, []);
 
   const reloadSets = useCallback(async () => {
     if (!selectedSchoolId) {
@@ -401,26 +429,28 @@ export default function QuestionsPage() {
       )}
 
       <div className="mb-6 flex flex-col sm:flex-row gap-4 sm:items-end">
-        <div>
-          <label className="block text-sm font-medium text-slate-gray mb-1">
-            School
-          </label>
-          <select
-            value={selectedSchoolId ?? ""}
-            onChange={(e) => setSelectedSchoolId(e.target.value || null)}
-            className="min-w-[220px] rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            {schools.length === 0 ? (
-              <option value="">No schools available</option>
-            ) : (
-              schools.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
+        {isAdmin && (
+          <div>
+            <label className="block text-sm font-medium text-slate-gray mb-1">
+              School
+            </label>
+            <select
+              value={selectedSchoolId ?? ""}
+              onChange={(e) => setSelectedSchoolId(e.target.value || null)}
+              className="min-w-[220px] rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              {schools.length === 0 ? (
+                <option value="">No schools available</option>
+              ) : (
+                schools.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        )}
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input

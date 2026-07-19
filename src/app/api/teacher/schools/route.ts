@@ -26,22 +26,14 @@ async function getTeacherScopedSchoolIds(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   teacherUserId: string,
 ) {
-  const [{ data: schoolTeachers }, { data: legacySchools }] = await Promise.all([
-    admin
-      .from("school_teachers")
-      .select("school_id")
-      .eq("teacher_user_id", teacherUserId),
-    admin
-      .from("schools")
-      .select("id")
-      .eq("teacher_user_id", teacherUserId),
-  ]);
-  return Array.from(
-    new Set([
-      ...(schoolTeachers ?? []).map((row) => row.school_id),
-      ...(legacySchools ?? []).map((row) => row.id),
-    ]),
-  );
+  const { data, error } = await admin
+    .from("school_teachers")
+    .select("school_id")
+    .eq("teacher_user_id", teacherUserId);
+  return {
+    schoolIds: Array.from(new Set((data ?? []).map((row) => row.school_id))),
+    error,
+  };
 }
 
 export async function GET() {
@@ -49,10 +41,23 @@ export async function GET() {
   if (!guard.ok) return guard.response;
 
   const admin = createSupabaseAdminClient();
-  const scopedSchoolIds =
+  const scopedSchools =
     guard.role === "teacher"
       ? await getTeacherScopedSchoolIds(admin, guard.userId)
       : null;
+  if (scopedSchools?.error) {
+    return NextResponse.json(
+      { error: scopedSchools.error.message },
+      { status: 400 },
+    );
+  }
+  if (scopedSchools && scopedSchools.schoolIds.length > 1) {
+    return NextResponse.json(
+      { error: "Teacher account is assigned to multiple schools." },
+      { status: 409 },
+    );
+  }
+  const scopedSchoolIds = scopedSchools?.schoolIds ?? null;
 
   const schoolsQuery =
     guard.role === "teacher" && scopedSchoolIds

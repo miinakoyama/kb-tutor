@@ -113,6 +113,12 @@ const RANGE_OPTIONS: { value: RangeKey; label: string }[] = [
   { value: "all", label: "All time" },
 ];
 
+const SOURCE_OPTIONS: { value: SourceKey; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "assigned", label: "Assignment" },
+  { value: "self", label: "Self-Practice" },
+];
+
 const MODE_TABS: { value: ModeKey; label: string; helper: string }[] = [
   {
     value: "compare",
@@ -216,10 +222,39 @@ function TeacherDashboardContent() {
     useState<StandardStatusFilter>("all");
   const [studentFilter, setStudentFilter] =
     useState<StudentStatusFilter>("all");
+  const [studentNameQuery, setStudentNameQuery] = useState("");
   const [section, setSection] = useState<DashboardSection>("analytics");
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload>(EMPTY_PAYLOAD);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const loadRole = async () => {
+      try {
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          profile?: { role?: string } | null;
+          user?: {
+            user_metadata?: { role?: string };
+            app_metadata?: { role?: string };
+          } | null;
+        };
+        const role =
+          payload.profile?.role ??
+          payload.user?.user_metadata?.role ??
+          payload.user?.app_metadata?.role;
+        setIsAdmin(role === "admin");
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    void loadRole();
+  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -313,6 +348,14 @@ function TeacherDashboardContent() {
   const [collapsedStandardGroups, setCollapsedStandardGroups] = useState<
     Set<string>
   >(new Set());
+  const hasAppliedDefaultCollapse = useRef(false);
+  useEffect(() => {
+    if (hasAppliedDefaultCollapse.current || standardGroups.length === 0) return;
+    hasAppliedDefaultCollapse.current = true;
+    setCollapsedStandardGroups(
+      new Set(standardGroups.slice(1).map((group) => group.key)),
+    );
+  }, [standardGroups]);
   const toggleStandardGroup = (key: string) => {
     setCollapsedStandardGroups((prev) => {
       const next = new Set(prev);
@@ -326,12 +369,18 @@ function TeacherDashboardContent() {
   };
 
   const filteredStudentRows = useMemo(() => {
-    if (studentFilter === "all") return data.byStudent;
+    let rows = data.byStudent;
     if (studentFilter === "low_and_fast") {
-      return data.byStudent.filter((row) => row.isLowAndFast);
+      rows = rows.filter((row) => row.isLowAndFast);
+    } else if (studentFilter !== "all") {
+      rows = rows.filter((row) => row.status === studentFilter);
     }
-    return data.byStudent.filter((row) => row.status === studentFilter);
-  }, [studentFilter, data.byStudent]);
+    const query = studentNameQuery.trim().toLowerCase();
+    if (query) {
+      rows = rows.filter((row) => row.label.toLowerCase().includes(query));
+    }
+    return rows;
+  }, [studentFilter, studentNameQuery, data.byStudent]);
 
   const standardDetailQuery = useMemo(() => {
     const params = new URLSearchParams({ range, mode, source });
@@ -363,6 +412,7 @@ function TeacherDashboardContent() {
             topics={data.topics}
             classes={data.classes}
             students={filteredStudents}
+            showSchoolFilter={isAdmin}
             onTopicChange={setTopic}
             onClassChange={(value) => {
               setClassId(value);
@@ -656,6 +706,17 @@ function TeacherDashboardContent() {
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <label className="relative flex items-center">
+              <Search className="pointer-events-none absolute left-2.5 h-4 w-4 text-slate-gray/40" />
+              <span className="sr-only">Search students</span>
+              <input
+                type="text"
+                value={studentNameQuery}
+                onChange={(event) => setStudentNameQuery(event.target.value)}
+                placeholder="Search students"
+                className="w-48 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] py-2 pl-8 pr-3 text-sm text-slate-gray focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </label>
             <StatusFilterSelect
               label="Status"
               value={studentFilter}
@@ -855,6 +916,7 @@ function FiltersBar(props: {
   topics: string[];
   classes: ClassOption[];
   students: StudentOption[];
+  showSchoolFilter: boolean;
   onTopicChange: (value: string) => void;
   onClassChange: (value: string) => void;
   onStudentChange: (value: string) => void;
@@ -874,16 +936,18 @@ function FiltersBar(props: {
             label: topic,
           }))}
         />
-        <FilterSelect
-          label="School"
-          value={props.classId}
-          onChange={props.onClassChange}
-          placeholder="All schools"
-          options={props.classes.map((item) => ({
-            value: item.id,
-            label: item.label,
-          }))}
-        />
+        {props.showSchoolFilter && (
+          <FilterSelect
+            label="School"
+            value={props.classId}
+            onChange={props.onClassChange}
+            placeholder="All schools"
+            options={props.classes.map((item) => ({
+              value: item.id,
+              label: item.label,
+            }))}
+          />
+        )}
         <StudentSearchFilter
           value={props.studentId}
           students={props.students}
@@ -898,31 +962,12 @@ function FiltersBar(props: {
             label: item.label,
           }))}
         />
-        <div className="text-sm text-slate-gray">
-          <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
-            Source
-          </span>
-          <div className="flex h-[38px] w-full items-stretch overflow-hidden rounded-lg border border-border-default bg-surface-muted p-0.5">
-            <SourceToggle
-              active={props.source === "all"}
-              onClick={() => props.onSourceChange("all")}
-            >
-              All
-            </SourceToggle>
-            <SourceToggle
-              active={props.source === "assigned"}
-              onClick={() => props.onSourceChange("assigned")}
-            >
-              Assigned
-            </SourceToggle>
-            <SourceToggle
-              active={props.source === "self"}
-              onClick={() => props.onSourceChange("self")}
-            >
-              Self
-            </SourceToggle>
-          </div>
-        </div>
+        <FilterSelect
+          label="Source"
+          value={props.source}
+          onChange={(value) => props.onSourceChange(value as SourceKey)}
+          options={SOURCE_OPTIONS}
+        />
       </div>
     </section>
   );
@@ -1126,30 +1171,6 @@ function StudentSearchFilter({
   );
 }
 
-function SourceToggle({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex flex-1 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors ${
-        active
-          ? "bg-surface text-forest shadow"
-          : "text-slate-gray/70 hover:text-slate-gray"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function ModeTabs({
   value,
   onChange,
@@ -1317,7 +1338,7 @@ function ModeAccuracyCard({
               </span>
               <span className="whitespace-nowrap text-right text-[10px] text-slate-gray/60">
                 {hasAttempts
-                  ? `${metrics?.correct ?? 0}/${metrics?.attempted ?? 0} answers`
+                  ? `${metrics?.correct ?? 0}/${metrics?.attempted ?? 0} correct`
                   : "no attempts"}
               </span>
               <span className="whitespace-nowrap text-right text-[10px] text-slate-gray/50">
@@ -1527,7 +1548,7 @@ function ModeAccuracyCell({
         {metrics.accuracy}%
       </span>
       <span className="whitespace-nowrap text-[10px] text-slate-gray/60">
-        {metrics.correct}/{metrics.attempted} answers
+        {metrics.correct}/{metrics.attempted} correct
       </span>
       <span className="whitespace-nowrap text-[10px] text-slate-gray/50">
         {metrics.studentsAttempted}{" "}

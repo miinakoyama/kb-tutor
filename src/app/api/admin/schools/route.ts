@@ -32,21 +32,6 @@ function buildSchoolId(name: string) {
   return `sch_${slug || "school"}_${randomUUID().slice(0, 6)}`;
 }
 
-function normalizeTeacherIds(body: {
-  teacherUserId?: string;
-  teacherUserIds?: string[];
-}) {
-  if (Array.isArray(body.teacherUserIds) && body.teacherUserIds.length > 0) {
-    return Array.from(
-      new Set(body.teacherUserIds.map((id) => id.trim()).filter(Boolean)),
-    );
-  }
-  if (body.teacherUserId?.trim()) {
-    return [body.teacherUserId.trim()];
-  }
-  return [];
-}
-
 // Accept either a plain YYYY-MM-DD string or null/empty to clear. Returns
 // { ok: true, value } with the normalized value, or { ok: false, error }.
 function normalizeKeystoneExamDate(
@@ -243,24 +228,31 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     id?: string;
     name?: string;
-    teacherUserId?: string;
-    teacherUserIds?: string[];
     studentUserIds?: string[];
     keystoneExamDate?: string | null;
     isHidden?: boolean;
     studentLoginNotice?: string | null;
+    teacherUserId?: unknown;
+    teacherUserIds?: unknown;
   };
 
   const schoolName = body.name?.trim();
-  const teacherIds = normalizeTeacherIds(body);
   if (!schoolName) {
     return NextResponse.json({ error: "Missing required field: name" }, { status: 400 });
   }
   if (body.isHidden !== undefined && typeof body.isHidden !== "boolean") {
     return NextResponse.json({ error: "isHidden must be a boolean" }, { status: 400 });
   }
+  if (
+    Object.prototype.hasOwnProperty.call(body, "teacherUserId") ||
+    Object.prototype.hasOwnProperty.call(body, "teacherUserIds")
+  ) {
+    return NextResponse.json(
+      { error: "Manage teacher school assignments from Account Management." },
+      { status: 400 },
+    );
+  }
   const schoolId = body.id?.trim() || buildSchoolId(schoolName);
-  const primaryTeacherId = teacherIds[0] ?? null;
   const isHidden = body.isHidden ?? false;
 
   let studentLoginNotice: string | null = null;
@@ -285,26 +277,13 @@ export async function POST(request: Request) {
   const { error: schoolError } = await admin.from("schools").insert({
     id: schoolId,
     name: schoolName,
-    teacher_user_id: primaryTeacherId,
+    teacher_user_id: null,
     keystone_exam_date: keystoneExamDate,
     is_hidden: isHidden,
     student_login_notice: studentLoginNotice,
   });
   if (schoolError) {
     return NextResponse.json({ error: schoolError.message }, { status: 400 });
-  }
-
-  if (teacherIds.length > 0) {
-    const { error: teacherError } = await admin.from("school_teachers").insert(
-      teacherIds.map((teacherId, index) => ({
-        school_id: schoolId,
-        teacher_user_id: teacherId,
-        teacher_role: index === 0 ? "primary" : "assistant",
-      })),
-    );
-    if (teacherError) {
-      return NextResponse.json({ error: teacherError.message }, { status: 400 });
-    }
   }
 
   const studentIds = Array.from(new Set(body.studentUserIds ?? []));
@@ -330,29 +309,35 @@ export async function PATCH(request: Request) {
   const body = (await request.json()) as {
     id?: string;
     name?: string;
-    teacherUserId?: string;
-    teacherUserIds?: string[];
     studentUserIds?: string[];
     keystoneExamDate?: string | null;
     isHidden?: boolean;
     studentLoginNotice?: string | null;
+    teacherUserId?: unknown;
+    teacherUserIds?: unknown;
   };
 
   if (!body.id) {
     return NextResponse.json({ error: "Missing school id" }, { status: 400 });
   }
+  if (
+    Object.prototype.hasOwnProperty.call(body, "teacherUserId") ||
+    Object.prototype.hasOwnProperty.call(body, "teacherUserIds")
+  ) {
+    return NextResponse.json(
+      { error: "Manage teacher school assignments from Account Management." },
+      { status: 400 },
+    );
+  }
 
   const admin = createSupabaseAdminClient();
   const updates: {
     name?: string;
-    teacher_user_id?: string | null;
     keystone_exam_date?: string | null;
     is_hidden?: boolean;
     student_login_notice?: string | null;
   } = {};
   if (body.name !== undefined) updates.name = body.name;
-  const teacherIds = normalizeTeacherIds(body);
-  if (teacherIds.length > 0) updates.teacher_user_id = teacherIds[0];
   if (body.keystoneExamDate !== undefined) {
     const normalized = normalizeKeystoneExamDate(body.keystoneExamDate);
     if (!normalized.ok) {
@@ -381,31 +366,6 @@ export async function PATCH(request: Request) {
       .eq("id", body.id);
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 400 });
-    }
-  }
-
-  if (body.teacherUserId !== undefined || body.teacherUserIds !== undefined) {
-    const nextTeacherIds = normalizeTeacherIds(body);
-    const { error: deleteTeacherError } = await admin
-      .from("school_teachers")
-      .delete()
-      .eq("school_id", body.id);
-    if (deleteTeacherError) {
-      return NextResponse.json({ error: deleteTeacherError.message }, { status: 400 });
-    }
-    if (nextTeacherIds.length > 0) {
-      const { error: insertTeacherError } = await admin
-        .from("school_teachers")
-        .insert(
-          nextTeacherIds.map((teacherId, index) => ({
-            school_id: body.id,
-            teacher_user_id: teacherId,
-            teacher_role: index === 0 ? "primary" : "assistant",
-          })),
-        );
-      if (insertTeacherError) {
-        return NextResponse.json({ error: insertTeacherError.message }, { status: 400 });
-      }
     }
   }
 

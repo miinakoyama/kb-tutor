@@ -395,7 +395,7 @@ function ModeComparison({ byMode }: { byMode: Record<AttemptMode, ModeMetrics> }
             </div>
             {hasAttempts && (
               <p className="mt-1 text-[10px] text-slate-gray/50">
-                {metrics.correct}/{metrics.attempted} answers
+                {metrics.correct}/{metrics.attempted} correct
               </p>
             )}
           </li>
