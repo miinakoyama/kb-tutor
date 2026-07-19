@@ -26,13 +26,14 @@
 1. Log in as a student in that school; start a session containing the item (assignment or self practice).
 2. First visit: 4-step spotlight tour auto-opens; skip it; confirm it doesn't reopen (reload) but the "How to use" button re-opens it.
 3. Part A: Check is disabled while empty → type anything → enabled. Submit a wrong answer: red block, encouraging verdict, Socratic segments + "1 try left" pill, no model answer, textarea re-enabled, first dot red.
-4. Submit a second wrong answer: verdict "Here's the idea" + plain-text model answer only; part resolves; "Part B unlocks in 3…" countdown, then auto-unlock + scroll.
+4. Submit a second wrong answer: verdict "Here's the idea" + closing feedback + a clearly labeled "Model answer" section; part resolves; "Part B unlocks in 3…" countdown, then auto-unlock + scroll.
 5. Click a red dot: Attempt History modal shows only that attempt (your text + its feedback).
 6. Select text in the passage → highlight appears; click the highlight → removed. Selection inside the textarea does nothing.
-7. Report on Part A → modal → send → button becomes "Reported".
-8. Finish Part C: completion section (Key Terms list, My Notes autosave "Saved" flash, Continue). Bottom bar shows "All done!"; Next enabled.
-9. `/my-notes` (sidebar): the note appears with question preview; opening it shows the note beside the question.
-10. Empty submission check: submit whitespace → instant "No response was submitted", attempt consumed, no LLM latency.
+7. Click Report: one modal shows a Part/Attempt dropdown, the selected feedback/model-answer preview, and the optional comment field. Verify every recorded attempt is available and only individually reported attempts are disabled.
+8. Send the report and confirm that exact attempt is marked "Reported" while the other attempts remain available.
+9. Finish Part C: completion section (Key Terms list, My Notes autosave "Saved" flash, Continue). Bottom bar shows "All done!"; Next enabled.
+10. `/my-notes` (sidebar): the note appears with question preview; opening it shows the note beside the question.
+11. Empty submission check: submit whitespace → instant "No response was submitted", attempt consumed, no LLM latency.
 
 ## Verify: exam mode deferral (US1/FR-037)
 

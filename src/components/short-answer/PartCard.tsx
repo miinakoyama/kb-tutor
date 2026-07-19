@@ -152,6 +152,10 @@ export function PartCard({
     onEngage?.();
   };
 
+  const toggleManualExpansion = () => {
+    setManuallyExpanded((expandedNow) => !expandedNow);
+  };
+
   // Auto-collapse this part's feedback once the student engages a later part.
   // Edge-triggered on the false→true transition so a subsequent manual
   // re-expand isn't immediately undone.
@@ -233,7 +237,7 @@ export function PartCard({
                 />
                 <button
                   type="button"
-                  onClick={() => setManuallyExpanded((prev) => !prev)}
+                  onClick={toggleManualExpansion}
                   aria-expanded={expanded}
                   aria-label={expanded ? "Collapse" : "Expand"}
                   className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
@@ -248,7 +252,7 @@ export function PartCard({
 
             <button
               type="button"
-              onClick={() => setManuallyExpanded((prev) => !prev)}
+              onClick={toggleManualExpansion}
               className="mt-1 block w-full text-left"
             >
               <p

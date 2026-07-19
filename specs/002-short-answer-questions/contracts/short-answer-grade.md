@@ -58,7 +58,7 @@ Grades one part submission and returns student-facing feedback. Used by all mode
 ```
 
 - `feedback.verdict`: `"correct" | "incorrect"` (binary; no partial).
-- `modelAnswer` is non-null ONLY when `resolved === true && correct === false` (final attempt), and then `segments` is empty (spec FR-008).
+- `modelAnswer` is non-null ONLY when `resolved === true && correct === false` (final attempt). On that final miss, `segments` retains the grading method's concise closing feedback (spec FR-008).
 - `confidence` present only for Method 3; never displayed to students (stored for teachers).
 - Exam mode (`mode: "exam"`): same response shape; the client shows nothing until exam review.
 

@@ -1100,9 +1100,11 @@ export function ExamMode({
                     <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-muted px-3 py-2 text-sm italic text-slate-gray">
                       {text.trim().length > 0 ? `“${text}”` : "(no answer)"}
                     </p>
-                    {result?.feedback && result.feedback.segments.length > 0 && (
-                      <FeedbackBlock feedback={result.feedback} triesLeft={0} />
-                    )}
+                    {result?.feedback &&
+                      (result.feedback.segments.length > 0 ||
+                        Boolean(result.feedback.modelAnswer)) && (
+                        <FeedbackBlock feedback={result.feedback} triesLeft={0} />
+                      )}
                     {sampleAnswer && (
                       <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
