@@ -425,6 +425,8 @@ function toSyncError(err: unknown): SyncWriteError {
  * - 42P10: on-conflict column mismatch (schema/drift)
  * - 42703: undefined_column
  * - PGRST116/PGRST204/etc are PostgREST shape errors; also hopeless on retry
+ * - HTTP 400/404/… from `/api/analytics/attempts` when `runAttempt` falls
+ *   back to `String(response.status)` (no Postgres `code` in the body)
  */
 const NON_RETRIABLE_CODES = new Set<string>([
   "23503",
@@ -436,10 +438,23 @@ const NON_RETRIABLE_CODES = new Set<string>([
   "42P01",
 ]);
 
+/** 4xx statuses that may clear without changing the queued payload. */
+const RETRIABLE_HTTP_STATUSES = new Set([401, 408, 429]);
+
+function isNonRetriableHttpStatus(code: string): boolean {
+  // Only exact decimal status strings from `String(response.status)`.
+  // Postgres codes like "23503" must not match.
+  if (!/^\d{3}$/.test(code)) return false;
+  const status = Number(code);
+  if (status < 400 || status >= 500) return false;
+  return !RETRIABLE_HTTP_STATUSES.has(status);
+}
+
 function isNonRetriableError(err: unknown): boolean {
   if (err instanceof SyncWriteError && err.code) {
     if (NON_RETRIABLE_CODES.has(err.code)) return true;
     if (err.code.startsWith("PGRST")) return true;
+    if (isNonRetriableHttpStatus(err.code)) return true;
   }
   return false;
 }

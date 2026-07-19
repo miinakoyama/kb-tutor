@@ -97,10 +97,21 @@ describe("isNonRetriableError", () => {
     expect(isNonRetriableError(makeErr("PGRST204"))).toBe(true);
   });
 
+  it("treats client HTTP failures from the attempts API as permanent", () => {
+    // runAttempt sets code to String(status) when the JSON body has no
+    // Postgres code — e.g. toHttpError(400/404, …).
+    expect(isNonRetriableError(makeErr("400"))).toBe(true);
+    expect(isNonRetriableError(makeErr("404"))).toBe(true);
+    expect(isNonRetriableError(makeErr("422"))).toBe(true);
+  });
+
   it("lets transient errors through the retry loop", () => {
     // Network/timeouts/5xx have no code or a non-blocklisted one.
     expect(isNonRetriableError(makeErr(null))).toBe(false);
     expect(isNonRetriableError(makeErr("08006"))).toBe(false); // connection_failure
+    expect(isNonRetriableError(makeErr("401"))).toBe(false); // session may recover
+    expect(isNonRetriableError(makeErr("429"))).toBe(false); // rate limit
+    expect(isNonRetriableError(makeErr("500"))).toBe(false);
     expect(isNonRetriableError(new Error("Network error"))).toBe(false);
     expect(isNonRetriableError("not even an error")).toBe(false);
   });
@@ -212,6 +223,29 @@ describe("applyBatchResults silent recovery", () => {
           reason: new SyncWriteError({
             message: "fk boom",
             code: "23503",
+            details: null,
+            constraint: null,
+          }),
+        },
+      ],
+    );
+
+    expect(anyFailure).toBe(true);
+    expect(__testing.readQueue()).toHaveLength(0);
+  });
+
+  it("discards HTTP 404 attempt rejections instead of retrying forever", () => {
+    const entry = attemptEntry("missing");
+    __testing.writeQueue([entry]);
+
+    const anyFailure = applyBatchResults(
+      [entry],
+      [
+        {
+          status: "rejected",
+          reason: new SyncWriteError({
+            message: "Question not found or inaccessible",
+            code: "404",
             details: null,
             constraint: null,
           }),
