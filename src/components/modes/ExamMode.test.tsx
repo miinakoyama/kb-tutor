@@ -93,6 +93,17 @@ function makeQuestion(id: string, text: string, correctOptionId = "B"): Question
   };
 }
 
+function deferredResponse(): {
+  promise: Promise<Response>;
+  resolve: (response: Response) => void;
+} {
+  let resolve!: (response: Response) => void;
+  const promise = new Promise<Response>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe("ExamMode onboarding timing + analytics gating", () => {
   beforeEach(() => {
     cleanup();
@@ -228,7 +239,8 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     expect(unansweredReviewButton).not.toBeNull();
     fireEvent.click(unansweredReviewButton!);
 
-    await screen.findByText("No answer submitted");
+    const noAnswerMessage = await screen.findByText("No answer submitted");
+    expect(noAnswerMessage.closest(".max-w-6xl")).not.toBeNull();
     expect(
       screen.getByText(
         "This question was left unanswered. It is counted as incorrect, and the correct option is highlighted above for review.",
@@ -295,8 +307,97 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     ).toContain("border-primary/20");
 
     fireEvent.click(screen.getByText(shortAnswerItem.stem).closest("button")!);
-    await screen.findByText("Sample answer");
-    expect(screen.getByText(/mRNA carries the genetic code/i)).toBeTruthy();
+    await screen.findByText("Model answer");
+    expect(screen.queryByText("Sample answer")).toBeNull();
+    expect(
+      screen.getByText("mRNA carries the code to the ribosome."),
+    ).toBeTruthy();
+  });
+
+  it("shows completed written-answer grading progress while exam submission waits", async () => {
+    localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+    const firstGrade = deferredResponse();
+    const secondGrade = deferredResponse();
+    let gradeCallCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        if (String(input).includes("/api/short-answer/grade")) {
+          const response = gradeCallCount === 0 ? firstGrade : secondGrade;
+          gradeCallCount += 1;
+          return response.promise;
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ all_assignments_completed: false }),
+            { status: 200 },
+          ),
+        );
+      }),
+    );
+
+    const question: Question = {
+      ...baseQuestion,
+      id: `${shortAnswerItem.stem}-grading-progress`,
+      text: shortAnswerItem.stem,
+      questionType: "open-ended",
+      options: [],
+      correctOptionId: "",
+      shortAnswer: {
+        ...shortAnswerItem,
+        parts: shortAnswerItem.parts.slice(0, 2),
+      },
+    };
+
+    render(<ExamMode questions={[question]} requestedQuestionCount={1} />);
+
+    await screen.findByText(shortAnswerItem.stem);
+    fireEvent.change(screen.getByLabelText("Answer for Part A"), {
+      target: { value: "Part A response" },
+    });
+    fireEvent.change(screen.getByLabelText("Answer for Part B"), {
+      target: { value: "Part B response" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
+
+    const progressbar = await screen.findByRole("progressbar", {
+      name: "Written-answer grading progress",
+    });
+    expect(progressbar.getAttribute("aria-valuemax")).toBe("2");
+    expect(progressbar.getAttribute("aria-valuenow")).toBe("0");
+    expect(screen.getByText("0 of 2 written responses complete")).toBeTruthy();
+
+    firstGrade.resolve(
+      new Response(
+        JSON.stringify({
+          score: 1,
+          maxScore: 1,
+          correct: true,
+          feedback: { verdict: "correct", segments: [] },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await waitFor(() => {
+      expect(progressbar.getAttribute("aria-valuenow")).toBe("1");
+    });
+    expect(screen.getByText("1 of 2 written responses complete")).toBeTruthy();
+
+    secondGrade.resolve(
+      new Response(
+        JSON.stringify({
+          score: 1,
+          maxScore: 1,
+          correct: true,
+          feedback: { verdict: "correct", segments: [] },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await screen.findByText("Exam Complete!");
   });
 
   it("shows a saved model-answer-only result in exam review", async () => {
@@ -349,8 +450,11 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
 
     await screen.findByText("Exam Complete!");
+    expect(screen.getByText("Exam Complete!").closest(".max-w-6xl")).not.toBeNull();
     fireEvent.click(screen.getByText(shortAnswerItem.stem).closest("button")!);
     expect(await screen.findByText("Model answer")).toBeTruthy();
+    expect(screen.queryByText("Sample answer")).toBeNull();
+    expect(screen.getByText("Model answer").closest(".max-w-6xl")).not.toBeNull();
     expect(
       screen.getByText("Stored canonical answer from the final attempt."),
     ).toBeTruthy();
@@ -534,5 +638,9 @@ describe("ExamMode onboarding timing + analytics gating", () => {
       "string",
     );
     expect(screen.getByText("0%")).toBeTruthy();
+
+    fireEvent.click(screen.getByText(shortAnswerItem.stem).closest("button")!);
+    expect(await screen.findAllByText("Model answer")).toHaveLength(2);
+    expect(screen.getByText("Not answered")).toBeTruthy();
   });
 });

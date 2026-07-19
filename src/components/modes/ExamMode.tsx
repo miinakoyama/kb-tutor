@@ -30,7 +30,10 @@ import type { Question, AnswerRecord, QuestionTypeSelection } from "@/types/ques
 import { buildMixedQuestionSequence } from "@/lib/question-type-sequence";
 import type { GradedFeedback, PartLabel, ShortAnswerItem } from "@/types/short-answer";
 import { StimulusPanel } from "@/components/short-answer/StimulusPanel";
-import { FeedbackBlock } from "@/components/short-answer/FeedbackBlock";
+import {
+  FeedbackBlock,
+  ModelAnswerBlock,
+} from "@/components/short-answer/FeedbackBlock";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
 import { ExamNavigator } from "@/components/shared/ExamNavigator";
@@ -59,6 +62,7 @@ import { useAnalyticsSession } from "@/lib/analytics/session";
 import type { ReadSection } from "@/hooks/useTextToSpeech";
 import { answeredEntryForQuestion } from "@/lib/assignments/answered-map";
 import { checkForNewlyEarnedBadges } from "@/lib/badges/celebration-events";
+import { partModelAnswer } from "@/lib/short-answer/grading/common";
 
 const PRIMARY_COLOR = "#16a34a";
 const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
@@ -115,46 +119,35 @@ interface SaqPartResult {
   gradingStatus?: "graded" | "skipped" | "failed";
 }
 
+interface SaqGradingProgress {
+  completed: number;
+  total: number;
+}
+
 function isSaqQuestion(
   q: Question | undefined,
 ): q is Question & { shortAnswer: ShortAnswerItem } {
   return q?.questionType === "open-ended" && Boolean(q?.shortAnswer);
 }
 
+function countGradableSaqParts(
+  questions: Question[],
+  responses: Record<number, Partial<Record<PartLabel, string>>>,
+): number {
+  return questions.reduce((total, question, index) => {
+    if (!isSaqQuestion(question)) return total;
+    const questionResponses = responses[index] ?? {};
+    return (
+      total +
+      question.shortAnswer.parts.filter(
+        (part) => (questionResponses[part.label] ?? "").trim().length > 0,
+      ).length
+    );
+  }, 0);
+}
+
 function examQuestionPreviewText(q: Question): string {
   return isSaqQuestion(q) ? q.shortAnswer.stem : q.text;
-}
-
-function extractPartText(response: string, label: PartLabel): string | null {
-  const labels: PartLabel[] = ["A", "B", "C"];
-  const start = response.search(new RegExp(`\\bPart\\s+${label}\\s*:`, "i"));
-  if (start < 0) return null;
-  const contentStart = response.indexOf(":", start) + 1;
-  const laterLabels = labels.filter((candidate) => candidate > label);
-  let end = response.length;
-  for (const candidate of laterLabels) {
-    const next = response.search(new RegExp(`\\bPart\\s+${candidate}\\s*:`, "i"));
-    if (next > contentStart && next < end) end = next;
-  }
-  const text = response.slice(contentStart, end).trim();
-  return text.length > 0 ? text : null;
-}
-
-function sampleAnswerForPart(item: ShortAnswerItem, label: PartLabel): string | null {
-  const maxScore = item.parts.reduce((sum, part) => sum + part.maxScore, 0);
-  const exemplar = [...item.annotatedResponses]
-    .sort((a, b) => b.score - a.score)
-    .find((response) => response.score >= maxScore);
-  if (exemplar) {
-    const extracted = extractPartText(exemplar.response, label);
-    if (extracted) return extracted;
-  }
-
-  const part = item.parts.find((candidate) => candidate.label === label);
-  if (!part) return null;
-  const criteria = part.rubric.criteria[String(part.maxScore)];
-  if (criteria && criteria.trim().length > 0) return criteria.trim();
-  return part.scoringGuidance.trim().length > 0 ? part.scoringGuidance.trim() : null;
 }
 
 /** Seconds stored on attempts; `null` in DB means time was not measured. */
@@ -215,6 +208,8 @@ export function ExamMode({
     Record<number, Partial<Record<PartLabel, SaqPartResult>>>
   >({});
   const [isGradingSaq, setIsGradingSaq] = useState(false);
+  const [saqGradingProgress, setSaqGradingProgress] =
+    useState<SaqGradingProgress>({ completed: 0, total: 0 });
   const [examOnboardingStep, setExamOnboardingStep] =
     useState<ExamOnboardingStep | null>(null);
   const [isNavigatorSpotlightReady, setIsNavigatorSpotlightReady] =
@@ -728,14 +723,15 @@ export function ExamMode({
    * at submit time (mode 'exam', single attempt). Grading failures never block
    * submission — the part is counted incorrect with no feedback.
    */
-  const gradeShortAnswerQuestions = useCallback(async (): Promise<
-    Record<number, boolean>
-  > => {
+  const gradeShortAnswerQuestions = useCallback(async (
+    onPartCompleted?: (completed: number) => void,
+  ): Promise<Record<number, boolean>> => {
     const resultUpdates: Record<
       number,
       Partial<Record<PartLabel, SaqPartResult>>
     > = {};
     const correctness: Record<number, boolean> = {};
+    let completedParts = 0;
 
     for (let i = 0; i < sessionQuestions.length; i++) {
       const q = sessionQuestions[i];
@@ -761,6 +757,13 @@ export function ExamMode({
           allCorrect = false;
           continue;
         }
+        let partResult: SaqPartResult = {
+          score: 0,
+          maxScore: part.maxScore,
+          correct: false,
+          feedback: null,
+          gradingStatus: "failed",
+        };
         try {
           const res = await fetch("/api/short-answer/grade", {
             method: "POST",
@@ -787,27 +790,26 @@ export function ExamMode({
               correct: boolean;
               feedback: GradedFeedback;
             };
-            partResults[part.label] = {
+            partResult = {
               score: data.score,
               maxScore: data.maxScore,
               correct: data.correct,
-              feedback: data.feedback,
+              feedback: {
+                ...data.feedback,
+                modelAnswer:
+                  data.feedback.modelAnswer?.trim() ||
+                  partModelAnswer(q.shortAnswer, part),
+              },
               gradingStatus: "graded",
             };
-            if (!data.correct) allCorrect = false;
-            continue;
           }
         } catch {
-          // fall through to the incorrect fallback below
+          // Keep the incorrect fallback so one failed request cannot block submit.
         }
-        partResults[part.label] = {
-          score: 0,
-          maxScore: part.maxScore,
-          correct: false,
-          feedback: null,
-          gradingStatus: "failed",
-        };
-        allCorrect = false;
+        partResults[part.label] = partResult;
+        if (!partResult.correct) allCorrect = false;
+        completedParts += 1;
+        onPartCompleted?.(completedParts);
       }
       resultUpdates[i] = partResults;
       correctness[i] = allCorrect;
@@ -851,9 +853,16 @@ export function ExamMode({
 
     // Grade deferred short-answer parts before showing results. The grade
     // route persists both detailed and summary rows server-side.
-    setIsGradingSaq(true);
+    const totalSaqParts = countGradableSaqParts(
+      sessionQuestions,
+      saqResponses,
+    );
+    setSaqGradingProgress({ completed: 0, total: totalSaqParts });
+    if (totalSaqParts > 0) setIsGradingSaq(true);
     try {
-      await gradeShortAnswerQuestions();
+      await gradeShortAnswerQuestions((completed) => {
+        setSaqGradingProgress({ completed, total: totalSaqParts });
+      });
     } finally {
       setIsGradingSaq(false);
     }
@@ -966,6 +975,7 @@ export function ExamMode({
   }, [
     answers,
     sessionQuestions,
+    saqResponses,
     flushQuestionVisit,
     gradeShortAnswerQuestions,
     isAssignmentRun,
@@ -995,34 +1005,32 @@ export function ExamMode({
   if (phase === "results") {
     const correctCount = Object.values(answers).filter((a) => a.isCorrect).length;
     return (
-      <div className="h-full overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="mx-auto w-full max-w-4xl">
-          <ExamResults
-            questions={sessionQuestions}
-            answers={answers}
-            saqResults={saqResults}
-            correctCount={correctCount}
-            elapsedMs={elapsedMs}
-            topicName={topicName}
-            onReview={(index) => {
-              setReviewIndex(index);
-              setPhase("review");
-            }}
-            onRetry={() => {
-              badgeCelebrationCheckedRef.current = false;
-              resetExamDwellTracking();
-              setElapsedMs(0);
-              setAnswers({});
-              setSaqResponses({});
-              setSaqResults({});
-              examRunStartedAtRef.current = new Date().toISOString();
-              setCurrentIndex(0);
-              setReviewIndex(null);
-              setIsNavigatorPinnedOpen(false);
-              setPhase("exam");
-            }}
-          />
-        </div>
+      <div className="mx-auto h-full w-full max-w-6xl overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-5 lg:px-8">
+        <ExamResults
+          questions={sessionQuestions}
+          answers={answers}
+          saqResults={saqResults}
+          correctCount={correctCount}
+          elapsedMs={elapsedMs}
+          topicName={topicName}
+          onReview={(index) => {
+            setReviewIndex(index);
+            setPhase("review");
+          }}
+          onRetry={() => {
+            badgeCelebrationCheckedRef.current = false;
+            resetExamDwellTracking();
+            setElapsedMs(0);
+            setAnswers({});
+            setSaqResponses({});
+            setSaqResults({});
+            examRunStartedAtRef.current = new Date().toISOString();
+            setCurrentIndex(0);
+            setReviewIndex(null);
+            setIsNavigatorPinnedOpen(false);
+            setPhase("exam");
+          }}
+        />
       </div>
     );
   }
@@ -1032,7 +1040,7 @@ export function ExamMode({
     const a = answers[reviewIndex];
     if (isSaqQuestion(q)) {
       return (
-        <div className="h-full overflow-y-auto mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="mx-auto h-full w-full max-w-6xl overflow-y-auto px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8">
           <button
             onClick={() => setPhase("results")}
             className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
@@ -1058,7 +1066,9 @@ export function ExamMode({
               {q.shortAnswer.parts.map((part) => {
                 const result = saqResults[reviewIndex]?.[part.label];
                 const text = saqResponses[reviewIndex]?.[part.label] ?? "";
-                const sampleAnswer = sampleAnswerForPart(q.shortAnswer, part.label);
+                const modelAnswer =
+                  result?.feedback?.modelAnswer?.trim() ||
+                  partModelAnswer(q.shortAnswer, part);
                 return (
                   <div
                     key={part.label}
@@ -1068,7 +1078,7 @@ export function ExamMode({
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Part {part.label}
                       </p>
-                      {result ? (
+                      {result && result.gradingStatus !== "skipped" ? (
                         <span
                           className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                             result.correct
@@ -1105,15 +1115,8 @@ export function ExamMode({
                         Boolean(result.feedback.modelAnswer)) && (
                         <FeedbackBlock feedback={result.feedback} triesLeft={0} />
                       )}
-                    {sampleAnswer && (
-                      <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-                          Sample answer
-                        </p>
-                        <p className="mt-1 text-[13px] leading-relaxed text-slate-gray">
-                          {sampleAnswer}
-                        </p>
-                      </div>
+                    {!result?.feedback && (
+                      <ModelAnswerBlock modelAnswer={modelAnswer} />
                     )}
                   </div>
                 );
@@ -1132,7 +1135,7 @@ export function ExamMode({
       includeMisconception: true,
     });
     return (
-      <div className="h-full overflow-y-auto mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="mx-auto h-full w-full max-w-6xl overflow-y-auto px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8">
         <button
           onClick={() => setPhase("results")}
           className="inline-flex items-center gap-2 text-sm font-semibold text-heading hover:text-forest transition-colors mb-4"
@@ -1578,20 +1581,84 @@ export function ExamMode({
         />
       ) : null}
 
-      {isGradingSaq ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="rounded-2xl bg-surface px-8 py-6 text-center shadow-2xl">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="mt-3 text-sm font-semibold text-slate-gray">
-              Grading your written answers…
-            </p>
-            <p className="mt-1 text-[12px] text-muted-foreground">
-              This can take a few seconds per part.
-            </p>
-          </div>
-        </div>
+      {isGradingSaq && saqGradingProgress.total > 0 ? (
+        <GradingProgressDialog progress={saqGradingProgress} />
       ) : null}
     </>
+  );
+}
+
+function GradingProgressDialog({
+  progress,
+}: {
+  progress: SaqGradingProgress;
+}) {
+  const percent = Math.round((progress.completed / progress.total) * 100);
+  const progressText = `${progress.completed} of ${progress.total} written ${
+    progress.total === 1 ? "response" : "responses"
+  } complete`;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exam-grading-title"
+        aria-describedby="exam-grading-description"
+        className="w-full max-w-sm rounded-2xl px-6 py-6 text-center sm:px-8"
+        style={{
+          background: "var(--assignment-glass-bg-strong)",
+          border: "1px solid var(--assignment-glass-border)",
+          boxShadow: "var(--assignment-card-shadow)",
+          backdropFilter: "blur(14px) saturate(115%)",
+          WebkitBackdropFilter: "blur(14px) saturate(115%)",
+        }}
+      >
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <h2
+          id="exam-grading-title"
+          className="mt-3 text-base font-semibold text-slate-gray"
+        >
+          Grading your written answers…
+        </h2>
+        <div className="mt-5 flex items-center justify-between gap-4 text-sm">
+          <p className="font-medium text-slate-gray" aria-live="polite">
+            {progressText}
+          </p>
+          <span className="tabular-nums text-muted-foreground" aria-hidden="true">
+            {percent}%
+          </span>
+        </div>
+        <div
+          className="mt-2 h-3 overflow-hidden rounded-full border"
+          style={{
+            background: "var(--surface-muted)",
+            borderColor: "var(--border-default)",
+            boxShadow: "var(--assignment-pill-highlight)",
+          }}
+          role="progressbar"
+          aria-label="Written-answer grading progress"
+          aria-valuemin={0}
+          aria-valuemax={progress.total}
+          aria-valuenow={progress.completed}
+          aria-valuetext={progressText}
+        >
+          <motion.div
+            className="h-full rounded-full"
+            style={{ background: "var(--assignment-progress-fill)" }}
+            initial={false}
+            animate={{ width: `${percent}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
+        <p
+          id="exam-grading-description"
+          className="mt-3 text-xs text-muted-foreground"
+        >
+          This can take a few seconds per response.
+        </p>
+      </div>
+    </div>
   );
 }
 
