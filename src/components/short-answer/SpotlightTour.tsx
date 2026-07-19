@@ -24,9 +24,12 @@ export interface TourStep {
   onLeave?: () => void;
 }
 
+// Mirror the real attempt dots (see PartCard) so this key stays accurate and
+// the wrong swatch reads from the shared --saq-wrong variable rather than a
+// separate red/rose literal.
 const LEGEND_DOT_CLASS: Record<TourLegendItem["color"], string> = {
-  correct: "bg-emerald-500",
-  incorrect: "bg-rose-500",
+  correct: "bg-[var(--assignment-progress-fill)]/60",
+  incorrect: "bg-[var(--saq-wrong)]/60",
 };
 
 interface SpotlightTourProps {
