@@ -24,6 +24,7 @@ describe("buildPartRuntimesFromStoredAttempts", () => {
     expect(allResolved).toBe(false);
     expect(runtimes[0].status).toBe("active");
     expect(runtimes[0].attempts).toHaveLength(1);
+    expect(runtimes[0].attempts[0].attemptId).toBe("attempt-1");
     expect(runtimes[0].triesLeft).toBe(1);
     expect(runtimes[0].latestFeedback?.verdict).toBe("good_try");
     expect(runtimes[1].status).toBe("locked");

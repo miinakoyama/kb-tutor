@@ -144,14 +144,14 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
     expect((reportButton as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(reportButton);
     expect(
-      screen.getByRole("dialog", { name: "Choose feedback to report" }),
+      screen.getByRole("dialog", { name: "Report feedback" }),
     ).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Report feedback for Part A" }),
-    );
     expect(
-      screen.getByRole("dialog", { name: "Report feedback for Part A" }),
+      (screen.getByLabelText("Feedback to report") as HTMLSelectElement).value,
+    ).toBe("attempt-1");
+    expect(
+      screen.getByRole("option", { name: "Part A · Attempt 1" }),
     ).toBeTruthy();
-    expect(screen.getByText("Report feedback — Part A")).toBeTruthy();
+    expect(screen.getByText("Great — you named DNA.")).toBeTruthy();
   }, 12000);
 });

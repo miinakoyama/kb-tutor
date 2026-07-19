@@ -78,7 +78,7 @@
 - [X] T032 [P] [US1] `AttemptHistoryModal.tsx`: single-attempt view (outcome pill, "You wrote" quoted text, feedback segments + model answer if present), keyboard/backdrop dismiss (FR-006)
 - [X] T033 [P] [US1] `GlossaryPopup.tsx`: near-cursor term+definition tooltip, dismiss on next click (FR-009)
 - [X] T034 [P] [US1] `CompletionSection.tsx`: Key Terms list card, "My Notes (optional)" lined textarea with debounced blur autosave + "Saved" fade via browser Supabase upsert to `student_question_notes` (contracts/student-notes.md), Continue button (FR-014)
-- [X] T035 [P] [US1] `ReportFeedbackModal.tsx`: "Report feedback — Part X" modal (explainer copy, optional note, Cancel/Send), POSTs `/api/feedback-reports`, switches trigger to "Reported" (FR-016)
+- [X] T035 [P] [US1] `ReportFeedbackModal.tsx`: single "Report feedback" modal with a Part/Attempt dropdown, selected feedback/model-answer preview, optional note, and Cancel/Send; POSTs the exact attempt to `/api/feedback-reports` and marks that attempt "Reported" (FR-016)
 - [X] T036 [P] [US1] `SpotlightTour.tsx`: 4-step spotlight over real elements (How-to-use, live demo highlight word with wrap/unwrap, Report button, attempt dots), viewport-aware tooltip placement + clamp, step dots/skip/back/next, persists `user_settings.short_answer_tour_seen_at`, reopenable via "How to use" (FR-018)
 - [X] T037 [US1] `ShortAnswerQuestionView.tsx`: split-panel container wiring T028–T036 — part lifecycle state machine (locked→active→submitting→retry/resolved→countdown per data-model.md state transitions), grade API calls, sequential unlock + smooth scroll, A/B/C stepper + bottom-bar status text, 2-part item support, retriable-error toast on 502 without consuming attempt
 
