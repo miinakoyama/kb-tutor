@@ -346,7 +346,6 @@ export function PracticePageClient({
           assignmentId={assignmentIdParam}
           backHref={runBackHref}
           showBackLink
-          preferReviewTopicsCta={!hasAssignmentSnapshot && Boolean(questionIdsParam)}
           answered={hasAssignmentSnapshot ? answeredMap : undefined}
           assignmentRunAfter={hasAssignmentSnapshot ? assignmentRunAfter : undefined}
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}

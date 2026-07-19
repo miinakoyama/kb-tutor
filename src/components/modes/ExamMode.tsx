@@ -6,6 +6,7 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  type ReactNode,
 } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,7 +23,8 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Lightbulb,
-  BookOpen,
+  Home,
+  Send,
 } from "lucide-react";
 import type { Question, AnswerRecord, QuestionTypeSelection } from "@/types/question";
 import { buildMixedQuestionSequence } from "@/lib/question-type-sequence";
@@ -1098,9 +1100,11 @@ export function ExamMode({
                     <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-muted px-3 py-2 text-sm italic text-slate-gray">
                       {text.trim().length > 0 ? `“${text}”` : "(no answer)"}
                     </p>
-                    {result?.feedback && result.feedback.segments.length > 0 && (
-                      <FeedbackBlock feedback={result.feedback} triesLeft={0} />
-                    )}
+                    {result?.feedback &&
+                      (result.feedback.segments.length > 0 ||
+                        Boolean(result.feedback.modelAnswer)) && (
+                        <FeedbackBlock feedback={result.feedback} triesLeft={0} />
+                      )}
                     {sampleAnswer && (
                       <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
@@ -1287,42 +1291,67 @@ export function ExamMode({
   const unansweredLabel = Math.max(0, unansweredCount);
   const isCurrentQuestionBookmarked = bookmarkedQuestionIds.has(question.id);
   const examFooterCenter = (
-    <>
-      <button
-        onClick={handleBookmarkToggle}
-        aria-pressed={isCurrentQuestionBookmarked}
-        className={sessionSecondaryButtonClass}
-        style={sessionSecondaryButtonStyle}
-      >
-        <Bookmark
-          className={`w-4 h-4 ${isCurrentQuestionBookmarked ? "fill-current" : ""}`}
-        />
-        <span className="hidden sm:inline">
-          {isCurrentQuestionBookmarked ? "Bookmarked" : "Bookmark"}
-        </span>
-      </button>
-
-      <button
-        onClick={toggleFlag}
-        data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
-        aria-pressed={Boolean(answers[currentIndex]?.flagged)}
-        className={sessionSecondaryButtonClass}
-        style={sessionSecondaryButtonStyle}
-      >
-        <Flag
-          className={`w-4 h-4 ${answers[currentIndex]?.flagged ? "fill-current" : ""}`}
-        />
-        <span className="hidden sm:inline">Mark for review</span>
-      </button>
-    </>
+    <button
+      onClick={handleBookmarkToggle}
+      aria-pressed={isCurrentQuestionBookmarked}
+      className={sessionSecondaryButtonClass}
+      style={sessionSecondaryButtonStyle}
+    >
+      <Bookmark
+        className={`w-4 h-4 ${isCurrentQuestionBookmarked ? "fill-current" : ""}`}
+      />
+      <span className="hidden sm:inline">
+        {isCurrentQuestionBookmarked ? "Bookmarked" : "Bookmark"}
+      </span>
+    </button>
   );
 
-  const examNextAction = (
+  const isCurrentQuestionFlagged = Boolean(answers[currentIndex]?.flagged);
+  const examFlagButton = (
     <button
-      onClick={() =>
-        currentIndex < totalQuestions - 1 && setCurrentIndex((i) => i + 1)
-      }
-      disabled={currentIndex === totalQuestions - 1}
+      type="button"
+      onClick={toggleFlag}
+      data-tour-id={EXAM_ONBOARDING_TOUR_IDS.FLAG}
+      aria-pressed={isCurrentQuestionFlagged}
+      aria-label={isCurrentQuestionFlagged ? "Unmark for review" : "Mark for review"}
+      title={isCurrentQuestionFlagged ? "Unmark for review" : "Mark for review"}
+      className={`inline-flex items-center justify-center h-8 w-8 rounded-full p-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+        isCurrentQuestionFlagged
+          ? ""
+          : "bg-[var(--assignment-calendar-nav-bg)] text-slate-gray hover:bg-[var(--assignment-calendar-nav-bg-hover)]"
+      }`}
+      style={{
+        border: "1px solid var(--assignment-glass-border)",
+        boxShadow: "var(--assignment-nav-shadow)",
+        backdropFilter: "blur(10px) saturate(130%)",
+        WebkitBackdropFilter: "blur(10px) saturate(130%)",
+        ...(isCurrentQuestionFlagged
+          ? { background: "var(--assignment-mode-review-bg)", color: "var(--assignment-mode-review)" }
+          : undefined),
+      }}
+    >
+      <Flag
+        className="w-3.5 h-3.5"
+        style={isCurrentQuestionFlagged ? { fill: "var(--assignment-mode-review)" } : undefined}
+      />
+    </button>
+  );
+
+  const isLastQuestion = currentIndex === totalQuestions - 1;
+  const hasAnsweredCurrentQuestion = Boolean(currentAnswer?.selectedOptionId);
+  const examNextAction = isLastQuestion ? (
+    <button
+      onClick={handleSubmit}
+      disabled={!hasAnsweredCurrentQuestion || isMediaPending}
+      className={sessionPrimaryButtonClass}
+      style={sessionPrimaryButtonStyle}
+    >
+      Submit
+      <Send className="w-4 h-4" />
+    </button>
+  ) : (
+    <button
+      onClick={() => setCurrentIndex((i) => i + 1)}
       data-tour-id={EXAM_ONBOARDING_TOUR_IDS.NEXT_QUESTION}
       className={sessionPrimaryButtonClass}
       style={sessionPrimaryButtonStyle}
@@ -1403,6 +1432,7 @@ export function ExamMode({
             onChange={(label, value) =>
               handleSaqResponseChange(currentIndex, label, value)
             }
+            headerAction={examFlagButton}
           />
         ) : (
           <QuestionDisplay
@@ -1415,6 +1445,7 @@ export function ExamMode({
             revealCorrectAnswer={false}
             onOptionClick={handleOptionClick}
             onReadAloud={handleReadAloud}
+            headerAction={examFlagButton}
           />
         )}
       </QuestionSessionShell>
@@ -1577,6 +1608,7 @@ function ExamShortAnswerCard({
   responses,
   onChange,
   stimulusImageLoading = false,
+  headerAction,
 }: {
   questionNumber: number;
   item: ShortAnswerItem;
@@ -1584,6 +1616,7 @@ function ExamShortAnswerCard({
   onChange: (label: PartLabel, value: string) => void;
   /** True while a stripped stimulus image is still being fetched (see useQuestionMedia). */
   stimulusImageLoading?: boolean;
+  headerAction?: ReactNode;
 }) {
   const isFilled = (label: PartLabel) =>
     (responses[label] ?? "").trim().length > 0;
@@ -1616,9 +1649,12 @@ function ExamShortAnswerCard({
         className={`flex ${isShortViewport ? "h-[52px]" : "h-[68px]"} items-center justify-between gap-3 border-b px-5 sm:px-8 lg:px-10`}
         style={{ borderColor: "var(--border-subtle)" }}
       >
-        <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Question {questionNumber}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Question {questionNumber}
+          </p>
+          {headerAction}
+        </div>
         <div
           className="flex items-center gap-1"
           aria-label="Progress across parts"
@@ -2086,12 +2122,12 @@ function ExamResults({
             Try Again
           </button>
           <Link
-            href="/self-practice"
+            href="/"
             className={assignmentPrimaryButtonClass}
             style={assignmentPrimaryButtonStyle}
           >
-            <BookOpen className="w-4 h-4" />
-            Practice Other Topics
+            <Home className="w-4 h-4" />
+            Back to Home
           </Link>
         </div>
       </div>

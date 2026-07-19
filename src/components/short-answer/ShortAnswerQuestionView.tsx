@@ -33,9 +33,7 @@ interface PartRuntime {
   status: PartStatus;
   attempts: AttemptHistoryEntry[];
   latestFeedback: GradedFeedback | null;
-  latestAttemptId: string | null;
   triesLeft: number;
-  reported: boolean;
   /** True while this part's resolution countdown is running. */
   countdownActive: boolean;
 }
@@ -45,9 +43,7 @@ function initialRuntime(index: number): PartRuntime {
     status: index === 0 ? "active" : "locked",
     attempts: [],
     latestFeedback: null,
-    latestAttemptId: null,
     triesLeft: MAX_ATTEMPTS,
-    reported: false,
     countdownActive: false,
   };
 }
@@ -118,8 +114,6 @@ const TOOLBAR_BORDER_NEUTRAL = "var(--assignment-glass-border)";
 const TOOLBAR_COLOR_NEUTRAL = "var(--foreground)";
 const TOOLBAR_BORDER_GREEN = "var(--assignment-completed-muted)";
 const TOOLBAR_COLOR_GREEN = "var(--mastery-mastered)";
-const TOOLBAR_BORDER_RED = "var(--error-border)";
-const TOOLBAR_COLOR_RED = "var(--error-color)";
 
 interface ShortAnswerQuestionViewProps {
   item: ShortAnswerItem;
@@ -186,11 +180,10 @@ export function ShortAnswerQuestionView({
     partLabel: PartLabel;
     attempt: AttemptHistoryEntry;
   } | null>(null);
-  const [reportModal, setReportModal] = useState<{
-    partLabel: PartLabel;
-    partIndex: number;
-    attemptId: string;
-  } | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportedAttemptIds, setReportedAttemptIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [glossary, setGlossary] = useState<{
     term: string;
     definition: string;
@@ -285,6 +278,8 @@ export function ShortAnswerQuestionView({
     setHydrationReady(false);
     setShowCompletion(false);
     setEngagedIndex(-1);
+    setReportModalOpen(false);
+    setReportedAttemptIds(new Set());
     allResolvedFiredRef.current = false;
     partActiveSinceRef.current = {};
     setRuntimes(item.parts.map((_, i) => initialRuntime(i)));
@@ -479,6 +474,7 @@ export function ShortAnswerQuestionView({
         // This attempt is recorded — a later retry times only the retry.
         partActiveSinceRef.current[part.label] = Date.now();
         const entry: AttemptHistoryEntry = {
+          attemptId: data.attemptId,
           attemptNumber,
           correct: data.correct,
           responseText: response,
@@ -493,7 +489,6 @@ export function ShortAnswerQuestionView({
                   status: data.resolved ? "resolved" : "active",
                   attempts: [...r.attempts, entry],
                   latestFeedback: data.feedback,
-                  latestAttemptId: data.attemptId,
                   triesLeft: data.triesLeft,
                   countdownActive: data.resolved,
                 }
@@ -553,30 +548,21 @@ export function ShortAnswerQuestionView({
   const waitingForPracticeSession = !assignmentId && !sessionId;
   const checkDisabled = waitingForPracticeSession || stimulusImageLoading;
 
-  // The toolbar's Report button always targets whichever part the student is
-  // currently engaging with: the active part, or — during the brief unlock
-  // countdown right after answering — the part that just resolved (the next
-  // part is still locked at that point, so it can't be the target).
-  let focusIndex = -1;
-  for (let i = runtimes.length - 1; i >= 0; i--) {
-    if (runtimes[i].status !== "locked") {
-      focusIndex = i;
-      break;
-    }
-  }
-  const focusRuntime = focusIndex >= 0 ? runtimes[focusIndex] : undefined;
-  const canReportFocusPart = Boolean(focusRuntime?.latestAttemptId) && !focusRuntime?.reported;
+  const reportTargets = runtimes.flatMap((runtime, index) =>
+    runtime.attempts.map((attempt) => ({
+      partLabel: item.parts[index].label,
+      attemptId: attempt.attemptId,
+      attemptNumber: attempt.attemptNumber,
+      feedback: attempt.feedback,
+      reported: reportedAttemptIds.has(attempt.attemptId),
+    })),
+  );
+  const hasUnreportedFeedback = reportTargets.some((target) => !target.reported);
 
   const handleToolbarReport = useCallback(() => {
-    if (focusIndex < 0) return;
-    const runtime = runtimes[focusIndex];
-    if (!runtime?.latestAttemptId || runtime.reported) return;
-    setReportModal({
-      partLabel: item.parts[focusIndex].label,
-      partIndex: focusIndex,
-      attemptId: runtime.latestAttemptId,
-    });
-  }, [focusIndex, runtimes, item.parts]);
+    if (!hasUnreportedFeedback) return;
+    setReportModalOpen(true);
+  }, [hasUnreportedFeedback]);
 
   return (
     <div
@@ -692,20 +678,13 @@ export function ShortAnswerQuestionView({
               ref={reportButtonRef}
               type="button"
               onClick={handleToolbarReport}
-              disabled={!canReportFocusPart}
-              aria-pressed={Boolean(focusRuntime?.reported)}
-              title={
-                focusRuntime?.reported
-                  ? "Reported — your teacher will review this feedback"
-                  : "Report if the feedback on the current part seems wrong"
-              }
+              disabled={!hasUnreportedFeedback}
+              aria-haspopup="dialog"
+              aria-expanded={reportModalOpen}
+              title="Choose which feedback attempt to report"
               aria-label="Report feedback"
               className={TOOLBAR_BUTTON_CLASS}
-              style={
-                focusRuntime?.reported
-                  ? toolbarButtonStyle(TOOLBAR_BORDER_RED, TOOLBAR_COLOR_RED)
-                  : toolbarButtonStyle(TOOLBAR_BORDER_NEUTRAL, TOOLBAR_COLOR_NEUTRAL)
-              }
+              style={toolbarButtonStyle(TOOLBAR_BORDER_NEUTRAL, TOOLBAR_COLOR_NEUTRAL)}
             >
               <Flag className="h-4 w-4" aria-hidden />
             </button>
@@ -808,18 +787,17 @@ export function ShortAnswerQuestionView({
         />
       )}
 
-      {reportModal && (
+      {reportModalOpen && (
         <ReportFeedbackModal
-          partLabel={reportModal.partLabel}
-          attemptId={reportModal.attemptId}
+          targets={reportTargets}
           questionId={questionId}
-          onClose={() => setReportModal(null)}
-          onReported={() =>
-            setRuntimes((prev) =>
-              prev.map((r, i) =>
-                i === reportModal.partIndex ? { ...r, reported: true } : r,
-              ),
-            )
+          onClose={() => setReportModalOpen(false)}
+          onReported={(attemptId) =>
+            setReportedAttemptIds((previous) => {
+              const next = new Set(previous);
+              next.add(attemptId);
+              return next;
+            })
           }
         />
       )}

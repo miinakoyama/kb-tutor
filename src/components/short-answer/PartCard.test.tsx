@@ -83,7 +83,13 @@ describe("PartCard", () => {
       part,
       status: "resolved" as const,
       attempts: [
-        { attemptNumber: 1, correct: true, responseText: "DNA", feedback },
+        {
+          attemptId: "attempt-1",
+          attemptNumber: 1,
+          correct: true,
+          responseText: "DNA",
+          feedback,
+        },
       ],
       maxAttempts: 2,
       latestFeedback: feedback,
@@ -128,7 +134,13 @@ describe("PartCard", () => {
       part,
       status: "resolved" as const,
       attempts: [
-        { attemptNumber: 1, correct: true, responseText: "DNA", feedback },
+        {
+          attemptId: "attempt-1",
+          attemptNumber: 1,
+          correct: true,
+          responseText: "DNA",
+          feedback,
+        },
       ],
       maxAttempts: 2,
       latestFeedback: feedback,
@@ -178,7 +190,13 @@ describe("PartCard", () => {
         part={part}
         status="active"
         attempts={[
-          { attemptNumber: 1, correct: false, responseText: "DNA", feedback },
+          {
+            attemptId: "attempt-1",
+            attemptNumber: 1,
+            correct: false,
+            responseText: "DNA",
+            feedback,
+          },
         ]}
         maxAttempts={2}
         latestFeedback={feedback}

@@ -10,6 +10,7 @@ import {
   Send,
   RefreshCcw,
   BookOpen,
+  Home,
   X,
   ArrowLeft,
   CheckCircle2,
@@ -93,7 +94,6 @@ interface AdaptivePracticeModeProps {
   questionCount?: number;
   assignmentId?: string;
   mode?: "practice" | "review";
-  preferReviewTopicsCta?: boolean;
   backHref?: string;
   showBackLink?: boolean;
   /**
@@ -128,7 +128,6 @@ export function AdaptivePracticeMode({
   questionCount,
   assignmentId,
   mode = "practice",
-  preferReviewTopicsCta = false,
   backHref = "/self-practice",
   showBackLink = false,
   answered,
@@ -1264,16 +1263,12 @@ export function AdaptivePracticeMode({
               {mode === "review" ? "Review Again" : "Try Again"}
             </button>
             <Link
-              href={
-                mode === "review" || preferReviewTopicsCta
-                  ? "/bookmarks?chooseTopics=1"
-                  : "/self-practice"
-              }
+              href="/"
               className={assignmentPrimaryButtonClass}
               style={assignmentPrimaryButtonStyle}
             >
-              <BookOpen className="w-4 h-4" />
-              Practice Other Topics
+              <Home className="w-4 h-4" />
+              Back to Home
             </Link>
           </div>
         </div>
@@ -1355,6 +1350,9 @@ export function AdaptivePracticeMode({
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
         contextLabel={contextLabel}
+        // Every non-assignment Practice session is open-ended. This includes
+        // Review/Bookmarks launches that start from a fixed questionIds batch
+        // and append another batch after the initial selection is completed.
         hideQuestionCounter={mode === "practice" && !isAssignmentRun}
         onFinishSession={!isAssignmentRun ? finishSession : undefined}
         variant={

@@ -88,4 +88,30 @@ describe("gradeWithMethod2", () => {
     expect(result.score).toBe(0);
     expect(result.diagnosedGap).toBe("wrong_concept");
   });
+
+  it("uses closure feedback rules on a final submission", async () => {
+    chatComplete
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ score: 0, failure_type: "wrong_concept" }),
+        tokenCount: 0,
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ feedback: "DNA does not perform the carrier role." }),
+        tokenCount: 0,
+      });
+    const { gradeWithMethod2 } = await load();
+    await gradeWithMethod2({
+      item,
+      part,
+      studentResponse: "DNA",
+      modelId: "gpt-5.4",
+      temperature: 1,
+      isFinalSubmission: true,
+    });
+
+    const feedbackRequest = JSON.stringify(chatComplete.mock.calls[1]?.[0]);
+    expect(feedbackRequest).toContain("FINAL SUBMISSION CONTEXT");
+    expect(feedbackRequest).toContain("Do not ask a question");
+    expect(feedbackRequest).not.toContain("Ask one specific follow-up question");
+  });
 });
