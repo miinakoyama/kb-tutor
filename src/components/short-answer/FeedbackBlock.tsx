@@ -141,14 +141,18 @@ export function FeedbackBlock({
       )}
 
       {feedback.modelAnswer && (
-        <p
+        <div
           {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
-          className="mx-4 border-t pb-3 pt-3 text-[15px] leading-relaxed text-[color:var(--foreground)]/80"
+          className="mx-4 border-t pb-3 pt-3"
           style={{ borderColor: "var(--border-subtle)" }}
         >
-          <span className="sr-only">Model answer: </span>
-          {feedback.modelAnswer}
-        </p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/55">
+            Model answer
+          </p>
+          <p className="mt-1 text-[15px] leading-relaxed text-[color:var(--foreground)]/85">
+            {feedback.modelAnswer}
+          </p>
+        </div>
       )}
 
       {unlock && <UnlockCountdown label={unlock.label} onUnlock={unlock.onUnlock} />}

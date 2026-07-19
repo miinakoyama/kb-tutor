@@ -33,7 +33,7 @@ describe("gradePart", () => {
     chatComplete.mockReset();
   });
 
-  it("returns only the canonical model answer for an incorrect exam response", async () => {
+  it("returns feedback and the canonical model answer for an incorrect exam response", async () => {
     chatComplete
       .mockResolvedValueOnce(jsonCompletion({ score: 0, failure_type: "wrong_concept" }))
       .mockResolvedValueOnce(
@@ -51,7 +51,12 @@ describe("gradePart", () => {
     expect(result.correct).toBe(false);
     expect(result.feedback).toEqual({
       verdict: "heres_the_idea",
-      segments: [],
+      segments: [
+        {
+          label: "Feedback",
+          text: "You said DNA, but this asks about the messenger molecule.",
+        },
+      ],
       modelAnswer: "mRNA carries the genetic code from the nucleus to the ribosome.",
     });
   });
@@ -73,7 +78,7 @@ describe("gradePart", () => {
     expect(result.feedback.modelAnswer).toBeUndefined();
   });
 
-  it("returns only the model answer after an incorrect second practice attempt", async () => {
+  it("keeps feedback with the model answer after an incorrect second practice attempt", async () => {
     chatComplete
       .mockResolvedValueOnce(jsonCompletion({ score: 0, failure_type: "wrong_concept" }))
       .mockResolvedValueOnce(jsonCompletion({ feedback: "Still not the messenger molecule." }));
@@ -87,7 +92,9 @@ describe("gradePart", () => {
     });
 
     expect(chatComplete).toHaveBeenCalledTimes(2);
-    expect(result.feedback.segments).toEqual([]);
+    expect(result.feedback.segments).toEqual([
+      { label: "Feedback", text: "Still not the messenger molecule." },
+    ]);
     expect(result.feedback.modelAnswer).toBe(
       "mRNA carries the genetic code from the nucleus to the ribosome.",
     );
@@ -111,7 +118,9 @@ describe("gradePart", () => {
     });
 
     expect(chatComplete).toHaveBeenCalledTimes(1);
-    expect(result.feedback.segments).toEqual([]);
+    expect(result.feedback.segments).toEqual([
+      { label: "Feedback", text: "Reconsider the messenger." },
+    ]);
     expect(result.feedback.modelAnswer).toBe(
       "mRNA carries the genetic code from the nucleus to the ribosome.",
     );

@@ -31,8 +31,6 @@ interface PartCardProps {
   onGlossaryClick: (term: string, event: React.MouseEvent) => void;
   /** Fired when the student first clicks into or types in this part. */
   onEngage?: () => void;
-  /** Keeps the shared Report action aligned with manually shown feedback. */
-  onManualExpansionChange?: (expanded: boolean) => void;
 }
 
 function AttemptDots({
@@ -104,7 +102,6 @@ export function PartCard({
   onOpenAttempt,
   onGlossaryClick,
   onEngage,
-  onManualExpansionChange,
 }: PartCardProps) {
   const [value, setValue] = useState("");
   // Manual expand/collapse for a completed part. Forced open while its unlock
@@ -156,9 +153,7 @@ export function PartCard({
   };
 
   const toggleManualExpansion = () => {
-    const nextExpanded = !manuallyExpanded;
-    setManuallyExpanded(nextExpanded);
-    onManualExpansionChange?.(nextExpanded);
+    setManuallyExpanded((expandedNow) => !expandedNow);
   };
 
   // Auto-collapse this part's feedback once the student engages a later part.

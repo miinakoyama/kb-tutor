@@ -139,6 +139,19 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
       ).toBe("false");
     });
     expect(screen.queryByRole("button", { name: "Collapse" })).toBeNull();
-    expect((reportButton as HTMLButtonElement).disabled).toBe(true);
+    // Reporting remains available after moving on. The student chooses the
+    // feedback's part explicitly instead of the toolbar guessing a target.
+    expect((reportButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(reportButton);
+    expect(
+      screen.getByRole("dialog", { name: "Choose feedback to report" }),
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Report feedback for Part A" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Report feedback for Part A" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Report feedback — Part A")).toBeTruthy();
   }, 12000);
 });

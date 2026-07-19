@@ -118,8 +118,6 @@ const TOOLBAR_BORDER_NEUTRAL = "var(--assignment-glass-border)";
 const TOOLBAR_COLOR_NEUTRAL = "var(--foreground)";
 const TOOLBAR_BORDER_GREEN = "var(--assignment-completed-muted)";
 const TOOLBAR_COLOR_GREEN = "var(--mastery-mastered)";
-const TOOLBAR_BORDER_RED = "var(--error-border)";
-const TOOLBAR_COLOR_RED = "var(--error-color)";
 
 interface ShortAnswerQuestionViewProps {
   item: ShortAnswerItem;
@@ -181,20 +179,12 @@ export function ShortAnswerQuestionView({
   // engaged — i.e. the student has moved on to the next part. Programmatic
   // focus on unlock doesn't count, so the just-answered part stays readable.
   const [engagedIndex, setEngagedIndex] = useState(-1);
-  // The toolbar Report action follows the feedback that is actually visible.
-  // A newly resolved part remains the target through its countdown and pinned
-  // reading window, then yields once a later part is genuinely engaged.
-  const [feedbackReportIndex, setFeedbackReportIndex] = useState<number | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [historyModal, setHistoryModal] = useState<{
     partLabel: PartLabel;
     attempt: AttemptHistoryEntry;
   } | null>(null);
-  const [reportModal, setReportModal] = useState<{
-    partLabel: PartLabel;
-    partIndex: number;
-    attemptId: string;
-  } | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
   const [glossary, setGlossary] = useState<{
     term: string;
     definition: string;
@@ -289,7 +279,7 @@ export function ShortAnswerQuestionView({
     setHydrationReady(false);
     setShowCompletion(false);
     setEngagedIndex(-1);
-    setFeedbackReportIndex(null);
+    setReportModalOpen(false);
     allResolvedFiredRef.current = false;
     partActiveSinceRef.current = {};
     setRuntimes(item.parts.map((_, i) => initialRuntime(i)));
@@ -404,9 +394,6 @@ export function ShortAnswerQuestionView({
 
   const handlePartEngage = useCallback((index: number) => {
     setEngagedIndex((prev) => (index > prev ? index : prev));
-    setFeedbackReportIndex((prev) =>
-      prev !== null && index > prev ? null : prev,
-    );
   }, []);
 
   const handleCheck = useCallback(
@@ -493,8 +480,6 @@ export function ShortAnswerQuestionView({
           feedback: data.feedback,
         };
 
-        setFeedbackReportIndex(index);
-
         setRuntimes((prev) =>
           prev.map((r, i) =>
             i === index
@@ -563,30 +548,24 @@ export function ShortAnswerQuestionView({
   const waitingForPracticeSession = !assignmentId && !sessionId;
   const checkDisabled = waitingForPracticeSession || stimulusImageLoading;
 
-  // Prefer feedback that is still on screen. Otherwise target the current
-  // non-locked part (which keeps Report disabled until that part has feedback).
-  let focusIndex = feedbackReportIndex ?? -1;
-  if (focusIndex < 0) {
-    for (let i = runtimes.length - 1; i >= 0; i--) {
-      if (runtimes[i].status !== "locked") {
-        focusIndex = i;
-        break;
-      }
-    }
-  }
-  const focusRuntime = focusIndex >= 0 ? runtimes[focusIndex] : undefined;
-  const canReportFocusPart = Boolean(focusRuntime?.latestAttemptId) && !focusRuntime?.reported;
+  const reportTargets = runtimes.flatMap((runtime, index) =>
+    runtime.latestAttemptId
+      ? [
+          {
+            partLabel: item.parts[index].label,
+            partIndex: index,
+            attemptId: runtime.latestAttemptId,
+            reported: runtime.reported,
+          },
+        ]
+      : [],
+  );
+  const hasReportableFeedback = reportTargets.length > 0;
 
   const handleToolbarReport = useCallback(() => {
-    if (focusIndex < 0) return;
-    const runtime = runtimes[focusIndex];
-    if (!runtime?.latestAttemptId || runtime.reported) return;
-    setReportModal({
-      partLabel: item.parts[focusIndex].label,
-      partIndex: focusIndex,
-      attemptId: runtime.latestAttemptId,
-    });
-  }, [focusIndex, runtimes, item.parts]);
+    if (!hasReportableFeedback) return;
+    setReportModalOpen(true);
+  }, [hasReportableFeedback]);
 
   return (
     <div
@@ -702,20 +681,13 @@ export function ShortAnswerQuestionView({
               ref={reportButtonRef}
               type="button"
               onClick={handleToolbarReport}
-              disabled={!canReportFocusPart}
-              aria-pressed={Boolean(focusRuntime?.reported)}
-              title={
-                focusRuntime?.reported
-                  ? "Reported — your teacher will review this feedback"
-                  : "Report if the visible feedback seems wrong"
-              }
+              disabled={!hasReportableFeedback}
+              aria-haspopup="dialog"
+              aria-expanded={reportModalOpen}
+              title="Choose which part's feedback to report"
               aria-label="Report feedback"
               className={TOOLBAR_BUTTON_CLASS}
-              style={
-                focusRuntime?.reported
-                  ? toolbarButtonStyle(TOOLBAR_BORDER_RED, TOOLBAR_COLOR_RED)
-                  : toolbarButtonStyle(TOOLBAR_BORDER_NEUTRAL, TOOLBAR_COLOR_NEUTRAL)
-              }
+              style={toolbarButtonStyle(TOOLBAR_BORDER_NEUTRAL, TOOLBAR_COLOR_NEUTRAL)}
             >
               <Flag className="h-4 w-4" aria-hidden />
             </button>
@@ -778,11 +750,6 @@ export function ShortAnswerQuestionView({
                 previousLabel={i > 0 ? item.parts[i - 1].label : undefined}
                 laterPartEngaged={engagedIndex > i}
                 onEngage={() => handlePartEngage(i)}
-                onManualExpansionChange={(expanded) =>
-                  setFeedbackReportIndex((prev) =>
-                    expanded ? i : prev === i ? null : prev,
-                  )
-                }
                 unlock={
                   runtime.countdownActive
                     ? { label: unlockLabel, onUnlock: () => unlockNext(i) }
@@ -823,16 +790,15 @@ export function ShortAnswerQuestionView({
         />
       )}
 
-      {reportModal && (
+      {reportModalOpen && (
         <ReportFeedbackModal
-          partLabel={reportModal.partLabel}
-          attemptId={reportModal.attemptId}
+          targets={reportTargets}
           questionId={questionId}
-          onClose={() => setReportModal(null)}
-          onReported={() =>
+          onClose={() => setReportModalOpen(false)}
+          onReported={(partIndex) =>
             setRuntimes((prev) =>
               prev.map((r, i) =>
-                i === reportModal.partIndex ? { ...r, reported: true } : r,
+                i === partIndex ? { ...r, reported: true } : r,
               ),
             )
           }

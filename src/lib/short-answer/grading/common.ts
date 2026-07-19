@@ -204,7 +204,8 @@ export interface BuildFeedbackParams {
  * - correct → "correct" verdict, single confirming segment.
  * - incorrect, attempt remaining → Socratic segments (what's off + a guiding
  *   question), glossary chips (FR-007/FR-021).
- * - incorrect, final attempt → canonical model answer only (FR-008).
+ * - incorrect, final attempt → closing feedback plus the canonical model
+ *   answer (FR-008).
  */
 export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback {
   const { rawFeedback, correct, isFinalAttempt, item, part } = params;
@@ -219,7 +220,7 @@ export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback
   if (isFinalAttempt) {
     return {
       verdict: "heres_the_idea",
-      segments: [],
+      segments: [{ label: "Feedback", text: rawFeedback }],
       modelAnswer: partModelAnswer(item, part),
     };
   }

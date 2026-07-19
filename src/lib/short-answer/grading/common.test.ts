@@ -84,7 +84,7 @@ describe("buildGradedFeedback", () => {
     expect(fb.glossaryTerms).toContain("translation");
   });
 
-  it("shows only the model answer on a final incorrect attempt", () => {
+  it("shows closing feedback and the model answer on a final incorrect attempt", () => {
     const fb = buildGradedFeedback({
       rawFeedback:
         "Thanks for revising. The messenger RNA carries the genetic code from the nucleus to the ribosome.",
@@ -96,7 +96,12 @@ describe("buildGradedFeedback", () => {
       studentResponse: "I think it might be DNA still.",
     });
     expect(fb.verdict).toBe("heres_the_idea");
-    expect(fb.segments).toHaveLength(0);
+    expect(fb.segments).toEqual([
+      {
+        label: "Feedback",
+        text: "Thanks for revising. The messenger RNA carries the genetic code from the nucleus to the ribosome.",
+      },
+    ]);
     // The model answer is sourced from this part's segment of the score-max
     // annotated response (data-model.md), not the rubric criterion.
     expect(fb.modelAnswer).toBe(
