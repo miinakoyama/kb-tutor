@@ -20,6 +20,7 @@ describe("FeedbackBlock", () => {
     ).toBeTruthy();
     expect(screen.getByText("Reconsider which molecule leaves the nucleus.")).toBeTruthy();
     expect(screen.getByText("Model answer")).toBeTruthy();
+    expect(screen.getAllByText("Feedback")).toHaveLength(1);
     expect(
       screen.queryByRole("button", { name: /model answer/i }),
     ).toBeNull();

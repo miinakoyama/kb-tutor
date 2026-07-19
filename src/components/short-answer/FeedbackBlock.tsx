@@ -34,6 +34,36 @@ const TONE_STYLES: Record<
   },
 };
 
+function ModelAnswerContent({ modelAnswer }: { modelAnswer: string }) {
+  return (
+    <>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/55">
+        Model answer
+      </p>
+      <p className="mt-1 text-[15px] leading-relaxed text-[color:var(--foreground)]/85">
+        {modelAnswer}
+      </p>
+    </>
+  );
+}
+
+export function ModelAnswerBlock({ modelAnswer }: { modelAnswer: string }) {
+  return (
+    <div
+      {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
+      className="mt-3 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3"
+      role="status"
+      aria-live="polite"
+    >
+      <ModelAnswerContent modelAnswer={modelAnswer} />
+    </div>
+  );
+}
+
+function normalizedLabel(value: string): string {
+  return value.trim().toLowerCase().replace(/[!:.]+$/u, "");
+}
+
 function UnlockCountdown({
   label,
   onUnlock,
@@ -112,7 +142,8 @@ export function FeedbackBlock({
         >
           {feedback.segments.map((segment, i) => (
             <div key={i} className="flex flex-col gap-1">
-              {segment.label.trim().length > 0 && (
+              {segment.label.trim().length > 0 &&
+                normalizedLabel(segment.label) !== normalizedLabel(display.phrase) && (
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/45">
                   {segment.label}
                 </span>
@@ -146,12 +177,7 @@ export function FeedbackBlock({
           className="mx-4 border-t pb-3 pt-3"
           style={{ borderColor: "var(--border-subtle)" }}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/55">
-            Model answer
-          </p>
-          <p className="mt-1 text-[15px] leading-relaxed text-[color:var(--foreground)]/85">
-            {feedback.modelAnswer}
-          </p>
+          <ModelAnswerContent modelAnswer={feedback.modelAnswer} />
         </div>
       )}
 
