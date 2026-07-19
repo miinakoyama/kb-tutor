@@ -277,11 +277,14 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     expect(screen.getByRole("button", { name: /previous/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /bookmark/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /mark for review/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /next/i })).toBeTruthy();
+    // Single-question exam: the current question is also the last one, so the
+    // bottom action bar shows Submit (disabled until answered) instead of Next.
+    const bottomSubmitBeforeAnswer = screen.getAllByRole("button", { name: "Submit" }).at(-1)!;
+    expect((bottomSubmitBeforeAnswer as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Answer for Part A"), {
       target: { value: "mRNA carries the code to the ribosome." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
     fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
 
     await screen.findByText("Exam Complete!");
@@ -342,7 +345,7 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     fireEvent.change(screen.getByLabelText("Answer for Part A"), {
       target: { value: "DNA" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
     fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
 
     await screen.findByText("Exam Complete!");
@@ -375,11 +378,14 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     render(<ExamMode questions={[question]} requestedQuestionCount={1} />);
 
     const answer = await screen.findByLabelText("Answer for Part A");
-    const submit = screen.getByRole("button", { name: "Submit" });
+    // Single-question exam: header Submit and the bottom-bar Submit (last question) both render.
+    const submitButtons = screen.getAllByRole("button", { name: "Submit" });
     expect((answer as HTMLTextAreaElement).disabled).toBe(true);
-    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    for (const submit of submitButtons) {
+      expect((submit as HTMLButtonElement).disabled).toBe(true);
+    }
 
-    fireEvent.click(submit);
+    fireEvent.click(submitButtons[0]);
     expect(screen.queryByText("Submit Exam?")).toBeNull();
   });
 
@@ -426,7 +432,7 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     fireEvent.change(screen.getByLabelText("Answer for Part A"), {
       target: { value: "This answer should be cleared." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
     fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
 
     await screen.findByText("Exam Complete!");
@@ -443,7 +449,7 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     render(<ExamMode questions={[baseQuestion]} requestedQuestionCount={1} />);
 
     await screen.findByText(baseQuestion.text);
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
     await screen.findByText("Submit Exam?");
     fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
     await screen.findByText("Exam Complete!");
@@ -453,7 +459,7 @@ describe("ExamMode onboarding timing + analytics gating", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
     await screen.findByText(baseQuestion.text);
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
     await screen.findByText("Submit Exam?");
     fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
 
@@ -513,7 +519,7 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     fireEvent.change(screen.getByLabelText("Answer for Part A"), {
       target: { value: "mRNA carries the code to the ribosome." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
     fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
 
     await screen.findByText("Exam Complete!");

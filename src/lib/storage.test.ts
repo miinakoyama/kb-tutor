@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   getAnswerHistory,
   saveAnswer,
   getBookmarkedIds,
+  fetchBookmarkIds,
   addBookmark,
   removeBookmark,
   isBookmarked,
@@ -12,6 +13,10 @@ import {
   clearHistory,
 } from "./storage";
 import type { StoredAnswer } from "./storage";
+
+vi.mock("@/lib/supabase/env", () => ({
+  hasSupabaseEnv: () => false,
+}));
 
 function makeAnswer(overrides: Partial<StoredAnswer> = {}): StoredAnswer {
   return {
@@ -77,6 +82,15 @@ describe("bookmarks", () => {
   it("adds a bookmark", () => {
     addBookmark("q1");
     expect(getBookmarkedIds()).toContain("q1");
+  });
+
+  it("returns locally added bookmarks most recent first when the DB is unavailable", async () => {
+    addBookmark("q1");
+    addBookmark("q2");
+    addBookmark("q3");
+
+    expect(getBookmarkedIds()).toEqual(["q3", "q2", "q1"]);
+    await expect(fetchBookmarkIds()).resolves.toEqual(["q3", "q2", "q1"]);
   });
 
   it("does not add duplicate bookmarks", () => {

@@ -15,19 +15,19 @@ describe("SelfPracticePlanner flow", () => {
     expect(screen.getByText("Select Mode")).toBeTruthy();
     expect(
       screen.getByRole("button", {
-        name: /Practice Get feedback as you go\./,
+        name: /Practice Instant feedback/,
       }),
     ).toBeTruthy();
     expect(
       screen.getByRole("button", {
-        name: /Exam Simulate real exam conditions under test-day rules\./,
+        name: /Exam Feedback after submission/,
       }),
     ).toBeTruthy();
     expect((nextButton as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /Practice Get feedback as you go\./,
+        name: /Practice Instant feedback/,
       }),
     );
 
@@ -41,7 +41,7 @@ describe("SelfPracticePlanner flow", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /Practice Get feedback as you go\./,
+        name: /Practice Instant feedback/,
       }),
     );
 
@@ -63,7 +63,7 @@ describe("SelfPracticePlanner flow", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /Practice Get feedback as you go\./,
+        name: /Practice Instant feedback/,
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Next" }));

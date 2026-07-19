@@ -292,6 +292,7 @@ describe("AdaptivePracticeMode session completion", () => {
 
     expect(await screen.findByText("Question display")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
+    expect(screen.queryByText("Question 1 of 1")).toBeNull();
     expect(screen.queryByText("No questions available for this selection yet.")).toBeNull();
   });
 

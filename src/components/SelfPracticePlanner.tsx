@@ -389,14 +389,14 @@ export function SelfPracticePlanner() {
               mode="practice"
               active={selectedMode === "practice"}
               title="Practice"
-              description="Get feedback as you go."
+              description="Instant feedback · Unlimited questions · Untimed"
               onClick={() => setSelectedMode("practice")}
             />
             <ModeCard
               mode="exam"
               active={selectedMode === "exam"}
               title="Exam"
-              description="Simulate real exam conditions under test-day rules."
+              description="Feedback after submission · Custom question count · Timed"
               onClick={() => setSelectedMode("exam")}
             />
           </div>
@@ -594,7 +594,7 @@ export function SelfPracticePlanner() {
                 );
               })}
               <div
-                className="mx-auto min-h-[108px] w-[95%] rounded-2xl px-3 py-3 text-center transition-all duration-200 hover:-translate-y-0.5 sm:min-h-[124px] sm:px-4 sm:py-4"
+                className="mx-auto flex min-h-[108px] w-[95%] flex-col items-center justify-center rounded-2xl px-3 py-3 text-center transition-all duration-200 hover:-translate-y-0.5 sm:min-h-[124px] sm:px-4 sm:py-4"
                 style={selectableCardStyle(isCustomExamCount)}
               >
                 <button
@@ -630,7 +630,7 @@ export function SelfPracticePlanner() {
                 </button>
 
                 <div
-                  className={`overflow-hidden transition-all duration-200 ${
+                  className={`w-full overflow-hidden transition-all duration-200 ${
                     isCustomExamCount ? "mt-3 max-h-24 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >

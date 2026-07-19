@@ -147,8 +147,8 @@ export function saveAnswerBatch(answers: StoredAnswer[]): void {
 }
 
 /**
- * Synchronous read of the localStorage bookmark cache. Prefer
- * `fetchBookmarkIds()` for rendering paths that can await.
+ * Synchronous read of the localStorage bookmark cache, ordered most recent
+ * first. Prefer `fetchBookmarkIds()` for rendering paths that can await.
  */
 export function getBookmarkedIds(): string[] {
   return safeGetItem<string[]>(STORAGE_KEYS.BOOKMARKS, []);
@@ -161,7 +161,10 @@ export function isBookmarked(questionId: string): boolean {
   return getBookmarkedIds().includes(questionId);
 }
 
-/** DB-primary read. Falls back to localStorage cache when Supabase is unreachable. */
+/**
+ * DB-primary read ordered most recent first. Falls back to the localStorage
+ * cache, which maintains the same order, when Supabase is unreachable.
+ */
 export async function fetchBookmarkIds(): Promise<string[]> {
   if (!canUseRemoteDb()) return getBookmarkedIds();
   return syncBookmarksFromDb();
@@ -176,7 +179,7 @@ export async function fetchIsBookmarked(questionId: string): Promise<boolean> {
 export function addBookmark(questionId: string): void {
   const ids = getBookmarkedIds();
   if (!ids.includes(questionId)) {
-    ids.push(questionId);
+    ids.unshift(questionId);
     safeSetItem(STORAGE_KEYS.BOOKMARKS, ids);
     if (canUseRemoteDb()) enqueueBookmark({ questionId, enabled: true });
   }
