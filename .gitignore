@@ -46,6 +46,8 @@ next-env.d.ts
 .backfill/
 
 .vscode/
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/skills/**
 
 supabase/snippets/

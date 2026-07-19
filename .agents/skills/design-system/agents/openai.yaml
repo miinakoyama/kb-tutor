@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design System"
+  short_description: "Apply the kb-tutor visual design system"
+  default_prompt: "Use $design-system to review and align this UI with the kb-tutor design system."
