@@ -1122,6 +1122,14 @@ export function AdaptivePracticeMode({
   const handleNext = useCallback(async () => {
     if (!isCompleted) return;
 
+    // Adaptive runs with a requested questionCount finish on that boundary.
+    // Skip the Continue/Finish check-in there — Continue would immediately
+    // end the session anyway (see advanceAfterCompleted's terminal guard).
+    const adaptiveQuestionLimitReached =
+      adaptiveEnabled &&
+      questionCount !== undefined &&
+      completedCount >= questionCount;
+
     const completedIndices = Object.keys(finalAnswers)
       .map((index) => Number(index))
       .filter((index) => Number.isInteger(index));
@@ -1129,7 +1137,7 @@ export function AdaptivePracticeMode({
     if (
       shouldOfferPracticePaceCheckIn({
         // Open-ended Practice and Review both cycle; assignments stay bounded.
-        enabled: !isAssignmentRun,
+        enabled: !isAssignmentRun && !adaptiveQuestionLimitReached,
         lastOfferedMilestone: lastPaceCheckInMilestone,
         paceCount,
       })
@@ -1141,11 +1149,14 @@ export function AdaptivePracticeMode({
 
     await advanceAfterCompleted();
   }, [
+    adaptiveEnabled,
     advanceAfterCompleted,
+    completedCount,
     finalAnswers,
     isAssignmentRun,
     isCompleted,
     lastPaceCheckInMilestone,
+    questionCount,
     sessionQuestions,
   ]);
 

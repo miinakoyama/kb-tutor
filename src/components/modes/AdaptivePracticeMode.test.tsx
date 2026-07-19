@@ -5,6 +5,7 @@ import { AdaptivePracticeMode } from "./AdaptivePracticeMode";
 import type { Question } from "@/types/question";
 import sampleShortAnswerItem from "@/data/short-answer/sample-item.json";
 import type { ShortAnswerItem } from "@/types/short-answer";
+import * as sessionPace from "@/lib/practice/session-pace";
 
 const {
   checkForNewlyEarnedBadgesMock,
@@ -624,5 +625,50 @@ describe("AdaptivePracticeMode session completion", () => {
         name: "Nice progress — take a breather?",
       }),
     ).toBeTruthy();
+  });
+
+  it("skips the pace check-in when the adaptive question limit is reached", async () => {
+    // Force a check-in whenever the gate is enabled, so this test isolates the
+    // adaptive questionCount terminal guard rather than the pace threshold.
+    const paceSpy = vi
+      .spyOn(sessionPace, "shouldOfferPracticePaceCheckIn")
+      .mockImplementation((options) => options.enabled);
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "selected",
+        targetKcCode: "3.1.9-12.A2",
+        question: {
+          ...question,
+          id: "adaptive-limit-1",
+          standardId: "3.1.9-12.A",
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      render(
+        <AdaptivePracticeMode
+          questions={[]}
+          questionCount={1}
+          mode="practice"
+          adaptiveStandardIds={["3.1.9-12.A"]}
+        />,
+      );
+
+      fireEvent.click(await screen.findByRole("button", { name: "Select B" }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+      expect(screen.queryByText("Nice progress — take a breather?")).toBeNull();
+      await screen.findByText("Session Complete");
+      expect(paceSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: false }),
+      );
+    } finally {
+      paceSpy.mockRestore();
+    }
   });
 });
