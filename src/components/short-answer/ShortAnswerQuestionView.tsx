@@ -136,6 +136,8 @@ interface ShortAnswerQuestionViewProps {
   }) => void;
   /** True while a stripped stimulus image is still being fetched (see useQuestionMedia). */
   stimulusImageLoading?: boolean;
+  /** Session position label (e.g. "Question 3"), matching MCQ QuestionDisplay. */
+  questionNumber?: number;
 }
 
 export function ShortAnswerQuestionView({
@@ -151,6 +153,7 @@ export function ShortAnswerQuestionView({
   showCompletionContinue = true,
   onAllPartsResolved,
   stimulusImageLoading = false,
+  questionNumber,
 }: ShortAnswerQuestionViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Compact the workspace on short viewports so the whole question fits
@@ -638,6 +641,11 @@ export function ShortAnswerQuestionView({
           style={{ borderColor: "var(--border-subtle)" }}
         >
           <div className="flex items-center gap-3 min-w-0">
+            {questionNumber !== undefined ? (
+              <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground shrink-0">
+                Question {questionNumber}
+              </p>
+            ) : null}
             <div className="flex items-center gap-1" aria-label="Progress across parts">
               {item.parts.map((part, i) => {
                 const resolved = runtimes[i].status === "resolved";
