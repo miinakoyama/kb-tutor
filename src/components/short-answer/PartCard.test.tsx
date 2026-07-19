@@ -168,6 +168,45 @@ describe("PartCard", () => {
     ).toBe("true");
   });
 
+  it("keeps Check disabled on a retry until the answer is edited", () => {
+    const feedback: GradedFeedback = {
+      verdict: "good_try",
+      segments: [{ label: "", text: "Not quite — try naming the molecule." }],
+    };
+    render(
+      <PartCard
+        part={part}
+        status="active"
+        attempts={[
+          { attemptNumber: 1, correct: false, responseText: "DNA", feedback },
+        ]}
+        maxAttempts={2}
+        latestFeedback={feedback}
+        triesLeft={1}
+        initialValue="DNA"
+        onCheck={vi.fn()}
+        onOpenAttempt={vi.fn()}
+        onGlossaryClick={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Check" });
+    // Pre-filled with the previous answer, unchanged → disabled.
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+
+    // Editing the answer enables it.
+    fireEvent.change(screen.getByLabelText("Answer for Part A"), {
+      target: { value: "DNA molecule" },
+    });
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+
+    // Reverting to the exact previous answer disables it again.
+    fireEvent.change(screen.getByLabelText("Answer for Part A"), {
+      target: { value: "DNA" },
+    });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("reports engagement only on real interaction, once", () => {
     const onEngage = vi.fn();
     render(
@@ -194,6 +233,30 @@ describe("PartCard", () => {
     // A real keystroke does — but only fires once.
     fireEvent.change(answer, { target: { value: "D" } });
     fireEvent.change(answer, { target: { value: "DN" } });
+    expect(onEngage).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports engagement on a click anywhere in the active card, not just the textarea", () => {
+    const onEngage = vi.fn();
+    render(
+      <PartCard
+        part={part}
+        status="active"
+        attempts={[]}
+        maxAttempts={2}
+        latestFeedback={null}
+        triesLeft={2}
+        initialValue=""
+        onCheck={vi.fn()}
+        onOpenAttempt={vi.fn()}
+        onGlossaryClick={vi.fn()}
+        onEngage={onEngage}
+      />,
+    );
+
+    // Click the prompt text — a pointer-down outside the textarea still counts
+    // as the student moving to this part (the handler is on the whole card).
+    fireEvent.pointerDown(screen.getByText("Identify the molecule."));
     expect(onEngage).toHaveBeenCalledTimes(1);
   });
 });

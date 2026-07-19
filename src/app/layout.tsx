@@ -29,7 +29,10 @@ export const metadata: Metadata = {
     "A learning tutor for high school students preparing for the Pennsylvania Keystone Biology Exam.",
 };
 
-const themeInitScript = `(function(){try{var k=${JSON.stringify(APPEARANCE_STORAGE_KEY)};var s=localStorage.getItem(k);var m=s==="light"||s==="dark"||s==="system"?s:"system";var d=m==="dark"||(m==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){var d=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",!!d);}})();`;
+// Light is the default and the app never follows the OS scheme: apply dark
+// only when the stored preference is explicitly "dark"; anything else (no
+// preference, a legacy "system" value, or an error) stays light.
+const themeInitScript = `(function(){try{var k=${JSON.stringify(APPEARANCE_STORAGE_KEY)};var s=localStorage.getItem(k);document.documentElement.classList.toggle("dark",s==="dark");}catch(e){document.documentElement.classList.toggle("dark",false);}})();`;
 
 export default function RootLayout({
   children,

@@ -181,7 +181,7 @@ export function FeedbackReportsSection() {
               const isExpanded = expandedId === report.id;
               const feedback = report.attempt?.feedback ?? null;
               const verdict = feedback
-                ? verdictDisplay(feedback.verdict, true)
+                ? verdictDisplay(feedback.verdict)
                 : null;
               return (
                 <li
