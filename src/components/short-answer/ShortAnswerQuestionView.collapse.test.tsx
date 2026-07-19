@@ -24,14 +24,19 @@ vi.mock("framer-motion", () => {
   const motion = new Proxy(
     {},
     {
-      get: (_target, tag: string) =>
-        forwardRef<unknown, Record<string, unknown>>((props, ref) => {
-          const domProps: Record<string, unknown> = { ref };
-          for (const [key, val] of Object.entries(props)) {
-            if (!FRAMER_ONLY.has(key)) domProps[key] = val;
-          }
-          return createElement(tag, domProps);
-        }),
+      get: (_target, tag: string) => {
+        const Motion = forwardRef<unknown, Record<string, unknown>>(
+          (props, ref) => {
+            const domProps: Record<string, unknown> = { ref };
+            for (const [key, val] of Object.entries(props)) {
+              if (!FRAMER_ONLY.has(key)) domProps[key] = val;
+            }
+            return createElement(tag, domProps);
+          },
+        );
+        Motion.displayName = `motion.${tag}`;
+        return Motion;
+      },
     },
   );
   return {
