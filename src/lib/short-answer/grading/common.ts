@@ -113,10 +113,38 @@ function extractPartSegment(response: string, label: PartLabel): string | null {
 }
 
 /**
+ * Older generated items may store the full-credit response as ordered prose
+ * without explicit Part A/B/C labels. Use it only when its clause boundaries
+ * map one-to-one to the item's parts; returning the entire response for an
+ * early part would reveal answers to later, still-locked parts.
+ */
+function extractOrderedPartSegment(
+  response: string,
+  partIndex: number,
+  partCount: number,
+): string | null {
+  const candidates = [
+    response.split(/\s*(?:;|\n+)\s*/u),
+    response.split(/(?<=[.!?])\s+/u),
+  ];
+
+  for (const candidate of candidates) {
+    const segments = candidate.map((value) => value.trim()).filter(Boolean);
+    if (segments.length === partCount) {
+      const segment = segments[partIndex];
+      if (!segment) return null;
+      return /[.!?]$/u.test(segment) ? segment : `${segment}.`;
+    }
+  }
+  return null;
+}
+
+/**
  * Student-facing model answer for a part shown on a resolved incorrect final
  * attempt (FR-008). Per data-model.md the score-max annotated response is the
- * model-answer source; we surface this part's segment of it, falling back to a
- * single-part item's whole response, then to the rubric's full-credit criteria.
+ * model-answer source; we surface this part's labeled or safely ordered segment,
+ * falling back to a single-part item's whole response, then to the rubric's
+ * full-credit criteria.
  */
 export function partModelAnswer(
   item: ShortAnswerItem,
@@ -128,6 +156,15 @@ export function partModelAnswer(
     const segment = extractPartSegment(full.response, part.label);
     if (segment) return segment;
     if (item.parts.length === 1) return full.response.trim();
+    const partIndex = item.parts.findIndex((candidate) => candidate.label === part.label);
+    if (partIndex >= 0) {
+      const orderedSegment = extractOrderedPartSegment(
+        full.response,
+        partIndex,
+        item.parts.length,
+      );
+      if (orderedSegment) return orderedSegment;
+    }
   }
   return partFullCreditCriteria(part);
 }
@@ -167,9 +204,7 @@ export interface BuildFeedbackParams {
  * - correct → "correct" verdict, single confirming segment.
  * - incorrect, attempt remaining → Socratic segments (what's off + a guiding
  *   question), glossary chips (FR-007/FR-021).
- * - incorrect, final attempt → LLM closure feedback in segments (the caller
- *   generates this via the attempt2 pipeline for both a real attempt 2 and
- *   exam mode's single attempt).
+ * - incorrect, final attempt → canonical model answer only (FR-008).
  */
 export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback {
   const { rawFeedback, correct, isFinalAttempt, item, part } = params;
@@ -182,13 +217,9 @@ export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback
   }
 
   if (isFinalAttempt) {
-    // No more attempts: surface the canonical answer straight from the item's
-    // rubric alongside the LLM's explanation. This is reliable regardless of
-    // which grading method produced the feedback (method 3 diagnoses no gap,
-    // method 2 only a failure-type code), so the student always sees the answer.
     return {
       verdict: "heres_the_idea",
-      segments: [{ label: "", text: rawFeedback }],
+      segments: [],
       modelAnswer: partModelAnswer(item, part),
     };
   }

@@ -84,7 +84,7 @@ describe("buildGradedFeedback", () => {
     expect(fb.glossaryTerms).toContain("translation");
   });
 
-  it("shows both the LLM closure feedback and the rubric model answer on a final incorrect attempt", () => {
+  it("shows only the model answer on a final incorrect attempt", () => {
     const fb = buildGradedFeedback({
       rawFeedback:
         "Thanks for revising. The messenger RNA carries the genetic code from the nucleus to the ribosome.",
@@ -96,8 +96,7 @@ describe("buildGradedFeedback", () => {
       studentResponse: "I think it might be DNA still.",
     });
     expect(fb.verdict).toBe("heres_the_idea");
-    expect(fb.segments).toHaveLength(1);
-    expect(fb.segments[0].text).toContain("messenger RNA");
+    expect(fb.segments).toHaveLength(0);
     // The model answer is sourced from this part's segment of the score-max
     // annotated response (data-model.md), not the rubric criterion.
     expect(fb.modelAnswer).toBe(
@@ -120,6 +119,46 @@ describe("partModelAnswer", () => {
     const noAnnotations: ShortAnswerItem = { ...item, annotatedResponses: [] };
     expect(partModelAnswer(noAnnotations, partA)).toBe(
       partFullCreditCriteria(partA),
+    );
+  });
+
+  it("maps safely separable unkeyed sample clauses to parts in order", () => {
+    const unkeyedItem: ShortAnswerItem = {
+      ...item,
+      annotatedResponses: item.annotatedResponses.map((response) =>
+        response.score === 3
+          ? {
+              ...response,
+              response:
+                "DNA stores the instructions; base order sets amino-acid order; a base change can alter the protein.",
+            }
+          : response,
+      ),
+    };
+
+    expect(partModelAnswer(unkeyedItem, unkeyedItem.parts[0])).toBe(
+      "DNA stores the instructions.",
+    );
+    expect(partModelAnswer(unkeyedItem, unkeyedItem.parts[1])).toBe(
+      "base order sets amino-acid order.",
+    );
+    expect(partModelAnswer(unkeyedItem, unkeyedItem.parts[2])).toBe(
+      "a base change can alter the protein.",
+    );
+  });
+
+  it("does not reveal an inseparable whole-item answer for an earlier part", () => {
+    const ambiguousItem: ShortAnswerItem = {
+      ...item,
+      annotatedResponses: item.annotatedResponses.map((response) =>
+        response.score === 3
+          ? { ...response, response: "DNA controls how the complete process works." }
+          : response,
+      ),
+    };
+
+    expect(partModelAnswer(ambiguousItem, ambiguousItem.parts[0])).toBe(
+      partFullCreditCriteria(ambiguousItem.parts[0]),
     );
   });
 });

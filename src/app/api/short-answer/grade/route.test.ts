@@ -617,7 +617,7 @@ describe("POST /api/short-answer/grade", () => {
     });
   });
 
-  it("scopes non-assignment attempt 2 context to the current session", async () => {
+  it("scopes a non-assignment attempt 2 write to the current session", async () => {
     gradePart.mockResolvedValue({
       score: 0,
       maxScore: 1,
@@ -644,7 +644,7 @@ describe("POST /api/short-answer/grade", () => {
         call.column === "session_id" &&
         call.value === sessionId,
     );
-    expect(sessionFilters.length).toBeGreaterThanOrEqual(2);
+    expect(sessionFilters).toHaveLength(1);
     const questionSetFilters = serverQueryCalls.filter(
       (call) =>
         call.table === "short_answer_attempts" &&
@@ -652,6 +652,6 @@ describe("POST /api/short-answer/grade", () => {
         call.column === "question_set_id" &&
         call.value === "set-1",
     );
-    expect(questionSetFilters.length).toBeGreaterThanOrEqual(2);
+    expect(questionSetFilters).toHaveLength(1);
   });
 });

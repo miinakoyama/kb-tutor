@@ -12,8 +12,8 @@ import { loadShortAnswerPart } from "@/lib/short-answer/load-item";
 import type { LoadedItem } from "@/lib/short-answer/load-item";
 import { resolveFeedbackConfig } from "@/lib/short-answer/settings";
 import { gradePart } from "@/lib/short-answer/grading";
-import { emptySubmissionFeedback, feedbackToPlainText } from "@/lib/short-answer/grading/common";
-import type { GradedFeedback, PartLabel, ShortAnswerPart } from "@/types/short-answer";
+import { emptySubmissionFeedback } from "@/lib/short-answer/grading/common";
+import type { PartLabel, ShortAnswerPart } from "@/types/short-answer";
 import type { PracticeMode } from "@/types/question";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -428,48 +428,6 @@ export async function POST(request: Request) {
       schoolId: assignmentSchoolId,
     });
 
-    let attempt1Feedback = "";
-    let attempt1Gap = "";
-    if (body.attemptNumber === 2) {
-      let attempt1Query = supabase
-        .from("short_answer_attempts")
-        .select("feedback, diagnosed_gap")
-        .eq("user_id", user.id)
-        .eq("question_id", body.questionId)
-        .eq("part_label", body.partLabel)
-        .eq("attempt_number", 1);
-      attempt1Query = applyQuestionSetFilter(
-        attempt1Query,
-        body.questionSetId,
-      );
-      attempt1Query = body.assignmentId
-        ? attempt1Query.eq("assignment_id", body.assignmentId)
-        : attempt1Query.is("assignment_id", null);
-      attempt1Query = applyAssignmentRunFilter(
-        attempt1Query,
-        body.assignmentId,
-        assignmentRunAfter,
-      );
-      if (!body.assignmentId) {
-        attempt1Query = body.sessionId
-          ? attempt1Query.eq("session_id", body.sessionId)
-          : attempt1Query.is("session_id", null);
-        if (body.practiceRunAfter) {
-          attempt1Query = attempt1Query.gt("answered_at", body.practiceRunAfter);
-        }
-      }
-      const { data: attempt1Row } = await attempt1Query.maybeSingle();
-      if (attempt1Row) {
-        attempt1Feedback = feedbackToPlainText(
-          attempt1Row.feedback as GradedFeedback,
-        );
-        attempt1Gap =
-          typeof attempt1Row.diagnosed_gap === "string"
-            ? attempt1Row.diagnosed_gap.trim()
-            : "";
-      }
-    }
-
     try {
       const result = await gradePart({
         method: config.method,
@@ -481,8 +439,6 @@ export async function POST(request: Request) {
         priorGaps: body.priorGaps,
         attemptNumber: body.attemptNumber,
         maxAttempts,
-        attempt1Feedback,
-        attempt1Gap,
       });
       score = result.score;
       correct = result.correct;

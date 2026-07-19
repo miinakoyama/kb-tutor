@@ -93,10 +93,10 @@ function itemJSON(stimulusType: StimulusType) {
       "Part C": { points_possible: 1, criteria: { "1": "Predicts a changed or nonfunctional protein.", "0": "No valid prediction." } },
     },
     annotated_responses: [
-      { score: 3, response: "DNA stores it; base order sets amino-acid order; a change alters the protein.", annotation: "All three criteria met." },
-      { score: 2, response: "DNA stores it and base order sets the protein.", annotation: "Missing the prediction." },
-      { score: 1, response: "DNA stores the instructions.", annotation: "Only Part A." },
-      { score: 0, response: "The cell just makes it.", annotation: "No correct biology." },
+      { score: 3, response: "Part A: DNA stores the instructions. Part B: Base order sets amino-acid order. Part C: A base change can alter the protein.", annotation: "All three criteria met." },
+      { score: 2, response: "Part A: DNA stores the instructions. Part B: Base order sets the protein. Part C: The effect is not explained.", annotation: "Missing the prediction." },
+      { score: 1, response: "Part A: DNA stores the instructions. Part B: The mechanism is missing. Part C: The prediction is missing.", annotation: "Only Part A." },
+      { score: 0, response: "Part A: The answer is incorrect. Part B: No mechanism is given. Part C: No prediction is given.", annotation: "No correct biology." },
     ],
     key_terms: [
       { term: "DNA", definition: "The molecule that stores an organism's genetic instructions." },

@@ -181,6 +181,10 @@ export function ShortAnswerQuestionView({
   // engaged — i.e. the student has moved on to the next part. Programmatic
   // focus on unlock doesn't count, so the just-answered part stays readable.
   const [engagedIndex, setEngagedIndex] = useState(-1);
+  // The toolbar Report action follows the feedback that is actually visible.
+  // A newly resolved part remains the target through its countdown and pinned
+  // reading window, then yields once a later part is genuinely engaged.
+  const [feedbackReportIndex, setFeedbackReportIndex] = useState<number | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [historyModal, setHistoryModal] = useState<{
     partLabel: PartLabel;
@@ -285,6 +289,7 @@ export function ShortAnswerQuestionView({
     setHydrationReady(false);
     setShowCompletion(false);
     setEngagedIndex(-1);
+    setFeedbackReportIndex(null);
     allResolvedFiredRef.current = false;
     partActiveSinceRef.current = {};
     setRuntimes(item.parts.map((_, i) => initialRuntime(i)));
@@ -399,6 +404,9 @@ export function ShortAnswerQuestionView({
 
   const handlePartEngage = useCallback((index: number) => {
     setEngagedIndex((prev) => (index > prev ? index : prev));
+    setFeedbackReportIndex((prev) =>
+      prev !== null && index > prev ? null : prev,
+    );
   }, []);
 
   const handleCheck = useCallback(
@@ -485,6 +493,8 @@ export function ShortAnswerQuestionView({
           feedback: data.feedback,
         };
 
+        setFeedbackReportIndex(index);
+
         setRuntimes((prev) =>
           prev.map((r, i) =>
             i === index
@@ -553,15 +563,15 @@ export function ShortAnswerQuestionView({
   const waitingForPracticeSession = !assignmentId && !sessionId;
   const checkDisabled = waitingForPracticeSession || stimulusImageLoading;
 
-  // The toolbar's Report button always targets whichever part the student is
-  // currently engaging with: the active part, or — during the brief unlock
-  // countdown right after answering — the part that just resolved (the next
-  // part is still locked at that point, so it can't be the target).
-  let focusIndex = -1;
-  for (let i = runtimes.length - 1; i >= 0; i--) {
-    if (runtimes[i].status !== "locked") {
-      focusIndex = i;
-      break;
+  // Prefer feedback that is still on screen. Otherwise target the current
+  // non-locked part (which keeps Report disabled until that part has feedback).
+  let focusIndex = feedbackReportIndex ?? -1;
+  if (focusIndex < 0) {
+    for (let i = runtimes.length - 1; i >= 0; i--) {
+      if (runtimes[i].status !== "locked") {
+        focusIndex = i;
+        break;
+      }
     }
   }
   const focusRuntime = focusIndex >= 0 ? runtimes[focusIndex] : undefined;
@@ -697,7 +707,7 @@ export function ShortAnswerQuestionView({
               title={
                 focusRuntime?.reported
                   ? "Reported — your teacher will review this feedback"
-                  : "Report if the feedback on the current part seems wrong"
+                  : "Report if the visible feedback seems wrong"
               }
               aria-label="Report feedback"
               className={TOOLBAR_BUTTON_CLASS}
@@ -768,6 +778,11 @@ export function ShortAnswerQuestionView({
                 previousLabel={i > 0 ? item.parts[i - 1].label : undefined}
                 laterPartEngaged={engagedIndex > i}
                 onEngage={() => handlePartEngage(i)}
+                onManualExpansionChange={(expanded) =>
+                  setFeedbackReportIndex((prev) =>
+                    expanded ? i : prev === i ? null : prev,
+                  )
+                }
                 unlock={
                   runtime.countdownActive
                     ? { label: unlockLabel, onUnlock: () => unlockNext(i) }

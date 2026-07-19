@@ -128,6 +128,8 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
     // reports the expanded "Collapse" state once the "keep open" effect settles).
     const collapseToggle = await screen.findByRole("button", { name: "Collapse" });
     expect(collapseToggle.getAttribute("aria-expanded")).toBe("true");
+    const reportButton = screen.getByRole("button", { name: "Report feedback" });
+    expect((reportButton as HTMLButtonElement).disabled).toBe(false);
 
     // Student moves on to Part B → Part A collapses automatically.
     fireEvent.change(answerB, { target: { value: "It carries genes." } });
@@ -137,5 +139,6 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
       ).toBe("false");
     });
     expect(screen.queryByRole("button", { name: "Collapse" })).toBeNull();
+    expect((reportButton as HTMLButtonElement).disabled).toBe(true);
   }, 12000);
 });
