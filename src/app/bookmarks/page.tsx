@@ -393,9 +393,9 @@ function BookmarksPageContent() {
   /**
    * `group.questions` order reflects how each section's id list is produced:
    * "needs" is oldest-first (computeFirstTryIncorrectIds sorts ascending by
-   * first-wrong timestamp), "bookmarked" is newest-first (syncBookmarksFromDb
-   * orders by created_at descending). Reverse only when the requested sort
-   * doesn't already match that incoming order.
+   * first-wrong timestamp), while bookmark storage keeps both Supabase results
+   * and local additions newest-first. Reverse only when the requested sort does
+   * not already match that incoming order.
    */
   const getOrderedQuestions = useCallback(
     (questions: Question[], section: "needs" | "bookmarked", sortMode: "recent" | "oldest"): Question[] => {
