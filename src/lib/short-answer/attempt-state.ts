@@ -9,12 +9,17 @@ export interface StoredShortAnswerAttempt {
   response_text: string;
   feedback: GradedFeedback;
   is_correct: boolean;
+  /** Present when selected from short_answer_attempts; may be omitted by callers. */
+  score?: number;
+  max_score?: number;
 }
 
 export interface HydratedAttemptHistoryEntry {
   attemptId: string;
   attemptNumber: number;
   correct: boolean;
+  score: number;
+  maxScore: number;
   responseText: string;
   feedback: GradedFeedback;
 }
@@ -52,13 +57,27 @@ export function buildPartRuntimesFromStoredAttempts(
       .filter((row) => row.part_label === part.label)
       .sort((a, b) => a.attempt_number - b.attempt_number);
 
-    const attempts: HydratedAttemptHistoryEntry[] = partRows.map((row) => ({
-      attemptId: row.id,
-      attemptNumber: row.attempt_number,
-      correct: row.is_correct,
-      responseText: row.response_text,
-      feedback: row.feedback,
-    }));
+    const attempts: HydratedAttemptHistoryEntry[] = partRows.map((row) => {
+      const maxScore =
+        typeof row.max_score === "number" && Number.isFinite(row.max_score)
+          ? row.max_score
+          : part.maxScore;
+      const score =
+        typeof row.score === "number" && Number.isFinite(row.score)
+          ? row.score
+          : row.is_correct
+            ? maxScore
+            : 0;
+      return {
+        attemptId: row.id,
+        attemptNumber: row.attempt_number,
+        correct: row.is_correct,
+        score,
+        maxScore,
+        responseText: row.response_text,
+        feedback: row.feedback,
+      };
+    });
 
     const latestRow = partRows[partRows.length - 1];
     const resolved =

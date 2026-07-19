@@ -29,7 +29,18 @@ import {
 } from "@/lib/question-type-sequence";
 import { QuestionDisplay } from "@/components/shared/QuestionDisplay";
 import { ShortAnswerQuestionView } from "@/components/short-answer/ShortAnswerQuestionView";
+import {
+  ShortAnswerSessionReview,
+  buildShortAnswerPartReviews,
+  type ShortAnswerPartReview,
+} from "@/components/short-answer/ShortAnswerSessionReview";
 import { FeedbackPanel } from "@/components/shared/FeedbackPanel";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  applyAssignmentRunFilter,
+  applyQuestionSetFilter,
+} from "@/lib/short-answer/assignment-run";
+import type { StoredShortAnswerAttempt } from "@/lib/short-answer/attempt-state";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { ConfidenceCheck } from "@/components/shared/ConfidenceCheck";
@@ -142,6 +153,9 @@ export function AdaptivePracticeMode({
   const [attemptsByIndex, setAttemptsByIndex] = useState<Record<number, AttemptRecord[]>>({});
   const [retryReadyByIndex, setRetryReadyByIndex] = useState<Record<number, boolean>>({});
   const [finalAnswers, setFinalAnswers] = useState<Record<number, AnswerRecord>>({});
+  const [saqReviewsByIndex, setSaqReviewsByIndex] = useState<
+    Record<number, ShortAnswerPartReview[]>
+  >({});
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
   const [showSummary, setShowSummary] = useState(false);
   const [summaryReviewIndex, setSummaryReviewIndex] = useState<number | null>(
@@ -177,6 +191,81 @@ export function AdaptivePracticeMode({
     mode,
     assignmentId,
   });
+
+  // Resume / prefilled SAQ finals may lack in-memory review payloads. Load the
+  // session's short_answer_attempts when the student opens that question's detail.
+  useEffect(() => {
+    if (summaryReviewIndex === null) return;
+    if (Object.prototype.hasOwnProperty.call(saqReviewsByIndex, summaryReviewIndex)) {
+      return;
+    }
+    const reviewQuestion = sessionQuestions[summaryReviewIndex];
+    if (
+      !reviewQuestion ||
+      reviewQuestion.questionType !== "open-ended" ||
+      !reviewQuestion.shortAnswer
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+
+      let query = supabase
+        .from("short_answer_attempts")
+        .select(
+          "id, part_label, attempt_number, response_text, feedback, is_correct, score, max_score",
+        )
+        .eq("question_id", reviewQuestion.id)
+        .eq("user_id", user.id)
+        .order("part_label")
+        .order("attempt_number", { ascending: true });
+
+      query = applyQuestionSetFilter(query, reviewQuestion.questionSetId ?? null);
+      query = assignmentId
+        ? query.eq("assignment_id", assignmentId)
+        : query.is("assignment_id", null);
+      query = applyAssignmentRunFilter(query, assignmentId ?? null, assignmentRunAfter ?? null);
+      if (!assignmentId) {
+        query = sessionId
+          ? query.eq("session_id", sessionId)
+          : query.is("session_id", null);
+      }
+
+      const { data, error } = await query;
+      if (cancelled) return;
+
+      const parts =
+        !error && data?.length
+          ? buildShortAnswerPartReviews(
+              reviewQuestion.shortAnswer!.parts,
+              data as StoredShortAnswerAttempt[],
+            )
+          : [];
+      setSaqReviewsByIndex((prev) =>
+        Object.prototype.hasOwnProperty.call(prev, summaryReviewIndex)
+          ? prev
+          : { ...prev, [summaryReviewIndex]: parts },
+      );
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    summaryReviewIndex,
+    saqReviewsByIndex,
+    sessionQuestions,
+    assignmentId,
+    assignmentRunAfter,
+    sessionId,
+  ]);
 
   // Latest session id, read at emit-time by effects whose dependencies must
   // exclude `sessionId` to avoid re-entry / duplicate emits.
@@ -407,6 +496,14 @@ export function AdaptivePracticeMode({
   const { question: hydratedQuestion, isMediaPending } =
     useQuestionMedia(rawQuestion);
   const question = hydratedQuestion ?? rawQuestion;
+  const summaryReviewRawQuestion =
+    summaryReviewIndex !== null
+      ? sessionQuestions[summaryReviewIndex]
+      : undefined;
+  const {
+    question: hydratedSummaryReviewQuestion,
+    isMediaPending: isSummaryReviewMediaPending,
+  } = useQuestionMedia(summaryReviewRawQuestion);
   const isShortAnswerQuestion =
     question?.questionType === "open-ended" && Boolean(question?.shortAnswer);
   const attempts = useMemo(
@@ -1083,6 +1180,12 @@ export function AdaptivePracticeMode({
         selectedOptionId: reviewQuestion.correctOptionId,
         isCorrect: false,
       };
+      const reviewDisplayQuestion =
+        hydratedSummaryReviewQuestion ?? reviewQuestion;
+      const isReviewShortAnswer =
+        reviewDisplayQuestion.questionType === "open-ended" &&
+        Boolean(reviewDisplayQuestion.shortAnswer);
+      const saqReviewParts = saqReviewsByIndex[summaryReviewIndex];
       return (
         <div className="h-full overflow-y-auto">
           <motion.div
@@ -1121,57 +1224,78 @@ export function AdaptivePracticeMode({
               <p className="text-sm text-muted-foreground mb-3">
                 Question {summaryReviewIndex + 1}
               </p>
-              <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
-                {reviewQuestion.text}
-              </p>
-              {reviewQuestion.diagram && (
-                <AdaptiveDiagramViewport className="mb-5">
-                  <DiagramRenderer diagram={reviewQuestion.diagram} />
-                </AdaptiveDiagramViewport>
+              {isReviewShortAnswer && reviewDisplayQuestion.shortAnswer ? (
+                saqReviewParts ? (
+                  <ShortAnswerSessionReview
+                    item={reviewDisplayQuestion.shortAnswer}
+                    parts={saqReviewParts}
+                    imageLoading={isSummaryReviewMediaPending}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Loading your short-answer review…
+                  </p>
+                )
+              ) : (
+                <>
+                  <p className="text-base font-medium text-slate-gray leading-relaxed mb-4 whitespace-pre-wrap">
+                    {reviewDisplayQuestion.text}
+                  </p>
+                  {reviewDisplayQuestion.diagram && (
+                    <AdaptiveDiagramViewport className="mb-5">
+                      <DiagramRenderer diagram={reviewDisplayQuestion.diagram} />
+                    </AdaptiveDiagramViewport>
+                  )}
+                  <div className="space-y-2.5">
+                    {reviewDisplayQuestion.options.map((opt) => {
+                      const isSelected = answerForPanel.selectedOptionId === opt.id;
+                      const isCorrectOption =
+                        opt.id === reviewDisplayQuestion.correctOptionId;
+                      const wrongSelection = isSelected && !isCorrectOption;
+                      return (
+                        <div
+                          key={opt.id}
+                          className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
+                            isCorrectOption
+                              ? "border-[var(--assignment-selected-accent)] bg-[var(--assignment-calendar-nav-bg)]"
+                              : wrongSelection
+                                ? "border-error-border bg-error-light"
+                                : "border-border-default bg-surface"
+                          }`}
+                        >
+                          <div className="mt-0.5 flex-shrink-0">
+                            {isCorrectOption ? (
+                              <CheckCircle2 className="w-4 h-4 text-primary" />
+                            ) : wrongSelection ? (
+                              <XCircle className="w-4 h-4 text-red-400" />
+                            ) : (
+                              <span className="inline-block w-4 h-4" />
+                            )}
+                          </div>
+                          <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
+                            {opt.text}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <FeedbackPanel
+                    question={reviewDisplayQuestion}
+                    answer={answerForPanel}
+                    showKeyKnowledge
+                    showMisconception
+                    feedbackReadText={buildFeedbackReadText(
+                      reviewDisplayQuestion,
+                      answerForPanel,
+                      {
+                        includeKeyKnowledge: true,
+                        includeMisconception: true,
+                      },
+                    )}
+                    onReadAloud={handleReadAloud}
+                  />
+                </>
               )}
-              <div className="space-y-2.5">
-                {reviewQuestion.options.map((opt) => {
-                  const isSelected = answerForPanel.selectedOptionId === opt.id;
-                  const isCorrect = opt.id === reviewQuestion.correctOptionId;
-                  const wrongSelection = isSelected && !isCorrect;
-                  return (
-                    <div
-                      key={opt.id}
-                      className={`rounded-lg border px-3 py-2.5 text-sm flex items-start gap-2 ${
-                        isCorrect
-                          ? "border-[var(--assignment-selected-accent)] bg-[var(--assignment-calendar-nav-bg)]"
-                          : wrongSelection
-                            ? "border-error-border bg-error-light"
-                            : "border-border-default bg-surface"
-                      }`}
-                    >
-                      <div className="mt-0.5 flex-shrink-0">
-                        {isCorrect ? (
-                          <CheckCircle2 className="w-4 h-4 text-primary" />
-                        ) : wrongSelection ? (
-                          <XCircle className="w-4 h-4 text-red-400" />
-                        ) : (
-                          <span className="inline-block w-4 h-4" />
-                        )}
-                      </div>
-                      <p className="text-slate-gray whitespace-pre-wrap flex-1 min-w-0">
-                        {opt.text}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-              <FeedbackPanel
-                question={reviewQuestion}
-                answer={answerForPanel}
-                showKeyKnowledge
-                showMisconception
-                feedbackReadText={buildFeedbackReadText(reviewQuestion, answerForPanel, {
-                  includeKeyKnowledge: true,
-                  includeMisconception: true,
-                })}
-                onReadAloud={handleReadAloud}
-              />
             </div>
           </motion.div>
         </div>
@@ -1225,7 +1349,9 @@ export function AdaptivePracticeMode({
                       {position + 1}
                     </span>
                     <p className="flex-1 text-sm text-slate-gray line-clamp-1">
-                      {q.text}
+                      {q.questionType === "open-ended" && q.shortAnswer
+                        ? q.shortAnswer.stem
+                        : q.text}
                     </p>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {isCorrect ? (
@@ -1250,6 +1376,7 @@ export function AdaptivePracticeMode({
                 setAttemptsByIndex({});
                 setRetryReadyByIndex({});
                 setFinalAnswers({});
+                setSaqReviewsByIndex({});
                 setSelectedOptionId(null);
                 setShowSummary(false);
                 setSummaryReviewIndex(null);
@@ -1384,13 +1511,17 @@ export function AdaptivePracticeMode({
                 onContinue={handleNext}
                 showCompletionContinue={false}
                 stimulusImageLoading={isMediaPending}
-                onAllPartsResolved={({ correctParts, totalParts }) => {
+                onAllPartsResolved={({ correctParts, totalParts, parts }) => {
                   setFinalAnswers((prev) => ({
                     ...prev,
                     [currentIndex]: {
                       selectedOptionId: "short-answer",
                       isCorrect: correctParts === totalParts,
                     },
+                  }));
+                  setSaqReviewsByIndex((prev) => ({
+                    ...prev,
+                    [currentIndex]: parts,
                   }));
                 }}
               />
