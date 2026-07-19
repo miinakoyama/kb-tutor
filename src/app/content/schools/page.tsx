@@ -5,14 +5,6 @@ import { CalendarDays, Plus, School, Trash2, Users, X } from "lucide-react";
 import { formatExamDate } from "@/lib/keystone-exam";
 import { alertSuccess, badgeAmber } from "@/lib/ui/status-badge-styles";
 
-interface ProfileOption {
-  id: string;
-  email: string;
-  student_id: string | null;
-  display_name: string | null;
-  role: "student" | "teacher" | "admin";
-}
-
 interface SchoolView {
   id: string;
   name: string;
@@ -82,7 +74,6 @@ const SECONDARY_BTN_STYLE: React.CSSProperties = {
 };
 
 export default function SchoolManagementPage() {
-  const [teachers, setTeachers] = useState<ProfileOption[]>([]);
   const [schools, setSchools] = useState<SchoolView[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +84,6 @@ export default function SchoolManagementPage() {
 
   const [createForm, setCreateForm] = useState({
     name: "",
-    teacherUserIds: [] as string[],
     keystoneExamDate: "",
     studentLoginNotice: "",
     isHidden: false,
@@ -105,7 +95,6 @@ export default function SchoolManagementPage() {
   );
 
   const [editName, setEditName] = useState("");
-  const [editTeacherIds, setEditTeacherIds] = useState<string[]>([]);
   const [editKeystoneExamDate, setEditKeystoneExamDate] = useState("");
   const [editStudentLoginNotice, setEditStudentLoginNotice] = useState("");
   const [editIsHidden, setEditIsHidden] = useState(false);
@@ -115,7 +104,6 @@ export default function SchoolManagementPage() {
     const school = selectedSchool;
     if (!school) return;
     setEditName(school.name);
-    setEditTeacherIds(school.teachers.map((t) => t.id));
     setEditKeystoneExamDate(school.keystone_exam_date ?? "");
     setEditStudentLoginNotice(school.student_login_notice ?? "");
     setEditIsHidden(school.is_hidden);
@@ -125,23 +113,16 @@ export default function SchoolManagementPage() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [teacherRes, schoolRes] = await Promise.all([
-      fetch("/api/admin/users?role=teacher", { cache: "no-store" }),
-      fetch("/api/admin/schools", { cache: "no-store" }),
-    ]);
-
-    const teacherPayload = (await teacherRes.json()) as { users?: ProfileOption[]; error?: string };
+    const schoolRes = await fetch("/api/admin/schools", { cache: "no-store" });
     const schoolPayload = (await schoolRes.json()) as { schools?: SchoolView[]; error?: string };
 
-    if (!teacherRes.ok || !schoolRes.ok) {
+    if (!schoolRes.ok) {
       setError(
-        normalizeAdminError(teacherPayload.error || schoolPayload.error || "Failed to load data."),
+        normalizeAdminError(schoolPayload.error || "Failed to load data."),
       );
       setLoading(false);
       return;
     }
-
-    setTeachers(teacherPayload.users ?? []);
     setSchools(schoolPayload.schools ?? []);
     setLoading(false);
   }, []);
@@ -153,7 +134,6 @@ export default function SchoolManagementPage() {
   function resetCreateForm() {
     setCreateForm({
       name: "",
-      teacherUserIds: [],
       keystoneExamDate: "",
       studentLoginNotice: "",
       isHidden: false,
@@ -185,7 +165,6 @@ export default function SchoolManagementPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: createForm.name.trim(),
-        teacherUserIds: createForm.teacherUserIds,
         keystoneExamDate: createForm.keystoneExamDate.trim() || null,
         studentLoginNotice: createForm.studentLoginNotice.trim() || null,
         isHidden: createForm.isHidden,
@@ -215,7 +194,6 @@ export default function SchoolManagementPage() {
       body: JSON.stringify({
         id: selectedSchool.id,
         name: editName.trim(),
-        teacherUserIds: editTeacherIds,
         keystoneExamDate: editKeystoneExamDate.trim() || null,
         studentLoginNotice: editStudentLoginNotice.trim() || null,
         isHidden: editIsHidden,
@@ -423,39 +401,10 @@ export default function SchoolManagementPage() {
                   Leave empty for no extra message.
                 </span>
               </label>
-              <label className="block text-sm text-slate-gray">
-                <span className="mb-1 block font-semibold">Teachers (optional)</span>
-                <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-border-default p-3">
-                  {teachers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No teachers available. Create teacher accounts first.</p>
-                  ) : (
-                    teachers.map((teacher) => {
-                      const checked = createForm.teacherUserIds.includes(teacher.id);
-                      return (
-                        <label
-                          key={teacher.id}
-                          className="flex items-center gap-2 text-sm text-slate-gray"
-                        >
-                          <input
-                            type="checkbox"
-                            className="accent-[var(--assignment-completed)]"
-                            checked={checked}
-                            onChange={(e) => {
-                              setCreateForm((prev) => ({
-                                ...prev,
-                                teacherUserIds: e.target.checked
-                                  ? [...prev.teacherUserIds, teacher.id]
-                                  : prev.teacherUserIds.filter((id) => id !== teacher.id),
-                              }));
-                            }}
-                          />
-                          <span>{teacher.display_name || teacher.email}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </label>
+              <p className="rounded-xl border border-border-subtle bg-surface-muted/60 p-3 text-xs text-muted-foreground">
+                Assign teachers after creating the school from Account Management.
+                Each teacher can belong to at most one school.
+              </p>
               <label className="flex items-start gap-3 rounded-xl border border-border-default p-3 text-sm text-slate-gray">
                 <input
                   type="checkbox"
@@ -578,38 +527,23 @@ export default function SchoolManagementPage() {
                   Shown below Student ID when this school is chosen. Clear the text and save to remove.
                 </span>
               </label>
-              <label className="block text-sm text-slate-gray">
-                <span className="mb-1 block font-semibold">Teachers</span>
-                <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-border-default p-3">
-                  {teachers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No teachers available.</p>
-                  ) : (
-                    teachers.map((teacher) => {
-                      const checked = editTeacherIds.includes(teacher.id);
-                      return (
-                        <label
-                          key={teacher.id}
-                          className="flex items-center gap-2 text-sm text-slate-gray"
-                        >
-                          <input
-                            type="checkbox"
-                            className="accent-[var(--assignment-completed)]"
-                            checked={checked}
-                            onChange={(e) => {
-                              setEditTeacherIds((prev) =>
-                                e.target.checked
-                                  ? [...prev, teacher.id]
-                                  : prev.filter((id) => id !== teacher.id),
-                              );
-                            }}
-                          />
-                          <span>{teacher.display_name || teacher.email}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </label>
+              <div>
+                <p className="mb-1 text-sm font-semibold text-slate-gray">
+                  Teachers ({selectedSchool.teachers.length} assigned)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Teacher assignments are managed from Account Management.
+                </p>
+                {selectedSchool.teachers.length > 0 && (
+                  <div className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded-xl border border-border-subtle bg-surface-muted/60 p-3">
+                    {selectedSchool.teachers.map((teacher) => (
+                      <p key={teacher.id} className="text-sm text-slate-gray">
+                        {teacher.label}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
               <label className="flex items-start gap-3 rounded-xl border border-border-default p-3 text-sm text-slate-gray">
                 <input
                   type="checkbox"

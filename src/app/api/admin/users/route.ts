@@ -171,7 +171,10 @@ export async function GET(request: Request) {
     { data: studentLinks, error: studentLinkError },
     lastSignInByUserId,
   ] = await Promise.all([
-    admin.from("school_teachers").select("teacher_user_id,school_id").in("teacher_user_id", userIds),
+    admin
+      .from("school_teachers")
+      .select("teacher_user_id,school_id,created_at")
+      .in("teacher_user_id", userIds),
     admin.from("school_members").select("student_user_id,school_id").in("student_user_id", userIds),
     fetchLastSignInByUserId(userIds),
   ]);
@@ -201,6 +204,10 @@ export async function GET(request: Request) {
 
   const schoolNameById = new Map((schoolRows ?? []).map((school) => [school.id, school.name]));
   const schoolNamesByUser = new Map<string, Set<string>>();
+  const teacherSchoolByUser = new Map<
+    string,
+    { schoolId: string; createdAt: string }
+  >();
 
   for (const link of teacherLinks ?? []) {
     const schoolName = schoolNameById.get(link.school_id);
@@ -208,6 +215,20 @@ export async function GET(request: Request) {
     const existing = schoolNamesByUser.get(link.teacher_user_id) ?? new Set<string>();
     existing.add(schoolName);
     schoolNamesByUser.set(link.teacher_user_id, existing);
+
+    const candidate = {
+      schoolId: String(link.school_id),
+      createdAt: String(link.created_at),
+    };
+    const current = teacherSchoolByUser.get(String(link.teacher_user_id));
+    if (
+      !current ||
+      candidate.createdAt > current.createdAt ||
+      (candidate.createdAt === current.createdAt &&
+        candidate.schoolId > current.schoolId)
+    ) {
+      teacherSchoolByUser.set(String(link.teacher_user_id), candidate);
+    }
   }
 
   for (const link of studentLinks ?? []) {
@@ -221,6 +242,10 @@ export async function GET(request: Request) {
   const usersWithSchools = users.map((user) => ({
     ...user,
     last_sign_in_at: lastSignInByUserId.get(user.id) ?? null,
+    school_id:
+      user.role === "teacher"
+        ? (teacherSchoolByUser.get(user.id)?.schoolId ?? null)
+        : null,
     school_names: Array.from(schoolNamesByUser.get(user.id) ?? []).sort((a, b) => a.localeCompare(b)),
   }));
 
@@ -237,6 +262,7 @@ export async function PATCH(request: Request) {
     displayName?: string | null;
     studentId?: string | null;
     excludedFromAnalytics?: boolean;
+    schoolId?: string | null;
   };
 
   if (!body.id) {
@@ -246,7 +272,62 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
+  const hasSchoolId = Object.prototype.hasOwnProperty.call(body, "schoolId");
+  if (
+    hasSchoolId &&
+    body.schoolId !== null &&
+    typeof body.schoolId !== "string"
+  ) {
+    return NextResponse.json(
+      { error: "schoolId must be a string or null" },
+      { status: 400 },
+    );
+  }
+
   const admin = createSupabaseAdminClient();
+  let effectiveRole = body.role;
+  if (!effectiveRole && hasSchoolId) {
+    const { data: targetProfile, error: targetProfileError } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", body.id)
+      .maybeSingle();
+    if (targetProfileError) {
+      return NextResponse.json(
+        { error: targetProfileError.message },
+        { status: 400 },
+      );
+    }
+    if (!targetProfile) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+    effectiveRole = targetProfile.role as AppRole;
+  }
+
+  const normalizedSchoolId =
+    typeof body.schoolId === "string" && body.schoolId.trim()
+      ? body.schoolId.trim()
+      : null;
+  if (hasSchoolId && effectiveRole !== "teacher" && normalizedSchoolId) {
+    return NextResponse.json(
+      { error: "Only teacher accounts can be assigned to a school" },
+      { status: 400 },
+    );
+  }
+  if (effectiveRole === "teacher" && normalizedSchoolId) {
+    const { data: school, error: schoolError } = await admin
+      .from("schools")
+      .select("id")
+      .eq("id", normalizedSchoolId)
+      .maybeSingle();
+    if (schoolError) {
+      return NextResponse.json({ error: schoolError.message }, { status: 400 });
+    }
+    if (!school) {
+      return NextResponse.json({ error: "School not found" }, { status: 400 });
+    }
+  }
+
   const updatePayload: {
     role?: AppRole;
     display_name?: string | null;
@@ -260,13 +341,37 @@ export async function PATCH(request: Request) {
     updatePayload.excluded_from_analytics = body.excludedFromAnalytics;
   }
 
-  if (Object.keys(updatePayload).length === 0) {
+  const shouldUpdateTeacherSchool =
+    hasSchoolId || (body.role !== undefined && body.role !== "teacher");
+
+  if (Object.keys(updatePayload).length === 0 && !shouldUpdateTeacherSchool) {
     return NextResponse.json({ ok: true });
   }
 
-  const { error } = await admin.from("profiles").update(updatePayload).eq("id", body.id);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (Object.keys(updatePayload).length > 0) {
+    const { error } = await admin
+      .from("profiles")
+      .update(updatePayload)
+      .eq("id", body.id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+  }
+
+  if (shouldUpdateTeacherSchool) {
+    const { error: schoolAssignmentError } = await admin.rpc(
+      "set_teacher_school_assignment",
+      {
+        p_teacher_user_id: body.id,
+        p_school_id: effectiveRole === "teacher" ? normalizedSchoolId : null,
+      },
+    );
+    if (schoolAssignmentError) {
+      return NextResponse.json(
+        { error: schoolAssignmentError.message },
+        { status: 400 },
+      );
+    }
   }
 
   if (body.role) {

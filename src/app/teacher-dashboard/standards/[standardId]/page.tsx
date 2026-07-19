@@ -319,7 +319,7 @@ function StandardHero({
               </p>
               {pill.metrics && pill.metrics.attempted > 0 && (
                 <p className="mt-0.5 text-[10px] text-slate-gray/50">
-                  {pill.metrics.correct}/{pill.metrics.attempted} answers
+                  {pill.metrics.correct}/{pill.metrics.attempted} correct
                 </p>
               )}
             </div>
@@ -341,7 +341,7 @@ function StandardHero({
                 </p>
                 {pill.metrics && pill.metrics.attempted > 0 && (
                   <p className="mt-0.5 text-[10px] text-slate-gray/50">
-                    {pill.metrics.correct}/{pill.metrics.attempted} answers
+                    {pill.metrics.correct}/{pill.metrics.attempted} correct
                   </p>
                 )}
               </div>

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import {
   ExistingSetPicker,
   type QuestionSetSelection,
@@ -30,6 +30,8 @@ interface SchoolRow {
 
 type AssignmentMode = "practice" | "exam" | "review";
 type QuestionSourceType = "existing_set" | "manual";
+
+const MANUAL_DRAFT_STORAGE_KEY = "kb-tutor:assignment-manual-draft";
 
 export default function CreateAssignmentPage() {
   return (
@@ -72,10 +74,56 @@ function CreateAssignmentContent() {
   const [selection, setSelection] = useState<QuestionSetSelection[]>([]);
   const [manualDrafts, setManualDrafts] = useState<ManualQuestionDraft[]>([]);
   const [saveManualAsSet, setSaveManualAsSet] = useState(false);
+  const [questionSetName, setQuestionSetName] = useState("");
   const [reviewScope, setReviewScope] = useState<ReviewScope>({
     standards: [],
     maxQuestions: 10,
   });
+  const [isManualDraftHydrated, setIsManualDraftHydrated] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(MANUAL_DRAFT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as {
+          manualDrafts?: ManualQuestionDraft[];
+          questionSetName?: string;
+        };
+        if (parsed.manualDrafts && parsed.manualDrafts.length > 0) {
+          setManualDrafts(parsed.manualDrafts);
+        }
+        if (parsed.questionSetName) {
+          setQuestionSetName(parsed.questionSetName);
+        }
+      }
+    } catch {
+      // Ignore a corrupt draft rather than blocking the page.
+    } finally {
+      setIsManualDraftHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isManualDraftHydrated || typeof window === "undefined") return;
+    if (manualDrafts.length === 0 && !questionSetName.trim()) {
+      window.localStorage.removeItem(MANUAL_DRAFT_STORAGE_KEY);
+      setAutosaveStatus("idle");
+      return;
+    }
+    setAutosaveStatus("saving");
+    const timeout = setTimeout(() => {
+      window.localStorage.setItem(
+        MANUAL_DRAFT_STORAGE_KEY,
+        JSON.stringify({ manualDrafts, questionSetName }),
+      );
+      setAutosaveStatus("saved");
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [manualDrafts, questionSetName, isManualDraftHydrated]);
 
   useEffect(() => {
     let cancelled = false;
@@ -266,6 +314,9 @@ function CreateAssignmentContent() {
           manualDraftToQuestion(draft, index),
         );
         body.saveAsNewSet = saveManualAsSet;
+        if (saveManualAsSet && questionSetName.trim()) {
+          body.questionSetName = questionSetName.trim();
+        }
       }
 
       setIsSubmitting(true);
@@ -281,6 +332,9 @@ function CreateAssignmentContent() {
         };
         if (!response.ok) {
           throw new Error(payload.error ?? "Failed to create assignment.");
+        }
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(MANUAL_DRAFT_STORAGE_KEY);
         }
         router.push("/assignments/manage");
       } catch (error) {
@@ -306,6 +360,7 @@ function CreateAssignmentContent() {
       totalExistingSelected,
       manualDrafts,
       saveManualAsSet,
+      questionSetName,
       router,
     ],
   );
@@ -557,6 +612,25 @@ function CreateAssignmentContent() {
               )
             ) : (
               <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Questions
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    {autosaveStatus === "saving" && (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Saving draft…
+                      </>
+                    )}
+                    {autosaveStatus === "saved" && (
+                      <>
+                        <Check className="w-3 h-3 text-forest" />
+                        Draft saved
+                      </>
+                    )}
+                  </span>
+                </div>
                 <ManualQuestionEditor drafts={manualDrafts} onChange={setManualDrafts} />
                 <label className="flex items-start gap-2 text-sm text-slate-gray cursor-pointer border-t border-border-subtle pt-4">
                   <input
@@ -570,11 +644,26 @@ function CreateAssignmentContent() {
                       Save these questions as a new question set
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      When enabled, a new question set named after the assignment title
-                      is created so you can reuse these questions later.
+                      When enabled, a new reusable question set is created from
+                      these questions.
                     </span>
                   </span>
                 </label>
+                {saveManualAsSet && (
+                  <label className="block text-sm text-slate-gray">
+                    <span className="block mb-1 font-medium">Question set name</span>
+                    <input
+                      type="text"
+                      value={questionSetName}
+                      onChange={(event) => setQuestionSetName(event.target.value)}
+                      placeholder={title.trim() || "e.g., Week 3 review"}
+                      className="w-full rounded-lg border border-border-default px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                    />
+                    <span className="block mt-1 text-xs text-muted-foreground">
+                      Leave blank to use the assignment title.
+                    </span>
+                  </label>
+                )}
               </>
             )}
           </section>

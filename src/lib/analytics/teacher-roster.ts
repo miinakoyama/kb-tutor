@@ -37,8 +37,8 @@ function failRosterLookup(context: string, error: unknown): never {
  * Resolve the set of schools and students a teacher (or admin) can see on the
  * dashboard. Mirrors the roster-resolution logic shared by the teacher
  * dashboard and standard-detail endpoints: teachers are scoped to schools
- * they're assigned to (via `school_teachers` or the legacy `schools.teacher_user_id`
- * column), while admins see every school.
+ * they're assigned to through `school_teachers`, while admins see every
+ * school. A teacher account may have at most one school membership.
  */
 export async function resolveTeacherRoster(
   admin: SupabaseAdminClient,
@@ -47,25 +47,22 @@ export async function resolveTeacherRoster(
 ): Promise<TeacherRoster> {
   let schoolIds: string[] = [];
   if (role === "teacher") {
-    const [schoolTeachersRes, legacySchoolsRes] = await Promise.all([
-      admin
-        .from("school_teachers")
-        .select("school_id")
-        .eq("teacher_user_id", userId),
-      admin.from("schools").select("id").eq("teacher_user_id", userId),
-    ]);
+    const schoolTeachersRes = await admin
+      .from("school_teachers")
+      .select("school_id")
+      .eq("teacher_user_id", userId);
     if (schoolTeachersRes.error) {
       failRosterLookup("school_teachers query", schoolTeachersRes.error);
     }
-    if (legacySchoolsRes.error) {
-      failRosterLookup("legacy schools query", legacySchoolsRes.error);
-    }
     schoolIds = Array.from(
-      new Set([
-        ...(schoolTeachersRes.data ?? []).map((row) => row.school_id),
-        ...(legacySchoolsRes.data ?? []).map((row) => row.id),
-      ]),
+      new Set((schoolTeachersRes.data ?? []).map((row) => row.school_id)),
     );
+    if (schoolIds.length > 1) {
+      failRosterLookup(
+        "teacher school invariant",
+        new Error("Teacher account is assigned to multiple schools."),
+      );
+    }
   } else {
     const { data: allSchools, error: allSchoolsError } = await admin
       .from("schools")

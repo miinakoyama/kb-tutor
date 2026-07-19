@@ -9,10 +9,10 @@ import {
   ArrowLeft,
   Sparkles,
   ChevronDown,
-  ChevronUp,
   ChevronRight,
   Loader2,
 } from "lucide-react";
+import { InfoPopover } from "@/components/InfoPopover";
 import type { DOKLevel, Question } from "@/types/question";
 import type { ShortAnswerItem, StimulusType } from "@/types/short-answer";
 import {
@@ -27,6 +27,7 @@ import {
   DEFAULT_GENERATION_MODEL_ID,
   DEFAULT_GENERATION_TEMPERATURE,
 } from "@/lib/llm/models";
+import { resolveHydratedStandardCounts } from "@/lib/mass-production/resolve-hydrated-standard-counts";
 
 const ALL_STANDARDS = getAllStandards();
 const ALL_STANDARD_IDS = new Set(ALL_STANDARDS.map((item) => item.id));
@@ -73,6 +74,15 @@ interface GenerationSettings {
   generationTemperature: number;
 }
 
+function shuffled<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 function distributeStandardCounts(
   standardIds: string[],
   questionCount: number
@@ -82,7 +92,10 @@ function distributeStandardCounts(
 
   const base = Math.floor(questionCount / standardIds.length);
   let remainder = questionCount % standardIds.length;
-  for (const standardId of standardIds) {
+  // Shuffle so the "+1" remainder (and, when questionCount < standardIds.length,
+  // the entire distribution) lands on a random set of standards each time
+  // instead of always favoring the first few standards in the fixed list order.
+  for (const standardId of shuffled(standardIds)) {
     counts[standardId] = base + (remainder > 0 ? 1 : 0);
     if (remainder > 0) remainder -= 1;
   }
@@ -158,12 +171,11 @@ function splitStandardCountsByType(
 
 const DEFAULT_SETTINGS: GenerationSettings = {
   questionSetName: "",
-  questionCount: 5,
+  questionCount: 0,
   topics: TOPIC_SELECTIONS.map((selection) => selection.key),
   standards: ALL_STANDARDS.map((item) => item.id),
-  standardCounts: distributeStandardCounts(
-    ALL_STANDARDS.map((item) => item.id),
-    5
+  standardCounts: Object.fromEntries(
+    ALL_STANDARDS.map((item) => [item.id, 0]),
   ),
   dokLevels: [1, 2, 3],
   stimulusSelectionMode: "auto",
@@ -308,7 +320,6 @@ type SchoolOption = { id: string; name: string };
 export default function MassProductionPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -398,17 +409,21 @@ export default function MassProductionPage() {
               ? value
               : 0;
         }
-        const assignedTotal = Object.values(normalizedStandardCounts).reduce(
-          (sum, count) => sum + count,
-          0
-        );
         const totalTarget =
           (typeof merged.questionCount === "number" ? merged.questionCount : 0) +
           (typeof merged.shortAnswerCount === "number" ? merged.shortAnswerCount : 0);
-        const resolvedStandardCounts =
-          assignedTotal === totalTarget
-            ? normalizedStandardCounts
-            : distributeStandardCounts(selectedStandards, totalTarget);
+        // Preserve pending (all-zero) / partial drafts. Auto-distribute only
+        // for legacy localStorage entries that never stored standardCounts.
+        const hasSavedStandardCounts =
+          legacy.standardCounts != null &&
+          typeof legacy.standardCounts === "object";
+        const resolvedStandardCounts = resolveHydratedStandardCounts({
+          selectedStandardIds: selectedStandards,
+          normalizedCounts: normalizedStandardCounts,
+          totalTarget,
+          hasSavedStandardCounts,
+          distribute: distributeStandardCounts,
+        });
 
         setSettings({
           ...merged,
@@ -450,6 +465,10 @@ export default function MassProductionPage() {
     totalQuestionTarget === 0
       ? totalAssignedStandardCount === 0
       : totalAssignedStandardCount === totalQuestionTarget;
+  // Step 1 (choose question counts) is done but step 2 (assign standards)
+  // hasn't started yet — not an error, just guidance to do the next step.
+  const standardCountsPending =
+    totalQuestionTarget > 0 && totalAssignedStandardCount === 0;
   const activeStandardIds = ALL_STANDARDS
     .map((standard) => standard.id)
     .filter((standardId) => (settings.standardCounts[standardId] ?? 0) > 0);
@@ -911,7 +930,7 @@ export default function MassProductionPage() {
                     }));
                   }
                 }}
-                placeholder="5"
+                placeholder="0"
                 className="w-24 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-center"
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -976,8 +995,14 @@ export default function MassProductionPage() {
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-gray mb-2">
+              <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-gray">
                 Temperature
+                <InfoPopover label="What does temperature do?">
+                  Controls how predictable the AI&apos;s generated questions
+                  are. Lower values (e.g. 0.2) give more consistent, focused
+                  questions. Higher values (e.g. 1.0+) give more varied,
+                  creative questions.
+                </InfoPopover>
               </label>
               <input
                 type="number"
@@ -1098,30 +1123,38 @@ export default function MassProductionPage() {
                 );
               })}
             </div>
-            <div
-              className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
-                isStandardCountValid
-                  ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)] text-heading"
-                  : "border-error-border bg-error-light text-error"
-              }`}
-            >
-              <span className="font-medium">
-                Total standard counts: {totalAssignedStandardCount} /{" "}
-                {totalQuestionTarget} questions
-              </span>
-              {totalQuestionTarget > 0 && (
+            {totalQuestionTarget > 0 && (
+              <div
+                className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+                  isStandardCountValid
+                    ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)] text-heading"
+                    : standardCountsPending
+                      ? "border-border-default bg-surface-muted text-muted-foreground"
+                      : "border-error-border bg-error-light text-error"
+                }`}
+              >
+                <span className="font-medium">
+                  Total standard counts: {totalAssignedStandardCount} /{" "}
+                  {totalQuestionTarget} questions
+                </span>
                 <span className="block text-xs mt-0.5 opacity-80">
                   MCQ {settings.questionCount} + short-answer{" "}
                   {settings.shortAnswerCount}
                 </span>
-              )}
-              {!isStandardCountValid && (
-                <span className="block text-xs mt-1">
-                  Adjust counts so the total matches MCQ count + short-answer
-                  count.
-                </span>
-              )}
-            </div>
+                {standardCountsPending && (
+                  <span className="block text-xs mt-1">
+                    Now pick the standards below and assign counts to reach{" "}
+                    {totalQuestionTarget}.
+                  </span>
+                )}
+                {!isStandardCountValid && !standardCountsPending && (
+                  <span className="block text-xs mt-1">
+                    Adjust counts so the total matches MCQ count + short-answer
+                    count.
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* DOK Level Selection */}
@@ -1286,44 +1319,26 @@ export default function MassProductionPage() {
           </div>
         </section>
 
-        {/* Advanced Settings */}
-        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] overflow-hidden">
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between p-6 text-left hover:bg-foreground/5"
-          >
-            <h2 className="text-lg font-medium text-slate-gray">
-              Advanced Settings
-            </h2>
-            {showAdvanced ? (
-              <ChevronUp className="w-5 h-5 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-muted-foreground" />
-            )}
-          </button>
-
-          {showAdvanced && (
-            <div className="px-6 pb-6 border-t border-border-subtle pt-4">
-              <label className="block text-sm font-medium text-slate-gray mb-2">
-                Custom Instructions (Optional)
-              </label>
-              <textarea
-                value={settings.customPrompt}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    customPrompt: e.target.value,
-                  }))
-                }
-                placeholder="Add any specific instructions for the AI, e.g., 'Focus on photosynthesis concepts' or 'Include more application-based questions'"
-                rows={4}
-                className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                These instructions will be added to the generation prompt.
-              </p>
-            </div>
-          )}
+        {/* Customize Prompt */}
+        <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] shadow-[var(--assignment-card-shadow)] p-6">
+          <h2 className="text-lg font-medium text-slate-gray mb-2">
+            Customize Prompt (Optional)
+          </h2>
+          <textarea
+            value={settings.customPrompt}
+            onChange={(e) =>
+              setSettings((prev) => ({
+                ...prev,
+                customPrompt: e.target.value,
+              }))
+            }
+            placeholder="Add any specific instructions for the AI, e.g., 'Focus on photosynthesis concepts' or 'Include more application-based questions'"
+            rows={4}
+            className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            These instructions will be added to the generation prompt.
+          </p>
         </section>
 
         {/* Error Message */}

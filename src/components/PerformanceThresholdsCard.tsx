@@ -116,7 +116,7 @@ export function PerformanceThresholdsCard({
         }}
       >
         <SlidersHorizontal className="h-4 w-4" />
-        Band settings
+        Performance Thresholds
         {isCustom && (
           <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
             Custom
