@@ -345,7 +345,7 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     fireEvent.change(screen.getByLabelText("Answer for Part A"), {
       target: { value: "DNA" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
     fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
 
     await screen.findByText("Exam Complete!");

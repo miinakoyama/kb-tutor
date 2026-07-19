@@ -208,6 +208,7 @@ export function ThisWeekSidebar({
   const [weekCursor, setWeekCursor] = useState(() =>
     startOfWeek(startOfDay(new Date())),
   );
+  const [openCalendarDayKey, setOpenCalendarDayKey] = useState<string | null>(null);
   const touchStartXRef = useRef<number | null>(null);
 
   const selectedWeekStart = startOfWeek(startOfDay(weekCursor));
@@ -397,20 +398,88 @@ export function ThisWeekSidebar({
             const hasDue = day.dueCount > 0;
             const hasDone = day.doneCount > 0;
             const hasMarks = hasDue || hasDone;
+            const isPopoverOpen = openCalendarDayKey === day.key;
+            const popoverId = `calendar-day-details-${day.key}`;
+            const dayLabel = `${day.date.toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}: ${day.dueCount} due, ${day.doneCount} completed`;
+            const dayContents = (
+              <>
+                <span
+                  className="inline-flex items-center justify-center rounded-[14px]"
+                  style={{
+                    width: 22,
+                    height: 22,
+                    fontSize: 12,
+                    lineHeight: 1,
+                    fontWeight: day.isToday ? 600 : 400,
+                    fontFamily: "var(--font-inter), ui-sans-serif, sans-serif",
+                    color: day.isToday ? "var(--assignment-on-accent)" : "var(--foreground)",
+                    background: day.isToday ? "var(--assignment-completed)" : "transparent",
+                  }}
+                >
+                  {day.date.getDate()}
+                </span>
+
+                {hasMarks && (
+                  <span
+                    className="mt-0.5 flex items-center justify-center gap-1"
+                    style={{ width: 22 }}
+                    aria-hidden="true"
+                  >
+                    {hasDue && (
+                      <span
+                        className="rounded-full"
+                        style={{
+                          width: 4,
+                          height: 4,
+                          background: "var(--assignment-due)",
+                        }}
+                      />
+                    )}
+                    {hasDone && (
+                      <span
+                        className="rounded-full"
+                        style={{
+                          width: 4,
+                          height: 4,
+                          background: "var(--assignment-completed)",
+                        }}
+                      />
+                    )}
+                  </span>
+                )}
+              </>
+            );
 
             return (
               <div
                 key={day.key}
-                className={`group relative flex aspect-square flex-col items-start justify-center px-0 py-0 ${hasMarks ? "cursor-default" : ""}`}
+                className="group relative aspect-square px-0 py-0"
                 style={{
                   minHeight: 22,
                   opacity: day.inMonth ? 1 : 0.45,
                 }}
+                onBlur={(event) => {
+                  if (
+                    event.relatedTarget instanceof Node &&
+                    event.currentTarget.contains(event.relatedTarget)
+                  ) {
+                    return;
+                  }
+                  setOpenCalendarDayKey((current) =>
+                    current === day.key ? null : current,
+                  );
+                }}
               >
                 {hasMarks && (
                   <div
+                    id={popoverId}
                     role="tooltip"
-                    className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 flex w-max max-w-[220px] -translate-x-1/2 flex-col gap-1.5 rounded-lg px-3 py-2.5 text-left opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                    className={`pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 flex w-max max-w-[220px] -translate-x-1/2 flex-col gap-1.5 rounded-lg px-3 py-2.5 text-left transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${isPopoverOpen ? "opacity-100" : "opacity-0"}`}
                     style={{
                       background: "var(--assignment-popover-bg)",
                       border: "1px solid var(--assignment-popover-border)",
@@ -443,48 +512,31 @@ export function ThisWeekSidebar({
                     ))}
                   </div>
                 )}
-                <span
-                  className="inline-flex items-center justify-center rounded-[14px]"
-                  style={{
-                    width: 22,
-                    height: 22,
-                    fontSize: 12,
-                    lineHeight: 1,
-                    fontWeight: day.isToday ? 600 : 400,
-                    fontFamily: "var(--font-inter), ui-sans-serif, sans-serif",
-                    color: day.isToday ? "var(--assignment-on-accent)" : "var(--foreground)",
-                    background: day.isToday ? "var(--assignment-completed)" : "transparent",
-                  }}
-                >
-                  {day.date.getDate()}
-                </span>
-
-                {(hasDue || hasDone) && (
-                  <div
-                    className="mt-0.5 flex items-center justify-center gap-1"
-                    style={{ width: 22 }}
-                    aria-label={`${day.dueCount} due, ${day.doneCount} completed`}
+                {hasMarks ? (
+                  <button
+                    type="button"
+                    className="flex h-full w-full cursor-pointer flex-col items-start justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    aria-label={dayLabel}
+                    aria-describedby={popoverId}
+                    aria-expanded={isPopoverOpen}
+                    onClick={() =>
+                      setOpenCalendarDayKey((current) =>
+                        current === day.key ? null : day.key,
+                      )
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setOpenCalendarDayKey(null);
+                      }
+                    }}
                   >
-                    {hasDue && (
-                      <span
-                        className="rounded-full"
-                        style={{
-                          width: 4,
-                          height: 4,
-                          background: "var(--assignment-due)",
-                        }}
-                      />
-                    )}
-                    {hasDone && (
-                      <span
-                        className="rounded-full"
-                        style={{
-                          width: 4,
-                          height: 4,
-                          background: "var(--assignment-completed)",
-                        }}
-                      />
-                    )}
+                    {dayContents}
+                  </button>
+                ) : (
+                  <div
+                    className="flex h-full w-full flex-col items-start justify-center"
+                  >
+                    {dayContents}
                   </div>
                 )}
               </div>

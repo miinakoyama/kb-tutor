@@ -1350,10 +1350,10 @@ export function AdaptivePracticeMode({
         currentQuestion={currentIndex + 1}
         totalQuestions={totalQuestions}
         contextLabel={contextLabel}
-        // Narrower than `mode === "practice" && !isAssignmentRun`: also keeps
-        // the counter for a bounded review-by-question-ids session (e.g. "3
-        // review questions" from Bookmarks), which has a real fixed total.
-        hideQuestionCounter={adaptiveRequested}
+        // Every non-assignment Practice session is open-ended. This includes
+        // Review/Bookmarks launches that start from a fixed questionIds batch
+        // and append another batch after the initial selection is completed.
+        hideQuestionCounter={mode === "practice" && !isAssignmentRun}
         onFinishSession={!isAssignmentRun ? finishSession : undefined}
         variant={
           isShortAnswerQuestion && question.shortAnswer ? "split" : "mcq"
