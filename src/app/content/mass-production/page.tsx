@@ -27,6 +27,7 @@ import {
   DEFAULT_GENERATION_MODEL_ID,
   DEFAULT_GENERATION_TEMPERATURE,
 } from "@/lib/llm/models";
+import { resolveHydratedStandardCounts } from "@/lib/mass-production/resolve-hydrated-standard-counts";
 
 const ALL_STANDARDS = getAllStandards();
 const ALL_STANDARD_IDS = new Set(ALL_STANDARDS.map((item) => item.id));
@@ -408,17 +409,21 @@ export default function MassProductionPage() {
               ? value
               : 0;
         }
-        const assignedTotal = Object.values(normalizedStandardCounts).reduce(
-          (sum, count) => sum + count,
-          0
-        );
         const totalTarget =
           (typeof merged.questionCount === "number" ? merged.questionCount : 0) +
           (typeof merged.shortAnswerCount === "number" ? merged.shortAnswerCount : 0);
-        const resolvedStandardCounts =
-          assignedTotal === totalTarget
-            ? normalizedStandardCounts
-            : distributeStandardCounts(selectedStandards, totalTarget);
+        // Preserve pending (all-zero) / partial drafts. Auto-distribute only
+        // for legacy localStorage entries that never stored standardCounts.
+        const hasSavedStandardCounts =
+          legacy.standardCounts != null &&
+          typeof legacy.standardCounts === "object";
+        const resolvedStandardCounts = resolveHydratedStandardCounts({
+          selectedStandardIds: selectedStandards,
+          normalizedCounts: normalizedStandardCounts,
+          totalTarget,
+          hasSavedStandardCounts,
+          distribute: distributeStandardCounts,
+        });
 
         setSettings({
           ...merged,
