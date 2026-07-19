@@ -8,6 +8,8 @@ export interface AttemptHistoryEntry {
   attemptId: string;
   attemptNumber: number;
   correct: boolean;
+  score: number;
+  maxScore: number;
   responseText: string;
   feedback: GradedFeedback;
 }

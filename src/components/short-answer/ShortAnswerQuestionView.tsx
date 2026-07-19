@@ -17,6 +17,7 @@ import { StimulusPanel } from "./StimulusPanel";
 import { HighlightLayer } from "./HighlightLayer";
 import { PartCard, type PartStatus } from "./PartCard";
 import { AttemptHistoryModal, type AttemptHistoryEntry } from "./AttemptHistoryModal";
+import type { ShortAnswerPartReview } from "./ShortAnswerSessionReview";
 import { GlossaryPopup } from "./GlossaryPopup";
 import { CompletionSection } from "./CompletionSection";
 import { ReportFeedbackModal } from "./ReportFeedbackModal";
@@ -127,8 +128,12 @@ interface ShortAnswerQuestionViewProps {
   continueLabel: string;
   onContinue: () => void;
   showCompletionContinue?: boolean;
-  /** Fires once when every part has resolved (for progress bookkeeping). */
-  onAllPartsResolved?: (summary: { correctParts: number; totalParts: number }) => void;
+  /** Fires once when every part has resolved (for progress bookkeeping + review). */
+  onAllPartsResolved?: (summary: {
+    correctParts: number;
+    totalParts: number;
+    parts: ShortAnswerPartReview[];
+  }) => void;
   /** True while a stripped stimulus image is still being fetched (see useQuestionMedia). */
   stimulusImageLoading?: boolean;
 }
@@ -231,7 +236,9 @@ export function ShortAnswerQuestionView({
 
     let query = supabase
       .from("short_answer_attempts")
-      .select("id, part_label, attempt_number, response_text, feedback, is_correct")
+      .select(
+        "id, part_label, attempt_number, response_text, feedback, is_correct, score, max_score",
+      )
       .eq("question_id", questionId)
       .eq("user_id", user.id)
       .order("part_label")
@@ -477,6 +484,8 @@ export function ShortAnswerQuestionView({
           attemptId: data.attemptId,
           attemptNumber,
           correct: data.correct,
+          score: data.score,
+          maxScore: data.maxScore,
           responseText: response,
           feedback: data.feedback,
         };
@@ -522,12 +531,35 @@ export function ShortAnswerQuestionView({
     if (allResolvedFiredRef.current) return;
     if (runtimes.every((r) => r.status === "resolved")) {
       allResolvedFiredRef.current = true;
+      const parts: ShortAnswerPartReview[] = item.parts.map((part, index) => {
+        const runtime = runtimes[index];
+        const attempts = (runtime?.attempts ?? []).map((attempt) => ({
+          attemptNumber: attempt.attemptNumber,
+          responseText: attempt.responseText,
+          correct: attempt.correct,
+          score: attempt.score,
+          maxScore: attempt.maxScore,
+          feedback: attempt.feedback,
+        }));
+        const latest = attempts[attempts.length - 1];
+        const correct = attempts.some((attempt) => attempt.correct);
+        return {
+          partLabel: part.label,
+          responseText: latest?.responseText ?? "",
+          correct,
+          score: latest?.score ?? (correct ? part.maxScore : 0),
+          maxScore: latest?.maxScore ?? part.maxScore,
+          feedback: runtime?.latestFeedback ?? latest?.feedback ?? null,
+          attempts,
+        };
+      });
       onAllPartsResolved?.({
-        correctParts: runtimes.filter((r) => r.attempts.some((a) => a.correct)).length,
-        totalParts: runtimes.length,
+        correctParts: parts.filter((part) => part.correct).length,
+        totalParts: parts.length,
+        parts,
       });
     }
-  }, [runtimes, onAllPartsResolved]);
+  }, [runtimes, onAllPartsResolved, item.parts]);
 
   const handleGlossaryClick = useCallback(
     (term: string, event: React.MouseEvent) => {
