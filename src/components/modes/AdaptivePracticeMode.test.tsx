@@ -78,20 +78,109 @@ vi.mock("@/components/short-answer/ShortAnswerQuestionView", () => ({
     continueLabel,
     onContinue,
     showCompletionContinue = true,
+    onAllPartsResolved,
   }: {
     item: ShortAnswerItem;
     continueLabel: string;
     onContinue: () => void;
     showCompletionContinue?: boolean;
+    onAllPartsResolved?: (summary: {
+      correctParts: number;
+      totalParts: number;
+      parts: Array<{
+        partLabel: "A" | "B" | "C";
+        responseText: string;
+        correct: boolean;
+        score: number;
+        maxScore: number;
+        feedback: null;
+        attempts: Array<{
+          attemptNumber: number;
+          responseText: string;
+          correct: boolean;
+          score: number;
+          maxScore: number;
+          feedback: {
+            verdict: "correct" | "good_try";
+            segments: Array<{ label: string; text: string }>;
+          };
+        }>;
+      }>;
+    }) => void;
   }) => (
     <div>
       <p>{item.stem}</p>
       <p>{item.parts[0]?.prompt}</p>
+      <button
+        type="button"
+        onClick={() =>
+          onAllPartsResolved?.({
+            correctParts: item.parts.length,
+            totalParts: item.parts.length,
+            parts: item.parts.map((part) => ({
+              partLabel: part.label,
+              responseText: `Answer for ${part.label} (attempt 2)`,
+              correct: true,
+              score: part.maxScore,
+              maxScore: part.maxScore,
+              feedback: null,
+              attempts: [
+                {
+                  attemptNumber: 1,
+                  responseText: `Answer for ${part.label} (attempt 1)`,
+                  correct: false,
+                  score: 0,
+                  maxScore: part.maxScore,
+                  feedback: {
+                    verdict: "good_try",
+                    segments: [{ label: "", text: `Retry part ${part.label}.` }],
+                  },
+                },
+                {
+                  attemptNumber: 2,
+                  responseText: `Answer for ${part.label} (attempt 2)`,
+                  correct: true,
+                  score: part.maxScore,
+                  maxScore: part.maxScore,
+                  feedback: {
+                    verdict: "correct",
+                    segments: [{ label: "", text: `Part ${part.label} looks good.` }],
+                  },
+                },
+              ],
+            })),
+          })
+        }
+      >
+        Resolve short answer
+      </button>
       {showCompletionContinue && (
         <button onClick={onContinue}>{continueLabel}</button>
       )}
     </div>
   ),
+}));
+
+vi.mock("@/lib/supabase/client", () => ({
+  getSupabaseBrowserClient: () => ({
+    auth: {
+      getUser: async () => ({ data: { user: null } }),
+    },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({
+            order: () => ({
+              order: () => ({
+                is: async () => ({ data: [], error: null }),
+                eq: async () => ({ data: [], error: null }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    }),
+  }),
 }));
 
 vi.mock("@/components/shared/FeedbackPanel", () => ({
@@ -356,5 +445,39 @@ describe("AdaptivePracticeMode session completion", () => {
     fireEvent.click(screen.getByRole("button", { name: "View Results" }));
 
     await screen.findByText("Session Complete");
+  });
+
+  it("shows exam-style short-answer detail on the practice summary review", async () => {
+    const shortAnswerQuestion: Question = {
+      ...question,
+      id: "short-answer-review-1",
+      text: shortAnswerItem.stem,
+      questionType: "open-ended",
+      options: [],
+      correctOptionId: "",
+      shortAnswer: shortAnswerItem,
+    };
+
+    render(
+      <AdaptivePracticeMode
+        questions={[shortAnswerQuestion]}
+        questionCount={1}
+        mode="practice"
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Resolve short answer" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finish Session" }));
+    await screen.findByText("Session Complete");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: new RegExp(shortAnswerItem.stem.slice(0, 40), "i"),
+      }),
+    );
+    expect((await screen.findAllByText("Attempt 1")).length).toBeGreaterThan(0);
+    expect(screen.getByText(/“Answer for A \(attempt 1\)”/)).toBeTruthy();
+    expect(screen.getByText(/“Answer for A \(attempt 2\)”/)).toBeTruthy();
+    expect(screen.getByText(shortAnswerItem.parts[0].prompt)).toBeTruthy();
   });
 });
