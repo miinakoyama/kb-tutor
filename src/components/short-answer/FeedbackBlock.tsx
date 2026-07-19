@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Lightbulb } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { GradedFeedback } from "@/types/short-answer";
 import { HIGHLIGHT_ZONE_ATTR } from "@/lib/short-answer/highlight";
 import { verdictDisplay } from "./verdict-display";
@@ -9,7 +9,6 @@ import { verdictDisplay } from "./verdict-display";
 interface FeedbackBlockProps {
   feedback: GradedFeedback;
   triesLeft: number;
-  isFinalAttempt: boolean;
   /** When set, an unlock countdown bar appears and calls onUnlock at 0. */
   unlock?: { label: string; onUnlock: () => void };
   onGlossaryClick?: (term: string, event: React.MouseEvent) => void;
@@ -25,9 +24,9 @@ const TONE_STYLES: Record<
     text: "text-[var(--mastery-mastered)]",
   },
   incorrect: {
-    border: "border-[var(--border-default)]",
-    bg: "bg-[var(--assignment-mode-review-bg)]/30",
-    text: "text-[var(--assignment-mode-review)]",
+    border: "border-[var(--saq-wrong-border)]",
+    bg: "bg-[var(--saq-wrong-bg)]",
+    text: "text-[var(--saq-wrong)]",
   },
   neutral: {
     border: "border-[var(--border-default)]",
@@ -83,11 +82,10 @@ function UnlockCountdown({
 export function FeedbackBlock({
   feedback,
   triesLeft,
-  isFinalAttempt,
   unlock,
   onGlossaryClick,
 }: FeedbackBlockProps) {
-  const display = verdictDisplay(feedback.verdict, isFinalAttempt);
+  const display = verdictDisplay(feedback.verdict);
   const tone = TONE_STYLES[display.tone];
   // The model answer is dense reference text, so it stays collapsed behind an
   // explicit click (not hover — that fails on touch and hides the key content).
@@ -101,11 +99,7 @@ export function FeedbackBlock({
     >
       <div className="flex items-center justify-between gap-3 px-4 pt-2 pb-1">
         <span className={`flex items-center gap-2 text-[15px] font-semibold ${tone.text}`}>
-          {display.glyph === "✗" ? (
-            <Lightbulb className="h-4 w-4" aria-hidden />
-          ) : (
-            <span aria-hidden>{display.glyph}</span>
-          )}
+          <span aria-hidden>{display.glyph}</span>
           {display.phrase}
         </span>
         {triesLeft > 0 && (

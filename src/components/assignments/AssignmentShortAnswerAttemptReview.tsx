@@ -75,15 +75,7 @@ export function AssignmentShortAnswerAttemptReview({
                           {attempt.responseText}
                         </p>
                       </div>
-                      <FeedbackBlock
-                        feedback={attempt.feedback}
-                        triesLeft={0}
-                        isFinalAttempt={
-                          attempt.isCorrect ||
-                          attempt.attemptNumber >= 2 ||
-                          attempts.length >= 2
-                        }
-                      />
+                      <FeedbackBlock feedback={attempt.feedback} triesLeft={0} />
                     </div>
                   ))}
                 </div>
