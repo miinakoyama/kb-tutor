@@ -15,6 +15,7 @@ interface UserRow {
   excluded_from_analytics: boolean;
   created_at: string;
   last_sign_in_at: string | null;
+  school_id: string | null;
   school_names?: string[];
 }
 
@@ -88,6 +89,9 @@ const SECONDARY_BTN_STYLE: React.CSSProperties = {
 
 export default function AccountManagementPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [savedSchoolIds, setSavedSchoolIds] = useState<
+    Record<string, string | null>
+  >({});
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [analyticsFilter, setAnalyticsFilter] = useState<
@@ -108,6 +112,7 @@ export default function AccountManagementPage() {
     displayName: "",
     password: "",
     role: "teacher" as "teacher" | "admin",
+    schoolId: "",
   });
 
   const loadUsers = useCallback(async () => {
@@ -131,7 +136,11 @@ export default function AccountManagementPage() {
       setLoading(false);
       return;
     }
-    setUsers(payload.users ?? []);
+    const nextUsers = payload.users ?? [];
+    setUsers(nextUsers);
+    setSavedSchoolIds(
+      Object.fromEntries(nextUsers.map((user) => [user.id, user.school_id ?? null])),
+    );
     setTotalUsers(payload.pagination?.total ?? payload.users?.length ?? 0);
     setTotalPages(payload.pagination?.totalPages ?? 1);
     setLoading(false);
@@ -163,6 +172,24 @@ export default function AccountManagementPage() {
   }, [analyticsFilter, roleFilter, schoolFilter, pageSize]);
 
   async function saveUser(user: UserRow) {
+    const nextSchoolId = user.role === "teacher" ? user.school_id : null;
+    const previousSchoolId = savedSchoolIds[user.id] ?? null;
+    if (nextSchoolId !== previousSchoolId) {
+      const userLabel = user.display_name || user.email;
+      const previousSchoolName =
+        schools.find((school) => school.id === previousSchoolId)?.name ??
+        "Unassigned";
+      const nextSchoolName =
+        schools.find((school) => school.id === nextSchoolId)?.name ??
+        "Unassigned";
+      const prompt = previousSchoolId
+        ? nextSchoolId
+          ? `Move ${userLabel} from ${previousSchoolName} to ${nextSchoolName}? Access to ${previousSchoolName} will be removed immediately.`
+          : `Unassign ${userLabel} from ${previousSchoolName}? Access to that school will be removed immediately.`
+        : `Assign ${userLabel} to ${nextSchoolName}?`;
+      if (!confirm(prompt)) return;
+    }
+
     setMessage(null);
     setError(null);
     const response = await fetch("/api/admin/users", {
@@ -174,6 +201,7 @@ export default function AccountManagementPage() {
         displayName: user.display_name,
         studentId: user.student_id,
         excludedFromAnalytics: user.role === "student" ? user.excluded_from_analytics : false,
+        schoolId: nextSchoolId,
       }),
     });
     const payload = (await response.json()) as { error?: string };
@@ -182,6 +210,7 @@ export default function AccountManagementPage() {
       return;
     }
     setMessage("User updated.");
+    await loadUsers();
   }
 
   async function deleteUser(userId: string) {
@@ -217,6 +246,7 @@ export default function AccountManagementPage() {
           displayName: createForm.displayName,
           password: createForm.password,
           role: createForm.role,
+          schoolId: createForm.role === "teacher" ? createForm.schoolId || null : null,
         }),
       });
       const payload = (await response.json()) as { error?: string; email?: string };
@@ -227,7 +257,13 @@ export default function AccountManagementPage() {
 
       setMessage(`Account created: ${payload.email ?? createForm.email}`);
       setShowCreateModal(false);
-      setCreateForm({ email: "", displayName: "", password: "", role: "teacher" });
+      setCreateForm({
+        email: "",
+        displayName: "",
+        password: "",
+        role: "teacher",
+        schoolId: "",
+      });
       await loadUsers();
     } finally {
       setIsCreating(false);
@@ -326,6 +362,10 @@ export default function AccountManagementPage() {
     metrics and assignment response counts. This setting applies to student accounts only. Use this
     for developer or test accounts whose data should not affect reporting.
   </p>
+  <p className="mt-2 text-xs text-muted-foreground">
+    Teacher accounts can be assigned to one school or left unassigned. Admin accounts can access all
+    schools.
+  </p>
 </section>
 
       {message && (
@@ -400,8 +440,33 @@ export default function AccountManagementPage() {
                       {user.email}
                     </td>
                     
-                    <td className="px-2 py-3 min-w-[140px] max-w-[180px] whitespace-normal break-words text-slate-gray">
-                      {user.school_names && user.school_names.length > 0 ? user.school_names.join(", ") : "—"}
+                    <td className="px-2 py-3 min-w-[180px] max-w-[220px] whitespace-normal break-words text-slate-gray">
+                      {user.role === "teacher" ? (
+                        <select
+                          aria-label={`School for ${user.display_name || user.email}`}
+                          value={user.school_id ?? ""}
+                          onChange={(event) =>
+                            updateLocalUser(user.id, {
+                              school_id: event.target.value || null,
+                            })
+                          }
+                          className="w-full rounded-xl px-2.5 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                          style={INPUT_STYLE}
+                        >
+                          <option value="">Unassigned</option>
+                          {schools.map((school) => (
+                            <option key={school.id} value={school.id}>
+                              {school.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : user.role === "admin" ? (
+                        <span className="text-xs text-muted-foreground">All schools</span>
+                      ) : user.school_names && user.school_names.length > 0 ? (
+                        user.school_names.join(", ")
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-2 py-3 min-w-[170px]">
                       {user.role === "student" ? (
@@ -575,7 +640,11 @@ export default function AccountManagementPage() {
                 <select
                   value={createForm.role}
                   onChange={(e) =>
-                    setCreateForm((prev) => ({ ...prev, role: e.target.value as "teacher" | "admin" }))
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      role: e.target.value as "teacher" | "admin",
+                      schoolId: e.target.value === "teacher" ? prev.schoolId : "",
+                    }))
                   }
                   className={INPUT_CLASS}
                   style={INPUT_STYLE}
@@ -584,6 +653,32 @@ export default function AccountManagementPage() {
                   <option value="admin">admin</option>
                 </select>
               </label>
+              {createForm.role === "teacher" && (
+                <label className="block text-sm text-slate-gray">
+                  <span className="mb-1 block font-semibold">School (optional)</span>
+                  <select
+                    value={createForm.schoolId}
+                    onChange={(event) =>
+                      setCreateForm((prev) => ({
+                        ...prev,
+                        schoolId: event.target.value,
+                      }))
+                    }
+                    className={INPUT_CLASS}
+                    style={INPUT_STYLE}
+                  >
+                    <option value="">Unassigned</option>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>
+                        {school.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    You can assign or move this teacher later from Account Management.
+                  </span>
+                </label>
+              )}
 
               <div className="flex justify-end gap-3 pt-2">
                 <button

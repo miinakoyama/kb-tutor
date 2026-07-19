@@ -34,6 +34,51 @@ function shiftResult(
 }
 
 describe("resolveTeacherRoster", () => {
+  it("returns the teacher's single school membership", async () => {
+    const admin = makeAdminClient({
+      school_teachers: [
+        {
+          data: [{ school_id: "school-a" }],
+          error: null,
+        },
+      ],
+      schools: [
+        {
+          data: [{ id: "school-a", name: "School A" }],
+          error: null,
+        },
+      ],
+      school_members: [
+        {
+          data: [],
+          error: null,
+        },
+      ],
+    });
+
+    const roster = await resolveTeacherRoster(admin, "teacher-1", "teacher");
+
+    expect(roster).toEqual({
+      classes: [{ id: "school-a", label: "School A" }],
+      scopedStudents: [],
+    });
+  });
+
+  it("fails loudly if legacy data still assigns a teacher to multiple schools", async () => {
+    const admin = makeAdminClient({
+      school_teachers: [
+        {
+          data: [{ school_id: "school-a" }, { school_id: "school-b" }],
+          error: null,
+        },
+      ],
+    });
+
+    await expect(
+      resolveTeacherRoster(admin, "teacher-1", "teacher"),
+    ).rejects.toBeInstanceOf(TeacherRosterLookupError);
+  });
+
   it("keeps every school membership for a student", async () => {
     const admin = makeAdminClient({
       schools: [

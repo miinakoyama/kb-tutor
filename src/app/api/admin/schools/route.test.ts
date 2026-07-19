@@ -60,6 +60,29 @@ function makeRequest(method: "POST" | "PATCH", body: unknown) {
 }
 
 describe("POST /api/admin/schools - studentLoginNotice", () => {
+  it("rejects teacher assignment because it is managed from Accounts", async () => {
+    configureAdminAccess();
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: { schools: { rows: [] } },
+    });
+    mockState.adminClient = adminClient;
+
+    const response = await POST(
+      makeRequest("POST", {
+        id: "sch_teacher_assignment",
+        name: "Northfield High",
+        teacherUserIds: ["teacher-1"],
+      }),
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe(
+      "Manage teacher school assignments from Account Management.",
+    );
+    expect(tables.schools.rows).toHaveLength(0);
+  });
+
   it("stores trimmed studentLoginNotice for valid input", async () => {
     configureAdminAccess();
     const { client: adminClient, tables } = createMockSupabaseClient({
