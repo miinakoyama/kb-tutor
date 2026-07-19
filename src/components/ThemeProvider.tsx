@@ -11,7 +11,6 @@ import {
 import {
   applyResolvedThemeToDocument,
   DEFAULT_APPEARANCE_MODE,
-  getSystemPrefersDark,
   normalizeAppearanceMode,
   resolveTheme,
   setStoredAppearanceMode,
@@ -32,40 +31,23 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [appearanceMode, setAppearanceModeState] =
     useState<AppearanceMode>(DEFAULT_APPEARANCE_MODE);
-  const [prefersDark, setPrefersDark] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
+  // Resolve the stored/synced preference once on mount. The app never follows
+  // the OS colour scheme, so there is no prefers-color-scheme listener.
   useEffect(() => {
     const init = async () => {
       const mode = await syncAppearanceFromDb();
-      const prefers = getSystemPrefersDark();
       setAppearanceModeState(mode);
-      setPrefersDark(prefers);
-      applyResolvedThemeToDocument(resolveTheme(mode, prefers));
+      applyResolvedThemeToDocument(resolveTheme(mode));
       setHydrated(true);
     };
     void init();
   }, []);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      const matches = event.matches;
-      // Update .dark before children rerender so chart CSS variables match resolvedTheme.
-      if (appearanceMode === "system") {
-        applyResolvedThemeToDocument(matches ? "dark" : "light");
-      }
-      setPrefersDark(matches);
-    };
-    setPrefersDark(media.matches);
-    media.addEventListener("change", handleChange);
-    return () => media.removeEventListener("change", handleChange);
-  }, [hydrated, appearanceMode]);
-
   const resolvedTheme = useMemo(
-    () => resolveTheme(appearanceMode, prefersDark),
-    [appearanceMode, prefersDark],
+    () => resolveTheme(appearanceMode),
+    [appearanceMode],
   );
 
   useEffect(() => {
@@ -77,17 +59,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const normalized = normalizeAppearanceMode(mode);
     setAppearanceModeState(normalized);
     setStoredAppearanceMode(normalized);
-    applyResolvedThemeToDocument(
-      resolveTheme(normalized, getSystemPrefersDark()),
-    );
+    applyResolvedThemeToDocument(resolveTheme(normalized));
   }, []);
 
   const syncAppearanceMode = useCallback((mode: AppearanceMode) => {
     const normalized = normalizeAppearanceMode(mode);
     setAppearanceModeState(normalized);
-    applyResolvedThemeToDocument(
-      resolveTheme(normalized, getSystemPrefersDark()),
-    );
+    applyResolvedThemeToDocument(resolveTheme(normalized));
   }, []);
 
   const value = useMemo(

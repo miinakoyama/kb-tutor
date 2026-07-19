@@ -26,9 +26,13 @@ vi.mock("@/lib/supabase/client", () => ({
 
 describe("normalizeAppearanceMode", () => {
   it("returns valid modes unchanged", () => {
-    expect(normalizeAppearanceMode("system")).toBe("system");
     expect(normalizeAppearanceMode("light")).toBe("light");
     expect(normalizeAppearanceMode("dark")).toBe("dark");
+  });
+
+  it("maps the removed legacy 'system' value back to the light default", () => {
+    expect(normalizeAppearanceMode("system")).toBe(DEFAULT_APPEARANCE_MODE);
+    expect(DEFAULT_APPEARANCE_MODE).toBe("light");
   });
 
   it("returns default for invalid values", () => {
@@ -39,14 +43,9 @@ describe("normalizeAppearanceMode", () => {
 });
 
 describe("resolveTheme", () => {
-  it("forces light and dark modes", () => {
-    expect(resolveTheme("light", true)).toBe("light");
-    expect(resolveTheme("dark", false)).toBe("dark");
-  });
-
-  it("follows system preference when mode is system", () => {
-    expect(resolveTheme("system", true)).toBe("dark");
-    expect(resolveTheme("system", false)).toBe("light");
+  it("is dark only when the mode is dark; everything else is light", () => {
+    expect(resolveTheme("dark")).toBe("dark");
+    expect(resolveTheme("light")).toBe("light");
   });
 });
 
@@ -92,7 +91,7 @@ describe("syncAppearanceFromDb", () => {
     expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("dark");
   });
 
-  it("does not overwrite local light/dark with migration default system", async () => {
+  it("ignores a legacy DB 'system' value and keeps the local preference", async () => {
     window.localStorage.setItem(APPEARANCE_STORAGE_KEY, "dark");
     maybeSingleMock.mockResolvedValue({ data: { appearance_mode: "system" } });
 
@@ -100,11 +99,10 @@ describe("syncAppearanceFromDb", () => {
     expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("dark");
   });
 
-  it("accepts DB system when local preference is also system", async () => {
+  it("falls back to the light default when only a legacy 'system' value exists", async () => {
     window.localStorage.setItem(APPEARANCE_STORAGE_KEY, "system");
     maybeSingleMock.mockResolvedValue({ data: { appearance_mode: "system" } });
 
-    await expect(syncAppearanceFromDb()).resolves.toBe("system");
-    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("system");
+    await expect(syncAppearanceFromDb()).resolves.toBe("light");
   });
 });

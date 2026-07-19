@@ -57,6 +57,15 @@
   --assignment-selected-glow: rgba(127, 184, 157, 0.375);
   --mastery-mastered: #0c6b45;
   --mastery-mastered-bg: #e7f2ec;
+  /* SAQ wrong-answer signal: a soft pink used identically for the 1st- and
+     2nd-wrong states — they differ only by phrase ("Good try!" vs "Here's the
+     idea"), never by color. Deliberately not red/amber/yellow (found
+     alarming). Shared by the feedback card and the attempt dots so the two can
+     never drift apart. Correct vs wrong stays legible without color via the
+     glyph/phrase in verdict-display.ts. */
+  --saq-wrong: #cc6b91;
+  --saq-wrong-bg: rgba(204, 107, 145, 0.03);
+  --saq-wrong-border: rgba(204, 107, 145, 0.4);
   --assignment-due: #c24f44;
   --assignment-due-muted: rgb(194 79 68 / 0.5);
   --assignment-overdue: var(--assignment-due);
@@ -137,6 +146,10 @@
   --assignment-selected-glow: rgba(127, 184, 157, 0.3);
   --mastery-mastered: #9fd4b4;
   --mastery-mastered-bg: rgba(12, 107, 69, 0.32);
+  /* SAQ wrong-answer signal (dark) — see the light block for rationale. */
+  --saq-wrong: #e0a2bf;
+  --saq-wrong-bg: rgba(168, 81, 121, 0.24);
+  --saq-wrong-border: rgba(224, 162, 191, 0.3);
   --assignment-due: #fca5a5;
   --assignment-due-muted: rgb(252 165 165 / 0.5);
   --assignment-overdue: var(--assignment-due);

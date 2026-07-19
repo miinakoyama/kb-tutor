@@ -1,14 +1,17 @@
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export type AppearanceMode = "system" | "light" | "dark";
+export type AppearanceMode = "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 
-export const DEFAULT_APPEARANCE_MODE: AppearanceMode = "system";
+// Light is the enforced default. The app never follows the OS colour scheme —
+// dark applies only when the user explicitly picks it. The former "system"
+// mode was removed; any legacy stored "system" value normalizes back to light.
+export const DEFAULT_APPEARANCE_MODE: AppearanceMode = "light";
 export const APPEARANCE_STORAGE_KEY = "kb-tutor-appearance-mode";
 const APPEARANCE_MIGRATION_KEY = "kb-tutor-appearance-migrated-v1";
 
-const VALID_MODES: AppearanceMode[] = ["system", "light", "dark"];
+const VALID_MODES: AppearanceMode[] = ["light", "dark"];
 
 function canUseRemoteDb(): boolean {
   return typeof window !== "undefined" && hasSupabaseEnv();
@@ -24,22 +27,8 @@ export function normalizeAppearanceMode(
   return fallback;
 }
 
-export function resolveTheme(
-  mode: AppearanceMode,
-  prefersDark: boolean,
-): ResolvedTheme {
-  if (mode === "dark") return "dark";
-  if (mode === "light") return "light";
-  return prefersDark ? "dark" : "light";
-}
-
-export function getSystemPrefersDark(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  } catch {
-    return false;
-  }
+export function resolveTheme(mode: AppearanceMode): ResolvedTheme {
+  return mode === "dark" ? "dark" : "light";
 }
 
 function setStoredAppearanceModeLocalOnly(mode: AppearanceMode): void {
@@ -102,25 +91,13 @@ export async function syncAppearanceFromDb(
 
     if (isStoredAppearanceMode(data?.appearance_mode)) {
       const dbMode = data.appearance_mode;
-      const localMode = getStoredAppearanceMode(fallback);
-      const hadLocalPreference =
-        window.localStorage.getItem(APPEARANCE_STORAGE_KEY) !== null;
-
-      // Migration backfill uses DEFAULT 'system'; do not treat it as an explicit choice
-      // over an existing local light/dark preference.
-      if (
-        dbMode === "system" &&
-        hadLocalPreference &&
-        localMode !== "system"
-      ) {
-        return localMode;
-      }
-
       setStoredAppearanceModeLocalOnly(dbMode);
       return dbMode;
     }
 
-    // No row or null column: keep existing local preference (do not overwrite with fallback).
+    // No row, null column, or a legacy "system" value (no longer valid): keep
+    // the existing local preference, which itself falls back to the light
+    // default.
     return getStoredAppearanceMode(fallback);
   } catch {
     return getStoredAppearanceMode(fallback);

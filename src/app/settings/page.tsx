@@ -22,7 +22,6 @@ import {
 import { requestOnboardingReplay } from "@/lib/onboarding-settings";
 
 const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string }[] = [
-  { value: "system", label: "System" },
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
 ];
@@ -136,7 +135,8 @@ export default function SettingsPage() {
       <section className="rounded-xl border border-primary/30 bg-surface p-5 sm:p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-foreground mb-2">Appearance</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Choose how the app looks. System follows your device light or dark
+          Choose how the app looks. The app stays light by default and only
+          switches to dark when you pick it — it never follows your device
           setting.
         </p>
         <AppearanceControl />
