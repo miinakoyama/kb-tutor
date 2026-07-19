@@ -141,14 +141,21 @@ export function FeedbackBlock({
       )}
 
       {feedback.modelAnswer && (
-        <p
-          {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
-          className={`px-4 pb-3 text-[15px] leading-relaxed text-[color:var(--foreground)]/75 ${
-            feedback.segments.length > 0 ? "pt-3" : "pt-1"
+        <div
+          className={`mx-4 mb-3 rounded-xl border border-[color:var(--assignment-panel-border)] bg-[var(--surface-muted)] px-3 py-2.5 ${
+            feedback.segments.length > 0 ? "mt-2" : "mt-1"
           }`}
         >
-          {feedback.modelAnswer}
-        </p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/55">
+            Model answer
+          </p>
+          <p
+            {...{ [HIGHLIGHT_ZONE_ATTR]: "" }}
+            className="mt-1 text-[15px] leading-relaxed text-[color:var(--foreground)]/80"
+          >
+            {feedback.modelAnswer}
+          </p>
+        </div>
       )}
 
       {unlock && <UnlockCountdown label={unlock.label} onUnlock={unlock.onUnlock} />}

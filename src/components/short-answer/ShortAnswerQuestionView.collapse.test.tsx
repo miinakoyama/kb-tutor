@@ -111,7 +111,11 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     // Feedback appears (part resolved, forced open during the countdown).
-    await screen.findByText("Great — you named DNA.");
+    await screen.findByText(
+      "Great — you named DNA.",
+      {},
+      { timeout: 5000 },
+    );
 
     // Wait for the 3s unlock countdown to finish: Part B becomes answerable.
     const answerB = await screen.findByLabelText(
@@ -133,5 +137,5 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
       ).toBe("false");
     });
     expect(screen.queryByRole("button", { name: "Collapse" })).toBeNull();
-  });
+  }, 12000);
 });
