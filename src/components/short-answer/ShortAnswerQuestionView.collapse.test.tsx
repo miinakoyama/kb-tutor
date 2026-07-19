@@ -111,7 +111,11 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
     // Feedback appears (part resolved, forced open during the countdown).
-    await screen.findByText("Great — you named DNA.");
+    await screen.findByText(
+      "Great — you named DNA.",
+      {},
+      { timeout: 5000 },
+    );
 
     // Wait for the 3s unlock countdown to finish: Part B becomes answerable.
     const answerB = await screen.findByLabelText(
@@ -124,6 +128,8 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
     // reports the expanded "Collapse" state once the "keep open" effect settles).
     const collapseToggle = await screen.findByRole("button", { name: "Collapse" });
     expect(collapseToggle.getAttribute("aria-expanded")).toBe("true");
+    const reportButton = screen.getByRole("button", { name: "Report feedback" });
+    expect((reportButton as HTMLButtonElement).disabled).toBe(false);
 
     // Student moves on to Part B → Part A collapses automatically.
     fireEvent.change(answerB, { target: { value: "It carries genes." } });
@@ -133,5 +139,19 @@ describe("ShortAnswerQuestionView collapse-on-advance", () => {
       ).toBe("false");
     });
     expect(screen.queryByRole("button", { name: "Collapse" })).toBeNull();
-  });
+    // Reporting remains available after moving on. The student chooses the
+    // feedback's part explicitly instead of the toolbar guessing a target.
+    expect((reportButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(reportButton);
+    expect(
+      screen.getByRole("dialog", { name: "Report feedback" }),
+    ).toBeTruthy();
+    expect(
+      (screen.getByLabelText("Feedback to report") as HTMLSelectElement).value,
+    ).toBe("attempt-1");
+    expect(
+      screen.getByRole("option", { name: "Part A · Attempt 1" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Great — you named DNA.")).toBeTruthy();
+  }, 12000);
 });

@@ -21,6 +21,8 @@ export interface MethodGradeInput {
   studentResponse: string;
   modelId: string;
   temperature: number;
+  /** True when no retry will remain after this submission. */
+  isFinalSubmission?: boolean;
   /** Diagnosed gaps from earlier parts of the same item (Method 1 context). */
   priorGaps?: Record<string, string>;
 }

@@ -5,6 +5,7 @@ import type { GradedFeedback } from "@/types/short-answer";
 import { useDialogFocusTrap } from "./useDialogFocusTrap";
 
 export interface AttemptHistoryEntry {
+  attemptId: string;
   attemptNumber: number;
   correct: boolean;
   responseText: string;

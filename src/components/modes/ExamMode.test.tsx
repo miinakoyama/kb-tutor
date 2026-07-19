@@ -296,6 +296,63 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     expect(screen.getByText(/mRNA carries the genetic code/i)).toBeTruthy();
   });
 
+  it("shows a saved model-answer-only result in exam review", async () => {
+    localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes("/api/short-answer/grade")) {
+          return new Response(
+            JSON.stringify({
+              score: 0,
+              maxScore: 1,
+              correct: false,
+              feedback: {
+                verdict: "heres_the_idea",
+                segments: [],
+                modelAnswer: "Stored canonical answer from the final attempt.",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({ all_assignments_completed: false }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    const question: Question = {
+      ...baseQuestion,
+      id: `${shortAnswerItem.stem}-model-answer-review`,
+      text: shortAnswerItem.stem,
+      questionType: "open-ended",
+      options: [],
+      correctOptionId: "",
+      shortAnswer: {
+        ...shortAnswerItem,
+        parts: [shortAnswerItem.parts[0]],
+      },
+    };
+
+    render(<ExamMode questions={[question]} requestedQuestionCount={1} />);
+
+    await screen.findByText(shortAnswerItem.stem);
+    fireEvent.change(screen.getByLabelText("Answer for Part A"), {
+      target: { value: "DNA" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" }).at(-1)!);
+
+    await screen.findByText("Exam Complete!");
+    fireEvent.click(screen.getByText(shortAnswerItem.stem).closest("button")!);
+    expect(await screen.findByText("Model answer")).toBeTruthy();
+    expect(
+      screen.getByText("Stored canonical answer from the final attempt."),
+    ).toBeTruthy();
+  });
+
   it("disables short-answer entry and submission while stimulus media is loading", async () => {
     localStorage.setItem(EXAM_ONBOARDING_DISMISSED_KEY, "1");
     useQuestionMediaMock.mockImplementation((question: Question | null | undefined) => ({

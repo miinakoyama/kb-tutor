@@ -29,7 +29,15 @@ interface Method1Parsed {
 export async function gradeWithMethod1(
   input: MethodGradeInput,
 ): Promise<MethodGradeOutput> {
-  const { item, part, studentResponse, modelId, temperature, priorGaps } = input;
+  const {
+    item,
+    part,
+    studentResponse,
+    modelId,
+    temperature,
+    priorGaps,
+    isFinalSubmission = false,
+  } = input;
   const t0 = Date.now();
 
   const kbContext = await retrieveFromKB(part.prompt, studentResponse.trim());
@@ -77,7 +85,9 @@ export async function gradeWithMethod1(
     "- Tone: warm and encouraging, like a supportive biology teacher.",
     "- Maximum 35 words total.",
     "- Keep sentences short and direct.",
-    "- For score=0: acknowledge what the student got partially right before redirecting. Use 'but' to pivot. Ask exactly one guiding question. Do NOT reveal the final answer term.",
+    isFinalSubmission
+      ? "- FINAL SUBMISSION: For any score below full credit, briefly acknowledge any useful idea, then state what was incorrect or missing in declarative language. Do NOT ask a question, invite revision, or give retry instructions. The interface shows a canonical model answer next, so do not repeat the full solution."
+      : "- RETRY AVAILABLE: For score=0, acknowledge what the student got partially right before redirecting. Use 'but' to pivot. Ask exactly one guiding question. Do NOT reveal the final answer term.",
     "- For score=full: write exactly ONE confirmatory sentence naming what the student got right.",
     "- Never start with 'I', 'The missing step', 'Your response', or 'This response'.",
     "",
@@ -91,7 +101,9 @@ export async function gradeWithMethod1(
     '  "score": <integer>,',
     '  "studentState": "<blank | wrong_concept | missing_mechanism | missing_specificity | partial_credit | correct>",',
     '  "studentAnchor": "<shortest useful phrase from student response, or null>",',
-    '  "hintTarget": "<score=0 only: needed concept rephrased WITHOUT the final answer term>",',
+    isFinalSubmission
+      ? '  "hintTarget": null,'
+      : '  "hintTarget": "<score=0 only: needed concept rephrased WITHOUT the final answer term>",',
     '  "feedback": "<final student-facing feedback>",',
     '  "diagnosedGap": "<string>"',
     "}",

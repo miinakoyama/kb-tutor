@@ -12,6 +12,7 @@ export interface StoredShortAnswerAttempt {
 }
 
 export interface HydratedAttemptHistoryEntry {
+  attemptId: string;
   attemptNumber: number;
   correct: boolean;
   responseText: string;
@@ -24,9 +25,7 @@ export interface PartRuntimeState {
   status: HydratedPartStatus;
   attempts: HydratedAttemptHistoryEntry[];
   latestFeedback: GradedFeedback | null;
-  latestAttemptId: string | null;
   triesLeft: number;
-  reported: boolean;
   countdownActive: boolean;
 }
 
@@ -35,9 +34,7 @@ function initialRuntime(index: number): PartRuntimeState {
     status: index === 0 ? "active" : "locked",
     attempts: [],
     latestFeedback: null,
-    latestAttemptId: null,
     triesLeft: MAX_SHORT_ANSWER_ATTEMPTS,
-    reported: false,
     countdownActive: false,
   };
 }
@@ -56,6 +53,7 @@ export function buildPartRuntimesFromStoredAttempts(
       .sort((a, b) => a.attempt_number - b.attempt_number);
 
     const attempts: HydratedAttemptHistoryEntry[] = partRows.map((row) => ({
+      attemptId: row.id,
       attemptNumber: row.attempt_number,
       correct: row.is_correct,
       responseText: row.response_text,
@@ -70,7 +68,6 @@ export function buildPartRuntimesFromStoredAttempts(
     return {
       attempts,
       latestFeedback: latestRow?.feedback ?? null,
-      latestAttemptId: latestRow?.id ?? null,
       triesLeft: resolved
         ? 0
         : Math.max(0, maxAttemptsPerPart - attempts.length),
@@ -94,9 +91,7 @@ export function buildPartRuntimesFromStoredAttempts(
       status,
       attempts: state.attempts,
       latestFeedback: state.latestFeedback,
-      latestAttemptId: state.latestAttemptId,
       triesLeft: state.triesLeft,
-      reported: false,
       countdownActive: false,
     };
   });

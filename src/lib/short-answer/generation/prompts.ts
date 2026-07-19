@@ -369,6 +369,9 @@ export function buildItemPrompt(
     "   definition written specifically for that term. Do NOT reuse the same definition text for",
     "   more than one term, and do NOT copy a KC statement verbatim as a definition — write an",
     "   actual definition of the word itself.",
+    "10. In every annotated_responses entry, label each part explicitly and in order as",
+    "    'Part A: ... Part B: ...' (and 'Part C: ...' when present). Each part segment must",
+    "    be a complete student-facing sentence so it can safely serve as that part's model answer.",
     "",
     "OUTPUT: strict JSON only, no markdown wrapper, matching exactly:",
     JSON.stringify({

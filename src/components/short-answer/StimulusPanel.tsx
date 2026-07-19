@@ -105,23 +105,49 @@ function ChartStimulusView({
   kind: "line" | "bar";
 }) {
   const { rows, seriesNames } = useMemo(() => toChartRows(chart), [chart]);
+  const showLegend = seriesNames.length > 1;
+  // The X-axis title sits at the bottom, so the legend has to go to the top —
+  // Recharts' default bottom legend would otherwise overlap the X-axis title.
+  // The bottom margin leaves room for the X-axis title; the left margin plus
+  // the widened Y axis keep the rotated Y-axis title from being clipped.
+  const margin = { top: 4, right: 16, bottom: 28, left: 20 };
+  const xAxis = (
+    <XAxis
+      dataKey="x"
+      label={{ value: chart.xLabel, position: "bottom", fontSize: 12 }}
+      tick={{ fontSize: 11 }}
+    />
+  );
+  const yAxis = (
+    <YAxis
+      width={56}
+      label={{
+        value: chart.yLabel,
+        angle: -90,
+        position: "insideLeft",
+        fontSize: 12,
+        style: { textAnchor: "middle" },
+      }}
+      tick={{ fontSize: 11 }}
+    />
+  );
+  const legend = showLegend ? (
+    <Legend
+      verticalAlign="top"
+      align="center"
+      wrapperStyle={{ fontSize: 11, paddingBottom: 8 }}
+    />
+  ) : null;
   return (
     <div className="h-[clamp(10rem,30vh,16rem)] w-full">
       <ResponsiveContainer width="100%" height="100%">
         {kind === "line" ? (
-          <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
+          <LineChart data={rows} margin={margin}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="x"
-              label={{ value: chart.xLabel, position: "bottom", fontSize: 12 }}
-              tick={{ fontSize: 11 }}
-            />
-            <YAxis
-              label={{ value: chart.yLabel, angle: -90, position: "insideLeft", fontSize: 12 }}
-              tick={{ fontSize: 11 }}
-            />
+            {xAxis}
+            {yAxis}
             <Tooltip />
-            {seriesNames.length > 1 && <Legend />}
+            {legend}
             {seriesNames.map((name, i) => (
               <Line
                 key={name}
@@ -134,19 +160,12 @@ function ChartStimulusView({
             ))}
           </LineChart>
         ) : (
-          <BarChart data={rows} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
+          <BarChart data={rows} margin={margin}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="x"
-              label={{ value: chart.xLabel, position: "bottom", fontSize: 12 }}
-              tick={{ fontSize: 11 }}
-            />
-            <YAxis
-              label={{ value: chart.yLabel, angle: -90, position: "insideLeft", fontSize: 12 }}
-              tick={{ fontSize: 11 }}
-            />
+            {xAxis}
+            {yAxis}
             <Tooltip />
-            {seriesNames.length > 1 && <Legend />}
+            {legend}
             {seriesNames.map((name, i) => (
               <Bar key={name} dataKey={name} fill={GRAYSCALE[i % GRAYSCALE.length]} />
             ))}

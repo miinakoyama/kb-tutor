@@ -65,6 +65,7 @@ function normalizeMethod3Feedback(
   parsed: Method3RawResponse,
   score: number,
   maxScore: number,
+  isFinalSubmission: boolean,
 ): string {
   const direct = extractFeedbackText(parsed.feedback);
   if (direct) return direct;
@@ -83,15 +84,25 @@ function normalizeMethod3Feedback(
     if (text) return text;
   }
 
-  return score >= maxScore
-    ? "Your response addresses the main biological idea for this part. Check that your wording clearly connects your idea to the prompt."
+  if (score >= maxScore) {
+    return "Your response addresses the main biological idea for this part. Check that your wording clearly connects your idea to the prompt.";
+  }
+  return isFinalSubmission
+    ? "This response does not yet demonstrate the biological relationship, function, or mechanism the prompt requires. Review the model answer below to compare the missing connection."
     : "Your response needs a clearer connection to the biological idea this part is asking about. Reread the prompt and revise by explaining the relevant relationship, function, or mechanism.";
 }
 
 export async function gradeWithMethod3(
   input: MethodGradeInput,
 ): Promise<MethodGradeOutput> {
-  const { item, part, studentResponse, modelId, temperature } = input;
+  const {
+    item,
+    part,
+    studentResponse,
+    modelId,
+    temperature,
+    isFinalSubmission = false,
+  } = input;
   const t0 = Date.now();
   const partRubric = formatPartRubric(part);
 
@@ -119,8 +130,9 @@ export async function gradeWithMethod3(
     "- Prioritize elaborated feedback: briefly explain why the current response is or is not sufficient.",
     "- If the response has a useful partial idea, name that idea briefly; do not add generic praise.",
     "- Do not comment on the student's ability, effort, intelligence, confidence, or personality.",
-    "- If the response is not full credit, do NOT give away the exact missing answer, correct term, or full solution.",
-    "- Instead, provide one actionable next step and at most one guiding question.",
+    isFinalSubmission
+      ? "- FINAL SUBMISSION: If the response is not full credit, briefly state why it is insufficient and identify the most important issue in declarative language. Do NOT ask a question, invite revision, or tell the student to retry. The interface shows a canonical model answer next, so do not repeat the full solution."
+      : "- RETRY AVAILABLE: If the response is not full credit, do NOT give away the exact missing answer, correct term, or full solution. Instead, provide one actionable next step and at most one guiding question.",
     "- Do not reveal rubric text, boundary example labels, scores, or internal analysis categories.",
     "- JSON contract: feedback must be one single student-facing string, not an object, array, list, or nested field.",
     "",
@@ -154,7 +166,12 @@ export async function gradeWithMethod3(
 
   const parsed = JSON.parse(completion.content || "{}") as Method3RawResponse;
   const score = normalizeScore(parsed.score, part.maxScore);
-  const feedback = normalizeMethod3Feedback(parsed, score, part.maxScore);
+  const feedback = normalizeMethod3Feedback(
+    parsed,
+    score,
+    part.maxScore,
+    isFinalSubmission,
+  );
 
   return {
     score,
