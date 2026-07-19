@@ -74,4 +74,30 @@ describe("gradeWithMethod1", () => {
     expect(result.diagnosedGap).toContain("mRNA");
     expect(retrieveFromKB).toHaveBeenCalled();
   });
+
+  it("asks for declarative closure on a final submission", async () => {
+    retrieveFromKB.mockResolvedValue(null);
+    chatComplete.mockResolvedValue({
+      content: JSON.stringify({
+        score: 0,
+        feedback: "DNA is a storage molecule, not the required carrier.",
+        diagnosedGap: "Student wrote DNA but the carrier concept is required.",
+      }),
+      tokenCount: 10,
+    });
+    const { gradeWithMethod1 } = await load();
+    await gradeWithMethod1({
+      item,
+      part,
+      studentResponse: "DNA",
+      modelId: "claude-opus-4-8",
+      temperature: 1,
+      isFinalSubmission: true,
+    });
+
+    const request = JSON.stringify(chatComplete.mock.calls[0]?.[0]);
+    expect(request).toContain("FINAL SUBMISSION");
+    expect(request).toContain("Do NOT ask a question");
+    expect(request).not.toContain("Ask exactly one guiding question");
+  });
 });

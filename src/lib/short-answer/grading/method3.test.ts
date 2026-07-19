@@ -60,4 +60,26 @@ describe("gradeWithMethod3", () => {
     expect(result.confidence).toBe("medium");
     expect(result.feedback.length).toBeGreaterThan(0);
   });
+
+  it("uses closure instructions and a closure fallback on a final submission", async () => {
+    chatComplete.mockResolvedValue({
+      content: JSON.stringify({ score: 0 }),
+      tokenCount: 0,
+    });
+    const { gradeWithMethod3 } = await load();
+    const result = await gradeWithMethod3({
+      item,
+      part,
+      studentResponse: "DNA",
+      modelId: "claude-sonnet-4-6",
+      temperature: 0,
+      isFinalSubmission: true,
+    });
+
+    const request = JSON.stringify(chatComplete.mock.calls[0]?.[0]);
+    expect(request).toContain("FINAL SUBMISSION");
+    expect(request).toContain("Do NOT ask a question");
+    expect(request).not.toContain("provide one actionable next step");
+    expect(result.feedback).toContain("model answer below");
+  });
 });

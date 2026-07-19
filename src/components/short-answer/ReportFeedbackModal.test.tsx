@@ -59,6 +59,7 @@ describe("ReportFeedbackModal", () => {
     const targetSelect = screen.getByLabelText(
       "Feedback to report",
     ) as HTMLSelectElement;
+    expect(document.activeElement).toBe(targetSelect);
     expect(screen.getAllByRole("option")).toHaveLength(3);
     expect(
       (
@@ -71,6 +72,7 @@ describe("ReportFeedbackModal", () => {
     expect(screen.getByText("Check the codon definition.")).toBeTruthy();
 
     fireEvent.change(targetSelect, { target: { value: "attempt-a-2" } });
+    expect(document.activeElement).toBe(targetSelect);
     expect(screen.getByText("Review the molecule type.")).toBeTruthy();
     expect(screen.getByText("Model answer")).toBeTruthy();
     expect(screen.getByText("mRNA carries the genetic code.")).toBeTruthy();

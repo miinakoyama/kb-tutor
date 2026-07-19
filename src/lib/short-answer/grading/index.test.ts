@@ -48,6 +48,9 @@ describe("gradePart", () => {
     });
 
     expect(chatComplete).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(chatComplete.mock.calls[1]?.[0])).toContain(
+      "FINAL SUBMISSION CONTEXT",
+    );
     expect(result.correct).toBe(false);
     expect(result.feedback).toEqual({
       verdict: "heres_the_idea",
@@ -72,6 +75,9 @@ describe("gradePart", () => {
     const result = await gradePart({ ...baseParams, attemptNumber: 1, maxAttempts: 2 });
 
     expect(chatComplete).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(chatComplete.mock.calls[1]?.[0])).toContain(
+      "RETRY CONTEXT",
+    );
     expect(result.feedback.verdict).toBe("good_try");
     expect(result.feedback.segments[0].text).toContain("messenger molecule");
     expect(result.feedback.glossaryTerms).toBeDefined();

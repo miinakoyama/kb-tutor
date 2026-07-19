@@ -225,6 +225,12 @@ const preferredKeys = [
 ```
 
 ### Method 1 — GradeOpt + RAG + single-call grading/feedback
+
+The dispatcher passes `isFinalSubmission` to every method. When false, a
+non-full-credit response gets retry guidance. When true, it gets concise,
+declarative closure: identify the important mismatch without asking a
+question or inviting revision. The UI renders the canonical model answer
+separately, so method feedback must not duplicate the full solution.
 Single LLM call produces score, student-state classification, feedback, diagnosed gap simultaneously. Strongest prompt control; detailed feedback style/length/scaffolding rules.
 
 Additional input:
@@ -254,7 +260,7 @@ scoring rules: question-form answer = 0 points; recall_identify may earn full cr
 feedback style: warm and encouraging; max 35 words; short/direct sentences; score=0 acknowledges something good then pivots with "but"; score=full is exactly one confirmatory sentence; never start with "I", "The missing step", "Your response", "This response".
 student state classification: blank | wrong_concept | missing_mechanism | missing_specificity | partial_credit | correct.
 planning: studentAnchor = shortest useful phrase from response; score full → decide correctnessTarget, one-sentence feedback; score 0 → build specificityTarget and hintTarget; hintTarget scaffolds without using the final answer term.
-score=0 constraints: exactly one question mark; exactly one teaching move; recall_identify must not reveal final answer term; do not use "incorrect"/"wrong"/"you need to"; do not reference rubric or other parts; max 2 sentences.
+score=0 retry constraints: exactly one question mark; exactly one teaching move; recall_identify must not reveal final answer term; do not use "incorrect"/"wrong"/"you need to"; do not reference rubric or other parts; max 2 sentences. On a final submission, replace the question/hint rules with declarative closure and set `hintTarget` to null.
 ```
 
 User prompt:
@@ -355,6 +361,10 @@ Score 0 circular: say the response uses the conclusion as the reason; ask for th
 Score 0 copied_question: say they rephrased the question without adding biology; ask them to explain the underlying science.
 Maximum 2 sentences. Return JSON only. feedback must be one single student-facing string.
 ```
+For a final submission, Stage 2 replaces the failure-type retry instructions
+with declarative closure: briefly name any useful idea and state what was
+incorrect or missing, without a question, revision invitation, or duplicated
+model answer. Stage 1 scoring is unchanged.
 Stage 2 user prompt:
 ```
 Question stimulus: {question.stem}
@@ -407,6 +417,10 @@ Error analysis: conceptual_errors, reasoning_gaps, surface_errors, off_task_or_v
 Feedback rules: 1-3 student-facing sentences; task-focused, specific, non-judgmental; briefly explain why response is/ isn't sufficient; implicitly address (1) what the prompt asks (2) how the response matches/misses it (3) what revision move to try next; if partially useful, name the useful idea briefly; no generic praise; no comments on ability/effort/personality; if not full credit, do not give away exact missing answer/correct term/full solution; one actionable next step; at most one guiding question; conceptual error → point out mismatch without naming correct concept; reasoning gap → ask for missing relationship/mechanism/evidence/comparison; vague/off-task → redirect to what prompt asks; do not reveal rubric text, boundary labels, scores, or internal analysis categories; feedback must be one single string.
 Score integer from 0 to {part.maxScore}. Return JSON only.
 ```
+On a final submission, Method 3 replaces the actionable-next-step/guiding-
+question rules with declarative closure and uses a closure-specific fallback
+when the model omits feedback. The separate canonical model answer remains the
+source of the full solution.
 User prompt:
 ```
 Question stimulus:

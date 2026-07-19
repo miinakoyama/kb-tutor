@@ -24,7 +24,14 @@ interface Stage2Response {
 export async function gradeWithMethod2(
   input: MethodGradeInput,
 ): Promise<MethodGradeOutput> {
-  const { item, part, studentResponse, modelId, temperature } = input;
+  const {
+    item,
+    part,
+    studentResponse,
+    modelId,
+    temperature,
+    isFinalSubmission = false,
+  } = input;
 
   const t0 = Date.now();
   let totalTokens = 0;
@@ -118,38 +125,44 @@ export async function gradeWithMethod2(
     "constructed-response questions. Generate feedback for one",
     "scored part based on the score and failure type.",
     "",
-    "FEEDBACK RULES BY FAILURE TYPE:",
+    isFinalSubmission
+      ? "FINAL SUBMISSION CONTEXT: No retry remains after this response."
+      : "RETRY CONTEXT: The student will have another attempt after this response if it is not full credit.",
     "",
     `Full credit (${part.maxScore}/${part.maxScore}): Write one sentence confirming what the student got right.`,
     "Be specific — name what they said that earned the point.",
     "",
-    "Partial credit (score > 0 but not full credit):",
-    "State what the student got right, then name the missing idea",
-    "needed for full credit.",
-    "",
-    "Score 0 — wrong_concept:",
-    "Name what the student said. State it is not the right concept",
-    "for this question. Redirect without giving the answer.",
-    "",
-    "Score 0 — vague:",
-    "Acknowledge any direction if present. Ask one specific",
-    "follow-up question pushing one level deeper toward naming",
-    "a mechanism or structure.",
-    "",
-    "Score 0 — off_task:",
-    "Name what their response describes. Clarify what the question",
-    "is actually asking.",
-    "",
-    "Score 0 — circular:",
-    "Tell the student their response uses the conclusion as the reason.",
-    "Ask them to identify the underlying biological mechanism.",
-    "",
-    "Score 0 — copied_question:",
-    "Tell the student they rephrased the question without adding",
-    "biology. Ask them to explain the underlying science.",
+    ...(isFinalSubmission
+      ? [
+          "Any score below full credit:",
+          "Briefly name any useful idea, then state what was incorrect or missing.",
+          "Use declarative closure. Do not ask a question, invite revision, or tell the student to retry.",
+          "The interface shows a canonical model answer next, so do not repeat the full solution.",
+        ]
+      : [
+          "Partial credit (score > 0 but not full credit):",
+          "State what the student got right, then name the missing idea needed for full credit.",
+          "",
+          "Score 0 — wrong_concept:",
+          "Name what the student said. State it is not the right concept for this question. Redirect without giving the answer.",
+          "",
+          "Score 0 — vague:",
+          "Acknowledge any direction if present. Ask one specific follow-up question pushing one level deeper toward naming a mechanism or structure.",
+          "",
+          "Score 0 — off_task:",
+          "Name what their response describes. Clarify what the question is actually asking.",
+          "",
+          "Score 0 — circular:",
+          "Tell the student their response uses the conclusion as the reason. Ask them to identify the underlying biological mechanism.",
+          "",
+          "Score 0 — copied_question:",
+          "Tell the student they rephrased the question without adding biology. Ask them to explain the underlying science.",
+        ]),
     "",
     "FEEDBACK LENGTH: Maximum 2 sentences per part.",
-    "Never reveal the exact correct answer term while attempts remain.",
+    isFinalSubmission
+      ? "Do not duplicate the separate model answer."
+      : "Never reveal the exact correct answer term while attempts remain.",
     "",
     "JSON contract: feedback must be one single student-facing string, not an object, array, list, or nested field.",
     "",

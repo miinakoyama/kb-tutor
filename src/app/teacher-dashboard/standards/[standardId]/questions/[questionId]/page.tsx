@@ -15,6 +15,7 @@ import type { GradedFeedback, PartLabel } from "@/types/short-answer";
 import { formatShortAnswerAttemptTimestamp } from "@/lib/analytics/short-answer-attempt-order";
 import { badgeAmber, badgeRose } from "@/lib/ui/status-badge-styles";
 import { buttonClassNames } from "@/components/ui/Button";
+import { TeacherAttemptFeedback } from "@/components/short-answer/TeacherAttemptFeedback";
 
 interface QuestionDetailChoice {
   id: string;
@@ -493,18 +494,7 @@ function StudentResponseRow({
                   <p className="mt-1.5 whitespace-pre-wrap text-sm text-slate-gray">
                     {response.responseText}
                   </p>
-                  {response.feedback && response.feedback.segments.length > 0 && (
-                    <div className="mt-2 space-y-1 border-t border-border-default pt-2">
-                      {response.feedback.segments.map((segment, index) => (
-                        <p key={index} className="text-xs text-slate-gray/70">
-                          <span className="font-semibold uppercase tracking-wide text-slate-gray/50">
-                            {segment.label}:
-                          </span>{" "}
-                          {segment.text}
-                        </p>
-                      ))}
-                    </div>
-                  )}
+                  <TeacherAttemptFeedback feedback={response.feedback} />
                 </div>
               </div>
             );

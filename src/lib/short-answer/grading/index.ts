@@ -51,7 +51,11 @@ export async function gradePart(
 ): Promise<PartGradingResult> {
   const { method, attemptNumber, maxAttempts, ...input } = params;
 
-  const output = await runMethodWithRetry(method, input);
+  const methodInput: MethodGradeInput = {
+    ...input,
+    isFinalSubmission: attemptNumber >= maxAttempts,
+  };
+  const output = await runMethodWithRetry(method, methodInput);
 
   const correct = output.score >= input.part.maxScore;
   const attemptsRemaining = correct ? 0 : Math.max(0, maxAttempts - attemptNumber);

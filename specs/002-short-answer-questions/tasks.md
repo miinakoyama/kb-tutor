@@ -67,7 +67,7 @@
 - [X] T024 [P] [US1] Settings resolution in `src/lib/short-answer/settings.ts`: effective config = school row → default row → hardcoded (M2/`gpt-5.4`/1); multi-school = most recent membership; per-method recommended defaults helper (research R6) + tests in `src/lib/short-answer/settings.test.ts`
 - [X] T025 [P] [US1] Attempt persistence in `src/lib/short-answer/attempts.ts`: insert `short_answer_attempts` row; on part resolution upsert summary row into `attempts` (`selected_option_id='short-answer'`, `onConflict: client_attempt_id`) (research R5)
 - [X] T026 [US1] Grade route `src/app/api/short-answer/grade/route.ts` per contracts/short-answer-grade.md: `getUser()` re-verify; item resolution (assignment snapshot or `generated_questions`); server-side config resolution; attempt-cap 409 + idempotent replay via `clientAttemptId`; empty-response short-circuit (`method='none'`); Method 1/2/3 dispatch with one retry; persist-then-respond; 502 with nothing persisted on failure; depends on T020–T025
-- [X] T027 [US1] Route tests `src/app/api/short-answer/grade/route.test.ts`: unauthorized 401; happy path per method; empty submission (no LLM call, attempt recorded); attempt-cap 409; idempotent replay 200; LLM failure 502 with no row written; model-answer only on resolving incorrect final attempt
+- [X] T027 [US1] Route tests `src/app/api/short-answer/grade/route.test.ts`: unauthorized 401; happy path per method; empty submission (no LLM call, attempt recorded); attempt-cap 409; idempotent replay 200; LLM failure 502 with no row written; closing feedback plus model answer on a resolving incorrect final attempt
 
 ### Student UI (components in `src/components/short-answer/`)
 
