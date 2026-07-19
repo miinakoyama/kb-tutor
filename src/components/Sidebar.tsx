@@ -71,7 +71,7 @@ const TEACHER_SECTION: NavSection = {
   items: [
     { href: "/teacher-dashboard", label: "Teacher Dashboard", icon: LayoutDashboard },
     { href: "/assignments/manage", label: "Assignments", icon: ClipboardList },
-    { href: "/content", label: "Contents", icon: Database },
+    { href: "/content", label: "Content", icon: Database },
   ],
 };
 
@@ -87,7 +87,7 @@ const ADMIN_SECTION: NavSection = {
     { href: "/content/schools", label: "Schools", icon: School },
     { href: "/content/data-analysis", label: "Data Analysis", icon: BarChart3 },
     { href: "/assignments/manage", label: "Assignments", icon: ClipboardList },
-    { href: "/content", label: "Contents", icon: Database },
+    { href: "/content", label: "Content", icon: Database },
     { href: "/teacher-dashboard", label: "Teacher Dashboard", icon: LayoutDashboard },
   ],
 };

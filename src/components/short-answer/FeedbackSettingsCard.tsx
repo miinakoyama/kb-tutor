@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, MessageSquareText, RotateCcw } from "lucide-react";
 import type { GradingMethod } from "@/types/short-answer";
 import { Button } from "@/components/ui/Button";
+import { InfoPopover } from "@/components/InfoPopover";
 
 interface ModelInfo {
   id: string;
@@ -186,8 +187,13 @@ export function FeedbackSettingsCard() {
           </select>
         </label>
         <label className="text-sm text-slate-gray">
-          <span className="block mb-1 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
+          <span className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-gray/60">
             Temperature
+            <InfoPopover label="What does temperature do?">
+              Controls how predictable the AI&apos;s feedback is. Lower values
+              (e.g. 0.2) give more consistent, focused feedback. Higher values
+              (e.g. 1.0+) give more varied, creative feedback.
+            </InfoPopover>
           </span>
           <input
             type="number"

@@ -278,6 +278,7 @@ export async function POST(request: Request) {
       maxQuestions?: number;
     };
     saveAsNewSet?: boolean;
+    questionSetName?: string;
   };
 
   const title = body.title?.trim();
@@ -471,12 +472,13 @@ export async function POST(request: Request) {
   ) {
     const generatedAt = new Date().toISOString();
     const newSetId = `manual-${assignmentId}-${Date.now().toString(36)}`;
+    const setName = body.questionSetName?.trim() || title;
     const { error: setInsertError } = await admin
       .from("generated_question_sets")
       .insert({
         id: newSetId,
         user_id: requester.id,
-        name: title,
+        name: setName,
         generated_at: generatedAt,
         generation_model_id: null,
         generation_model_label: "Manual",
