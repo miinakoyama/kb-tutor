@@ -10,6 +10,7 @@
 import type {
   FeedbackVerdict,
   GradedFeedback,
+  PartLabel,
   ShortAnswerItem,
   ShortAnswerPart,
 } from "@/types/short-answer";
@@ -87,11 +88,48 @@ export function formatPartRubric(part: ShortAnswerPart): string {
  * short failure-type code).
  */
 export function partFullCreditCriteria(part: ShortAnswerPart): string {
-  const criteria = part.rubric.criteria[String(part.maxScore)];
+  // Legacy parts can validate with scoringGuidance and no structured rubric
+  // (item-schema.ts), so never assume part.rubric exists.
+  const criteria = part.rubric?.criteria?.[String(part.maxScore)];
   if (criteria && criteria.trim().length > 0) return criteria.trim();
   return part.scoringGuidance.trim().length > 0
     ? part.scoringGuidance.trim()
     : "the correct concept for this part";
+}
+
+/**
+ * Extract one part's answer from a whole-item annotated response. Score-max
+ * annotated responses are typically keyed by part ("Part A: … Part B: …"); this
+ * returns the segment for `label`, or null when the text is not part-keyed.
+ */
+function extractPartSegment(response: string, label: PartLabel): string | null {
+  const re = new RegExp(
+    `Part\\s+${label}\\b\\s*[:.\\)\\-]?\\s*([\\s\\S]*?)(?=\\bPart\\s+[A-C]\\b\\s*[:.\\)\\-]|$)`,
+    "i",
+  );
+  const match = re.exec(response);
+  const segment = match?.[1]?.trim();
+  return segment && segment.length > 0 ? segment : null;
+}
+
+/**
+ * Student-facing model answer for a part shown on a resolved incorrect final
+ * attempt (FR-008). Per data-model.md the score-max annotated response is the
+ * model-answer source; we surface this part's segment of it, falling back to a
+ * single-part item's whole response, then to the rubric's full-credit criteria.
+ */
+export function partModelAnswer(
+  item: ShortAnswerItem,
+  part: ShortAnswerPart,
+): string {
+  const maxTotal = totalShortAnswerPoints(item);
+  const full = item.annotatedResponses.find((r) => r.score === maxTotal);
+  if (full && full.response.trim().length > 0) {
+    const segment = extractPartSegment(full.response, part.label);
+    if (segment) return segment;
+    if (item.parts.length === 1) return full.response.trim();
+  }
+  return partFullCreditCriteria(part);
 }
 
 /**
@@ -151,7 +189,7 @@ export function buildGradedFeedback(params: BuildFeedbackParams): GradedFeedback
     return {
       verdict: "heres_the_idea",
       segments: [{ label: "", text: rawFeedback }],
-      modelAnswer: partFullCreditCriteria(part),
+      modelAnswer: partModelAnswer(item, part),
     };
   }
 

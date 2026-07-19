@@ -4,10 +4,12 @@ import {
   emptySubmissionFeedback,
   extractFeedbackText,
   normalizeScore,
+  partFullCreditCriteria,
+  partModelAnswer,
   selectGlossaryTerms,
 } from "@/lib/short-answer/grading/common";
 import sampleItem from "@/data/short-answer/sample-item.json";
-import type { ShortAnswerItem } from "@/types/short-answer";
+import type { ShortAnswerItem, ShortAnswerPart } from "@/types/short-answer";
 
 const item = sampleItem as ShortAnswerItem;
 const partA = item.parts[0];
@@ -96,9 +98,50 @@ describe("buildGradedFeedback", () => {
     expect(fb.verdict).toBe("heres_the_idea");
     expect(fb.segments).toHaveLength(1);
     expect(fb.segments[0].text).toContain("messenger RNA");
-    // The model answer is sourced from the part's full-credit rubric criteria,
-    // independent of the LLM prose.
-    expect(fb.modelAnswer).toBe(partA.rubric.criteria[String(partA.maxScore)]);
+    // The model answer is sourced from this part's segment of the score-max
+    // annotated response (data-model.md), not the rubric criterion.
+    expect(fb.modelAnswer).toBe(
+      "mRNA carries the genetic code from the nucleus to the ribosome.",
+    );
+    expect(fb.modelAnswer).not.toContain("Part B");
+  });
+});
+
+describe("partModelAnswer", () => {
+  it("extracts this part's segment from the score-max annotated response", () => {
+    expect(partModelAnswer(item, partA)).toBe(
+      "mRNA carries the genetic code from the nucleus to the ribosome.",
+    );
+    expect(partModelAnswer(item, item.parts[1])).toContain("codon");
+    expect(partModelAnswer(item, item.parts[1])).not.toContain("Part");
+  });
+
+  it("falls back to full-credit criteria when the response is not part-keyed", () => {
+    const noAnnotations: ShortAnswerItem = { ...item, annotatedResponses: [] };
+    expect(partModelAnswer(noAnnotations, partA)).toBe(
+      partFullCreditCriteria(partA),
+    );
+  });
+});
+
+describe("partFullCreditCriteria", () => {
+  it("does not crash for a legacy part with scoringGuidance and no rubric", () => {
+    // `rubric` is omitted at runtime for legacy scoring-guidance-only items.
+    const legacyPart = {
+      ...partA,
+      rubric: undefined,
+      scoringGuidance: "Names mRNA as the messenger molecule.",
+    } as unknown as ShortAnswerPart;
+    expect(partFullCreditCriteria(legacyPart)).toBe(
+      "Names mRNA as the messenger molecule.",
+    );
+    // And a rubric-less part still yields a model answer end-to-end.
+    const legacyItem: ShortAnswerItem = {
+      ...item,
+      parts: [legacyPart, item.parts[1], item.parts[2]],
+      annotatedResponses: [],
+    };
+    expect(() => partModelAnswer(legacyItem, legacyPart)).not.toThrow();
   });
 });
 

@@ -61,8 +61,11 @@ describe("gradePart", () => {
     expect(result.feedback.verdict).toBe("heres_the_idea");
     expect(result.feedback.segments).toHaveLength(1);
     expect(result.feedback.segments[0].text).toContain("messenger RNA carries the code");
-    // Final attempt with no retries: the rubric model answer is surfaced too.
-    expect(result.feedback.modelAnswer).toBe(partA.rubric.criteria[String(partA.maxScore)]);
+    // Final attempt with no retries: the model answer comes from this part's
+    // segment of the score-max annotated response.
+    expect(result.feedback.modelAnswer).toBe(
+      "mRNA carries the genetic code from the nucleus to the ribosome.",
+    );
   });
 
   it("exam mode skips resolution classification (no genuine attempt 1 to compare against)", async () => {
