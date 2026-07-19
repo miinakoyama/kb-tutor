@@ -30,18 +30,51 @@ function parseConstraint(message: string): string | null {
   return match ? match[1] : null;
 }
 
-function toHttpError(status: number, error: string) {
-  return NextResponse.json({ error }, { status });
+function toHttpError(
+  status: number,
+  error: string,
+  options: { code: string; retriable: boolean },
+) {
+  return NextResponse.json(
+    {
+      error,
+      code: options.code,
+      retriable: options.retriable,
+    },
+    { status },
+  );
 }
+
+function validationError(error: string) {
+  return toHttpError(400, error, {
+    code: "validation_error",
+    retriable: false,
+  });
+}
+
+function notFoundError(error: string) {
+  return toHttpError(404, error, { code: "not_found", retriable: false });
+}
+
+function lookupFailedError(error: string) {
+  return toHttpError(503, error, { code: "lookup_failed", retriable: true });
+}
+
+type AssignmentResolution = {
+  assignmentId: string | null;
+  error: string | null;
+  /** When error is set: false = bad payload/data, true = transient lookup. */
+  retriable: boolean;
+};
 
 async function resolveAuthorizedAssignmentId(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   userId: string,
   assignmentId: string | null | undefined,
-): Promise<{ assignmentId: string | null; error: string | null }> {
+): Promise<AssignmentResolution> {
   const normalizedAssignmentId = assignmentId?.trim();
   if (!normalizedAssignmentId) {
-    return { assignmentId: null, error: null };
+    return { assignmentId: null, error: null, retriable: false };
   }
 
   const { data: assignment, error: assignmentError } = await admin
@@ -50,10 +83,14 @@ async function resolveAuthorizedAssignmentId(
     .eq("id", normalizedAssignmentId)
     .maybeSingle();
   if (assignmentError) {
-    return { assignmentId: null, error: assignmentError.message };
+    return {
+      assignmentId: null,
+      error: assignmentError.message,
+      retriable: true,
+    };
   }
   if (!assignment) {
-    return { assignmentId: null, error: null };
+    return { assignmentId: null, error: null, retriable: false };
   }
 
   const [{ data: targetRow, error: targetError }, { data: memberRow, error: memberError }] =
@@ -72,24 +109,28 @@ async function resolveAuthorizedAssignmentId(
         .maybeSingle(),
     ]);
   if (targetError) {
-    return { assignmentId: null, error: targetError.message };
+    return { assignmentId: null, error: targetError.message, retriable: true };
   }
   if (memberError) {
-    return { assignmentId: null, error: memberError.message };
+    return { assignmentId: null, error: memberError.message, retriable: true };
   }
 
   if (targetRow) {
-    return { assignmentId: normalizedAssignmentId, error: null };
+    return { assignmentId: normalizedAssignmentId, error: null, retriable: false };
   }
 
   if (!memberRow) {
-    return { assignmentId: null, error: null };
+    return { assignmentId: null, error: null, retriable: false };
   }
 
   const assignmentCreatedAt =
     typeof assignment.created_at === "string" ? assignment.created_at : null;
   if (!assignmentCreatedAt) {
-    return { assignmentId: null, error: "Assignment is missing created_at" };
+    return {
+      assignmentId: null,
+      error: "Assignment is missing created_at",
+      retriable: false,
+    };
   }
   const { error: insertTargetError } = await admin
     .from("assignment_targets")
@@ -101,11 +142,15 @@ async function resolveAuthorizedAssignmentId(
   if (insertTargetError) {
     const code = (insertTargetError as { code?: string }).code;
     if (code !== "23505") {
-      return { assignmentId: null, error: insertTargetError.message };
+      return {
+        assignmentId: null,
+        error: insertTargetError.message,
+        retriable: true,
+      };
     }
   }
 
-  return { assignmentId: normalizedAssignmentId, error: null };
+  return { assignmentId: normalizedAssignmentId, error: null, retriable: false };
 }
 
 function correctOptionIdFromPayload(value: unknown): string | null {
@@ -138,20 +183,23 @@ function questionIdentityFromPayload(
   return { questionSetId, questionContentVersion };
 }
 
+type AccessCheck = "allowed" | "denied" | "lookup_failed";
+
 async function canAccessHistoricalQuestion(
   requester: SupabaseClient,
   admin: SupabaseClient,
   userId: string,
   questionSetId: string,
   questionId: string,
-): Promise<boolean> {
-  const { data: currentlyAccessible } = await requester
+): Promise<AccessCheck> {
+  const { data: currentlyAccessible, error: accessibleError } = await requester
     .from("generated_questions")
     .select("id")
     .eq("set_id", questionSetId)
     .eq("id", questionId)
     .maybeSingle();
-  if (currentlyAccessible) return true;
+  if (accessibleError) return "lookup_failed";
+  if (currentlyAccessible) return "allowed";
 
   // A queued answer remains valid after the row is hidden or removed from
   // Self Practice. Verify the student's school relationship to the set
@@ -161,11 +209,11 @@ async function canAccessHistoricalQuestion(
     .from("school_question_sets")
     .select("school_id")
     .eq("set_id", questionSetId);
-  if (linkError) return false;
+  if (linkError) return "lookup_failed";
   const schoolIds = [
     ...new Set((links ?? []).map((row) => String(row.school_id))),
   ];
-  if (!schoolIds.length) return false;
+  if (!schoolIds.length) return "denied";
 
   const { data: memberships, error: membershipError } = await admin
     .from("school_members")
@@ -173,8 +221,14 @@ async function canAccessHistoricalQuestion(
     .eq("student_user_id", userId)
     .in("school_id", schoolIds)
     .limit(1);
-  return !membershipError && (memberships?.length ?? 0) > 0;
+  if (membershipError) return "lookup_failed";
+  return (memberships?.length ?? 0) > 0 ? "allowed" : "denied";
 }
+
+type QuestionResolveResult =
+  | { status: "ok"; question: AuthoritativeQuestion }
+  | { status: "not_found" }
+  | { status: "lookup_failed"; message: string };
 
 async function resolveAuthoritativeQuestion(
   requester: SupabaseClient,
@@ -184,14 +238,16 @@ async function resolveAuthoritativeQuestion(
   assignmentId: string | null,
   questionSetId: string | null,
   questionContentVersion: string | null,
-): Promise<AuthoritativeQuestion | null> {
+): Promise<QuestionResolveResult> {
   if (assignmentId) {
     const { data, error } = await admin
       .from("assignment_question_snapshots")
       .select("payload")
       .eq("assignment_id", assignmentId)
       .eq("question_id", questionId);
-    if (error) return null;
+    if (error) {
+      return { status: "lookup_failed", message: error.message };
+    }
 
     const snapshots = data ?? [];
     const matchingSnapshots = questionSetId
@@ -214,14 +270,17 @@ async function resolveAuthoritativeQuestion(
           matchingSnapshotCount: matchingSnapshots.length,
         });
       }
-      return null;
+      return { status: "not_found" };
     }
     const snapshot = matchingSnapshots[0];
     const correctOptionId = correctOptionIdFromPayload(snapshot?.payload);
-    if (!correctOptionId) return null;
+    if (!correctOptionId) return { status: "not_found" };
     return {
-      correctOptionId,
-      ...questionIdentityFromPayload(snapshot.payload),
+      status: "ok",
+      question: {
+        correctOptionId,
+        ...questionIdentityFromPayload(snapshot.payload),
+      },
     };
   }
 
@@ -234,48 +293,80 @@ async function resolveAuthoritativeQuestion(
         questionSetId,
         questionId,
       );
-      if (!canAccess) return null;
+      if (canAccess === "lookup_failed") {
+        return {
+          status: "lookup_failed",
+          message: "Failed to verify question access",
+        };
+      }
+      if (canAccess === "denied") return { status: "not_found" };
 
-      const { data: version } = await admin
+      const { data: version, error: versionError } = await admin
         .from("generated_question_versions")
         .select("payload")
         .eq("question_set_id", questionSetId)
         .eq("question_id", questionId)
         .eq("content_version", questionContentVersion)
         .maybeSingle();
+      if (versionError) {
+        return { status: "lookup_failed", message: versionError.message };
+      }
       const correctOptionId = correctOptionIdFromPayload(version?.payload);
       return correctOptionId
-        ? { correctOptionId, questionSetId, questionContentVersion }
-        : null;
+        ? {
+            status: "ok",
+            question: { correctOptionId, questionSetId, questionContentVersion },
+          }
+        : { status: "not_found" };
     }
 
-    const { data } = await requester
+    const { data, error } = await requester
       .from("generated_questions")
       .select("payload")
       .eq("set_id", questionSetId)
       .eq("id", questionId)
       .eq("is_visible", true)
       .maybeSingle();
-    if (!data) return null;
+    if (error) {
+      return { status: "lookup_failed", message: error.message };
+    }
+    if (!data) return { status: "not_found" };
     const correctOptionId = correctOptionIdFromPayload(data.payload);
     return correctOptionId
-      ? { correctOptionId, questionSetId, questionContentVersion: null }
-      : null;
+      ? {
+          status: "ok",
+          question: {
+            correctOptionId,
+            questionSetId,
+            questionContentVersion: null,
+          },
+        }
+      : { status: "not_found" };
   }
 
   // Backward compatibility for attempts queued before question identity
   // snapshots were added. Ambiguous ids remain rejected by the length check.
-  const { data } = await requester
+  const { data, error } = await requester
     .from("generated_questions")
     .select("payload")
     .eq("id", questionId)
     .eq("is_visible", true)
     .limit(2);
-  if (!data || data.length !== 1) return null;
+  if (error) {
+    return { status: "lookup_failed", message: error.message };
+  }
+  if (!data || data.length !== 1) return { status: "not_found" };
   const correctOptionId = correctOptionIdFromPayload(data[0].payload);
   return correctOptionId
-    ? { correctOptionId, questionSetId: null, questionContentVersion: null }
-    : null;
+    ? {
+        status: "ok",
+        question: {
+          correctOptionId,
+          questionSetId: null,
+          questionContentVersion: null,
+        },
+      }
+    : { status: "not_found" };
 }
 
 export async function POST(request: Request) {
@@ -284,15 +375,20 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return toHttpError(401, "Unauthorized");
+  if (!user) {
+    return toHttpError(401, "Unauthorized", {
+      code: "unauthorized",
+      retriable: true,
+    });
+  }
 
   const body = (await request.json().catch(() => ({}))) as AttemptBody;
 
   if (!body.clientAttemptId) {
-    return toHttpError(400, "Missing clientAttemptId");
+    return validationError("Missing clientAttemptId");
   }
   if (!body.questionId) {
-    return toHttpError(400, "Missing questionId");
+    return validationError("Missing questionId");
   }
   const questionSetId =
     typeof body.questionSetId === "string" && body.questionSetId.trim()
@@ -304,16 +400,18 @@ export async function POST(request: Request) {
       ? body.questionContentVersion
       : null;
   if (body.questionContentVersion && !questionContentVersion) {
-    return toHttpError(400, "Invalid questionContentVersion");
+    return validationError("Invalid questionContentVersion");
   }
   if (questionContentVersion && !questionSetId) {
-    return toHttpError(400, "questionSetId is required with questionContentVersion");
+    return validationError(
+      "questionSetId is required with questionContentVersion",
+    );
   }
   if (!body.selectedOptionId) {
-    return toHttpError(400, "Missing selectedOptionId");
+    return validationError("Missing selectedOptionId");
   }
   if (!body.mode || !ALLOWED_MODES.has(body.mode)) {
-    return toHttpError(400, `Invalid mode: ${body.mode ?? "<missing>"}`);
+    return validationError(`Invalid mode: ${body.mode ?? "<missing>"}`);
   }
 
   const answeredAt =
@@ -328,9 +426,12 @@ export async function POST(request: Request) {
     body.assignmentId,
   );
   if (assignmentResolution.error) {
-    return toHttpError(400, assignmentResolution.error);
+    if (assignmentResolution.retriable) {
+      return lookupFailedError(assignmentResolution.error);
+    }
+    return validationError(assignmentResolution.error);
   }
-  const authoritativeQuestion = await resolveAuthoritativeQuestion(
+  const questionResult = await resolveAuthoritativeQuestion(
     supabase,
     admin,
     user.id,
@@ -339,9 +440,13 @@ export async function POST(request: Request) {
     questionSetId,
     questionContentVersion,
   );
-  if (!authoritativeQuestion) {
-    return toHttpError(404, "Question not found or inaccessible");
+  if (questionResult.status === "lookup_failed") {
+    return lookupFailedError(questionResult.message);
   }
+  if (questionResult.status === "not_found") {
+    return notFoundError("Question not found or inaccessible");
+  }
+  const authoritativeQuestion = questionResult.question;
   const isCorrect = body.selectedOptionId === authoritativeQuestion.correctOptionId;
   const isFinalized = !(
     body.isFinalized === false &&

@@ -376,17 +376,22 @@ class SyncWriteError extends Error {
   code: string | null;
   details: string | null;
   constraint: string | null;
+  /** When set by the API, overrides code-based retry classification. */
+  retriable: boolean | null;
   constructor(params: {
     message: string;
     code: string | null;
     details: string | null;
     constraint: string | null;
+    retriable?: boolean | null;
   }) {
     super(params.message);
     this.name = "SyncWriteError";
     this.code = params.code;
     this.details = params.details;
     this.constraint = params.constraint;
+    this.retriable =
+      typeof params.retriable === "boolean" ? params.retriable : null;
   }
 }
 
@@ -425,8 +430,9 @@ function toSyncError(err: unknown): SyncWriteError {
  * - 42P10: on-conflict column mismatch (schema/drift)
  * - 42703: undefined_column
  * - PGRST116/PGRST204/etc are PostgREST shape errors; also hopeless on retry
- * - HTTP 400/404/… from `/api/analytics/attempts` when `runAttempt` falls
- *   back to `String(response.status)` (no Postgres `code` in the body)
+ * - validation_error / not_found: structured codes from
+ *   `/api/analytics/attempts` (bare HTTP 400/404 are NOT enough — those can
+ *   also mean a transient Supabase read failure)
  */
 const NON_RETRIABLE_CODES = new Set<string>([
   "23503",
@@ -436,25 +442,19 @@ const NON_RETRIABLE_CODES = new Set<string>([
   "42P10",
   "42703",
   "42P01",
+  "validation_error",
+  "not_found",
 ]);
 
-/** 4xx statuses that may clear without changing the queued payload. */
-const RETRIABLE_HTTP_STATUSES = new Set([401, 408, 429]);
-
-function isNonRetriableHttpStatus(code: string): boolean {
-  // Only exact decimal status strings from `String(response.status)`.
-  // Postgres codes like "23503" must not match.
-  if (!/^\d{3}$/.test(code)) return false;
-  const status = Number(code);
-  if (status < 400 || status >= 500) return false;
-  return !RETRIABLE_HTTP_STATUSES.has(status);
-}
-
 function isNonRetriableError(err: unknown): boolean {
-  if (err instanceof SyncWriteError && err.code) {
-    if (NON_RETRIABLE_CODES.has(err.code)) return true;
-    if (err.code.startsWith("PGRST")) return true;
-    if (isNonRetriableHttpStatus(err.code)) return true;
+  if (err instanceof SyncWriteError) {
+    // Explicit flag from the attempts API wins when present.
+    if (err.retriable === false) return true;
+    if (err.retriable === true) return false;
+    if (err.code) {
+      if (NON_RETRIABLE_CODES.has(err.code)) return true;
+      if (err.code.startsWith("PGRST")) return true;
+    }
   }
   return false;
 }
@@ -479,6 +479,7 @@ async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Pr
         code?: string | null;
         details?: string | null;
         constraint?: string | null;
+        retriable?: boolean;
       }
     | null = null;
 
@@ -488,6 +489,7 @@ async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Pr
       code?: string | null;
       details?: string | null;
       constraint?: string | null;
+      retriable?: boolean;
     };
   } catch {
     payload = null;
@@ -497,9 +499,14 @@ async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Pr
     message:
       payload?.error ??
       `Failed to persist attempt (HTTP ${response.status})`,
+    // Prefer structured API codes. Falling back to the bare HTTP status is
+    // only for diagnostics — those numeric strings are not treated as
+    // permanent (lookup failures may also surface as 400/404).
     code: payload?.code ?? String(response.status),
     details: payload?.details ?? null,
     constraint: payload?.constraint ?? null,
+    retriable:
+      typeof payload?.retriable === "boolean" ? payload.retriable : null,
   });
 }
 
