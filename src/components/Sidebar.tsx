@@ -391,7 +391,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           transition={{ duration: 0.15 }}
           className={`absolute bg-surface rounded-xl shadow-xl border border-border-subtle overflow-hidden z-50 ${
             collapsed
-              ? "bottom-0 left-full ml-2 w-56"
+              ? "bottom-3 left-full ml-2 w-56"
               : "bottom-full left-0 right-0 mb-2 mx-3"
           }`}
         >
@@ -432,14 +432,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const renderUserButton = (collapsed: boolean, closeMobileMenu = false) => (
     <div
       ref={closeMobileMenu ? mobileUserMenuRef : desktopUserMenuRef}
-      className="relative border-t border-white/10 p-3.5"
+      className={`relative border-t border-white/10 ${collapsed ? "px-2 py-3" : "p-3.5"}`}
     >
       {renderUserMenuPopup(collapsed, closeMobileMenu)}
       <button
         onClick={() => setShowUserMenu((v) => !v)}
         title={collapsed && userProfile ? getDisplayName(userProfile) : undefined}
         className={`w-full flex items-center overflow-hidden rounded-lg hover:bg-surface/10 transition-[background-color,padding,gap] ${SIDEBAR_MOTION} group ${
-          collapsed ? "justify-center gap-0 p-2.5" : "justify-start gap-3 px-3.5 py-2.5"
+          collapsed ? "justify-center gap-0 px-0 py-2" : "justify-start gap-3 px-3.5 py-2.5"
         }`}
       >
         <div className="w-8 h-8 rounded-full bg-surface/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
@@ -460,7 +460,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         <ChevronUp
           className={`w-4 h-4 flex-shrink-0 text-white/60 transition-[opacity,transform] duration-200 ${
             showUserMenu ? "rotate-180" : ""
-          } ${collapsed ? "opacity-0" : "opacity-100"}`}
+          } ${collapsed ? "hidden" : "opacity-100"}`}
         />
       </button>
     </div>
@@ -568,9 +568,13 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         )}
       </AnimatePresence>
 
+      {/* overflow-visible (not hidden) so the collapsed user menu, which pops
+          out to the sidebar's right via left-full, isn't clipped. Each
+          collapsing row already clips its own text, so the rail still animates
+          cleanly without the aside-level clip. */}
       <aside
         data-tour-id={TOUR_TARGET_IDS.SIDEBAR_ROOT}
-        className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-hidden transition-[width] ${SIDEBAR_MOTION} ${
+        className={`hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 lg:z-30 lg:shadow-xl overflow-visible transition-[width] ${SIDEBAR_MOTION} ${
           isCollapsed ? "lg:w-14" : "lg:w-64"
         }`}
         style={{ background: "var(--sidebar-gradient)" }}

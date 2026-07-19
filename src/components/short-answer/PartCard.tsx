@@ -24,9 +24,13 @@ interface PartCardProps {
   checkDisabled?: boolean;
   /** Label of the preceding part, used for the locked row's unlock condition. */
   previousLabel?: PartLabel;
+  /** True once the student has actively started a strictly-later part. */
+  laterPartEngaged?: boolean;
   onCheck: (response: string) => void;
   onOpenAttempt: (attempt: AttemptHistoryEntry) => void;
   onGlossaryClick: (term: string, event: React.MouseEvent) => void;
+  /** Fired when the student first clicks into or types in this part. */
+  onEngage?: () => void;
 }
 
 function AttemptDots({
@@ -62,7 +66,7 @@ function AttemptDots({
             onClick={() => scored && onOpenAttempt(attempt!)}
             className={`h-2.5 w-2.5 rounded-full transition ${
               scored
-                ? `${attempt!.correct ? "bg-[var(--assignment-progress-fill)]/60" : "bg-[#F4C961]"} cursor-pointer hover:scale-125`
+                ? `${attempt!.correct ? "bg-[var(--assignment-progress-fill)]/60" : "bg-[var(--saq-wrong)]/60"} cursor-pointer hover:scale-125`
                 : "cursor-default bg-[var(--border-default)]"
             }`}
           />
@@ -93,26 +97,71 @@ export function PartCard({
   initialValue = "",
   checkDisabled = false,
   previousLabel,
+  laterPartEngaged = false,
   onCheck,
   onOpenAttempt,
   onGlossaryClick,
+  onEngage,
 }: PartCardProps) {
   const [value, setValue] = useState("");
-  // Manual expand/collapse for an already-completed part. Forced open while
-  // its unlock countdown is running so the student can read feedback before
-  // it auto-collapses and the next part becomes current.
+  // Manual expand/collapse for a completed part. Forced open while its unlock
+  // countdown is running; once the countdown finishes we pin it open (see the
+  // effect below) so the feedback stays put until the student collapses it
+  // themselves — it no longer auto-collapses when the next part unlocks.
   const [manuallyExpanded, setManuallyExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hadUnlockRef = useRef(false);
   const locked = status === "locked";
   const submitting = status === "submitting";
   const resolved = status === "resolved";
   const canType = status === "active";
-  const isFinalAttempt = attempts.length >= maxAttempts;
-  const expanded = Boolean(unlock) || manuallyExpanded;
+  const hasUnlock = Boolean(unlock);
+  const expanded = hasUnlock || manuallyExpanded;
+  // On a retry the textarea starts pre-filled with the previous answer. Keep
+  // "Check" disabled until the student actually edits it, so they can't spend
+  // their final attempt re-submitting the identical response.
+  const answerUnchanged =
+    attempts.length > 0 && value.trim() === initialValue.trim();
 
   useEffect(() => {
     setValue(initialValue);
   }, [initialValue, part.label]);
+
+  // Keep the feedback visible after the unlock countdown ends. While the
+  // countdown runs, `unlock` forces the card open; when it clears we flip
+  // manuallyExpanded on so the card stays expanded instead of collapsing on
+  // its own. The student then collapses it with the chevron whenever they're
+  // done reading. Only fires for a part that actually ran a countdown (i.e.
+  // just resolved this session), so hydrated completed parts stay collapsed.
+  useEffect(() => {
+    if (hasUnlock) {
+      hadUnlockRef.current = true;
+    } else if (hadUnlockRef.current) {
+      hadUnlockRef.current = false;
+      setManuallyExpanded(true);
+    }
+  }, [hasUnlock]);
+
+  // Report the student's first real interaction with this part (a click into
+  // or keystroke in the textarea — not the programmatic focus on unlock) so the
+  // parent can collapse earlier parts once the student moves on. Fired once.
+  const engagedRef = useRef(false);
+  const notifyEngage = () => {
+    if (engagedRef.current) return;
+    engagedRef.current = true;
+    onEngage?.();
+  };
+
+  // Auto-collapse this part's feedback once the student engages a later part.
+  // Edge-triggered on the false→true transition so a subsequent manual
+  // re-expand isn't immediately undone.
+  const prevLaterEngagedRef = useRef(false);
+  useEffect(() => {
+    if (laterPartEngaged && !prevLaterEngagedRef.current) {
+      setManuallyExpanded(false);
+    }
+    prevLaterEngagedRef.current = laterPartEngaged;
+  }, [laterPartEngaged]);
 
   // Focus follows the current part: fires on the initial "become active"
   // transition and again after every retry attempt. preventScroll avoids
@@ -133,19 +182,18 @@ export function PartCard({
     }
   }, [status, attempts.length]);
 
-  // A single persistent card shell (never remounted) so Framer Motion's
-  // `layout` animates the height/position change smoothly as the part
-  // moves between locked → current → collapsed-resolved, instead of the
-  // three states cross-fading as separate elements.
+  // A single persistent card shell (never remounted). The frame itself is NOT
+  // animated (no `layout`) — only its inner content expands/collapses — so the
+  // card boxes stay put instead of sliding around when a sibling resizes. The
+  // section still reflows naturally as the inner height animates, so the cards
+  // below follow smoothly without a competing transform animation.
   return (
-    <motion.section
-      layout
-      transition={{ layout: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } }}
+    <section
       aria-label={`Part ${part.label}`}
       className={
         locked
-          ? "scroll-mt-4 rounded-2xl border border-[color:var(--assignment-panel-border)] bg-black/[0.02] p-4 opacity-70 sm:p-5"
-          : `scroll-mt-4 ${CARD_CLASS}`
+          ? "relative scroll-mt-4 rounded-2xl border border-[color:var(--assignment-panel-border)] bg-black/[0.02] p-4 opacity-70 sm:p-5"
+          : `relative scroll-mt-4 ${CARD_CLASS}`
       }
       style={!locked ? CARD_SHADOW : undefined}
     >
@@ -221,7 +269,7 @@ export function PartCard({
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                   className="overflow-hidden"
                 >
                   <div className="mt-3 flex flex-col gap-3">
@@ -238,7 +286,6 @@ export function PartCard({
                       <FeedbackBlock
                         feedback={latestFeedback}
                         triesLeft={triesLeft}
-                        isFinalAttempt={isFinalAttempt}
                         unlock={unlock}
                         onGlossaryClick={onGlossaryClick}
                       />
@@ -249,8 +296,11 @@ export function PartCard({
             </AnimatePresence>
           </motion.div>
         ) : (
-          // Current part: full prompt + response controls.
-          <motion.div key="current" {...CONTENT_FADE}>
+          // Current part: full prompt + response controls. A pointer-down
+          // anywhere in the active card counts as the student "moving to" this
+          // part (pointer events bubble up from the textarea, prompt, etc.),
+          // which tells the parent to collapse the parts before it.
+          <motion.div key="current" onPointerDown={notifyEngage} {...CONTENT_FADE}>
             <header className="flex items-start justify-between gap-3">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--foreground)]/55">
                 Part {part.label}
@@ -275,7 +325,12 @@ export function PartCard({
               <textarea
                 ref={textareaRef}
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={(e) => {
+                  // Covers keyboard-only entry after the on-unlock autofocus,
+                  // where no pointer-down fires on the card.
+                  notifyEngage();
+                  setValue(e.target.value);
+                }}
                 disabled={!canType}
                 maxLength={part.maxLength}
                 rows={3}
@@ -286,14 +341,25 @@ export function PartCard({
                 // layer on top is the separate "actively typing" state.
                 className="w-full resize-none rounded-xl border-2 border-[color:var(--assignment-progress-fill)] bg-white/70 px-3 py-2 text-[15px] text-[color:var(--foreground)] focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-[var(--assignment-completed)] disabled:opacity-60"
               />
-              <div className="mt-1 flex items-center justify-between">
+              <div className="mt-1 flex items-center justify-between gap-3">
                 <span className="text-[11px] text-[color:var(--foreground)]/40">
-                  {value.length}/{part.maxLength}
+                  {answerUnchanged
+                    ? "Edit your answer to check again"
+                    : `${value.length}/${part.maxLength}`}
                 </span>
                 <button
                   type="button"
                   onClick={() => onCheck(value)}
-                  disabled={value.trim().length === 0 || submitting || !canType || checkDisabled}
+                  disabled={
+                    value.trim().length === 0 ||
+                    submitting ||
+                    !canType ||
+                    checkDisabled ||
+                    answerUnchanged
+                  }
+                  title={
+                    answerUnchanged ? "Edit your answer to check again" : undefined
+                  }
                   className="min-h-[44px] rounded-full bg-[color:var(--assignment-cta-bg-strong)] px-5 py-1.5 text-sm font-semibold text-[color:var(--assignment-cta-text)] transition hover:bg-[color:var(--assignment-cta-bg-hover)] disabled:opacity-50"
                 >
                   {submitting ? "Checking…" : checkDisabled ? "Preparing…" : "Check"}
@@ -304,7 +370,6 @@ export function PartCard({
                 <FeedbackBlock
                   feedback={latestFeedback}
                   triesLeft={triesLeft}
-                  isFinalAttempt={isFinalAttempt}
                   unlock={unlock}
                   onGlossaryClick={onGlossaryClick}
                 />
@@ -313,6 +378,6 @@ export function PartCard({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.section>
+    </section>
   );
 }

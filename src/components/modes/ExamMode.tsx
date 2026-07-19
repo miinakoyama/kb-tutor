@@ -1099,11 +1099,7 @@ export function ExamMode({
                       {text.trim().length > 0 ? `“${text}”` : "(no answer)"}
                     </p>
                     {result?.feedback && result.feedback.segments.length > 0 && (
-                      <FeedbackBlock
-                        feedback={result.feedback}
-                        triesLeft={0}
-                        isFinalAttempt
-                      />
+                      <FeedbackBlock feedback={result.feedback} triesLeft={0} />
                     )}
                     {sampleAnswer && (
                       <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
