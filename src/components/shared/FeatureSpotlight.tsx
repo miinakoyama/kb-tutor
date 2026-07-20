@@ -10,6 +10,14 @@ const SPOTLIGHT_CARD_GAP = 12;
 const SPOTLIGHT_CARD_MAX_WIDTH = 420;
 const SPOTLIGHT_ENTRY_FADE_MS = 220;
 const SPOTLIGHT_INITIAL_TRACK_MS = 520;
+const FLUSH_EDGE_EPSILON_PX = 2;
+
+type CornerRadii = {
+  topLeft: number;
+  topRight: number;
+  bottomRight: number;
+  bottomLeft: number;
+};
 
 type SpotlightRect = {
   targetId: string;
@@ -17,6 +25,7 @@ type SpotlightRect = {
   left: number;
   width: number;
   height: number;
+  radii: CornerRadii;
 };
 
 type SpotlightCardPosition = {
@@ -25,20 +34,90 @@ type SpotlightCardPosition = {
   width: number;
 };
 
+function toBorderRadius(radii: CornerRadii): string {
+  return `${radii.topLeft}px ${radii.topRight}px ${radii.bottomRight}px ${radii.bottomLeft}px`;
+}
+
+function toRoundedRectPath(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radii: CornerRadii,
+): string {
+  const maxRadiusX = width / 2;
+  const maxRadiusY = height / 2;
+  const tl = Math.min(radii.topLeft, maxRadiusX, maxRadiusY);
+  const tr = Math.min(radii.topRight, maxRadiusX, maxRadiusY);
+  const br = Math.min(radii.bottomRight, maxRadiusX, maxRadiusY);
+  const bl = Math.min(radii.bottomLeft, maxRadiusX, maxRadiusY);
+
+  return [
+    `M ${x + tl} ${y}`,
+    `H ${x + width - tr}`,
+    tr > 0 ? `A ${tr} ${tr} 0 0 1 ${x + width} ${y + tr}` : `L ${x + width} ${y}`,
+    `V ${y + height - br}`,
+    br > 0
+      ? `A ${br} ${br} 0 0 1 ${x + width - br} ${y + height}`
+      : `L ${x + width} ${y + height}`,
+    `H ${x + bl}`,
+    bl > 0 ? `A ${bl} ${bl} 0 0 1 ${x} ${y + height - bl}` : `L ${x} ${y + height}`,
+    `V ${y + tl}`,
+    tl > 0 ? `A ${tl} ${tl} 0 0 1 ${x + tl} ${y}` : `L ${x} ${y}`,
+    "Z",
+  ].join(" ");
+}
+
+function clampSpotlightRect(
+  rect: DOMRect,
+  viewportWidth: number,
+  viewportHeight: number,
+): Omit<SpotlightRect, "targetId"> {
+  // Edge-flush controls (e.g. the Notes tab) should keep padding only on open
+  // sides, with square corners on the flush side — matching rounded-l / rounded-r tabs.
+  const flushLeft = rect.left <= FLUSH_EDGE_EPSILON_PX;
+  const flushTop = rect.top <= FLUSH_EDGE_EPSILON_PX;
+  const flushRight = rect.right >= viewportWidth - FLUSH_EDGE_EPSILON_PX;
+  const flushBottom = rect.bottom >= viewportHeight - FLUSH_EDGE_EPSILON_PX;
+
+  const left = rect.left - (flushLeft ? 0 : SPOTLIGHT_PADDING);
+  const top = rect.top - (flushTop ? 0 : SPOTLIGHT_PADDING);
+  const right = rect.right + (flushRight ? 0 : SPOTLIGHT_PADDING);
+  const bottom = rect.bottom + (flushBottom ? 0 : SPOTLIGHT_PADDING);
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  const radius = SPOTLIGHT_RING_RADIUS;
+
+  return {
+    top,
+    left,
+    width,
+    height,
+    radii: {
+      topLeft: flushLeft || flushTop ? 0 : radius,
+      topRight: flushRight || flushTop ? 0 : radius,
+      bottomRight: flushRight || flushBottom ? 0 : radius,
+      bottomLeft: flushLeft || flushBottom ? 0 : radius,
+    },
+  };
+}
+
 function toSpotlightRects(targetIds: string[]): SpotlightRect[] {
   if (typeof window === "undefined") return [];
   const rects: SpotlightRect[] = [];
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
 
   for (const targetId of targetIds) {
     const candidates = Array.from(
       document.querySelectorAll<HTMLElement>(`[data-tour-id="${targetId}"]`),
     );
     const target = candidates.find((candidate) => {
-      const rect = candidate.getBoundingClientRect();
+      const candidateRect = candidate.getBoundingClientRect();
       const style = window.getComputedStyle(candidate);
       return (
-        rect.width > 0 &&
-        rect.height > 0 &&
+        candidateRect.width > 0 &&
+        candidateRect.height > 0 &&
         style.display !== "none" &&
         style.visibility !== "hidden"
       );
@@ -47,23 +126,9 @@ function toSpotlightRects(targetIds: string[]): SpotlightRect[] {
     if (!target) continue;
 
     const rect = target.getBoundingClientRect();
-    const top = Math.max(VIEWPORT_GUTTER, rect.top - SPOTLIGHT_PADDING);
-    const left = Math.max(VIEWPORT_GUTTER, rect.left - SPOTLIGHT_PADDING);
-    const right = Math.min(
-      window.innerWidth - VIEWPORT_GUTTER,
-      rect.right + SPOTLIGHT_PADDING,
-    );
-    const bottom = Math.min(
-      window.innerHeight - VIEWPORT_GUTTER,
-      rect.bottom + SPOTLIGHT_PADDING,
-    );
-
     rects.push({
       targetId,
-      top,
-      left,
-      width: Math.max(0, right - left),
-      height: Math.max(0, bottom - top),
+      ...clampSpotlightRect(rect, viewportWidth, viewportHeight),
     });
   }
 
@@ -82,6 +147,12 @@ function toBoundingRect(rects: SpotlightRect[]): SpotlightRect | null {
     left,
     width: right - left,
     height: bottom - top,
+    radii: {
+      topLeft: SPOTLIGHT_RING_RADIUS,
+      topRight: SPOTLIGHT_RING_RADIUS,
+      bottomRight: SPOTLIGHT_RING_RADIUS,
+      bottomLeft: SPOTLIGHT_RING_RADIUS,
+    },
   };
 }
 
@@ -265,6 +336,7 @@ export function FeatureSpotlight({
 
   return (
     <div
+      data-testid="feature-spotlight"
       className="fixed inset-0 z-[75] transition-opacity ease-out"
       style={{
         opacity: isVisible ? 1 : 0,
@@ -281,14 +353,15 @@ export function FeatureSpotlight({
             <mask id={maskId}>
               <rect x="0" y="0" width="100%" height="100%" fill="white" />
               {spotlightRects.map((rect, index) => (
-                <rect
+                <path
                   key={`mask-${rect.targetId}-${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
-                  x={rect.left}
-                  y={rect.top}
-                  width={rect.width}
-                  height={rect.height}
-                  rx={SPOTLIGHT_RING_RADIUS}
-                  ry={SPOTLIGHT_RING_RADIUS}
+                  d={toRoundedRectPath(
+                    rect.left,
+                    rect.top,
+                    rect.width,
+                    rect.height,
+                    rect.radii,
+                  )}
                   fill="black"
                 />
               ))}
@@ -309,13 +382,13 @@ export function FeatureSpotlight({
       {spotlightRects.map((rect, index) => (
         <div
           key={`${rect.targetId}-${rect.top}-${rect.left}-${rect.width}-${rect.height}-${index}`}
-          className="pointer-events-none fixed border-2 border-mint transition-[top,left,width,height] duration-150 ease-out"
+          className="pointer-events-none fixed border-2 border-mint transition-[top,left,width,height,border-radius] duration-150 ease-out"
           style={{
             top: rect.top,
             left: rect.left,
             width: rect.width,
             height: rect.height,
-            borderRadius: SPOTLIGHT_RING_RADIUS,
+            borderRadius: toBorderRadius(rect.radii),
           }}
         />
       ))}

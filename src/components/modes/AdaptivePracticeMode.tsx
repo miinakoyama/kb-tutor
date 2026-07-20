@@ -83,6 +83,8 @@ const GLOSSARY_FALLBACK_LIMIT = 6;
 const FOCUS_LOSS_FLUSH_GRACE_MS = 400;
 const READ_ALOUD_SPOTLIGHT_DISMISSED_KEY =
   "kb-tutor-spotlight-read-aloud-dismissed-v1";
+const NOTES_SPOTLIGHT_DISMISSED_KEY =
+  "kb-tutor-spotlight-notes-dismissed-v1";
 const SIDEBAR_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
   "kb-tutor-spotlight-sidebar-glossary-dismissed-v1";
 const INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
@@ -90,11 +92,16 @@ const INLINE_GLOSSARY_SPOTLIGHT_DISMISSED_KEY =
 const FEATURE_SPOTLIGHT_TARGET_IDS = {
   READ_ALOUD_QUESTION: "feature-read-aloud-question",
   READ_ALOUD_CHOICES: "feature-read-aloud-choices",
+  NOTES_BUTTON: "feature-notes-button",
   SIDEBAR_GLOSSARY_BUTTON: "feature-sidebar-glossary-button",
   INLINE_GLOSSARY_TERM: "feature-inline-glossary-term",
 } as const;
 
-type FeatureSpotlightType = "read-aloud" | "sidebar-glossary" | "inline-glossary";
+type FeatureSpotlightType =
+  | "read-aloud"
+  | "notes"
+  | "sidebar-glossary"
+  | "inline-glossary";
 type AdaptiveRequestResult = "selected" | "stopped" | "scope_unavailable";
 
 function isDocumentActiveForTiming(): boolean {
@@ -757,6 +764,19 @@ export function AdaptivePracticeMode({
       return;
     }
 
+    const hasNotesTarget = Boolean(
+      document.querySelector(
+        `[data-tour-id="${FEATURE_SPOTLIGHT_TARGET_IDS.NOTES_BUTTON}"]`,
+      ),
+    );
+    if (
+      hasNotesTarget &&
+      window.localStorage.getItem(NOTES_SPOTLIGHT_DISMISSED_KEY) !== "1"
+    ) {
+      setActiveFeatureSpotlight("notes");
+      return;
+    }
+
     if (
       sidebarGlossaryReady &&
       hasSidebarGlossaryTarget &&
@@ -785,12 +805,34 @@ export function AdaptivePracticeMode({
     showScaffold,
   ]);
 
-  const dismissReadAloudSpotlight = useCallback(() => {
+  const advanceFromReadAloudSpotlight = useCallback(() => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(READ_ALOUD_SPOTLIGHT_DISMISSED_KEY, "1");
     }
+    const hasNotesTarget = Boolean(
+      document.querySelector(
+        `[data-tour-id="${FEATURE_SPOTLIGHT_TARGET_IDS.NOTES_BUTTON}"]`,
+      ),
+    );
+    const notesPending =
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(NOTES_SPOTLIGHT_DISMISSED_KEY) !== "1";
+
+    if (hasNotesTarget && notesPending) {
+      setActiveFeatureSpotlight("notes");
+      return;
+    }
     setActiveFeatureSpotlight((current) =>
       current === "read-aloud" ? null : current,
+    );
+  }, []);
+
+  const dismissNotesSpotlight = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(NOTES_SPOTLIGHT_DISMISSED_KEY, "1");
+    }
+    setActiveFeatureSpotlight((current) =>
+      current === "notes" ? null : current,
     );
   }, []);
 
@@ -1704,7 +1746,12 @@ export function AdaptivePracticeMode({
             )}
       </QuestionSessionShell>
 
-      {question ? <QuestionNoteDrawer questionId={question.id} /> : null}
+      {question ? (
+        <QuestionNoteDrawer
+          questionId={question.id}
+          tourId={FEATURE_SPOTLIGHT_TARGET_IDS.NOTES_BUTTON}
+        />
+      ) : null}
 
       <PracticePaceCheckIn
         open={showPaceCheckIn}
@@ -1721,7 +1768,17 @@ export function AdaptivePracticeMode({
           ]}
           title="Read Aloud is available"
           description="Use Read Aloud to listen to the question and choices at any time."
-          onClose={dismissReadAloudSpotlight}
+          ctaLabel="Next"
+          onClose={advanceFromReadAloudSpotlight}
+        />
+      ) : null}
+
+      {activeFeatureSpotlight === "notes" ? (
+        <FeatureSpotlight
+          targetId={FEATURE_SPOTLIGHT_TARGET_IDS.NOTES_BUTTON}
+          title="Notes are available"
+          description="Tap the note icon on the right to jot things down while you practice. You can revisit your notes anytime on the Review page."
+          onClose={dismissNotesSpotlight}
         />
       ) : null}
 

@@ -1,9 +1,20 @@
 import type { BrowserContext, Page } from "@playwright/test";
 
+const FEATURE_SPOTLIGHT_DISMISSED_KEYS = [
+  "kb-tutor-spotlight-read-aloud-dismissed-v1",
+  "kb-tutor-spotlight-notes-dismissed-v1",
+  "kb-tutor-spotlight-sidebar-glossary-dismissed-v1",
+  "kb-tutor-spotlight-inline-glossary-dismissed-v1",
+  "kb-tutor-exam-onboarding-dismissed-v1",
+] as const;
+
 export async function disableOnboardingTour(context: BrowserContext): Promise<void> {
-  await context.addInitScript(() => {
+  await context.addInitScript((spotlightKeys: readonly string[]) => {
     const keyPrefix = "kb-tutor-onboarding-complete:";
     localStorage.setItem(`${keyPrefix}anonymous`, "1");
+    for (const key of spotlightKeys) {
+      localStorage.setItem(key, "1");
+    }
 
     const originalGetItem = Storage.prototype.getItem;
     Storage.prototype.getItem = function patchedGetItem(key: string): string | null {
@@ -12,21 +23,12 @@ export async function disableOnboardingTour(context: BrowserContext): Promise<vo
       }
       return originalGetItem.call(this, key);
     };
-  });
+  }, FEATURE_SPOTLIGHT_DISMISSED_KEYS);
 }
 
 export async function dismissTourIfVisible(page: Page): Promise<void> {
-  const anyDismissButton = page
-    .getByRole("button", {
-      name: /^(Skip tour|Got it|Dismiss feature tip)$/,
-    })
-    .first();
-
-  const hasDismissUi = await anyDismissButton
-    .isVisible({ timeout: 5_000 })
-    .catch(() => false);
-  if (!hasDismissUi) return;
-
+  // Only dismiss known onboarding/tour UI. Do not match bare "Next"/"Continue"
+  // app controls (practice/exam advance, assignment CTAs, etc.).
   for (let attempt = 0; attempt < 6; attempt += 1) {
     let dismissedSomething = false;
 
@@ -37,24 +39,31 @@ export async function dismissTourIfVisible(page: Page): Promise<void> {
       dismissedSomething = true;
     }
 
-    const featureTipCta = page.getByRole("button", { name: "Got it" }).first();
-    if (await featureTipCta.isVisible({ timeout: 500 }).catch(() => false)) {
-      await featureTipCta.click();
-      await featureTipCta.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
-      dismissedSomething = true;
-    }
-
-    const dismissFeatureTip = page
-      .getByRole("button", {
-        name: "Dismiss feature tip",
-      })
-      .first();
-    if (
-      await dismissFeatureTip.isVisible({ timeout: 500 }).catch(() => false)
-    ) {
-      await dismissFeatureTip.click();
-      await dismissFeatureTip.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
-      dismissedSomething = true;
+    const featureSpotlight = page.getByTestId("feature-spotlight");
+    if (await featureSpotlight.isVisible({ timeout: 500 }).catch(() => false)) {
+      const featureTipCta = featureSpotlight
+        .getByRole("button", { name: /^(Got it|Next|Continue)$/ })
+        .first();
+      if (await featureTipCta.isVisible({ timeout: 500 }).catch(() => false)) {
+        await featureTipCta.click();
+        await featureSpotlight
+          .waitFor({ state: "hidden", timeout: 5_000 })
+          .catch(() => {});
+        dismissedSomething = true;
+      } else {
+        const dismissFeatureTip = featureSpotlight
+          .getByRole("button", { name: "Dismiss feature tip" })
+          .first();
+        if (
+          await dismissFeatureTip.isVisible({ timeout: 500 }).catch(() => false)
+        ) {
+          await dismissFeatureTip.click();
+          await featureSpotlight
+            .waitFor({ state: "hidden", timeout: 5_000 })
+            .catch(() => {});
+          dismissedSomething = true;
+        }
+      }
     }
 
     if (!dismissedSomething) break;

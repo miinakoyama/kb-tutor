@@ -50,9 +50,13 @@ function parseAnswers(text: string): string[] {
 
 interface QuestionNoteDrawerProps {
   questionId: string;
+  tourId?: string;
 }
 
-export function QuestionNoteDrawer({ questionId }: QuestionNoteDrawerProps) {
+export function QuestionNoteDrawer({
+  questionId,
+  tourId,
+}: QuestionNoteDrawerProps) {
   const [open, setOpen] = useState(false);
   const [answers, setAnswers] = useState<string[]>(emptyAnswers);
   const [loadedQuestionId, setLoadedQuestionId] = useState<string | null>(null);
@@ -155,6 +159,7 @@ export function QuestionNoteDrawer({ questionId }: QuestionNoteDrawerProps) {
       <button
         type="button"
         onClick={() => setOpen(true)}
+        data-tour-id={tourId}
         className="fixed right-0 top-1/2 z-40 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 border-[color:var(--assignment-glass-border)] bg-[color:var(--assignment-glass-bg)] text-[color:var(--foreground)] shadow-lg backdrop-blur-md transition hover:w-12 hover:bg-white/90"
         aria-label="Open notes"
         title="Notes"
