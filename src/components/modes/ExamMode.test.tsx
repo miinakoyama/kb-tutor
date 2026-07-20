@@ -204,7 +204,8 @@ describe("ExamMode onboarding timing + analytics gating", () => {
     );
 
     await screen.findByText("Question one prompt");
-    fireEvent.click(screen.getByRole("button", { name: /B\s*Option B/i }));
+    // Match by option text: display letters are position-based after shuffle.
+    fireEvent.click(screen.getByRole("button", { name: /Option B/i }));
     expect(getAnswerHistory()).toContainEqual(
       expect.objectContaining({
         questionId: "q-1",

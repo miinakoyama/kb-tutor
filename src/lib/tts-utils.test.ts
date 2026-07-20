@@ -23,10 +23,22 @@ function makeQuestion(overrides: Partial<Question> = {}): Question {
 }
 
 describe("buildChoicesReadText", () => {
-  it("joins options in the form 'ID. TEXT' separated by spaces", () => {
+  it("joins options in the form 'LABEL. TEXT' using display position letters", () => {
     expect(buildChoicesReadText(makeQuestion())).toBe(
       "A. Alpha B. Beta",
     );
+  });
+
+  it("labels by display order even when option ids are out of sequence", () => {
+    const question = makeQuestion({
+      options: [
+        { id: "C", text: "Gamma" },
+        { id: "A", text: "Alpha" },
+        { id: "B", text: "Beta" },
+      ],
+      correctOptionId: "A",
+    });
+    expect(buildChoicesReadText(question)).toBe("A. Gamma B. Alpha C. Beta");
   });
 });
 
