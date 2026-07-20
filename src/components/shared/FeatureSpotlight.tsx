@@ -336,6 +336,7 @@ export function FeatureSpotlight({
 
   return (
     <div
+      data-testid="feature-spotlight"
       className="fixed inset-0 z-[75] transition-opacity ease-out"
       style={{
         opacity: isVisible ? 1 : 0,
