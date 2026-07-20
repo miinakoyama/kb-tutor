@@ -97,10 +97,42 @@ describe("isNonRetriableError", () => {
     expect(isNonRetriableError(makeErr("PGRST204"))).toBe(true);
   });
 
+  it("treats structured attempts-API failures as permanent", () => {
+    expect(isNonRetriableError(makeErr("validation_error"))).toBe(true);
+    expect(isNonRetriableError(makeErr("not_found"))).toBe(true);
+    expect(
+      isNonRetriableError(
+        new SyncWriteError({
+          message: "bad payload",
+          code: "400",
+          details: null,
+          constraint: null,
+          retriable: false,
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("lets transient errors through the retry loop", () => {
     // Network/timeouts/5xx have no code or a non-blocklisted one.
     expect(isNonRetriableError(makeErr(null))).toBe(false);
     expect(isNonRetriableError(makeErr("08006"))).toBe(false); // connection_failure
+    // Bare HTTP status strings are ambiguous (lookup failures can be 400/404).
+    expect(isNonRetriableError(makeErr("400"))).toBe(false);
+    expect(isNonRetriableError(makeErr("404"))).toBe(false);
+    expect(isNonRetriableError(makeErr("lookup_failed"))).toBe(false);
+    expect(isNonRetriableError(makeErr("500"))).toBe(false);
+    expect(
+      isNonRetriableError(
+        new SyncWriteError({
+          message: "db blip",
+          code: "400",
+          details: null,
+          constraint: null,
+          retriable: true,
+        }),
+      ),
+    ).toBe(false);
     expect(isNonRetriableError(new Error("Network error"))).toBe(false);
     expect(isNonRetriableError("not even an error")).toBe(false);
   });
@@ -176,5 +208,180 @@ describe("discardFailedPending", () => {
     expect(remaining[0].id).toBe("b");
     // Idempotent — no further failures to drop.
     expect(discardFailedPending()).toBe(0);
+  });
+});
+
+describe("applyBatchResults silent recovery", () => {
+  const { applyBatchResults, SyncWriteError, BACKOFF_MS } = __testing;
+
+  function attemptEntry(id: string, tries = 0) {
+    return {
+      id,
+      kind: "attempt" as const,
+      payload: {
+        clientAttemptId: id,
+        questionId: `q-${id}`,
+        selectedOptionId: "A",
+        isCorrect: true,
+        mode: "practice",
+        answeredAt: new Date().toISOString(),
+      },
+      tries,
+      createdAt: Date.now(),
+      nextAttemptAt: Date.now(),
+    };
+  }
+
+  it("discards permanent failures instead of parking them as failed", () => {
+    const entry = attemptEntry("perm");
+    __testing.writeQueue([entry]);
+
+    const anyFailure = applyBatchResults(
+      [entry],
+      [
+        {
+          status: "rejected",
+          reason: new SyncWriteError({
+            message: "fk boom",
+            code: "23503",
+            details: null,
+            constraint: null,
+          }),
+        },
+      ],
+    );
+
+    expect(anyFailure).toBe(true);
+    expect(__testing.readQueue()).toHaveLength(0);
+  });
+
+  it("discards structured not_found rejections instead of retrying forever", () => {
+    const entry = attemptEntry("missing");
+    __testing.writeQueue([entry]);
+
+    const anyFailure = applyBatchResults(
+      [entry],
+      [
+        {
+          status: "rejected",
+          reason: new SyncWriteError({
+            message: "Question not found or inaccessible",
+            code: "not_found",
+            details: null,
+            constraint: null,
+            retriable: false,
+          }),
+        },
+      ],
+    );
+
+    expect(anyFailure).toBe(true);
+    expect(__testing.readQueue()).toHaveLength(0);
+  });
+
+  it("keeps bare HTTP 404 failures queued for retry", () => {
+    const entry = attemptEntry("ambiguous");
+    __testing.writeQueue([entry]);
+
+    const anyFailure = applyBatchResults(
+      [entry],
+      [
+        {
+          status: "rejected",
+          reason: new SyncWriteError({
+            message: "Question not found or inaccessible",
+            code: "404",
+            details: null,
+            constraint: null,
+          }),
+        },
+      ],
+    );
+
+    expect(anyFailure).toBe(true);
+    expect(__testing.readQueue()).toHaveLength(1);
+    expect(__testing.readQueue()[0].id).toBe("ambiguous");
+  });
+
+  it("keeps scheduling transient failures past MAX_TRIES with max backoff", () => {
+    const entry = attemptEntry("temp", __testing.MAX_TRIES);
+    __testing.writeQueue([entry]);
+    const before = Date.now();
+
+    const anyFailure = applyBatchResults(
+      [entry],
+      [{ status: "rejected", reason: new Error("network down") }],
+    );
+
+    expect(anyFailure).toBe(true);
+    const remaining = __testing.readQueue();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].tries).toBe(__testing.MAX_TRIES + 1);
+    expect(remaining[0].nextAttemptAt).toBeGreaterThanOrEqual(
+      before + BACKOFF_MS[BACKOFF_MS.length - 1],
+    );
+  });
+});
+
+describe("reclaimExhaustedEntries", () => {
+  it("drops legacy non-retriable failures without resetting modern backoff", () => {
+    const futureBackoff = Date.now() + 300_000;
+    __testing.writeQueue([
+      {
+        id: "perm",
+        kind: "attempt",
+        payload: {
+          clientAttemptId: "perm",
+          questionId: "q1",
+          selectedOptionId: "A",
+          isCorrect: true,
+          mode: "practice",
+          answeredAt: new Date().toISOString(),
+        },
+        tries: __testing.MAX_TRIES,
+        createdAt: Date.now(),
+        nextAttemptAt: Number.MAX_SAFE_INTEGER,
+        lastError: "[non-retriable] fk boom",
+      },
+      {
+        id: "temp",
+        kind: "attempt",
+        payload: {
+          clientAttemptId: "temp",
+          questionId: "q2",
+          selectedOptionId: "B",
+          isCorrect: true,
+          mode: "practice",
+          answeredAt: new Date().toISOString(),
+        },
+        tries: __testing.MAX_TRIES + 1,
+        createdAt: Date.now(),
+        nextAttemptAt: futureBackoff,
+        lastError: "network down",
+      },
+      {
+        id: "ok",
+        kind: "attempt",
+        payload: {
+          clientAttemptId: "ok",
+          questionId: "q3",
+          selectedOptionId: "C",
+          isCorrect: true,
+          mode: "practice",
+          answeredAt: new Date().toISOString(),
+        },
+        tries: 2,
+        createdAt: Date.now(),
+        nextAttemptAt: Date.now() + 1_000,
+      },
+    ]);
+
+    __testing.reclaimExhaustedEntries();
+
+    const remaining = __testing.readQueue();
+    expect(remaining.map((w) => w.id)).toEqual(["temp", "ok"]);
+    expect(remaining[0].tries).toBe(__testing.MAX_TRIES + 1);
+    expect(remaining[0].nextAttemptAt).toBe(futureBackoff);
+    expect(remaining[1].tries).toBe(2);
   });
 });

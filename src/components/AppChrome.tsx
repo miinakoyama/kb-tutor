@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { MigrationBootstrap } from "@/components/MigrationBootstrap";
-import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { AllAssignmentsCompleteModalManager } from "@/components/assignments/AllAssignmentsCompleteModalManager";
 import { BadgeCelebrationModalManager } from "@/components/badges/BadgeCelebrationModalManager";
 
@@ -29,7 +28,6 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <MigrationBootstrap />
-      {!hideNavigationChrome && <SyncStatusIndicator />}
       {!hideNavigationChrome && (
         <Sidebar isCollapsed={sidebarCollapsed} onToggle={handleToggleSidebar} />
       )}
