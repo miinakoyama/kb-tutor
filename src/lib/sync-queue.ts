@@ -539,33 +539,32 @@ function scheduleNextFlush(delayMs: number) {
 }
 
 /**
- * Migrate queue entries left over from the old "stop at MAX_TRIES and wait
- * for UI Retry/Dismiss" model. Non-retriable markers are dropped (local
- * history already has the answer); transient exhausted items get a fresh
- * retry budget so silent recovery can continue.
+ * Drop queue entries left over from the old "park at MAX_TRIES for UI
+ * Dismiss" model. Those permanent failures were tagged
+ * `[non-retriable] …` and must not sit forever now that there is no
+ * student-facing dismiss control.
+ *
+ * Do NOT reset `tries` / `nextAttemptAt` for ordinary transient failures
+ * that have simply crossed MAX_TRIES: modern `applyBatchResults` keeps
+ * them queued with the capped backoff, and reclaiming them on every
+ * `processQueue()` would collapse that backoff into immediate bursts
+ * whenever anything else wakes the queue.
+ *
+ * Legacy transient items with `tries >= MAX_TRIES` are already eligible
+ * once `nextAttemptAt` is due — the main loop no longer filters them out.
  */
 function reclaimExhaustedEntries(): void {
   const queue = readQueue();
   if (queue.length === 0) return;
 
-  let changed = false;
-  const next: PendingWrite[] = [];
-  for (const entry of queue) {
-    if (entry.tries < MAX_TRIES) {
-      next.push(entry);
-      continue;
-    }
-    changed = true;
-    if (entry.lastError?.startsWith("[non-retriable]")) {
-      debugLog("reclaim: discarding legacy permanent failure", entry.id);
-      continue;
-    }
-    debugLog("reclaim: resetting exhausted transient item", entry.id);
-    next.push({ ...entry, tries: 0, nextAttemptAt: Date.now() });
-  }
+  const remaining = queue.filter((entry) => {
+    if (!entry.lastError?.startsWith("[non-retriable]")) return true;
+    debugLog("reclaim: discarding legacy permanent failure", entry.id);
+    return false;
+  });
 
-  if (!changed) return;
-  writeQueue(next);
+  if (remaining.length === queue.length) return;
+  writeQueue(remaining);
   broadcast(recomputeStatus());
 }
 
@@ -595,9 +594,10 @@ async function runQueueLoop(): Promise<void> {
     broadcast(recomputeStatus());
 
     const now = Date.now();
-    // Every queued item is eligible: permanent failures are discarded in
-    // applyBatchResults, and reclaimExhaustedEntries resets any legacy
-    // MAX_TRIES entries before this loop runs.
+    // Every queued item is eligible once due. Permanent failures are
+    // discarded in applyBatchResults (or reclaimExhaustedEntries for
+    // legacy `[non-retriable]` markers); transient items keep their
+    // capped backoff even after MAX_TRIES.
     const due = queue.filter((w) => w.nextAttemptAt <= now);
     if (due.length === 0) {
       const nextAt = Math.min(...queue.map((w) => w.nextAttemptAt));

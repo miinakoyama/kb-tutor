@@ -324,7 +324,8 @@ describe("applyBatchResults silent recovery", () => {
 });
 
 describe("reclaimExhaustedEntries", () => {
-  it("drops legacy non-retriable failures and resets exhausted transient ones", () => {
+  it("drops legacy non-retriable failures without resetting modern backoff", () => {
+    const futureBackoff = Date.now() + 300_000;
     __testing.writeQueue([
       {
         id: "perm",
@@ -353,9 +354,9 @@ describe("reclaimExhaustedEntries", () => {
           mode: "practice",
           answeredAt: new Date().toISOString(),
         },
-        tries: __testing.MAX_TRIES,
+        tries: __testing.MAX_TRIES + 1,
         createdAt: Date.now(),
-        nextAttemptAt: Number.MAX_SAFE_INTEGER,
+        nextAttemptAt: futureBackoff,
         lastError: "network down",
       },
       {
@@ -379,8 +380,8 @@ describe("reclaimExhaustedEntries", () => {
 
     const remaining = __testing.readQueue();
     expect(remaining.map((w) => w.id)).toEqual(["temp", "ok"]);
-    expect(remaining[0].tries).toBe(0);
-    expect(remaining[0].nextAttemptAt).toBeLessThanOrEqual(Date.now());
+    expect(remaining[0].tries).toBe(__testing.MAX_TRIES + 1);
+    expect(remaining[0].nextAttemptAt).toBe(futureBackoff);
     expect(remaining[1].tries).toBe(2);
   });
 });
