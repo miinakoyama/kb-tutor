@@ -48,6 +48,7 @@ import {
 } from "@/components/shared/QuestionSessionShell";
 import { fetchBookmarkIds, saveAnswer, saveAnswerBatch, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
+import { withShuffledMcqOptions } from "@/lib/mcq-options";
 import { DiagramRenderer } from "@/components/diagrams/DiagramRenderer";
 import { AdaptiveDiagramViewport } from "@/components/diagrams/AdaptiveDiagramViewport";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
@@ -353,7 +354,7 @@ export function ExamMode({
       ordered = pool.slice(0, requestedQuestionCount);
     }
     examRunStartedAtRef.current = new Date().toISOString();
-    setSessionQuestions(ordered);
+    setSessionQuestions(withShuffledMcqOptions(ordered));
 
     if (isAssignmentRun && answered) {
       const prefilled: Record<number, AnswerRecord> = {};
@@ -603,10 +604,12 @@ export function ExamMode({
     
     if (questionCount <= questions.length) {
       const shuffled = shuffleArray(questions);
-      selectedQuestions = shuffled.slice(0, questionCount).map((q, idx) => ({
-        ...q,
-        _sessionIndex: idx,
-      }));
+      selectedQuestions = withShuffledMcqOptions(
+        shuffled.slice(0, questionCount).map((q, idx) => ({
+          ...q,
+          _sessionIndex: idx,
+        })),
+      );
     } else {
       const shuffled = shuffleArray(questions);
       let tempQuestions = [...shuffled];
@@ -617,10 +620,12 @@ export function ExamMode({
         tempQuestions = [...tempQuestions, ...reshuffled.slice(0, remaining)];
       }
       
-      selectedQuestions = tempQuestions.map((q, idx) => ({
-        ...q,
-        _sessionIndex: idx,
-      }));
+      selectedQuestions = withShuffledMcqOptions(
+        tempQuestions.map((q, idx) => ({
+          ...q,
+          _sessionIndex: idx,
+        })),
+      );
     }
     
     badgeCelebrationCheckedRef.current = false;

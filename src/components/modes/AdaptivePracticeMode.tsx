@@ -59,6 +59,10 @@ import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { buildFeedbackReadText } from "@/lib/tts-utils";
 import { fetchBookmarkIds, saveAnswer, toggleBookmark } from "@/lib/storage";
 import { shuffleArray } from "@/lib/array-utils";
+import {
+  shuffleQuestionOptions,
+  withShuffledMcqOptions,
+} from "@/lib/mcq-options";
 import { getStandardForTopic } from "@/lib/standards";
 import glossaryData from "@/data/glossary.json";
 import { trackAnalyticsEvent } from "@/lib/analytics/client";
@@ -330,7 +334,10 @@ export function AdaptivePracticeMode({
           );
           return "stopped";
         }
-        setSessionQuestions((previous) => append ? [...previous, payload.question!] : [payload.question!]);
+        const nextQuestion = shuffleQuestionOptions(payload.question);
+        setSessionQuestions((previous) =>
+          append ? [...previous, nextQuestion] : [nextQuestion],
+        );
         const bookmarkIds = await fetchBookmarkIds();
         if (bookmarkIds.includes(payload.question.id)) {
           setBookmarkedQuestions((previous) => new Set(previous).add(payload.question!.id));
@@ -395,11 +402,13 @@ export function AdaptivePracticeMode({
     // random-shuffle-and-cap behavior.
     const initializeFixedPractice = () => {
       const count = questionCount ?? questions.length;
-      const selected = isAssignmentRun
-        ? questions.slice(0, count)
-        : questionTypeSelection === "mixed"
-          ? buildMixedQuestionSequence(questions, count)
-          : shuffleArray(questions).slice(0, count);
+      const selected = withShuffledMcqOptions(
+        isAssignmentRun
+          ? questions.slice(0, count)
+          : questionTypeSelection === "mixed"
+            ? buildMixedQuestionSequence(questions, count)
+            : shuffleArray(questions).slice(0, count),
+      );
       setSessionQuestions(selected);
       // Seed bookmark state from Supabase so it stays correct across devices.
       // toggleBookmark updates the localStorage cache synchronously after this
@@ -1096,9 +1105,11 @@ export function AdaptivePracticeMode({
     // Self-practice: cycle by appending another shuffled (or mixed-pattern) batch
     setSessionQuestions((prev) => [
       ...prev,
-      ...(questionTypeSelection === "mixed"
-        ? buildMixedQuestionSequence(questions, questions.length, prev)
-        : shuffleArray(questions)),
+      ...withShuffledMcqOptions(
+        questionTypeSelection === "mixed"
+          ? buildMixedQuestionSequence(questions, questions.length, prev)
+          : shuffleArray(questions),
+      ),
     ]);
     setCurrentIndex((prev) => prev + 1);
     requestAnimationFrame(() => {
