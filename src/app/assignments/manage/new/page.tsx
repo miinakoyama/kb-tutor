@@ -333,7 +333,14 @@ function CreateAssignmentContent() {
         if (!response.ok) {
           throw new Error(payload.error ?? "Failed to create assignment.");
         }
-        if (typeof window !== "undefined") {
+        // Only clear the autosaved manual draft when this submit actually
+        // consumed those questions. Creating from an existing set or review
+        // scope must not wipe unrelated in-progress authoring work.
+        if (
+          typeof window !== "undefined" &&
+          mode !== "review" &&
+          sourceType === "manual"
+        ) {
           window.localStorage.removeItem(MANUAL_DRAFT_STORAGE_KEY);
         }
         router.push("/assignments/manage");
