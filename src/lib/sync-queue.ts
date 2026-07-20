@@ -8,8 +8,10 @@
  *  - Make retries idempotent. Each queued attempt carries a client-generated
  *    UUID (`clientAttemptId`); the server dedupes via a unique index. Bookmark
  *    ops collapse to "desired state per questionId".
- *  - Surface sync status to the UI without forcing callers to await. Listeners
- *    receive `{ queuedCount, lastStatus }` via a tiny pub/sub.
+ *  - Broadcast sync status for diagnostics (DevTools). There is no student-
+ *    facing sync UI — transient failures keep retrying with backoff, and
+ *    permanent (non-retriable) failures are dropped from the queue. Local
+ *    answer/bookmark history in localStorage is unaffected either way.
  *
  * This module is browser-only. It no-ops on the server.
  */
@@ -89,8 +91,7 @@ export type SyncStatus =
   | { kind: "saving"; queuedCount: number }
   | { kind: "saved" }
   | { kind: "offline"; queuedCount: number }
-  | { kind: "retrying"; queuedCount: number }
-  | { kind: "failed"; queuedCount: number };
+  | { kind: "retrying"; queuedCount: number };
 
 type Listener = (status: SyncStatus) => void;
 
@@ -174,8 +175,6 @@ function recomputeStatus(): SyncStatus {
   if (queue.length === 0) return { kind: "idle" };
   const online = isBrowser() ? navigator.onLine : true;
   if (!online) return { kind: "offline", queuedCount: queue.length };
-  const anyFailed = queue.some((w) => w.tries >= MAX_TRIES);
-  if (anyFailed) return { kind: "failed", queuedCount: queue.length };
   const anyRetrying = queue.some((w) => w.tries > 0);
   if (anyRetrying) return { kind: "retrying", queuedCount: queue.length };
   return { kind: "saving", queuedCount: queue.length };
@@ -331,10 +330,10 @@ async function refreshSupabaseSession(): Promise<void> {
 /**
  * Full "reset and flush" path. Called when we want to recover from a
  * possibly-wedged supabase client — currently the browser `online` event
- * and the manual "Retry now" button. The visibility handler intentionally
- * skips this (see `installSyncLifecycle`) because a hidden tab regaining
- * focus doesn't imply a network transition, and rebuilding the supabase
- * client on every tab focus would be needlessly disruptive.
+ * and DevTools `__kbTutorSyncInfo.retry()`. The visibility handler
+ * intentionally skips this (see `installSyncLifecycle`) because a hidden
+ * tab regaining focus doesn't imply a network transition, and rebuilding
+ * the supabase client on every tab focus would be needlessly disruptive.
  *
  * Steps:
  *   1. Abort any stale in-flight waits so the queue can move immediately.
@@ -377,17 +376,22 @@ class SyncWriteError extends Error {
   code: string | null;
   details: string | null;
   constraint: string | null;
+  /** When set by the API, overrides code-based retry classification. */
+  retriable: boolean | null;
   constructor(params: {
     message: string;
     code: string | null;
     details: string | null;
     constraint: string | null;
+    retriable?: boolean | null;
   }) {
     super(params.message);
     this.name = "SyncWriteError";
     this.code = params.code;
     this.details = params.details;
     this.constraint = params.constraint;
+    this.retriable =
+      typeof params.retriable === "boolean" ? params.retriable : null;
   }
 }
 
@@ -426,6 +430,9 @@ function toSyncError(err: unknown): SyncWriteError {
  * - 42P10: on-conflict column mismatch (schema/drift)
  * - 42703: undefined_column
  * - PGRST116/PGRST204/etc are PostgREST shape errors; also hopeless on retry
+ * - validation_error / not_found: structured codes from
+ *   `/api/analytics/attempts` (bare HTTP 400/404 are NOT enough — those can
+ *   also mean a transient Supabase read failure)
  */
 const NON_RETRIABLE_CODES = new Set<string>([
   "23503",
@@ -435,12 +442,19 @@ const NON_RETRIABLE_CODES = new Set<string>([
   "42P10",
   "42703",
   "42P01",
+  "validation_error",
+  "not_found",
 ]);
 
 function isNonRetriableError(err: unknown): boolean {
-  if (err instanceof SyncWriteError && err.code) {
-    if (NON_RETRIABLE_CODES.has(err.code)) return true;
-    if (err.code.startsWith("PGRST")) return true;
+  if (err instanceof SyncWriteError) {
+    // Explicit flag from the attempts API wins when present.
+    if (err.retriable === false) return true;
+    if (err.retriable === true) return false;
+    if (err.code) {
+      if (NON_RETRIABLE_CODES.has(err.code)) return true;
+      if (err.code.startsWith("PGRST")) return true;
+    }
   }
   return false;
 }
@@ -465,6 +479,7 @@ async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Pr
         code?: string | null;
         details?: string | null;
         constraint?: string | null;
+        retriable?: boolean;
       }
     | null = null;
 
@@ -474,6 +489,7 @@ async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Pr
       code?: string | null;
       details?: string | null;
       constraint?: string | null;
+      retriable?: boolean;
     };
   } catch {
     payload = null;
@@ -483,9 +499,14 @@ async function runAttempt(entry: Extract<PendingWrite, { kind: "attempt" }>): Pr
     message:
       payload?.error ??
       `Failed to persist attempt (HTTP ${response.status})`,
+    // Prefer structured API codes. Falling back to the bare HTTP status is
+    // only for diagnostics — those numeric strings are not treated as
+    // permanent (lookup failures may also surface as 400/404).
     code: payload?.code ?? String(response.status),
     details: payload?.details ?? null,
     constraint: payload?.constraint ?? null,
+    retriable:
+      typeof payload?.retriable === "boolean" ? payload.retriable : null,
   });
 }
 
@@ -517,7 +538,39 @@ function scheduleNextFlush(delayMs: number) {
   }, Math.max(50, delayMs));
 }
 
+/**
+ * Drop queue entries left over from the old "park at MAX_TRIES for UI
+ * Dismiss" model. Those permanent failures were tagged
+ * `[non-retriable] …` and must not sit forever now that there is no
+ * student-facing dismiss control.
+ *
+ * Do NOT reset `tries` / `nextAttemptAt` for ordinary transient failures
+ * that have simply crossed MAX_TRIES: modern `applyBatchResults` keeps
+ * them queued with the capped backoff, and reclaiming them on every
+ * `processQueue()` would collapse that backoff into immediate bursts
+ * whenever anything else wakes the queue.
+ *
+ * Legacy transient items with `tries >= MAX_TRIES` are already eligible
+ * once `nextAttemptAt` is due — the main loop no longer filters them out.
+ */
+function reclaimExhaustedEntries(): void {
+  const queue = readQueue();
+  if (queue.length === 0) return;
+
+  const remaining = queue.filter((entry) => {
+    if (!entry.lastError?.startsWith("[non-retriable]")) return true;
+    debugLog("reclaim: discarding legacy permanent failure", entry.id);
+    return false;
+  });
+
+  if (remaining.length === queue.length) return;
+  writeQueue(remaining);
+  broadcast(recomputeStatus());
+}
+
 async function runQueueLoop(): Promise<void> {
+  reclaimExhaustedEntries();
+
   if (!canUseRemoteDb()) {
     debugLog("processQueue: canUseRemoteDb=false, exiting");
     return;
@@ -541,20 +594,13 @@ async function runQueueLoop(): Promise<void> {
     broadcast(recomputeStatus());
 
     const now = Date.now();
-    // Items that have burned their retry budget must not be picked up by
-    // the automatic loop — they surface as "failed" in the UI and only
-    // advance when the user explicitly retries (which resets `tries` via
-    // `resetBackoff({ resetTries: true })`). Without this guard,
-    // permanent-error items with `backoff = 0` would loop tightly against
-    // the server: scheduleNextFlush keeps re-firing every ~50ms.
-    const pendingRetryable = queue.filter((w) => w.tries < MAX_TRIES);
-    if (pendingRetryable.length === 0) {
-      debugLog("processQueue: only failed items remain, not scheduling");
-      return;
-    }
-    const due = pendingRetryable.filter((w) => w.nextAttemptAt <= now);
+    // Every queued item is eligible once due. Permanent failures are
+    // discarded in applyBatchResults (or reclaimExhaustedEntries for
+    // legacy `[non-retriable]` markers); transient items keep their
+    // capped backoff even after MAX_TRIES.
+    const due = queue.filter((w) => w.nextAttemptAt <= now);
     if (due.length === 0) {
-      const nextAt = Math.min(...pendingRetryable.map((w) => w.nextAttemptAt));
+      const nextAt = Math.min(...queue.map((w) => w.nextAttemptAt));
       debugLog("processQueue: nothing due, scheduling in", nextAt - now, "ms");
       scheduleNextFlush(nextAt - now);
       return;
@@ -588,20 +634,15 @@ async function runQueueLoop(): Promise<void> {
     completedAny = true;
   }
 
-  // Post-failure cleanup. If nothing is left (everything ended up discarded
-  // as permanent before it got here), emit the terminal status; otherwise
-  // schedule the next flush based on the soonest-due *retryable* item.
-  // Exhausted items are skipped — they'll only move again when the user
-  // hits "Retry" or "Dismiss".
+  // Post-failure cleanup. Permanent failures were already dropped; anything
+  // left is scheduled for another backoff retry.
   const remaining = readQueue();
   if (remaining.length === 0) {
     if (completedAny) flashSaved();
     else broadcast({ kind: "idle" });
     return;
   }
-  const retryable = remaining.filter((w) => w.tries < MAX_TRIES);
-  if (retryable.length === 0) return;
-  const nextAt = Math.min(...retryable.map((w) => w.nextAttemptAt));
+  const nextAt = Math.min(...remaining.map((w) => w.nextAttemptAt));
   scheduleNextFlush(nextAt - Date.now());
 }
 
@@ -630,30 +671,22 @@ function applyBatchResults(
     const err = result.reason;
     const latest = readQueue().find((w) => w.id === entry.id);
     if (!latest) continue;
-    // Permanent errors (FK violation, check constraint, schema drift) never
-    // recover with more attempts. Burn the retry budget so the UI promotes
-    // them to "failed" immediately and the user can see that something
-    // actually needs attention — instead of spinning "Retrying…" for ~8
-    // minutes.
-    const permanent = isNonRetriableError(err);
-    const tries = permanent ? MAX_TRIES : latest.tries + 1;
     const message = err instanceof Error ? err.message : String(err);
-    if (permanent) {
-      debugLog("processQueue: permanent failure, not retrying", message);
+    // Permanent errors never recover. Drop the queued server write — the
+    // local answer/bookmark history is already persisted — so the queue
+    // cannot stall forever without a student-facing recovery UI.
+    if (isNonRetriableError(err)) {
+      debugLog("processQueue: permanent failure, discarding", message);
+      writeQueue(readQueue().filter((w) => w.id !== entry.id));
+      continue;
     }
-    // For permanent failures we push nextAttemptAt far into the future so
-    // that even if the "tries >= MAX_TRIES" filter is ever bypassed, the
-    // item still won't silently hammer the server on every tick. A manual
-    // retry resets `tries` via `resetBackoff({ resetTries: true })`, which
-    // also flattens nextAttemptAt back to `now`.
-    const nextAttemptAt = permanent
-      ? Number.MAX_SAFE_INTEGER
-      : Date.now() + BACKOFF_MS[Math.min(tries, BACKOFF_MS.length - 1)];
+    const tries = latest.tries + 1;
     const updated: PendingWrite = {
       ...latest,
       tries,
-      nextAttemptAt,
-      lastError: permanent ? `[non-retriable] ${message}` : message,
+      nextAttemptAt:
+        Date.now() + BACKOFF_MS[Math.min(tries, BACKOFF_MS.length - 1)],
+      lastError: message,
     };
     writeQueue(readQueue().map((w) => (w.id === entry.id ? updated : w)));
   }
@@ -693,12 +726,11 @@ export function processQueue(): Promise<void> {
 
 /**
  * Reset backoff on every queued item so they become immediately due. Used
- * both for manual retry and when the browser reconnects — otherwise a long
- * backoff (e.g. 45s–2min after a string of offline failures) keeps the
- * indicator spinning even after the network has come back.
+ * when the browser reconnects (and DevTools `__kbTutorSyncInfo.retry()`) —
+ * otherwise a long backoff after offline failures delays the next flush.
  *
- * `resetTries=true` also wipes the failure counter so the next retry is
- * treated as a fresh attempt ("Saving" instead of "Retrying").
+ * `resetTries=true` also wipes the failure counter so status reports
+ * "saving" rather than "retrying".
  */
 function resetBackoff({ resetTries }: { resetTries: boolean }): void {
   const now = Date.now();
@@ -711,24 +743,21 @@ function resetBackoff({ resetTries }: { resetTries: boolean }): void {
 }
 
 /**
- * Manual retry (user clicks "Retry" button). We do the full reconnect dance
- * — rebuild the supabase client, re-validate auth, then flush — because the
- * usual reason a user clicks this is that the queue got wedged on something
- * only a fresh client can resolve.
+ * Full reconnect + flush. Exposed for DevTools
+ * (`window.__kbTutorSyncInfo.retry()`); automatic recovery uses the same
+ * path on the browser `online` event.
  */
 export function retryAllPending(): Promise<void> {
   return wakeAndFlush();
 }
 
 /**
- * Drop writes that have exhausted their retry budget. Used by the "Dismiss"
- * affordance on the failed pill — the local answer history is already in
- * localStorage, so losing the queued server-side copy is an acceptable
- * tradeoff to stop the indicator from being stuck forever on a permanent
- * error (e.g. references to data that doesn't exist on this server).
+ * Drop writes that still carry a legacy exhausted retry budget. Permanent
+ * failures are now discarded automatically in `applyBatchResults`; this
+ * remains as a DevTools escape hatch
+ * (`window.__kbTutorSyncInfo.discard()`).
  *
- * Returns the number of entries actually discarded so callers (e.g. the
- * diagnostic console API) can report it without re-reading the queue.
+ * Returns the number of entries actually discarded.
  */
 export function discardFailedPending(): number {
   const before = readQueue();
@@ -819,11 +848,10 @@ export function installSyncLifecycle(): void {
   if (!isBrowser() || lifecycleInstalled) return;
   lifecycleInstalled = true;
   broadcast(recomputeStatus());
-  // Expose both the diagnostic (`__kbTutorSyncInfo()`) and escape-hatch
-  // helpers (`.retry()` / `.discard()` / `.queue()`) on `window` so the
-  // queue can be inspected or unwedged from DevTools when the UI button
-  // itself isn't responding. Attached here instead of at module scope so
-  // SSR bundles don't touch `window`.
+  // Expose the diagnostic (`__kbTutorSyncInfo()`) and escape-hatch helpers
+  // (`.retry()` / `.discard()` / `.queue()`) on `window` for DevTools.
+  // Attached here instead of at module scope so SSR bundles don't touch
+  // `window`.
   const globalApi = getSyncDiagnostic as typeof getSyncDiagnostic & {
     retry: () => Promise<void>;
     discard: () => number;
@@ -869,6 +897,10 @@ export const __testing = {
   writeQueue,
   isNonRetriableError,
   SyncWriteError,
+  applyBatchResults,
+  reclaimExhaustedEntries,
+  MAX_TRIES,
+  BACKOFF_MS,
   PROCESSING_STUCK_MS,
   /** Rig the processingPromise lock to a specific state for watchdog tests. */
   setLock(promise: Promise<void> | null, startedAt: number): void {

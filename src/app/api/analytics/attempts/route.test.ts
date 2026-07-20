@@ -177,6 +177,10 @@ describe("POST /api/analytics/attempts", () => {
     }));
 
     expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "not_found",
+      retriable: false,
+    });
     expect(tables.attempts.rows).toHaveLength(0);
   });
 
@@ -287,6 +291,10 @@ describe("POST /api/analytics/attempts", () => {
     }));
 
     expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "not_found",
+      retriable: false,
+    });
     expect(tables.attempts.rows).toHaveLength(0);
     expect(consoleError).toHaveBeenCalledWith(
       "Ambiguous assignment question snapshot identity",
@@ -463,5 +471,43 @@ describe("POST /api/analytics/attempts", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ isCorrect: false });
     expect(tables.attempts.rows[0].question_set_id).toBe("set-2");
+  });
+
+  it("returns a retriable 503 when assignment snapshot lookup fails transiently", async () => {
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [{
+            id: "assignment-1",
+            school_id: "school-1",
+            created_at: "2026-05-01T00:00:00.000Z",
+          }],
+        },
+        assignment_targets: {
+          rows: [{ assignment_id: "assignment-1", student_user_id: "student-1" }],
+        },
+        school_members: { rows: [] },
+        assignment_question_snapshots: {
+          rows: [],
+          error: { message: "connection reset" },
+        },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(attemptRequest("assignment-1"));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "lookup_failed",
+      retriable: true,
+      error: "connection reset",
+    });
+    expect(tables.attempts.rows).toHaveLength(0);
   });
 });
