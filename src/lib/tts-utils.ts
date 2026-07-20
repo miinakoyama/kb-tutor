@@ -1,4 +1,5 @@
 import type { AnswerRecord, Question } from "@/types/question";
+import { optionLabelAtIndex } from "@/lib/mcq-options";
 
 function cleanFeedback(feedback?: string): string {
   if (!feedback) return "";
@@ -6,7 +7,9 @@ function cleanFeedback(feedback?: string): string {
 }
 
 export function buildChoicesReadText(question: Question): string {
-  return question.options.map((opt) => `${opt.id}. ${opt.text}`).join(" ");
+  return question.options
+    .map((opt, index) => `${optionLabelAtIndex(index)}. ${opt.text}`)
+    .join(" ");
 }
 
 interface FeedbackTextOptions {

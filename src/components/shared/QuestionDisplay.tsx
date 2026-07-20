@@ -11,6 +11,7 @@ import { useTextToSpeech, type ReadSection } from "@/hooks/useTextToSpeech";
 import { useQuestionMedia } from "@/hooks/useQuestionMedia";
 import { useShortViewport } from "@/hooks/useShortViewport";
 import { buildChoicesReadText } from "@/lib/tts-utils";
+import { optionLabelAtIndex } from "@/lib/mcq-options";
 import { ReadAloudButton } from "./ReadAloudButton";
 
 interface QuestionDisplayProps {
@@ -199,7 +200,7 @@ export function QuestionDisplay({
           }`}
         >
           <div className={`${compact ? "space-y-2 mt-1.5" : "space-y-3"}`}>
-            {question.options.map((opt) => {
+            {question.options.map((opt, optionIndex) => {
               const isSelected = isAnswered
                 ? currentAnswer?.selectedOptionId === opt.id
                 : selectedOptionId === opt.id;
@@ -212,6 +213,7 @@ export function QuestionDisplay({
                 <OptionButton
                   key={opt.id}
                   option={opt}
+                  label={optionLabelAtIndex(optionIndex)}
                   isSelected={isSelected}
                   showCorrect={showCorrect}
                   showWrong={showWrong}

@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Question } from "@/types/question";
 import { QuestionDisplay } from "./QuestionDisplay";
@@ -39,6 +39,34 @@ const question: Question = {
 };
 
 afterEach(cleanup);
+
+describe("QuestionDisplay option labels", () => {
+  it("shows A/B/C by display position, not stored option ids", () => {
+    const shuffled: Question = {
+      ...question,
+      options: [
+        { id: "C", text: "Third stored" },
+        { id: "A", text: "First stored" },
+        { id: "B", text: "Second stored" },
+      ],
+      correctOptionId: "A",
+    };
+
+    render(
+      <QuestionDisplay
+        question={shuffled}
+        questionNumber={1}
+        onOptionClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("A")).toBeTruthy();
+    expect(screen.getByText("B")).toBeTruthy();
+    expect(screen.getByText("C")).toBeTruthy();
+    expect(screen.getByText("Third stored")).toBeTruthy();
+    expect(screen.queryByText("D")).toBeNull();
+  });
+});
 
 describe("QuestionDisplay compact layout", () => {
   it("applies automatic short-viewport compaction to the card wrapper", () => {

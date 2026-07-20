@@ -5,6 +5,8 @@ import { Info } from "lucide-react";
 
 interface OptionButtonProps {
   option: { id: string; text: string; feedback?: string };
+  /** Display letter (A/B/C…). Defaults to option.id when omitted. */
+  label?: string;
   isSelected: boolean;
   showCorrect: boolean;
   showWrong: boolean;
@@ -17,6 +19,7 @@ interface OptionButtonProps {
 
 export function OptionButton({
   option,
+  label,
   isSelected,
   showCorrect,
   showWrong,
@@ -102,7 +105,7 @@ export function OptionButton({
           className={`${compact ? "w-7 h-7 text-xs" : "w-8 h-8 text-sm"} rounded-full flex items-center justify-center font-semibold flex-shrink-0`}
           style={badgeStyles}
         >
-          {option.id}
+          {label ?? option.id}
         </span>
         <span className={`flex-1 text-slate-gray ${compact ? "text-sm" : "text-[15px]"}`}>{option.text}</span>
 
