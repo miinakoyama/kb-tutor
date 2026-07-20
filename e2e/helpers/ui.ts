@@ -18,7 +18,7 @@ export async function disableOnboardingTour(context: BrowserContext): Promise<vo
 export async function dismissTourIfVisible(page: Page): Promise<void> {
   const anyDismissButton = page
     .getByRole("button", {
-      name: /^(Skip tour|Got it|Dismiss feature tip)$/,
+      name: /^(Skip tour|Got it|Next|Continue|Dismiss feature tip)$/,
     })
     .first();
 
@@ -37,7 +37,9 @@ export async function dismissTourIfVisible(page: Page): Promise<void> {
       dismissedSomething = true;
     }
 
-    const featureTipCta = page.getByRole("button", { name: "Got it" }).first();
+    const featureTipCta = page
+      .getByRole("button", { name: /^(Got it|Next|Continue)$/ })
+      .first();
     if (await featureTipCta.isVisible({ timeout: 500 }).catch(() => false)) {
       await featureTipCta.click();
       await featureTipCta.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
