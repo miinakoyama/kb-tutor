@@ -473,6 +473,113 @@ describe("POST /api/analytics/attempts", () => {
     expect(tables.attempts.rows[0].question_set_id).toBe("set-2");
   });
 
+  it("persists review-assignment attempts from the live question bank without snapshots", async () => {
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+      tables: {
+        generated_questions: {
+          rows: [{
+            id: "q1",
+            set_id: "set-1",
+            is_visible: true,
+            payload: { correctOptionId: "A", questionSetId: "set-1" },
+          }],
+        },
+      },
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [{
+            id: "assignment-review",
+            school_id: "school-1",
+            mode: "review",
+            created_at: "2026-05-01T00:00:00.000Z",
+          }],
+        },
+        assignment_targets: {
+          rows: [{
+            assignment_id: "assignment-review",
+            student_user_id: "student-1",
+          }],
+        },
+        school_members: { rows: [] },
+        assignment_question_snapshots: { rows: [] },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(
+      attemptRequest("assignment-review", {
+        mode: "review",
+        questionSetId: "set-1",
+        selectedOptionId: "A",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, isCorrect: true });
+    expect(tables.attempts.rows).toHaveLength(1);
+    expect(tables.attempts.rows[0]).toMatchObject({
+      assignment_id: "assignment-review",
+      mode: "review",
+      question_id: "q1",
+      question_set_id: "set-1",
+      is_finalized: true,
+      question_completed: true,
+    });
+  });
+
+  it("does not fall back to the live bank for practice assignments without snapshots", async () => {
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+      tables: {
+        generated_questions: {
+          rows: [{
+            id: "q1",
+            set_id: "set-1",
+            is_visible: true,
+            payload: { correctOptionId: "A" },
+          }],
+        },
+      },
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [{
+            id: "assignment-practice",
+            school_id: "school-1",
+            mode: "practice",
+            created_at: "2026-05-01T00:00:00.000Z",
+          }],
+        },
+        assignment_targets: {
+          rows: [{
+            assignment_id: "assignment-practice",
+            student_user_id: "student-1",
+          }],
+        },
+        school_members: { rows: [] },
+        assignment_question_snapshots: { rows: [] },
+        attempts: { rows: [] },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(
+      attemptRequest("assignment-practice", {
+        questionSetId: "set-1",
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(tables.attempts.rows).toHaveLength(0);
+  });
+
   it("returns a retriable 503 when assignment snapshot lookup fails transiently", async () => {
     const { client: serverClient } = createMockSupabaseClient({
       user: makeUser("student-1"),

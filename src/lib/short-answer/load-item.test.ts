@@ -171,4 +171,107 @@ describe("loadShortAnswerPart", () => {
 
     expect(loaded?.item.stem).toBe("Stem for set-b");
   });
+
+  it("falls back to generated_questions for review assignments without snapshots", async () => {
+    const item = sampleItem as ShortAnswerItem;
+    const from = vi.fn((table: string) => {
+      if (table === "assignment_question_snapshots") {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder;
+        builder.select = vi.fn(chain);
+        builder.eq = vi.fn(chain);
+        builder.is = vi.fn(chain);
+        builder.maybeSingle = vi.fn(async () => ({ data: null, error: null }));
+        Object.defineProperty(builder, "then", {
+          value: (resolve: (value: { data: []; error: null }) => void) =>
+            resolve({ data: [], error: null }),
+        });
+        return builder;
+      }
+      if (table === "assignments") {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder;
+        builder.select = vi.fn(chain);
+        builder.eq = vi.fn(chain);
+        builder.maybeSingle = vi.fn(async () => ({
+          data: { mode: "review" },
+          error: null,
+        }));
+        return builder;
+      }
+      if (table === "generated_questions") {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder;
+        builder.select = vi.fn(chain);
+        builder.eq = vi.fn(chain);
+        builder.maybeSingle = vi.fn(async () => ({
+          data: {
+            payload_lean: {
+              questionType: "open-ended",
+              shortAnswer: item,
+            },
+          },
+          error: null,
+        }));
+        return builder;
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const loaded = await loadShortAnswerPart(
+      { from } as unknown as SupabaseClient,
+      {
+        assignmentId: "assignment-review",
+        questionId: "saq-1",
+        questionSetId: "set-1",
+        partLabel: "A",
+      },
+    );
+
+    expect(from).toHaveBeenCalledWith("generated_questions");
+    expect(loaded).toEqual({ item, part: item.parts[0] });
+  });
+
+  it("does not fall back to generated_questions for practice assignments without snapshots", async () => {
+    const from = vi.fn((table: string) => {
+      if (table === "assignment_question_snapshots") {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder;
+        builder.select = vi.fn(chain);
+        builder.eq = vi.fn(chain);
+        builder.is = vi.fn(chain);
+        builder.maybeSingle = vi.fn(async () => ({ data: null, error: null }));
+        Object.defineProperty(builder, "then", {
+          value: (resolve: (value: { data: []; error: null }) => void) =>
+            resolve({ data: [], error: null }),
+        });
+        return builder;
+      }
+      if (table === "assignments") {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder;
+        builder.select = vi.fn(chain);
+        builder.eq = vi.fn(chain);
+        builder.maybeSingle = vi.fn(async () => ({
+          data: { mode: "practice" },
+          error: null,
+        }));
+        return builder;
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const loaded = await loadShortAnswerPart(
+      { from } as unknown as SupabaseClient,
+      {
+        assignmentId: "assignment-practice",
+        questionId: "saq-1",
+        questionSetId: "set-1",
+        partLabel: "A",
+      },
+    );
+
+    expect(from).not.toHaveBeenCalledWith("generated_questions");
+    expect(loaded).toBeNull();
+  });
 });

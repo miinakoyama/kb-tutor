@@ -230,6 +230,19 @@ type QuestionResolveResult =
   | { status: "not_found" }
   | { status: "lookup_failed"; message: string };
 
+async function isReviewAssignment(
+  admin: SupabaseClient,
+  assignmentId: string,
+): Promise<"yes" | "no" | "lookup_failed"> {
+  const { data, error } = await admin
+    .from("assignments")
+    .select("mode")
+    .eq("id", assignmentId)
+    .maybeSingle();
+  if (error) return "lookup_failed";
+  return data?.mode === "review" ? "yes" : "no";
+}
+
 async function resolveAuthoritativeQuestion(
   requester: SupabaseClient,
   admin: SupabaseClient,
@@ -260,28 +273,41 @@ async function resolveAuthoritativeQuestion(
       : snapshots.length === 1
         ? snapshots
         : [];
-    if (matchingSnapshots.length !== 1) {
-      if (matchingSnapshots.length > 1) {
-        console.error("Ambiguous assignment question snapshot identity", {
-          assignmentId,
-          questionId,
-          questionSetId,
-          questionContentVersion,
-          matchingSnapshotCount: matchingSnapshots.length,
-        });
-      }
+    if (matchingSnapshots.length === 1) {
+      const snapshot = matchingSnapshots[0];
+      const correctOptionId = correctOptionIdFromPayload(snapshot?.payload);
+      if (!correctOptionId) return { status: "not_found" };
+      return {
+        status: "ok",
+        question: {
+          correctOptionId,
+          ...questionIdentityFromPayload(snapshot.payload),
+        },
+      };
+    }
+    if (matchingSnapshots.length > 1) {
+      console.error("Ambiguous assignment question snapshot identity", {
+        assignmentId,
+        questionId,
+        questionSetId,
+        questionContentVersion,
+        matchingSnapshotCount: matchingSnapshots.length,
+      });
       return { status: "not_found" };
     }
-    const snapshot = matchingSnapshots[0];
-    const correctOptionId = correctOptionIdFromPayload(snapshot?.payload);
-    if (!correctOptionId) return { status: "not_found" };
-    return {
-      status: "ok",
-      question: {
-        correctOptionId,
-        ...questionIdentityFromPayload(snapshot.payload),
-      },
-    };
+
+    // Review assignments resolve questions dynamically from the live bank and
+    // do not create frozen snapshots. Fall through to generated_questions.
+    const reviewAssignment = await isReviewAssignment(admin, assignmentId);
+    if (reviewAssignment === "lookup_failed") {
+      return {
+        status: "lookup_failed",
+        message: "Failed to resolve assignment mode",
+      };
+    }
+    if (reviewAssignment === "no") {
+      return { status: "not_found" };
+    }
   }
 
   if (questionSetId) {

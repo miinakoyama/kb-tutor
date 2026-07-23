@@ -1,10 +1,12 @@
 /**
  * Server-side resolution of a short-answer item + part for grading.
  * Reads the payload from the assignment snapshot when an assignmentId is
- * supplied, otherwise from generated_questions. Uses the caller's session
- * client so RLS still scopes access. Returns null when the question is not a
- * valid short-answer item (route responds 404), and throws when the database
- * lookup itself fails so callers do not misreport an outage as missing data.
+ * supplied. Review assignments have no frozen snapshots, so those fall back
+ * to generated_questions (same as Self Practice). Uses the caller's session
+ * client so RLS still scopes access when reading the live bank. Returns null
+ * when the question is not a valid short-answer item (route responds 404),
+ * and throws when the database lookup itself fails so callers do not
+ * misreport an outage as missing data.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -64,6 +66,32 @@ function matchesSnapshotIdentity(
     payloadId(payload) === questionId &&
     payloadQuestionSetId(payload) === (questionSetId ?? null)
   );
+}
+
+async function loadGeneratedQuestionPayload(
+  supabase: SupabaseClient,
+  params: {
+    questionId: string;
+    questionSetId?: string | null;
+  },
+): Promise<unknown> {
+  const { questionId, questionSetId } = params;
+  // generated_questions is keyed by (set_id, id). Using only id forces the
+  // hosted database to evaluate the table's nested student-access RLS policy
+  // across the whole question bank, which can exceed the statement timeout.
+  // The complete key is also required for correctness because id alone is
+  // not unique by schema.
+  if (!questionSetId) return null;
+  const { data, error } = await supabase
+    .from("generated_questions")
+    .select("payload_lean")
+    .eq("set_id", questionSetId)
+    .eq("id", questionId)
+    .maybeSingle();
+  if (error) {
+    throw new ShortAnswerItemLoadError(error.message, error.code);
+  }
+  return data?.payload_lean ?? null;
 }
 
 export interface LoadedItem {
@@ -126,23 +154,32 @@ export async function loadShortAnswerPart(
         )
           ?.payload ?? null;
     }
-  } else {
-    // generated_questions is keyed by (set_id, id). Using only id forces the
-    // hosted database to evaluate the table's nested student-access RLS policy
-    // across the whole question bank, which can exceed the statement timeout.
-    // The complete key is also required for correctness because id alone is
-    // not unique by schema.
-    if (!questionSetId) return null;
-    const { data, error } = await supabase
-      .from("generated_questions")
-      .select("payload_lean")
-      .eq("set_id", questionSetId)
-      .eq("id", questionId)
-      .maybeSingle();
-    if (error) {
-      throw new ShortAnswerItemLoadError(error.message, error.code);
+
+    // Review assignments resolve questions from the live bank and do not
+    // create assignment_question_snapshots rows.
+    if (!payload) {
+      const { data: assignment, error: assignmentError } = await supabase
+        .from("assignments")
+        .select("mode")
+        .eq("id", assignmentId)
+        .maybeSingle();
+      if (assignmentError) {
+        throw new ShortAnswerItemLoadError(
+          assignmentError.message,
+          assignmentError.code,
+        );
+      }
+      if (assignment?.mode !== "review") return null;
+      payload = await loadGeneratedQuestionPayload(supabase, {
+        questionId,
+        questionSetId,
+      });
     }
-    payload = data?.payload_lean ?? null;
+  } else {
+    payload = await loadGeneratedQuestionPayload(supabase, {
+      questionId,
+      questionSetId,
+    });
   }
 
   const resolved = extractShortAnswer(payload);
