@@ -100,6 +100,7 @@ export function buildAssignmentProgressCsv(
       `${prefix} answered_count`,
       `${prefix} total_questions`,
       `${prefix} correct_count`,
+      `${prefix} scored_total`,
       `${prefix} score_percent`,
       `${prefix} completed_at`,
     ];
@@ -120,13 +121,14 @@ export function buildAssignmentProgressCsv(
       const assignmentValues = data.assignments.flatMap((assignment) => {
         const progress = row.progress[assignment.assignmentId];
         if (!progress) {
-          return ["not_assigned", null, null, null, null, null] satisfies CsvValue[];
+          return ["not_assigned", null, null, null, null, null, null] satisfies CsvValue[];
         }
         return [
           progress.status,
           progress.answeredCount,
-          progress.scoredTotal ?? progress.totalQuestions,
+          progress.totalQuestions,
           progress.correctCount,
+          progress.scoredTotal,
           progress.scorePercent,
           progress.lastCompletedAt,
         ] satisfies CsvValue[];
