@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isQuestionInReviewAssignmentScope } from "@/lib/student-assignments";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface AttemptBody {
@@ -297,7 +298,8 @@ async function resolveAuthoritativeQuestion(
     }
 
     // Review assignments resolve questions dynamically from the live bank and
-    // do not create frozen snapshots. Fall through to generated_questions.
+    // do not create frozen snapshots. Only accept questions that are in this
+    // student's resolved review set for the assignment.
     const reviewAssignment = await isReviewAssignment(admin, assignmentId);
     if (reviewAssignment === "lookup_failed") {
       return {
@@ -306,6 +308,19 @@ async function resolveAuthoritativeQuestion(
       };
     }
     if (reviewAssignment === "no") {
+      return { status: "not_found" };
+    }
+    const scope = await isQuestionInReviewAssignmentScope(
+      admin,
+      userId,
+      assignmentId,
+      questionId,
+      questionSetId,
+    );
+    if (scope.error) {
+      return { status: "lookup_failed", message: scope.error };
+    }
+    if (!scope.allowed) {
       return { status: "not_found" };
     }
   }

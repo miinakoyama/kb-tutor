@@ -380,7 +380,22 @@ export function PracticePageClient({
         />
       );
     }
-    case "review":
+    case "review": {
+      // Fixed question-id batches (Review page bookmarks / "needs practice")
+      // must keep the selected set as-is. Routing them through ReviewMode would
+      // re-filter by wrong-attempt counts and drop bookmarked-only questions.
+      if (!assignmentIdParam?.trim() && selectedQuestionIds.length > 0) {
+        return (
+          <AdaptivePracticeMode
+            questions={filteredQuestions}
+            topicName={topicName}
+            questionCount={requestedQuestionCount ?? filteredQuestions.length}
+            mode="review"
+            backHref="/bookmarks"
+            showBackLink
+          />
+        );
+      }
       return (
         <ReviewMode
           questions={filteredQuestions}
@@ -391,6 +406,7 @@ export function PracticePageClient({
           onAllSchoolAssignmentsCompleted={assignmentCompletionCallback}
         />
       );
+    }
     default:
       return (
         <InvalidParamsMessage

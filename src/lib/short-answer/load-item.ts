@@ -15,6 +15,7 @@ import {
   resolveRuntimeShortAnswerItem,
   type RuntimeShortAnswerResolution,
 } from "@/lib/short-answer/question-guards";
+import { isQuestionInReviewAssignmentScope } from "@/lib/student-assignments";
 
 interface StoredPayload {
   id?: string;
@@ -116,9 +117,17 @@ export async function loadShortAnswerPart(
     questionSetId?: string | null;
     partLabel: PartLabel;
     assignmentId?: string | null;
+    /** Required for review-assignment live-bank fallback scope checks. */
+    studentUserId?: string | null;
   },
 ): Promise<LoadedItem | null> {
-  const { questionId, questionSetId, partLabel, assignmentId } = params;
+  const {
+    questionId,
+    questionSetId,
+    partLabel,
+    assignmentId,
+    studentUserId,
+  } = params;
 
   let payload: unknown = null;
 
@@ -156,7 +165,8 @@ export async function loadShortAnswerPart(
     }
 
     // Review assignments resolve questions from the live bank and do not
-    // create assignment_question_snapshots rows.
+    // create assignment_question_snapshots rows. Only load questions that are
+    // in this student's resolved review set for the assignment.
     if (!payload) {
       const { data: assignment, error: assignmentError } = await supabase
         .from("assignments")
@@ -170,6 +180,18 @@ export async function loadShortAnswerPart(
         );
       }
       if (assignment?.mode !== "review") return null;
+      if (!studentUserId) return null;
+      const scope = await isQuestionInReviewAssignmentScope(
+        supabase,
+        studentUserId,
+        assignmentId,
+        questionId,
+        questionSetId,
+      );
+      if (scope.error) {
+        throw new ShortAnswerItemLoadError(scope.error);
+      }
+      if (!scope.allowed) return null;
       payload = await loadGeneratedQuestionPayload(supabase, {
         questionId,
         questionSetId,

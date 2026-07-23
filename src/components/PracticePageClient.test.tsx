@@ -19,12 +19,15 @@ vi.mock("@/components/modes/AdaptivePracticeMode", () => ({
   AdaptivePracticeMode: ({
     questions,
     adaptiveStandardIds,
+    mode,
   }: {
     questions: Question[];
     adaptiveStandardIds?: string[];
+    mode?: string;
   }) => (
     <div
       data-testid="practice-mode"
+      data-mode={mode ?? "practice"}
       data-question-ids={questions.map((question) => question.id).join(",")}
       data-adaptive-standards={adaptiveStandardIds?.join(",") ?? ""}
     />
@@ -32,7 +35,9 @@ vi.mock("@/components/modes/AdaptivePracticeMode", () => ({
 }));
 
 vi.mock("@/components/modes/ExamMode", () => ({ ExamMode: () => null }));
-vi.mock("@/components/modes/ReviewMode", () => ({ ReviewMode: () => null }));
+vi.mock("@/components/modes/ReviewMode", () => ({
+  ReviewMode: () => <div data-testid="review-mode" />,
+}));
 vi.mock("@/lib/all-assignments-complete-modal", () => ({
   emitAllAssignmentsCompletedEvent: vi.fn(),
 }));
@@ -76,6 +81,20 @@ describe("PracticePageClient adaptive scope", () => {
     const mode = screen.getByTestId("practice-mode");
     expect(mode.getAttribute("data-question-ids")).toBe("question-a");
     expect(mode.getAttribute("data-adaptive-standards")).toBe("");
+  });
+
+  it("keeps review-mode question-id batches on AdaptivePracticeMode without ReviewMode filtering", () => {
+    render(
+      <PracticePageClient
+        modeParam="review"
+        questionIdsParam="question-a,question-b"
+      />,
+    );
+
+    expect(screen.queryByTestId("review-mode")).toBeNull();
+    const mode = screen.getByTestId("practice-mode");
+    expect(mode.getAttribute("data-mode")).toBe("review");
+    expect(mode.getAttribute("data-question-ids")).toBe("question-a,question-b");
   });
 
   it("enables adaptive selection for ordinary self-practice scope", () => {

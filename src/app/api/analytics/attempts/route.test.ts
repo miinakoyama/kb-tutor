@@ -482,7 +482,12 @@ describe("POST /api/analytics/attempts", () => {
             id: "q1",
             set_id: "set-1",
             is_visible: true,
-            payload: { correctOptionId: "A", questionSetId: "set-1" },
+            payload: {
+              id: "q1",
+              text: "Review question",
+              correctOptionId: "A",
+              questionSetId: "set-1",
+            },
           }],
         },
       },
@@ -494,6 +499,9 @@ describe("POST /api/analytics/attempts", () => {
             id: "assignment-review",
             school_id: "school-1",
             mode: "review",
+            max_questions: 10,
+            review_topics: [],
+            review_standards: [],
             created_at: "2026-05-01T00:00:00.000Z",
           }],
         },
@@ -505,7 +513,32 @@ describe("POST /api/analytics/attempts", () => {
         },
         school_members: { rows: [] },
         assignment_question_snapshots: { rows: [] },
-        attempts: { rows: [] },
+        // Prior wrong attempt puts q1 into the student's review set.
+        attempts: {
+          rows: [{
+            user_id: "student-1",
+            question_id: "q1",
+            question_set_id: "set-1",
+            is_correct: false,
+            is_finalized: true,
+            answered_at: "2026-04-01T10:00:00.000Z",
+            topic: "Genetics",
+            standard_id: "3.1.9-12.A",
+          }],
+        },
+        generated_questions: {
+          rows: [{
+            id: "q1",
+            set_id: "set-1",
+            is_visible: true,
+            payload: {
+              id: "q1",
+              text: "Review question",
+              correctOptionId: "A",
+              questionSetId: "set-1",
+            },
+          }],
+        },
       },
     });
     mockState.serverClient = serverClient;
@@ -521,8 +554,12 @@ describe("POST /api/analytics/attempts", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ ok: true, isCorrect: true });
-    expect(tables.attempts.rows).toHaveLength(1);
-    expect(tables.attempts.rows[0]).toMatchObject({
+    expect(
+      tables.attempts.rows.filter((row) => row.client_attempt_id),
+    ).toHaveLength(1);
+    expect(
+      tables.attempts.rows.find((row) => row.client_attempt_id),
+    ).toMatchObject({
       assignment_id: "assignment-review",
       mode: "review",
       question_id: "q1",
@@ -530,6 +567,88 @@ describe("POST /api/analytics/attempts", () => {
       is_finalized: true,
       question_completed: true,
     });
+  });
+
+  it("rejects review-assignment attempts for questions outside the resolved review set", async () => {
+    const { client: serverClient } = createMockSupabaseClient({
+      user: makeUser("student-1"),
+      tables: {
+        generated_questions: {
+          rows: [{
+            id: "q-out",
+            set_id: "set-1",
+            is_visible: true,
+            payload: {
+              id: "q-out",
+              text: "Out of scope",
+              correctOptionId: "A",
+            },
+          }],
+        },
+      },
+    });
+    const { client: adminClient, tables } = createMockSupabaseClient({
+      tables: {
+        assignments: {
+          rows: [{
+            id: "assignment-review",
+            school_id: "school-1",
+            mode: "review",
+            max_questions: 10,
+            review_topics: [],
+            review_standards: [],
+            created_at: "2026-05-01T00:00:00.000Z",
+          }],
+        },
+        assignment_targets: {
+          rows: [{
+            assignment_id: "assignment-review",
+            student_user_id: "student-1",
+          }],
+        },
+        school_members: { rows: [] },
+        assignment_question_snapshots: { rows: [] },
+        attempts: {
+          rows: [{
+            user_id: "student-1",
+            question_id: "q-in-scope",
+            question_set_id: "set-1",
+            is_correct: false,
+            is_finalized: true,
+            answered_at: "2026-04-01T10:00:00.000Z",
+            topic: "Genetics",
+            standard_id: "3.1.9-12.A",
+          }],
+        },
+        generated_questions: {
+          rows: [{
+            id: "q-in-scope",
+            set_id: "set-1",
+            payload: {
+              id: "q-in-scope",
+              text: "In scope",
+              correctOptionId: "A",
+            },
+          }],
+        },
+      },
+    });
+    mockState.serverClient = serverClient;
+    mockState.adminClient = adminClient;
+
+    const response = await POST(
+      attemptRequest("assignment-review", {
+        mode: "review",
+        questionId: "q-out",
+        questionSetId: "set-1",
+        selectedOptionId: "A",
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(
+      tables.attempts.rows.filter((row) => row.client_attempt_id),
+    ).toHaveLength(0);
   });
 
   it("does not fall back to the live bank for practice assignments without snapshots", async () => {
