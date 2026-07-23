@@ -8,9 +8,7 @@ const isQuestionInReviewAssignmentScope = vi.hoisted(() =>
 );
 
 vi.mock("@/lib/student-assignments", () => ({
-  isQuestionInReviewAssignmentScope: (
-    ...args: unknown[]
-  ) => isQuestionInReviewAssignmentScope(...args),
+  isQuestionInReviewAssignmentScope,
 }));
 
 import {
