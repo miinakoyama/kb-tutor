@@ -33,6 +33,17 @@ const assignment2: AssignmentInfo = {
   mode: "exam",
 };
 
+function attempt(
+  partial: Pick<AttemptProgressRow, "userId" | "assignmentId" | "questionId"> &
+    Partial<AttemptProgressRow>,
+): AttemptProgressRow {
+  return {
+    isCorrect: false,
+    answeredAt: "2026-04-19T12:00:00Z",
+    ...partial,
+  };
+}
+
 describe("classifyAssignmentProgress", () => {
   it("returns completed when last_completed_at is present", () => {
     expect(classifyAssignmentProgress("2026-04-20T00:00:00Z", 0)).toBe("completed");
@@ -69,10 +80,10 @@ describe("buildAssignmentProgress", () => {
       { assignmentId: "a2", studentUserId: "s1", lastCompletedAt: null },
     ];
     const attempts: AttemptProgressRow[] = [
-      { userId: "s2", assignmentId: "a1", questionId: "q1" },
-      { userId: "s2", assignmentId: "a1", questionId: "q2" },
+      attempt({ userId: "s2", assignmentId: "a1", questionId: "q1" }),
+      attempt({ userId: "s2", assignmentId: "a1", questionId: "q2" }),
       // s2 answered q1 twice — should still count as 1 distinct
-      { userId: "s2", assignmentId: "a1", questionId: "q1" },
+      attempt({ userId: "s2", assignmentId: "a1", questionId: "q1" }),
     ];
 
     const result = buildAssignmentProgress({
@@ -87,12 +98,14 @@ describe("buildAssignmentProgress", () => {
     const s3 = result.rows.find((r) => r.studentId === "s3")!;
 
     expect(s1.progress.a1.status).toBe("completed");
+    expect(s1.progress.a1.correctCount).toBeNull();
     expect(s1.progress.a2.status).toBe("not_started");
     expect(s1.completedCount).toBe(1);
     expect(s1.notStartedCount).toBe(1);
 
     expect(s2.progress.a1.status).toBe("in_progress");
     expect(s2.progress.a1.answeredCount).toBe(2);
+    expect(s2.progress.a1.correctCount).toBeNull();
     expect(s2.progress.a2?.status).toBe("not_started");
 
     expect(s3.progress.a1.status).toBe("not_started");
@@ -103,6 +116,233 @@ describe("buildAssignmentProgress", () => {
     expect(a1Summary.completedCount).toBe(1);
     expect(a1Summary.inProgressCount).toBe(1);
     expect(a1Summary.notStartedCount).toBe(1);
+  });
+
+  it("scores completed students from the last completed run only", () => {
+    const targets: AssignmentTargetRow[] = [
+      {
+        assignmentId: "a1",
+        studentUserId: "s1",
+        lastCompletedAt: "2026-04-20T18:00:00Z",
+      },
+    ];
+    const attempts: AttemptProgressRow[] = [
+      // Last completed run: 2/3 correct
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q1",
+        isCorrect: true,
+        answeredAt: "2026-04-20T16:00:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q2",
+        isCorrect: false,
+        answeredAt: "2026-04-20T16:05:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q3",
+        isCorrect: true,
+        answeredAt: "2026-04-20T16:10:00Z",
+      }),
+      // Retry after completion — must not affect completed score
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q1",
+        isCorrect: false,
+        answeredAt: "2026-04-21T10:00:00Z",
+      }),
+    ];
+
+    const result = buildAssignmentProgress({
+      assignments: [assignment1],
+      targets,
+      attempts,
+      students: [students[0]!],
+    });
+
+    const progress = result.rows[0]!.progress.a1;
+    expect(progress.status).toBe("completed");
+    expect(progress.correctCount).toBe(2);
+    expect(progress.scoredTotal).toBe(3);
+    expect(progress.scorePercent).toBe(67);
+  });
+
+  it("uses only the latest attempt per question inside the last completed window", () => {
+    const targets: AssignmentTargetRow[] = [
+      {
+        assignmentId: "a1",
+        studentUserId: "s1",
+        lastCompletedAt: "2026-04-20T18:00:00Z",
+      },
+    ];
+    const attempts: AttemptProgressRow[] = [
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q1",
+        isCorrect: false,
+        answeredAt: "2026-04-20T15:00:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q1",
+        isCorrect: true,
+        answeredAt: "2026-04-20T17:00:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q2",
+        isCorrect: true,
+        answeredAt: "2026-04-20T17:05:00Z",
+      }),
+    ];
+
+    const result = buildAssignmentProgress({
+      assignments: [assignment1],
+      targets,
+      attempts,
+      students: [students[0]!],
+    });
+
+    const progress = result.rows[0]!.progress.a1;
+    expect(progress.correctCount).toBe(2);
+    expect(progress.scoredTotal).toBe(2);
+    expect(progress.scorePercent).toBe(100);
+  });
+
+  it("excludes earlier completion runs when assignment_completions history exists", () => {
+    const targets: AssignmentTargetRow[] = [
+      {
+        assignmentId: "a1",
+        studentUserId: "s1",
+        lastCompletedAt: "2026-04-20T18:00:00Z",
+      },
+    ];
+    const attempts: AttemptProgressRow[] = [
+      // First completed run (should be ignored)
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q1",
+        isCorrect: true,
+        answeredAt: "2026-04-10T12:00:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q2",
+        isCorrect: true,
+        answeredAt: "2026-04-10T12:05:00Z",
+      }),
+      // Second completed run: 1/2
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q1",
+        isCorrect: false,
+        answeredAt: "2026-04-20T16:00:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a1",
+        questionId: "q3",
+        isCorrect: true,
+        answeredAt: "2026-04-20T16:05:00Z",
+      }),
+    ];
+
+    const result = buildAssignmentProgress({
+      assignments: [assignment1],
+      targets,
+      attempts,
+      completions: [
+        {
+          assignmentId: "a1",
+          studentUserId: "s1",
+          completedAt: "2026-04-10T13:00:00Z",
+        },
+        {
+          assignmentId: "a1",
+          studentUserId: "s1",
+          completedAt: "2026-04-20T18:00:00Z",
+        },
+      ],
+      students: [students[0]!],
+    });
+
+    const progress = result.rows[0]!.progress.a1;
+    expect(progress.correctCount).toBe(1);
+    expect(progress.scoredTotal).toBe(2);
+    expect(progress.scorePercent).toBe(50);
+  });
+
+  it("scores review-mode completions from distinct questions in the last run", () => {
+    const reviewAssignment: AssignmentInfo = {
+      id: "a-review",
+      title: "Review set",
+      schoolId: "c1",
+      dueDate: null,
+      totalQuestions: null,
+      mode: "review",
+    };
+    const targets: AssignmentTargetRow[] = [
+      {
+        assignmentId: "a-review",
+        studentUserId: "s1",
+        lastCompletedAt: "2026-04-20T18:00:00Z",
+      },
+    ];
+    const attempts: AttemptProgressRow[] = [
+      attempt({
+        userId: "s1",
+        assignmentId: "a-review",
+        questionId: "q1",
+        isCorrect: true,
+        answeredAt: "2026-04-20T16:00:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a-review",
+        questionId: "q2",
+        isCorrect: true,
+        answeredAt: "2026-04-20T16:05:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a-review",
+        questionId: "q3",
+        isCorrect: false,
+        answeredAt: "2026-04-20T16:10:00Z",
+      }),
+      attempt({
+        userId: "s1",
+        assignmentId: "a-review",
+        questionId: "q4",
+        isCorrect: true,
+        answeredAt: "2026-04-20T16:15:00Z",
+      }),
+    ];
+
+    const result = buildAssignmentProgress({
+      assignments: [reviewAssignment],
+      targets,
+      attempts,
+      students: [students[0]!],
+    });
+
+    const progress = result.rows[0]!.progress["a-review"];
+    expect(progress.status).toBe("completed");
+    expect(progress.correctCount).toBe(3);
+    expect(progress.scoredTotal).toBe(4);
+    expect(progress.scorePercent).toBe(75);
   });
 
   it("sorts assignments by due date ascending, then by title", () => {
@@ -144,8 +384,8 @@ describe("buildAssignmentProgress", () => {
       { assignmentId: "a1", studentUserId: "s1", lastCompletedAt: null },
     ];
     const attempts: AttemptProgressRow[] = [
-      { userId: "outsider", assignmentId: "a1", questionId: "q1" },
-      { userId: "s1", assignmentId: "a1", questionId: "q1" },
+      attempt({ userId: "outsider", assignmentId: "a1", questionId: "q1" }),
+      attempt({ userId: "s1", assignmentId: "a1", questionId: "q1" }),
     ];
     const result = buildAssignmentProgress({
       assignments: [assignment1],

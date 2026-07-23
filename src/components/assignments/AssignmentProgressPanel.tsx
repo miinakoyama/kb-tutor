@@ -322,6 +322,11 @@ function ProgressStatusCell({
     not_started: "Not started",
   };
   const title = buildProgressCellTitle(progress);
+  const hasCompletedScore =
+    progress.status === "completed" &&
+    progress.correctCount != null &&
+    progress.scoredTotal != null &&
+    progress.scorePercent != null;
   return (
     <span
       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone[progress.status]}`}
@@ -334,16 +339,34 @@ function ProgressStatusCell({
           {progress.answeredCount}/{progress.totalQuestions}
         </span>
       )}
+      {hasCompletedScore && (
+        <span className={`ml-0.5 text-[10px] font-normal ${textEmerald} opacity-80`}>
+          {progress.correctCount}/{progress.scoredTotal} ({progress.scorePercent}%)
+        </span>
+      )}
     </span>
   );
 }
 
 function buildProgressCellTitle(progress: StudentAssignmentProgress): string {
   const parts: string[] = [];
-  if (progress.status === "completed" && progress.lastCompletedAt) {
-    parts.push(
-      `Completed ${new Date(progress.lastCompletedAt).toLocaleString()}`,
-    );
+  if (progress.status === "completed") {
+    if (progress.lastCompletedAt) {
+      parts.push(
+        `Completed ${new Date(progress.lastCompletedAt).toLocaleString()}`,
+      );
+    } else {
+      parts.push("Completed");
+    }
+    if (
+      progress.correctCount != null &&
+      progress.scoredTotal != null &&
+      progress.scorePercent != null
+    ) {
+      parts.push(
+        `Score ${progress.correctCount}/${progress.scoredTotal} (${progress.scorePercent}%)`,
+      );
+    }
   } else if (progress.status === "in_progress") {
     if (progress.totalQuestions != null) {
       parts.push(

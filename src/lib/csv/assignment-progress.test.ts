@@ -43,6 +43,9 @@ describe("buildAssignmentProgressCsv", () => {
               lastCompletedAt: "2026-05-14T12:00:00.000Z",
               answeredCount: 4,
               totalQuestions: 4,
+              correctCount: 3,
+              scoredTotal: 4,
+              scorePercent: 75,
             },
           },
         },
@@ -61,6 +64,9 @@ describe("buildAssignmentProgressCsv", () => {
               lastCompletedAt: null,
               answeredCount: 2,
               totalQuestions: 4,
+              correctCount: null,
+              scoredTotal: null,
+              scorePercent: null,
             },
             "as-2": {
               assignmentId: "as-2",
@@ -68,6 +74,9 @@ describe("buildAssignmentProgressCsv", () => {
               lastCompletedAt: null,
               answeredCount: 0,
               totalQuestions: 5,
+              correctCount: null,
+              scoredTotal: null,
+              scorePercent: null,
             },
           },
         },
@@ -78,13 +87,13 @@ describe("buildAssignmentProgressCsv", () => {
     const lines = csv.split("\n");
 
     expect(lines[0]).toBe(
-      'student_user_id,student_id,student_label,school_id,completed_count,in_progress_count,not_started_count,"Cell, Practice status","Cell, Practice answered_count","Cell, Practice total_questions","Cell, Practice completed_at",Exam Review status,Exam Review answered_count,Exam Review total_questions,Exam Review completed_at',
+      'student_user_id,student_id,student_label,school_id,completed_count,in_progress_count,not_started_count,"Cell, Practice status","Cell, Practice answered_count","Cell, Practice total_questions","Cell, Practice correct_count","Cell, Practice score_percent","Cell, Practice completed_at",Exam Review status,Exam Review answered_count,Exam Review total_questions,Exam Review correct_count,Exam Review score_percent,Exam Review completed_at',
     );
     expect(lines[1]).toBe(
-      'student-1,S-001,"Alex ""A""",school-1,1,0,0,completed,4,4,2026-05-14T12:00:00.000Z,not_assigned,,,',
+      'student-1,S-001,"Alex ""A""",school-1,1,0,0,completed,4,4,3,75,2026-05-14T12:00:00.000Z,not_assigned,,,,,',
     );
     expect(lines[2]).toBe(
-      "student-2,,Jamie,school-1,0,1,1,in_progress,2,4,,not_started,0,5,",
+      "student-2,,Jamie,school-1,0,1,1,in_progress,2,4,,,,not_started,0,5,,,",
     );
   });
 
@@ -152,6 +161,9 @@ describe("buildAssignmentProgressCsv", () => {
               lastCompletedAt: null,
               answeredCount: 0,
               totalQuestions: 5,
+              correctCount: null,
+              scoredTotal: null,
+              scorePercent: null,
             },
           },
         };
@@ -196,6 +208,9 @@ describe("buildAssignmentProgressCsv", () => {
               lastCompletedAt: null,
               answeredCount: 0,
               totalQuestions: 5,
+              correctCount: null,
+              scoredTotal: null,
+              scorePercent: null,
             },
           },
         },
@@ -238,6 +253,9 @@ describe("buildAssignmentProgressCsv", () => {
               lastCompletedAt: null,
               answeredCount: 0,
               totalQuestions: 5,
+              correctCount: null,
+              scoredTotal: null,
+              scorePercent: null,
             },
           },
         },

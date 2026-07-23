@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   buildAssignmentProgress,
+  type AssignmentCompletionRow,
   type AssignmentInfo,
   type AssignmentTargetRow,
   type AttemptProgressRow,
@@ -16,6 +17,7 @@ import {
  * Status definitions (per student, for assignments in the same school as the student;
  * the student list is school-based like the student app, not `assignment_targets`-based):
  *   - Completed: `assignment_targets.last_completed_at IS NOT NULL`
+ *     (also includes last-completed-run score: correct/total and %)
  *   - In progress: at least one `attempts` row for this (user, assignment)
  *   - Not started: no completion and no attempts (including when no `assignment_targets` row)
  *
@@ -229,6 +231,7 @@ export async function GET(request: Request) {
     { data: targetRows, error: targetError },
     { data: attemptRows, error: attemptError },
     { data: snapshotRows, error: snapshotError },
+    { data: completionRows, error: completionError },
   ] = await Promise.all([
     admin
       .from("assignment_targets")
@@ -237,13 +240,19 @@ export async function GET(request: Request) {
       .in("student_user_id", includedScopedStudentIds),
     admin
       .from("attempts")
-      .select("user_id,assignment_id,question_id")
+      .select("user_id,assignment_id,question_id,is_correct,answered_at")
       .in("assignment_id", assignmentIds)
       .in("user_id", includedScopedStudentIds),
     admin
       .from("assignment_question_snapshots")
       .select("assignment_id")
       .in("assignment_id", assignmentIds),
+    admin
+      .from("assignment_completions")
+      .select("assignment_id,student_user_id,completed_at")
+      .in("assignment_id", assignmentIds)
+      .in("student_user_id", includedScopedStudentIds)
+      .order("completed_at", { ascending: true }),
   ]);
 
   if (targetError) {
@@ -273,6 +282,16 @@ export async function GET(request: Request) {
     );
     return NextResponse.json(
       { error: "Failed to load question snapshots" },
+      { status: 500 },
+    );
+  }
+  if (completionError) {
+    console.error(
+      "[teacher-dashboard/assignment-progress] assignment_completions query failed",
+      completionError,
+    );
+    return NextResponse.json(
+      { error: "Failed to load assignment completions" },
       { status: 500 },
     );
   }
@@ -309,12 +328,24 @@ export async function GET(request: Request) {
     userId: String(row.user_id),
     assignmentId: String(row.assignment_id),
     questionId: String(row.question_id),
+    isCorrect: Boolean(row.is_correct),
+    answeredAt:
+      typeof row.answered_at === "string" ? row.answered_at : null,
   }));
+
+  const completions: AssignmentCompletionRow[] = (completionRows ?? []).map(
+    (row) => ({
+      assignmentId: String(row.assignment_id),
+      studentUserId: String(row.student_user_id),
+      completedAt: String(row.completed_at),
+    }),
+  );
 
   const payload = buildAssignmentProgress({
     assignments,
     targets,
     attempts,
+    completions,
     students: includedScopedStudentIds.map((id) => ({
       id,
       label: studentLabelMap.get(id) ?? id,

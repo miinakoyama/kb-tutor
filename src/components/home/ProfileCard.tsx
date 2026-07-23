@@ -77,14 +77,14 @@ export function ProfileCard({
 
   return (
     <div
-      className="flex h-full flex-col gap-4 rounded-[24px] p-5 sm:p-6"
+      className="flex h-full min-h-0 flex-col gap-4 rounded-[24px] p-5 sm:p-6"
       style={{
         background: "var(--surface)",
         border: "1px solid var(--assignment-glass-border)",
         boxShadow: "var(--assignment-card-shadow)",
       }}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <h3 className="font-heading text-lg font-bold text-slate-gray">Profile</h3>
         <button
           type="button"
@@ -103,7 +103,7 @@ export function ProfileCard({
         </button>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         {/* No avatar image data exists — an initials placeholder derived from
             the real display name (or a neutral icon). */}
         <div
@@ -149,21 +149,20 @@ export function ProfileCard({
         </div>
       </div>
 
-      <div className="h-px w-full" style={{ background: "var(--border-subtle)" }} />
+      <div className="h-px w-full shrink-0" style={{ background: "var(--border-subtle)" }} />
 
       <p
-        className="text-xs font-semibold uppercase tracking-wide"
+        className="shrink-0 text-xs font-semibold uppercase tracking-wide"
         style={{ color: "var(--muted-foreground)" }}
       >
         Topic mastery
       </p>
 
-      {/* Skill radar. The chart height is explicit: ResponsiveContainer's
-          percentage height needs a definite ancestor height, which this
-          auto-sized card doesn't have. */}
-      <div className="h-[280px] w-full">
+      {/* Chart fills whatever height remains after the header block, so this
+          card can stretch/shrink with the left-column bento without overflowing. */}
+      <div className="min-h-[280px] w-full flex-1 lg:min-h-0">
         {isMounted ? (
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height="100%">
             <RadarChart
               data={mastery}
               outerRadius="85%"
