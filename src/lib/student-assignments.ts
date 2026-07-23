@@ -788,3 +788,35 @@ export async function resolveReviewQuestionsForAssignment(
     error: null,
   };
 }
+
+/**
+ * Whether a question is in the review set that would be served to this student
+ * for the assignment (same resolver the practice UI uses, including the cap).
+ * Used when persisting review-assignment attempts against the live bank.
+ */
+export async function isQuestionInReviewAssignmentScope(
+  admin: SupabaseClient,
+  studentUserId: string,
+  assignmentId: string,
+  questionId: string,
+  questionSetId?: string | null,
+): Promise<{ allowed: boolean; error: string | null }> {
+  const resolved = await resolveReviewQuestionsForAssignment(
+    admin,
+    studentUserId,
+    assignmentId,
+  );
+  if (resolved.error) {
+    return { allowed: false, error: resolved.error };
+  }
+  const normalizedSetId =
+    typeof questionSetId === "string" && questionSetId.trim()
+      ? questionSetId.trim()
+      : null;
+  const allowed = resolved.questions.some((question) => {
+    if (question.id !== questionId) return false;
+    if (!normalizedSetId) return true;
+    return (question.questionSetId ?? null) === normalizedSetId;
+  });
+  return { allowed, error: null };
+}

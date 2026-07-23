@@ -284,6 +284,7 @@ export async function POST(request: Request) {
           questionSetId: body.questionSetId,
           partLabel: body.partLabel,
           assignmentId: body.assignmentId,
+          studentUserId: user.id,
         });
         const assignmentRunAfter = await resolveAssignmentRunAfter(
           admin,

@@ -31,13 +31,22 @@ export interface AssignmentTargetRow {
 }
 
 /**
- * Minimal attempt shape for progress calculation. We only care about which
- * (student, assignment) pairs have any non-null attempt recorded.
+ * Attempt shape for progress + completed-run scoring.
  */
 export interface AttemptProgressRow {
   userId: string;
   assignmentId: string;
   questionId: string;
+  isCorrect: boolean;
+  /** ISO timestamp; null/invalid rows are skipped for score windows. */
+  answeredAt: string | null;
+}
+
+/** One row from `assignment_completions`, used to bound the last completed run. */
+export interface AssignmentCompletionRow {
+  assignmentId: string;
+  studentUserId: string;
+  completedAt: string;
 }
 
 export interface StudentAssignmentProgress {
@@ -49,6 +58,15 @@ export interface StudentAssignmentProgress {
   answeredCount: number;
   /** Total questions in the assignment (null for review mode). */
   totalQuestions: number | null;
+  /**
+   * Score for the last completed run only. Null when status is not completed,
+   * or when no scored attempts exist in that run window.
+   */
+  correctCount: number | null;
+  /** Distinct questions answered in the last completed run. */
+  scoredTotal: number | null;
+  /** Rounded percent correct in the last completed run. */
+  scorePercent: number | null;
 }
 
 export interface StudentProgressRow {
@@ -90,7 +108,11 @@ interface BuildArgs {
     classId: string | null;
     studentIdCode?: string | null;
   }[];
+  /** Optional; used to bound the last completed run when a student has retries. */
+  completions?: AssignmentCompletionRow[];
 }
+
+type LatestEntry = { isCorrect: boolean; answeredAt: number };
 
 /**
  * Decide a status for one (student, assignment) pair.
@@ -112,14 +134,110 @@ export function classifyAssignmentProgress(
   return "not_started";
 }
 
+function emptyScore(): Pick<
+  StudentAssignmentProgress,
+  "correctCount" | "scoredTotal" | "scorePercent"
+> {
+  return { correctCount: null, scoredTotal: null, scorePercent: null };
+}
+
+function scoreFromLatest(
+  latest: Map<string, LatestEntry> | undefined,
+): Pick<StudentAssignmentProgress, "correctCount" | "scoredTotal" | "scorePercent"> {
+  if (!latest || latest.size === 0) return emptyScore();
+  let correct = 0;
+  for (const entry of latest.values()) {
+    if (entry.isCorrect) correct += 1;
+  }
+  const total = latest.size;
+  return {
+    correctCount: correct,
+    scoredTotal: total,
+    scorePercent: Math.round((correct / total) * 100),
+  };
+}
+
+/**
+ * Build per-(assignment, student) maps of the latest attempt per question in
+ * the last completed run window: (prevCompletedAt, lastCompletedAt].
+ */
+function buildLastCompletedRunLatest(args: {
+  attempts: AttemptProgressRow[];
+  lastCompletedByAssignmentStudent: Map<string, Map<string, string>>;
+  completionTimesByAssignmentStudent: Map<string, Map<string, number[]>>;
+  studentIds: Set<string>;
+  assignmentIds: Set<string>;
+}): Map<string, Map<string, Map<string, LatestEntry>>> {
+  const {
+    attempts,
+    lastCompletedByAssignmentStudent,
+    completionTimesByAssignmentStudent,
+    studentIds,
+    assignmentIds,
+  } = args;
+
+  const lastRunLatest = new Map<string, Map<string, Map<string, LatestEntry>>>();
+
+  for (const attempt of attempts) {
+    if (!assignmentIds.has(attempt.assignmentId)) continue;
+    if (!studentIds.has(attempt.userId)) continue;
+    if (!attempt.answeredAt) continue;
+
+    const lastCompletedAt = lastCompletedByAssignmentStudent
+      .get(attempt.assignmentId)
+      ?.get(attempt.userId);
+    if (!lastCompletedAt) continue;
+
+    const answeredAtMs = new Date(attempt.answeredAt).getTime();
+    const lastCompletedMs = new Date(lastCompletedAt).getTime();
+    if (!Number.isFinite(answeredAtMs) || !Number.isFinite(lastCompletedMs)) {
+      continue;
+    }
+    // Attempts after the last completion belong to a newer (in-progress) run.
+    if (answeredAtMs > lastCompletedMs) continue;
+
+    const completionTimes =
+      completionTimesByAssignmentStudent
+        .get(attempt.assignmentId)
+        ?.get(attempt.userId) ?? [];
+    const prevCompletedMs =
+      completionTimes.length >= 2
+        ? completionTimes[completionTimes.length - 2]!
+        : -Infinity;
+    if (answeredAtMs <= prevCompletedMs) continue;
+
+    let byUser = lastRunLatest.get(attempt.assignmentId);
+    if (!byUser) {
+      byUser = new Map();
+      lastRunLatest.set(attempt.assignmentId, byUser);
+    }
+    let byQuestion = byUser.get(attempt.userId);
+    if (!byQuestion) {
+      byQuestion = new Map();
+      byUser.set(attempt.userId, byQuestion);
+    }
+    const prior = byQuestion.get(attempt.questionId);
+    if (!prior || answeredAtMs >= prior.answeredAt) {
+      byQuestion.set(attempt.questionId, {
+        isCorrect: attempt.isCorrect,
+        answeredAt: answeredAtMs,
+      });
+    }
+  }
+
+  return lastRunLatest;
+}
+
 export function buildAssignmentProgress(args: BuildArgs): AssignmentProgressResponse {
-  const { assignments, targets, attempts, students } = args;
+  const { assignments, targets, attempts, students, completions = [] } = args;
 
   const assignmentById = new Map(assignments.map((a) => [a.id, a]));
   const studentIds = new Set(students.map((s) => s.id));
+  const assignmentIds = new Set(assignments.map((a) => a.id));
 
   // assignment_id -> student_user_id -> target row
   const targetByAssignmentStudent = new Map<string, Map<string, AssignmentTargetRow>>();
+  const lastCompletedByAssignmentStudent = new Map<string, Map<string, string>>();
   for (const target of targets) {
     if (!assignmentById.has(target.assignmentId)) continue;
     if (!studentIds.has(target.studentUserId)) continue;
@@ -129,6 +247,40 @@ export function buildAssignmentProgress(args: BuildArgs): AssignmentProgressResp
       targetByAssignmentStudent.set(target.assignmentId, inner);
     }
     inner.set(target.studentUserId, target);
+
+    if (target.lastCompletedAt) {
+      let lastInner = lastCompletedByAssignmentStudent.get(target.assignmentId);
+      if (!lastInner) {
+        lastInner = new Map();
+        lastCompletedByAssignmentStudent.set(target.assignmentId, lastInner);
+      }
+      lastInner.set(target.studentUserId, target.lastCompletedAt);
+    }
+  }
+
+  // assignment_id -> student_user_id -> completedAt ms ascending
+  const completionTimesByAssignmentStudent = new Map<string, Map<string, number[]>>();
+  for (const row of completions) {
+    if (!assignmentIds.has(row.assignmentId)) continue;
+    if (!studentIds.has(row.studentUserId)) continue;
+    const completedMs = new Date(row.completedAt).getTime();
+    if (!Number.isFinite(completedMs)) continue;
+    let byStudent = completionTimesByAssignmentStudent.get(row.assignmentId);
+    if (!byStudent) {
+      byStudent = new Map();
+      completionTimesByAssignmentStudent.set(row.assignmentId, byStudent);
+    }
+    let times = byStudent.get(row.studentUserId);
+    if (!times) {
+      times = [];
+      byStudent.set(row.studentUserId, times);
+    }
+    times.push(completedMs);
+  }
+  for (const byStudent of completionTimesByAssignmentStudent.values()) {
+    for (const times of byStudent.values()) {
+      times.sort((a, b) => a - b);
+    }
   }
 
   // assignmentId -> userId -> Set<questionId> (distinct answered count)
@@ -148,6 +300,14 @@ export function buildAssignmentProgress(args: BuildArgs): AssignmentProgressResp
     }
     set.add(attempt.questionId);
   }
+
+  const lastRunLatest = buildLastCompletedRunLatest({
+    attempts,
+    lastCompletedByAssignmentStudent,
+    completionTimesByAssignmentStudent,
+    studentIds,
+    assignmentIds,
+  });
 
   const summaryByAssignment = new Map<string, AssignmentProgressSummary>();
   for (const a of assignments) {
@@ -180,6 +340,10 @@ export function buildAssignmentProgress(args: BuildArgs): AssignmentProgressResp
       const answered =
         answeredByAssignmentUser.get(assignment.id)?.get(student.id)?.size ?? 0;
       const status = classifyAssignmentProgress(lastCompletedAt, answered);
+      const score =
+        status === "completed"
+          ? scoreFromLatest(lastRunLatest.get(assignment.id)?.get(student.id))
+          : emptyScore();
 
       progress[assignment.id] = {
         assignmentId: assignment.id,
@@ -187,6 +351,7 @@ export function buildAssignmentProgress(args: BuildArgs): AssignmentProgressResp
         lastCompletedAt,
         answeredCount: answered,
         totalQuestions: assignment.totalQuestions,
+        ...score,
       };
 
       if (status === "completed") completedCount += 1;

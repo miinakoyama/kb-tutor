@@ -42,7 +42,7 @@ interface TopicSelection {
 
 const TOPIC_SELECTIONS: TopicSelection[] = MODULE_ORDER.flatMap((module) => {
   const categories = Array.from(
-    new Set(getStandardsForModule(module).map((standard) => standard.category))
+    new Set(getStandardsForModule(module).map((standard) => standard.category)),
   );
   return categories.map((category) => ({
     key: `Module ${module} - ${category}`,
@@ -53,7 +53,7 @@ const TOPIC_SELECTIONS: TopicSelection[] = MODULE_ORDER.flatMap((module) => {
 });
 
 const TOPIC_SELECTION_BY_KEY = new Map(
-  TOPIC_SELECTIONS.map((selection) => [selection.key, selection])
+  TOPIC_SELECTIONS.map((selection) => [selection.key, selection]),
 );
 
 type StimulusConfig = Record<StimulusType, number>;
@@ -85,7 +85,7 @@ function shuffled<T>(items: T[]): T[] {
 
 function distributeStandardCounts(
   standardIds: string[],
-  questionCount: number
+  questionCount: number,
 ): Record<string, number> {
   const counts: Record<string, number> = {};
   if (standardIds.length === 0 || questionCount <= 0) return counts;
@@ -114,7 +114,9 @@ function splitStandardCountsByType(
     return { mcqCounts: zeroed, saqCounts: zeroed };
   }
 
-  const allocateWithinStandardTotals = (total: number): Record<string, number> => {
+  const allocateWithinStandardTotals = (
+    total: number,
+  ): Record<string, number> => {
     if (total <= 0) return { ...zeroed };
 
     const weights = activeStandardIds.map((id) => ({
@@ -130,7 +132,12 @@ function splitStandardCountsByType(
     const fractions = weights.map((row) => {
       const exact = (total * row.weight) / weightSum;
       const cap = Math.max(0, Math.floor(row.weight));
-      return { id: row.id, exact, cap, count: Math.min(cap, Math.floor(exact)) };
+      return {
+        id: row.id,
+        exact,
+        cap,
+        count: Math.min(cap, Math.floor(exact)),
+      };
     });
     const result = Object.fromEntries(
       fractions.map((row) => [row.id, row.count]),
@@ -174,9 +181,7 @@ const DEFAULT_SETTINGS: GenerationSettings = {
   questionCount: 0,
   topics: TOPIC_SELECTIONS.map((selection) => selection.key),
   standards: ALL_STANDARDS.map((item) => item.id),
-  standardCounts: Object.fromEntries(
-    ALL_STANDARDS.map((item) => [item.id, 0]),
-  ),
+  standardCounts: Object.fromEntries(ALL_STANDARDS.map((item) => [item.id, 0])),
   dokLevels: [1, 2, 3],
   stimulusSelectionMode: "auto",
   stimulusConfig: {
@@ -289,7 +294,10 @@ function splitStimulusConfig(
   };
 }
 
-function expandStimulusTypes(config: StimulusConfig, total: number): Array<StimulusType | undefined> {
+function expandStimulusTypes(
+  config: StimulusConfig,
+  total: number,
+): Array<StimulusType | undefined> {
   const stimulusTypes: Array<StimulusType | undefined> = [];
   for (const key of Object.keys(config) as StimulusType[]) {
     for (let i = 0; i < config[key]; i++) stimulusTypes.push(key);
@@ -319,7 +327,8 @@ type SchoolOption = { id: string; name: string };
 
 export default function MassProductionPage() {
   const router = useRouter();
-  const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] =
+    useState<GenerationSettings>(DEFAULT_SETTINGS);
   const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -347,7 +356,10 @@ export default function MassProductionPage() {
     if (typeof window === "undefined") return;
     const raw = new URLSearchParams(window.location.search).get("schoolIds");
     if (raw) {
-      const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+      const ids = raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
       if (ids.length > 0) setSelectedSchoolIds(ids);
     }
   }, []);
@@ -383,14 +395,13 @@ export default function MassProductionPage() {
 
         const normalizedTopics = Array.isArray(merged.topics)
           ? merged.topics.filter((topic): topic is string =>
-              TOPIC_SELECTION_BY_KEY.has(topic)
+              TOPIC_SELECTION_BY_KEY.has(topic),
             )
           : [];
 
         const normalizedStandards = Array.isArray(merged.standards)
-          ? merged.standards.filter(
-              (standardId): standardId is string =>
-                ALL_STANDARD_IDS.has(standardId)
+          ? merged.standards.filter((standardId): standardId is string =>
+              ALL_STANDARD_IDS.has(standardId),
             )
           : [];
         const selectedStandards =
@@ -410,8 +421,12 @@ export default function MassProductionPage() {
               : 0;
         }
         const totalTarget =
-          (typeof merged.questionCount === "number" ? merged.questionCount : 0) +
-          (typeof merged.shortAnswerCount === "number" ? merged.shortAnswerCount : 0);
+          (typeof merged.questionCount === "number"
+            ? merged.questionCount
+            : 0) +
+          (typeof merged.shortAnswerCount === "number"
+            ? merged.shortAnswerCount
+            : 0);
         // Preserve pending (all-zero) / partial drafts. Auto-distribute only
         // for legacy localStorage entries that never stored standardCounts.
         const hasSavedStandardCounts =
@@ -456,10 +471,11 @@ export default function MassProductionPage() {
   }, [isGenerating]);
 
   const totalStimulusCount = stimulusConfigTotal(settings.stimulusConfig);
-  const totalQuestionTarget = settings.questionCount + settings.shortAnswerCount;
+  const totalQuestionTarget =
+    settings.questionCount + settings.shortAnswerCount;
   const totalAssignedStandardCount = ALL_STANDARDS.reduce(
     (sum, standard) => sum + (settings.standardCounts[standard.id] ?? 0),
-    0
+    0,
   );
   const isStandardCountValid =
     totalQuestionTarget === 0
@@ -469,9 +485,9 @@ export default function MassProductionPage() {
   // hasn't started yet — not an error, just guidance to do the next step.
   const standardCountsPending =
     totalQuestionTarget > 0 && totalAssignedStandardCount === 0;
-  const activeStandardIds = ALL_STANDARDS
-    .map((standard) => standard.id)
-    .filter((standardId) => (settings.standardCounts[standardId] ?? 0) > 0);
+  const activeStandardIds = ALL_STANDARDS.map((standard) => standard.id).filter(
+    (standardId) => (settings.standardCounts[standardId] ?? 0) > 0,
+  );
 
   const { mcqCounts, saqCounts } = splitStandardCountsByType(
     activeStandardIds,
@@ -505,7 +521,7 @@ export default function MassProductionPage() {
     setSettings((prev) => ({
       ...prev,
       standardCounts: Object.fromEntries(
-        ALL_STANDARDS.map((item) => [item.id, 0])
+        ALL_STANDARDS.map((item) => [item.id, 0]),
       ),
     }));
   };
@@ -523,7 +539,7 @@ export default function MassProductionPage() {
     setExpandedTopics((prev) =>
       prev.includes(selectionKey)
         ? prev.filter((item) => item !== selectionKey)
-        : [...prev, selectionKey]
+        : [...prev, selectionKey],
     );
   };
 
@@ -543,7 +559,12 @@ export default function MassProductionPage() {
   };
 
   const handleAutoDistributeDiagrams = () => {
-    const diagramTypes: StimulusType[] = ["table", "line_graph", "bar_chart", "diagram"];
+    const diagramTypes: StimulusType[] = [
+      "table",
+      "line_graph",
+      "bar_chart",
+      "diagram",
+    ];
 
     setSettings((prev) => {
       const total = prev.questionCount + prev.shortAnswerCount;
@@ -575,7 +596,10 @@ export default function MassProductionPage() {
       ...prev,
       stimulusConfig: {
         ...prev.stimulusConfig,
-        [type]: Math.max(0, Math.min(value, prev.questionCount + prev.shortAnswerCount)),
+        [type]: Math.max(
+          0,
+          Math.min(value, prev.questionCount + prev.shortAnswerCount),
+        ),
       },
     }));
   };
@@ -609,7 +633,9 @@ export default function MassProductionPage() {
       settings.stimulusSelectionMode === "custom" &&
       totalStimulusCount > totalQuestionTarget
     ) {
-      setError("Total stimulus count cannot exceed MCQ count + short-answer count.");
+      setError(
+        "Total stimulus count cannot exceed MCQ count + short-answer count.",
+      );
       return;
     }
     if (totalQuestionTarget > 0) {
@@ -663,14 +689,13 @@ export default function MassProductionPage() {
         const stimulusTypes =
           settings.stimulusSelectionMode === "auto"
             ? createRandomStimulusTypes(codes.length, true)
-            : expandStimulusTypes(
-                mcqStimulusConfig,
-                codes.length,
-              );
+            : expandStimulusTypes(mcqStimulusConfig, codes.length);
         let succeeded = 0;
 
         for (let i = 0; i < codes.length; i++) {
-          setProgress(`Generating multiple-choice question ${i + 1} of ${codes.length}...`);
+          setProgress(
+            `Generating multiple-choice question ${i + 1} of ${codes.length}...`,
+          );
           const standardId = codes[i];
           const payload = {
             ...settings,
@@ -724,10 +749,7 @@ export default function MassProductionPage() {
         const stimulusTypes =
           settings.stimulusSelectionMode === "auto"
             ? createRandomStimulusTypes(codes.length, false)
-            : expandStimulusTypes(
-                saqStimulusConfig,
-                codes.length,
-              );
+            : expandStimulusTypes(saqStimulusConfig, codes.length);
         let succeeded = 0;
         for (let i = 0; i < codes.length; i++) {
           setProgress(
@@ -774,7 +796,9 @@ export default function MassProductionPage() {
           }
         }
         if (!generationModel && succeeded > 0) {
-          const model = GENERATION_MODELS.find((m) => m.id === settings.generationModelId);
+          const model = GENERATION_MODELS.find(
+            (m) => m.id === settings.generationModelId,
+          );
           generationModel = { id: model?.id, label: model?.label };
         }
       }
@@ -787,7 +811,8 @@ export default function MassProductionPage() {
       }
 
       setProgress("Saving question set...");
-      const { addGeneratedQuestionSet } = await import("@/lib/question-storage");
+      const { addGeneratedQuestionSet } =
+        await import("@/lib/question-storage");
       const setId = await addGeneratedQuestionSet(
         mergedQuestions,
         trimmedSetName,
@@ -1048,8 +1073,8 @@ export default function MassProductionPage() {
             <div className="space-y-2">
               {TOPIC_SELECTIONS.map((selection) => {
                 const topicStandards = getStandardsForSelection(selection.key);
-                const selectedCount = topicStandards.filter((item) =>
-                  (settings.standardCounts[item.id] ?? 0) > 0
+                const selectedCount = topicStandards.filter(
+                  (item) => (settings.standardCounts[item.id] ?? 0) > 0,
                 ).length;
                 const isExpanded = expandedTopics.includes(selection.key);
                 const hasStandards = topicStandards.length > 0;
@@ -1096,20 +1121,24 @@ export default function MassProductionPage() {
                             className="flex items-start gap-3 p-1.5 rounded hover:bg-surface"
                           >
                             <div className="flex-1 min-w-0 text-sm text-slate-gray">
-                              <span className="font-medium">{standard.id}</span> -{" "}
-                              {standard.label}
+                              <span className="font-medium">{standard.id}</span>{" "}
+                              - {standard.label}
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-xs text-muted-foreground">Count</span>
+                              <span className="text-xs text-muted-foreground">
+                                Count
+                              </span>
                               <input
                                 type="text"
                                 inputMode="numeric"
                                 pattern="[0-9]*"
-                                value={settings.standardCounts[standard.id] ?? 0}
+                                value={
+                                  settings.standardCounts[standard.id] ?? 0
+                                }
                                 onChange={(event) =>
                                   handleStandardCountChange(
                                     standard.id,
-                                    event.target.value
+                                    event.target.value,
                                   )
                                 }
                                 className="w-14 px-2 py-1 border border-border-default rounded-md text-center text-xs"
@@ -1180,103 +1209,105 @@ export default function MassProductionPage() {
                       {level === 1
                         ? "Recall"
                         : level === 2
-                        ? "Skill/Concept"
-                        : "Strategic Thinking"}
+                          ? "Skill/Concept"
+                          : "Strategic Thinking"}
                     </span>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {level === 1
                         ? "Recall facts, definitions, terms"
                         : level === 2
-                        ? "Apply concepts, compare, interpret"
-                        : "Analyze, evaluate, draw conclusions"}
+                          ? "Apply concepts, compare, interpret"
+                          : "Analyze, evaluate, draw conclusions"}
                     </p>
                   </div>
                 </label>
               ))}
             </div>
           </div>
-
         </section>
 
-        {/* Stimulus Settings */}
+        {/* Question Stem Setting */}
         <section className="rounded-2xl border border-[var(--assignment-glass-border)] bg-[var(--assignment-glass-bg-strong)] p-6 shadow-[var(--assignment-card-shadow)]">
           <h2 className="text-lg font-medium text-slate-gray mb-4">
-            Stimulus Settings
+            Question Stem Setting
           </h2>
 
           <div className="space-y-4">
-              <fieldset>
-                <legend className="text-sm font-medium text-slate-gray mb-2">
-                  How should stimulus types be selected?
-                </legend>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {([
-                    {
-                      value: "auto" as const,
-                      label: "Auto",
-                      description: "Randomly select a stimulus type for each question.",
-                    },
-                    {
-                      value: "custom" as const,
-                      label: "Specify counts",
-                      description: "Set the exact number for each stimulus type.",
-                    },
-                  ]).map((option) => {
-                    const selected = settings.stimulusSelectionMode === option.value;
-                    return (
-                      <label
-                        key={option.value}
-                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                          selected
-                            ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)]"
-                            : "border-border-default hover:bg-foreground/5"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="stimulus-selection-mode"
-                          value={option.value}
-                          checked={selected}
-                          onChange={() =>
-                            setSettings((prev) => ({
-                              ...prev,
-                              stimulusSelectionMode: option.value,
-                            }))
-                          }
-                          className="mt-0.5 h-4 w-4 border-border-default accent-[var(--assignment-completed)]"
-                        />
-                        <span>
-                          <span className="block text-sm font-medium text-slate-gray">
-                            {option.label}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-muted-foreground">
-                            {option.description}
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-
-              {settings.stimulusSelectionMode === "auto" ? (
-                <div className="rounded-xl bg-[var(--assignment-calendar-nav-bg)] p-3 text-sm text-slate-gray">
-                  Each question will independently receive a random stimulus
-                  type. Multiple-choice questions may also be text-only.
-                </div>
-              ) : (
-                <>
-                  <div className="flex justify-end mb-1">
-                    <button
-                      onClick={handleAutoDistributeDiagrams}
-                      className="text-xs text-[var(--assignment-completed)] hover:brightness-110 font-medium"
+            <fieldset>
+              <legend className="text-sm font-medium text-slate-gray mb-2">
+                How should stimulus types be selected?
+              </legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    value: "auto" as const,
+                    label: "Auto",
+                    description:
+                      "Randomly select a stimulus type for each question.",
+                  },
+                  {
+                    value: "custom" as const,
+                    label: "Specify counts",
+                    description: "Set the exact number for each stimulus type.",
+                  },
+                ].map((option) => {
+                  const selected =
+                    settings.stimulusSelectionMode === option.value;
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                        selected
+                          ? "border-[var(--assignment-completed)] bg-[var(--assignment-calendar-nav-bg)]"
+                          : "border-border-default hover:bg-foreground/5"
+                      }`}
                     >
-                      Auto distribute
-                    </button>
-                  </div>
+                      <input
+                        type="radio"
+                        name="stimulus-selection-mode"
+                        value={option.value}
+                        checked={selected}
+                        onChange={() =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            stimulusSelectionMode: option.value,
+                          }))
+                        }
+                        className="mt-0.5 h-4 w-4 border-border-default accent-[var(--assignment-completed)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-slate-gray">
+                          {option.label}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {option.description}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
 
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-                    {(Object.keys(STIMULUS_LABELS) as StimulusType[]).map((type) => (
+            {settings.stimulusSelectionMode === "auto" ? (
+              <div className="rounded-xl bg-[var(--assignment-calendar-nav-bg)] p-3 text-sm text-slate-gray">
+                Each question will independently receive a random stimulus type.
+                Multiple-choice questions may also be text-only.
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-end mb-1">
+                  <button
+                    onClick={handleAutoDistributeDiagrams}
+                    className="text-xs text-[var(--assignment-completed)] hover:brightness-110 font-medium"
+                  >
+                    Auto distribute
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                  {(Object.keys(STIMULUS_LABELS) as StimulusType[]).map(
+                    (type) => (
                       <div key={type}>
                         <label className="block text-sm text-slate-gray mb-1">
                           {STIMULUS_LABELS[type]}
@@ -1286,36 +1317,43 @@ export default function MassProductionPage() {
                           inputMode="numeric"
                           pattern="[0-9]*"
                           value={settings.stimulusConfig[type] || ""}
-                          onChange={(e) => handleStimulusCountChange(type, e.target.value)}
+                          onChange={(e) =>
+                            handleStimulusCountChange(type, e.target.value)
+                          }
                           placeholder="0"
                           className="w-20 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-center"
                         />
                       </div>
-                    ))}
-                  </div>
+                    ),
+                  )}
+                </div>
 
-                  <div className="mt-4 p-3 rounded-lg bg-slate-gray/5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Stimulus questions:</span>
-                  <span className="font-medium text-slate-gray">
-                    {totalStimulusCount}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm mt-1">
-                  <span className="text-muted-foreground">Text-only questions:</span>
-                  <span className="font-medium text-slate-gray">
-                    {textOnlyCount}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm mt-1 pt-1 border-t border-border-subtle">
-                  <span className="text-muted-foreground">Total:</span>
-                  <span className="font-medium text-slate-gray">
-                    {totalQuestionTarget}
-                  </span>
-                </div>
+                <div className="mt-4 p-3 rounded-lg bg-slate-gray/5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Stimulus questions:
+                    </span>
+                    <span className="font-medium text-slate-gray">
+                      {totalStimulusCount}
+                    </span>
                   </div>
-                </>
-              )}
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-muted-foreground">
+                      Text-only questions:
+                    </span>
+                    <span className="font-medium text-slate-gray">
+                      {textOnlyCount}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1 pt-1 border-t border-border-subtle">
+                    <span className="text-muted-foreground">Total:</span>
+                    <span className="font-medium text-slate-gray">
+                      {totalQuestionTarget}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
@@ -1351,7 +1389,9 @@ export default function MassProductionPage() {
         {/* Per-item warnings (failed short-answer items) */}
         {warnings.length > 0 && (
           <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-            <p className="font-medium mb-1">Some items could not be generated:</p>
+            <p className="font-medium mb-1">
+              Some items could not be generated:
+            </p>
             <ul className="list-disc pl-5 space-y-0.5">
               {warnings.map((warning, index) => (
                 <li key={index}>{warning}</li>

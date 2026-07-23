@@ -331,7 +331,9 @@ function BookmarksPageContent() {
     if (selectedPracticeQuestionIds.length === 0) return null;
 
     const params = new URLSearchParams();
-    params.set("mode", "practice");
+    // Review page practice must use mode=review so attempts count toward
+    // First Review / review-volume badges (session_count mode "review").
+    params.set("mode", "review");
     params.set("questionIds", selectedPracticeQuestionIds.join(","));
     return `/practice?${params.toString()}`;
   }, [selectedPracticeQuestionIds]);

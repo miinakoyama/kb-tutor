@@ -73,39 +73,36 @@ export function HomePageContent({
           </div>
         </section>
 
-        {/* 65/35 split spanning the full row, so the outer edges line up
-            with the countdown + Learning effort row above. Column gap
-            matches the vertical gap between the stacked cards on the left
-            (gap-6) — the profile rail's radar chart needs the width. */}
-        <div className="mt-6 grid gap-6 lg:items-start lg:grid-cols-[minmax(0,6.7fr)_minmax(0,3.3fr)]">
-          <div className="flex min-w-0 flex-col gap-6">
+        {/* 65/35 split: Profile spans both left-column rows so its bottom
+            always lines up with Practice independently. DOM order + order-*
+            keep Assigned → Practice → Profile on small screens. */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,6.7fr)_minmax(0,3.3fr)] lg:grid-rows-[auto_auto]">
+          <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
             <AssignedWorkList assignments={assignments} />
-
-            {/* One bento tile with two equally sized inner practice tiles.
-                Its height stays independent from the profile rail. */}
-            <section
-              aria-labelledby="practice-independently-heading"
-              className="flex flex-col rounded-[24px] p-5 sm:p-6"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--assignment-glass-border)",
-                boxShadow: "var(--assignment-card-shadow)",
-              }}
-            >
-              <h2
-                id="practice-independently-heading"
-                className="font-heading text-lg font-bold text-slate-gray"
-              >
-                Practice independently
-              </h2>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <ReviewQuickStartCard />
-                <SelfPracticeQuickStartCard weeklySeconds={selfPracticeWeeklySeconds} />
-              </div>
-            </section>
           </div>
 
-          <div className="min-w-0">
+          <section
+            aria-labelledby="practice-independently-heading"
+            className="order-2 flex flex-col rounded-[24px] p-5 sm:p-6 lg:col-start-1 lg:row-start-2"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--assignment-glass-border)",
+              boxShadow: "var(--assignment-card-shadow)",
+            }}
+          >
+            <h2
+              id="practice-independently-heading"
+              className="font-heading text-lg font-bold text-slate-gray"
+            >
+              Practice independently
+            </h2>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <ReviewQuickStartCard />
+              <SelfPracticeQuickStartCard weeklySeconds={selfPracticeWeeklySeconds} />
+            </div>
+          </section>
+
+          <div className="order-3 min-w-0 lg:col-start-2 lg:row-span-2 lg:h-full lg:min-h-0">
             <ProfileCard profile={profileSummary} mastery={masterySummary} badges={badges} />
           </div>
         </div>
