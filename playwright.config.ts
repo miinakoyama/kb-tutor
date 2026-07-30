@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.PLAYWRIGHT_PORT ?? "3100");
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${PORT}`;
@@ -12,6 +12,21 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: "on-first-retry",
   },
+
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], browserName: "chromium" },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"], browserName: "firefox" },
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"], browserName: "webkit" },
+    },
+  ],
   ...(SHOULD_START_WEB_SERVER
     ? {
         webServer: {
